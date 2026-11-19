@@ -91,7 +91,7 @@ let body: ElementMock;
 let selected: { text: string; node: ElementMock };
 const call = vi.fn();
 
-type Scope = { agentId: string; kind: "assistant_message" | "reasoning"; streaming: boolean };
+type Scope = { agentId: string; kind: "assistant_message" | "reasoning" | "tool_output"; streaming: boolean };
 const hosts = new Map<typeof call, object>();
 /** One API object per translator: each stands for a host. */
 const lent = (fn: typeof call) => {
@@ -164,6 +164,23 @@ afterEach(() => {
 });
 
 describe("selection bar Translate", () => {
+  it("translates only the selected tool error on its own host and agent", async () => {
+    call.mockResolvedValue(done("执行超时"));
+    const node = surface({ agentId: "tool-agent", kind: "tool_output", streaming: false });
+    select("js execution timed out; kernel reset", node);
+    expect(button("Translate")!.hidden).toBe(false);
+    button("Translate")!.click();
+    await flush();
+    expect(call).toHaveBeenCalledOnce();
+    expect(call.mock.calls[0]![0]).toMatchObject({
+      action: "start", agentId: "tool-agent", sourceKind: "tool_output",
+      text: "js execution timed out; kernel reset",
+    });
+    expect(panel().textContent).toContain("执行超时");
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, "tool-off");
+    select("other output", node);
+    expect(button("Translate")!.hidden).toBe(true);
+  });
   it("offers Translate only for a reply or thought selection while translation is on", () => {
     select("tool output", surface(null));
     expect(display()).toBe("block");
@@ -261,7 +278,7 @@ describe("selection bar Translate", () => {
   it("sends through the pane the text was selected in, also for one agent id on two hosts", async () => {
     const other = vi.fn(async () => done("另一台"));
     call.mockResolvedValue(done("本机"));
-    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const scope = { agentId: "agent-1", kind: "tool_output" as const, streaming: false };
     const here = surface(scope, call);
     const there = surface(scope, other);
     select("same words", there);

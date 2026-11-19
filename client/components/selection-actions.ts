@@ -81,7 +81,7 @@ export const SELECTION_BAR_SELECTOR = "[data-bcselectionbar]";
 const CODE_SELECTOR = "[data-bccode]";
 /** The host composer input carries `dataSet={{ composerInput: "" }}`. */
 const COMPOSER_SELECTOR = "[data-composer-input]";
-/** The Markdown root of a reply or thought carries its conversation (`selectionScopeDataSet`). */
+/** A translatable surface carries its conversation (`selectionScopeDataSet`). */
 const SCOPE_SELECTOR = `[data-${SELECTION_SCOPE_ATTRIBUTES.agent}]`;
 /** The widest the translation panel grows, and its body's tallest. */
 const PANEL_WIDTH = 420;
@@ -390,7 +390,7 @@ interface Bar {
   setTheme(tokens: ExtendedThemeTokens): void;
   show(rect: DOMRect): void;
   hide(): void;
-  /** Shows Translate for a reply or thought selection, hides it elsewhere. */
+  /** Shows Translate for a scoped selection, hides it elsewhere. */
   setTranslatable(translatable: boolean): void;
   /** The translation panel's content; null closes it. */
   setPanel(view: SelectionTranslationView | null): void;

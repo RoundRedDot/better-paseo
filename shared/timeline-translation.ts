@@ -151,7 +151,7 @@ export const translateTimelineItemRpc = defineRpc({
       jobId: z.string().min(1),
       agentId: z.string().min(1),
       text: z.string().trim().min(1).max(200_000),
-      sourceKind: z.enum(["assistant_message", "reasoning"]),
+      sourceKind: z.enum(["assistant_message", "reasoning", "tool_output"]),
       interfaceLanguage: z.enum(["en", "zh"]).default("en"),
       configSignature: z.string().min(1),
     }),

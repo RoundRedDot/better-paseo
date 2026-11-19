@@ -348,6 +348,20 @@ describe("timeline translation server service", () => {
     expect(captured.deletedHelpers).toEqual(["helper-agent-1"]);
   });
 
+  it("translates selected tool output without reading the conversation", async () => {
+    const { translator, paseo, captured, configSignature } = createMockEnv();
+    const text = "js execution timed out; kernel reset";
+    const request = translateTimelineItemRpc.input.parse({
+      action: "start", jobId: "tool-selection", agentId: "source-agent-1", text,
+      sourceKind: "tool_output", interfaceLanguage: "en", configSignature,
+    });
+    await translator.request(request, paseo);
+    expect((await waitForJob(translator, paseo, "tool-selection")).state).toBe("done");
+    expect(captured.prompts).toHaveLength(1);
+    expect(captured.prompts[0]).toContain(`Source kind: tool output\n\nText to translate:\n${text}`);
+    expect(captured.touchedSourceTimeline).toBe(false);
+  });
+
   it("recognizes only off, none, and disabled as genuine thinking-off options", () => {
     expect(resolveThinkingCapability([{ id: "off", label: "Off" }]).status).toBe("supported");
     expect(resolveThinkingCapability([{ id: "none", label: "None" }]).status).toBe("supported");

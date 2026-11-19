@@ -29,8 +29,8 @@ import {
  * rest of the reply; the only text that leaves the client is `text`.
  *
  * A selection belongs to the conversation it was made in. Renderers that allow
- * it wrap their prose in `SelectionTranslationScope`; prose without a scope
- * (tool output, settings previews, a translation shown in a popup) offers no
+ * it wrap their content in `SelectionTranslationScope`; content without a scope
+ * (settings previews, a translation shown in a popup) offers no
  * Translate action.
  */
 export interface SelectionTranslationScopeValue {
@@ -83,7 +83,7 @@ export function selectionScopeDataSet(scope: SelectionTranslationScopeValue | nu
 export function selectionScopeFromDataset(dataset: Record<string, string | undefined> | undefined): SelectionTranslationScopeValue | null {
   const agentId = dataset?.[SELECTION_SCOPE_ATTRIBUTES.agent];
   const kind = dataset?.[SELECTION_SCOPE_ATTRIBUTES.kind];
-  if (!agentId || (kind !== "assistant_message" && kind !== "reasoning")) return null;
+  if (!agentId || (kind !== "assistant_message" && kind !== "reasoning" && kind !== "tool_output")) return null;
   return { agentId, kind, streaming: dataset?.[SELECTION_SCOPE_ATTRIBUTES.streaming] === "1" };
 }
 

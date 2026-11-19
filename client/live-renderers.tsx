@@ -277,17 +277,19 @@ function LiveToolCallRendererBody(props: PluginTimelineItemProps<LiveToolCallPay
           {probe.node}
           <PreferenceSyncSlot />
           <PathContext.Provider value={pathContext}>
-            <ToolCallout
-              data={view}
-              previewKey={`${disclosureKey}:preview`}
-              groupCalls={group.length > 1 ? group : undefined}
-              tokens={tokens}
-              compact={layout.compact}
-              expanded={expanded}
-              onExpandedChange={setExpanded}
-              imageFile={imageFile}
-              requestImage={readsImage ? markPreviewed : undefined}
-            />
+            <SelectionTranslationScope agentId={agentId} kind="tool_output" streaming={false}>
+              <ToolCallout
+                data={view}
+                previewKey={`${disclosureKey}:preview`}
+                groupCalls={group.length > 1 ? group : undefined}
+                tokens={tokens}
+                compact={layout.compact}
+                expanded={expanded}
+                onExpandedChange={setExpanded}
+                imageFile={imageFile}
+                requestImage={readsImage ? markPreviewed : undefined}
+              />
+            </SelectionTranslationScope>
           </PathContext.Provider>
         </>
       ) : null}

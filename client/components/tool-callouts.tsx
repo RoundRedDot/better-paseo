@@ -1,5 +1,5 @@
 import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { View, Text, Pressable, StyleSheet } from "react-native";
+import { Platform, View, Text, Pressable, StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
 import { surfaceProps } from "./view-props";
@@ -57,6 +57,7 @@ import { useZoomedTokens } from "../ui/text-zoom";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { useHostLanguageVersion } from "../i18n/host-language";
 import { useEnhancerPreferences } from "../preferences";
+import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationContext } from "../translation/selection";
 
 /**
  * The muted icon a settled call shows in the row's status slot: one Lucide
@@ -197,6 +198,13 @@ export function ToolCallout({
   imageFile,
   requestImage,
 }: ToolCalloutProps) {
+  const selectionScope = useContext(SelectionTranslationContext);
+  const scopeData = Platform.OS === "web" ? selectionScopeDataSet(selectionScope) : null;
+  const bindSelectionScope = useCallback((node: View | Text | null) => {
+    if (!node || !selectionScope) return;
+    bindSelectionScopeElement(node, selectionScope);
+    return () => bindSelectionScopeElement(node, null);
+  }, [selectionScope]);
   const [localExpanded, setLocalExpanded] = useState(defaultExpanded);
   // A body that would only repeat the row is never shown, whatever the store says.
   const budget = compact ? DISCLOSURE_HEADER.targetBudget.compact : DISCLOSURE_HEADER.targetBudget.desktop;
@@ -386,7 +394,8 @@ export function ToolCallout({
   const body = expanded ? (
     <FadeIn style={[styles.body, { backgroundColor: tokens.row.outputBg },
       summary.tone === "warning" && { borderWidth: 1, borderColor: permissionBorder(tokens) }]}>
-      <View {...surfaceProps(selectionSurface)} style={styles.bodyInner}>
+      <View ref={scopeData ? bindSelectionScope : undefined}
+        {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : selectionSurface)} style={styles.bodyInner}>
         {groupCalls ? (
           <GroupedToolDetails calls={groupCalls} tokens={tokens} compact={compact} imageFile={imageFile}
             revealFile={revealFile} displayPath={displayPath} />
@@ -422,7 +431,8 @@ export function ToolCallout({
       {viewer}
       {summary.errorLine && !expanded ? (
         <Text
-          {...(surfaceProps(selectionSurface, codeSurface) as object)}
+          ref={scopeData ? bindSelectionScope : undefined}
+          {...(surfaceProps(selectionSurface, codeSurface, ...(scopeData ? [{ dataSet: scopeData } as never] : [])) as object)}
           selectable
           numberOfLines={1}
           style={[

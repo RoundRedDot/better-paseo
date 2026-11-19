@@ -34,6 +34,7 @@ const { ToolbarButton, ToolbarMetricsContext, TOOLBAR_TOOLTIP_MS } = await impor
 const { HoverPreviewHeader } = await import("../../client/ui/hover-preview");
 const { updateEnhancerPreferences } = await import("../../client/preferences");
 const { classifyTool } = await import("../../client/tools/classify");
+const { SelectionTranslationContext, selectionScopeForElement } = await import("../../client/translation/selection");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 
@@ -48,6 +49,31 @@ const calls = ["first", "second"].map((callId, index) => classifyTool({
 }));
 
 describe("grouped tool card presentation", () => {
+  it.each([false, true])("binds the %s expanded tool surface to its own translation scope", (expanded) => {
+    vi.stubGlobal("__rnMockOS", "web");
+    const scope = { agentId: "tool-agent", kind: "tool_output" as const, streaming: false };
+    const elements: object[] = [];
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { renderer = TestRenderer.create(
+        React.createElement(SelectionTranslationContext.Provider, { value: scope },
+          React.createElement(ToolCallout, { data: calls[1]!, tokens, expanded, onExpandedChange: () => {} })),
+        { createNodeMock: (element) => {
+          const props = element.props as { dataSet?: { bctlkind?: string } };
+          if (props.dataSet?.bctlkind !== "tool_output") return null;
+          const node = {};
+          elements.push(node);
+          return node;
+        } },
+      ); });
+      expect(elements).toHaveLength(1);
+      expect(selectionScopeForElement(elements[0]!)).toBe(scope);
+      act(() => renderer.unmount());
+      expect(selectionScopeForElement(elements[0]!)).toBeNull();
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
   it("enables arrow paging only when maximized, keeps pages in range, and releases the binding", () => {
     paging.maximized = false;
     paging.bind.mockReset().mockReturnValue(paging.release);

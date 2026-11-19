@@ -11,6 +11,7 @@ vi.mock("@getpaseo/plugin/client/ui", () => ({ useToast: () => toast,
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined,
   useWorkspace: () => undefined,
+  usePaseo: () => null,
   useRpc: () => () => Promise.resolve(null),
 }));
 vi.mock("../../client/preferences", async (original) => ({

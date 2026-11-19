@@ -10,7 +10,7 @@ import {
   type TranslationJobState,
 } from "../../shared/timeline-translation";
 
-export type TranslationSourceKind = "assistant_message" | "reasoning";
+export type TranslationSourceKind = "assistant_message" | "reasoning" | "tool_output";
 
 export interface TranslationEntry {
   jobId: string;

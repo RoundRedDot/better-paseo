@@ -29,8 +29,8 @@ export const TRANSLATE_ICON: PluginIcon = {
 };
 
 /**
- * Marks the prose inside as one conversation's reply or thought, so a
- * selection in it can be translated. On web it also lends the selection bar
+ * Marks content as belonging to one conversation, so a selection in it can
+ * be translated. On web it also lends the selection bar
  * this tree's translator, bound to the prose's own element. A disabled scope removes the marking, for content in
  * the same row that is not the model's words (a system card).
  */
