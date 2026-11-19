@@ -1,6 +1,7 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
 import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { radiusV2, space } from "./components/theme-tokens";
+import { useSafeInsets, type Insets } from "./details/shell/safe-area";
 import { settingsTextStyle, type PageLook } from "./settings-controls";
 
 /**
@@ -50,6 +51,41 @@ function readAnchor(node: unknown, done: (anchor: Anchor) => void) {
     return;
   }
   measure.call(node, (x, y, width, height) => done({ x, y, width, height }));
+}
+
+/** The menu's gap from the control and its margin inside the safe area. */
+const GAP = 4;
+const EDGE = 8;
+
+/**
+ * Where the menu sits, in window coordinates. It stays inside the safe area
+ * (a native menu is a Modal drawn under the status bar and the home
+ * indicator), below the control when the whole list fits there, else above
+ * it, else on the roomier side with the list scrolling. When neither side
+ * holds a few rows (a short window), it may cover the control instead.
+ */
+function placeChoiceMenu(
+  anchor: Anchor,
+  windowHeight: number,
+  insets: Insets,
+  content: number,
+  row: number,
+): { top: number; height: number } {
+  const first = insets.top + EDGE;
+  const last = windowHeight - insets.bottom - EDGE;
+  const height = Math.max(0, Math.min(content, last - first));
+  const below = anchor.y + anchor.height + GAP;
+  const above = anchor.y - GAP;
+  if (below + height <= last) return { top: below, height };
+  if (above - height >= first) return { top: above - height, height };
+  const roomBelow = last - below;
+  const roomAbove = above - first;
+  if (Math.max(roomBelow, roomAbove) >= Math.min(height, row * 3 + 12)) {
+    return roomBelow >= roomAbove
+      ? { top: below, height: roomBelow }
+      : { top: first, height: roomAbove };
+  }
+  return { top: Math.max(first, Math.min(below, last - height)), height };
 }
 
 export function ChoiceMenuSelect({
@@ -152,12 +188,13 @@ function ChoiceMenu({
   const { tokens, compact } = look;
   const window = useWindowDimensions();
   const layer = useRef<View>(null);
+  // Null on native until its probe has laid out once (web reads zero); the
+  // menu stays invisible and untouchable until then.
+  const [insets, insetProbe] = useSafeInsets();
   const rowHeight = compact ? 44 : 32;
   const width = Math.min(Math.max(anchor.width, 220), Math.max(160, window.width - 16));
-  const estimated = Math.min(window.height - 16, choices.length * rowHeight + 12);
   const left = Math.max(8, Math.min(anchor.x, window.width - width - 8));
-  const below = anchor.y + anchor.height + 4;
-  const top = below + estimated > window.height - 8 ? Math.max(8, anchor.y - estimated - 4) : below;
+  const place = placeChoiceMenu(anchor, window.height, insets ?? { top: 0, bottom: 0 }, choices.length * rowHeight + 12, rowHeight);
   useLayoutEffect(() => {
     if (Platform.OS !== "web") return;
     const node = layer.current as unknown as HTMLElement | null;
@@ -186,13 +223,18 @@ function ChoiceMenu({
       ]}
     >
       <Pressable accessible={false} importantForAccessibility="no" onPress={onClose} style={StyleSheet.absoluteFill} />
+      {insetProbe}
       <View
+        pointerEvents={insets ? "auto" : "none"}
+        accessibilityElementsHidden={!insets}
+        importantForAccessibility={insets ? "auto" : "no-hide-descendants"}
         style={{
           position: "absolute",
+          opacity: insets ? 1 : 0,
           left,
-          top,
+          top: place.top,
           width,
-          maxHeight: estimated,
+          maxHeight: place.height,
           borderRadius: 12,
           backgroundColor: tokens.v2.surface0,
           borderColor: tokens.v2.border,
