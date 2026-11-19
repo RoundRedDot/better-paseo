@@ -21,6 +21,7 @@ vi.mock("../../client/settings-preview", () => ({ SettingsPreview: () => null })
 vi.mock("../../client/tasks/chunk/load", () => ({ TasksSettingsPanel: () => null }));
 vi.mock("../../client/ui/wide-host-column", () => ({ useWideHostColumn() {} }));
 
+import { Section, SettingRow } from "../../client/settings-controls";
 import { BetterPaseoSettingsPage } from "../../client/settings-page";
 import { SettingsPreview } from "../../client/settings-preview";
 import { resetEnhancerPreferences } from "../../client/preferences";
@@ -60,6 +61,25 @@ afterEach(() => {
   resetHostAppearanceForTests();
   vi.restoreAllMocks();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+});
+
+describe("translation settings placement", () => {
+  it("places its own section immediately after the timeline mode", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    resetEnhancerPreferences();
+    setSettingsTab("display");
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
+        theme: { colors }, layout: { platform: "web", compact: false }, host: { id: "host" },
+      } as never));
+    });
+    const sections = renderer!.root.findAllByType(Section);
+    const generalIndex = sections.findIndex((section) => section.props.title === SETTINGS_STRINGS.en.sectionGeneral);
+    expect(generalIndex).toBeGreaterThanOrEqual(0);
+    const general = sections[generalIndex]!;
+    expect(general.findAllByType(SettingRow).at(-1)?.props.title).toBe(SETTINGS_STRINGS.en.timelineTitle);
+    expect(sections[generalIndex + 1]?.props.title).toBe("Timeline Translation");
+  });
 });
 
 describe("settings preview host typography", () => {

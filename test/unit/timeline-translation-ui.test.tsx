@@ -22,7 +22,6 @@ import {
   selectionScopeForElement,
   selectionScopeFromDataset,
   selectionSourceKey,
-  type SelectionTranslationView,
 } from "../../client/translation/selection";
 
 type RawAgentConfig = Pick<PaseoAgent, "provider" | "model" | "thinkingOptionId" | "effectiveThinkingOptionId" | "updatedAt">;
@@ -136,7 +135,7 @@ vi.mock("../../client/host-row-gap", () => ({ useHostStacksRows: () => false }))
 
 import { LiveAssistantRenderer, LiveReasoningRenderer } from "../../client/live-renderers";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
-import { SelectionTranslationScope, selectionViewNotice } from "../../client/translation/ui";
+import { SelectionTranslationScope } from "../../client/translation/ui";
 import * as pluginClient from "@getpaseo/plugin/client";
 
 const HostContext = (pluginClient as unknown as { HostContext: React.Context<{ api: PaseoApi; rpc: typeof mocks.rpc } | null> }).HostContext;
@@ -188,7 +187,7 @@ beforeEach(() => {
   resetEnhancerPreferences();
   updateEnhancerPreferences({ language: "en", assistantMarkdown: true });
   resetTranslationSettingsStoreForTests();
-  publishTranslationSettings(DEFAULT_TIMELINE_TRANSLATION_SETTINGS, "init-1");
+  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "init-1");
   resetTranslationStoreForTests();
 });
 
@@ -344,7 +343,7 @@ describe("selection translation", () => {
   });
 
   it("uses the custom model without reading the conversation model", async () => {
-    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, customModel: true, provider: "codex", model: "gpt-5" }, "custom");
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "codex", model: "gpt-5" }, "custom");
     mocks.rpc.mockResolvedValue(doneState("好"));
     const job = selection("Fine");
     job.start();
@@ -369,7 +368,7 @@ describe("selection translation", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
     job.dispose();
 
-    publishTranslationSettings(DEFAULT_TIMELINE_TRANSLATION_SETTINGS, "on");
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "on");
     const streaming = selection("Partial", { streaming: true, kind: "reasoning" });
     streaming.start();
     expect(streaming.view()).toEqual({ status: "streaming", kind: "reasoning" });
@@ -429,7 +428,7 @@ describe("selection translation", () => {
     await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
     agentApi.setAgent({ model: "claude-opus-4-5", updatedAt: "2026-11-19T10:05:00.000Z" });
     expect(job.view()).toEqual({ status: "stale" });
-    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, targetLanguage: "ja" }, "ja");
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, targetLanguage: "ja" }, "ja");
     expect(job.view()).toEqual({ status: "stale" });
     await settle();
     expect(mocks.rpc).toHaveBeenCalledOnce();
@@ -459,16 +458,7 @@ describe("selection translation", () => {
     expect(agentApi.subscriptions[0]!.release).toHaveBeenCalled();
   });
 
-  it("states honestly when thinking could not be disabled", () => {
-    const view: SelectionTranslationView = {
-      status: "done",
-      result: doneState("好", { thinkingMode: "unsupported_off", thinkingOptionId: "low" }),
-      disableThinking: true,
-    };
-    expect(selectionViewNotice(view, "en")).toMatchObject({ tone: "warning" });
-    expect(selectionViewNotice({ ...view, result: doneState("好", { thinkingMode: "none" }) }, "en")).toMatchObject({ tone: "neutral" });
-    expect(selectionViewNotice({ ...view, result: doneState("好") }, "en")).toBeNull();
-  });
+
 });
 
 const assistantProps = (data: Record<string, unknown>, platform: "web" | "ios" | "android" = "web", agentId = "agent-1") => ({
@@ -590,6 +580,8 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(button("Translate selected block")).toHaveLength(0);
     select(1);
     expect(button("Copy selected block")).toHaveLength(1);
+    const separator = renderer!.root.findByProps({ testID: "translation-menu-separator" });
+    expect(separator.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ width: 0.5 })]));
     expect(mocks.rpc).not.toHaveBeenCalled();
     await act(async () => button("Translate selected block")[0]!.props.onPress());
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
@@ -597,9 +589,10 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(1);
     expect(panelText()).toContain("Translating...");
 
-    await act(async () => reply.resolve(doneState("第二段。")));
+    await act(async () => reply.resolve(doneState("第二段。", { thinkingMode: "unsupported_off", thinkingOptionId: "low" })));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。"));
     expect(button("Copy translation")).toHaveLength(1);
+    expect(panelText()).not.toContain("Thinking was NOT disabled");
     // Prose in the popup is not itself translatable.
     const popupScope = renderer!.root.find((node) => node.props.testID === "selection-translation-panel")
       .findAll((node) => node.props.testID === "markdown-block-selection");
@@ -659,5 +652,6 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     });
     select(0);
     expect(button("Translate selected block")).toHaveLength(0);
+    expect(renderer!.root.findAllByProps({ testID: "translation-menu-separator" })).toHaveLength(0);
   });
 });

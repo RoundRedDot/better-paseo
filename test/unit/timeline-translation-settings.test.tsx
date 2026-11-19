@@ -145,6 +145,12 @@ afterEach(() => {
 });
 
 describe("timeline translation settings", () => {
+  it("defaults translation to off while preserving saved choices", () => {
+    expect(timelineTranslationSettingsSchema.parse({}).enabled).toBe(false);
+    expect(timelineTranslationSettingsSchema.parse({ enabled: false }).enabled).toBe(false);
+    expect(timelineTranslationSettingsSchema.parse({ enabled: true }).enabled).toBe(true);
+  });
+
   it("describes thinking capability honestly without claiming unsupported models disable thinking", () => {
     const base = timelineTranslationSettingsSchema.parse({
       customModel: true,
@@ -390,7 +396,7 @@ describe("timeline translation settings", () => {
       confirmBtn.props.onPress();
     });
     expect(mocks.saveSpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({ prompt: DEFAULT_TRANSLATION_PROMPT, enabled: true, targetLanguage: "interface" }),
+      expect.objectContaining({ prompt: DEFAULT_TRANSLATION_PROMPT, enabled: false, targetLanguage: "interface" }),
       "rev-1",
     );
   });

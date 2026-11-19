@@ -22,7 +22,7 @@ import {
   type SelectionTranslationScopeValue,
   type SelectionTranslationView,
 } from "../translation/selection";
-import { selectionViewNotice, selectionViewTitle } from "../translation/view-text";
+import { selectionViewTitle } from "../translation/view-text";
 
 /**
  * A floating Copy / Add to chat bar for highlighted callout text.
@@ -267,6 +267,7 @@ const BAR_CSS = `
   align-items: center;
   gap: ${FLOAT.inset}px;
 }
+.row-separator { width: 0.5px; height: 16px; flex: 0 0 auto; background-color: var(--bc-bar-border); }
 .bar.translating { width: var(--bc-panel-width); }
 .panel {
   display: none;
@@ -311,7 +312,6 @@ const BAR_CSS = `
 @keyframes bc-spin { to { transform: rotate(360deg); } }
 .panel-message { color: var(--bc-bar-icon); white-space: pre-wrap; overflow-wrap: anywhere; }
 .panel-message[data-tone="error"] { color: var(--bc-bar-danger); }
-.panel-message[data-tone="warning"] { color: var(--bc-bar-warning); }
 .panel-body {
   color: var(--bc-bar-text);
   font-size: 13px;
@@ -499,6 +499,11 @@ function createBar(actions: BarActions): Bar {
     flash(button, "Copied");
   });
 
+  const copySeparator = document.createElement("div");
+  copySeparator.className = "row-separator";
+  copySeparator.setAttribute("aria-hidden", "true");
+  row.appendChild(copySeparator);
+
   const addButton = makeButton(row, "Add to chat", "add", (button) => {
     const snapshot = readSelection();
     if (!snapshot) return;
@@ -512,6 +517,11 @@ function createBar(actions: BarActions): Bar {
     flash(button, "Copied instead");
   });
 
+  const separator = document.createElement("div");
+  separator.className = "row-separator";
+  separator.setAttribute("aria-hidden", "true");
+  separator.hidden = true;
+  row.appendChild(separator);
   const translateButton = makeButton(row, "Translate", "translate", () => actions.translate());
   translateButton.hidden = true;
 
@@ -551,12 +561,6 @@ function createBar(actions: BarActions): Bar {
         toolbarLabel(message, language) + (view.status === "error" ? `: ${view.error}` : ""));
       line.setAttribute("role", view.status === "error" ? "alert" : "status");
       if (view.status === "error") line.dataset.tone = "error";
-      panel.appendChild(line);
-    }
-    const notice = selectionViewNotice(view, lang);
-    if (notice) {
-      const line = element("div", "panel-message", notice.text);
-      line.dataset.tone = notice.tone;
       panel.appendChild(line);
     }
     const text = selectionViewText(view);
@@ -639,7 +643,6 @@ function createBar(actions: BarActions): Bar {
       host.style.setProperty("--bc-bar-accent", tokens.accent);
       host.style.setProperty("--bc-bar-border", tokens.v2.border);
       host.style.setProperty("--bc-bar-danger", tokens.danger);
-      host.style.setProperty("--bc-bar-warning", tokens.warning);
       bar.style.borderColor = tokens.v2.border;
       // The bar sits on document.body, outside the host's UI font rule, so
       // "Follow Paseo" reads the host's own font variable directly.
@@ -677,6 +680,7 @@ function createBar(actions: BarActions): Bar {
     },
     setTranslatable(translatable) {
       translateButton.hidden = !translatable;
+      separator.hidden = !translatable;
     },
     setPanel(next) {
       if (next === view) return;

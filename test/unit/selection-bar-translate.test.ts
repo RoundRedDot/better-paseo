@@ -148,7 +148,7 @@ beforeEach(() => {
   updateEnhancerPreferences({ language: "en" });
   resetTranslationSettingsStoreForTests();
   // A custom model: the bar needs no conversation model read.
-  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, customModel: true, provider: "codex", model: "gpt-5" }, "custom");
+  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "codex", model: "gpt-5" }, "custom");
   resetTranslationStoreForTests();
   call.mockReset();
   copy.mockClear();
@@ -167,11 +167,15 @@ describe("selection bar Translate", () => {
     select("tool output", surface(null));
     expect(display()).toBe("block");
     expect(button("Translate")!.hidden).toBe(true);
+    expect(host().all((node) => node.className === "row-separator").map((node) => node.hidden)).toEqual([false, true]);
     select("reply words", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
     expect(button("Translate")!.hidden).toBe(false);
+    expect(host().all((node) => node.className === "row-separator").map((node) => node.hidden)).toEqual([false, false]);
+    expect(host().all((node) => node.textContent.includes(".row-separator { width: 0.5px"))).not.toHaveLength(0);
     publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, "off");
     select("reply words again", surface({ agentId: "agent-1", kind: "reasoning", streaming: false }));
     expect(button("Translate")!.hidden).toBe(true);
+    expect(host().all((node) => node.className === "row-separator").map((node) => node.hidden)).toEqual([false, true]);
     expect(call).not.toHaveBeenCalled();
   });
 
@@ -189,10 +193,11 @@ describe("selection bar Translate", () => {
     expect(panel().textContent).toContain("Translating...");
 
     const markup = '<img src=x onerror="alert(1)">';
-    await act(async () => finish(done(markup)));
+    await act(async () => finish({ ...done(markup), thinkingMode: "unsupported_off", thinkingOptionId: "low" }));
     await flush();
     const text = panel().querySelector(".panel-body")!;
     expect(text.textContent).toBe(markup);
+    expect(panel().textContent).not.toContain("Thinking was NOT disabled");
     expect(panel().all((node) => node.html.includes("img"))).toEqual([]);
     expect(button("Copy translation")).toBeDefined();
     button("Copy translation")!.click();

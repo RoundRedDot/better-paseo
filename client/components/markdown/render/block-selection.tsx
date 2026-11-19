@@ -154,7 +154,10 @@ function BlockCopyMenu({ text, tokens, dismiss }: { text: string; tokens: Extend
           {toolbarLabel("Copy selected", language)}
         </Text>
       </Pressable>
-      {translatable ? <BlockTranslate scope={scope} text={text} tokens={tokens} anchor={frame} dismiss={dismiss} /> : null}
+      {translatable ? <>
+        <View testID="translation-menu-separator" accessible={false} style={[styles.separator, { backgroundColor: tokens.v2.border }]} />
+        <BlockTranslate scope={scope} text={text} tokens={tokens} anchor={frame} dismiss={dismiss} />
+      </> : null}
     </View>
   </View>;
 }
@@ -197,6 +200,7 @@ const styles = StyleSheet.create({
   slot: { position: "absolute", top: 0, right: 0, zIndex: 2 },
   menu: { minHeight: 40, borderWidth: 1, borderRadius: FLOAT.radius, overflow: "hidden",
     flexDirection: "row", alignItems: "stretch" },
+  separator: { width: 0.5, height: 20, alignSelf: "center" },
   item: { paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: FLOAT.iconText },
   label: { fontSize: 13, fontWeight: "500" },
 });

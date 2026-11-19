@@ -69,7 +69,7 @@ export function resolveThinkingCapability(
 }
 
 export const timelineTranslationSettingsSchema = z.object({
-  enabled: z.boolean().catch(true),
+  enabled: z.boolean().catch(false),
   customModel: z.boolean().catch(false),
   disableThinking: z.boolean().catch(true),
   provider: z.string().catch(""),

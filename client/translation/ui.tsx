@@ -17,9 +17,9 @@ import {
   useLentTranslator,
   type SelectionTranslationView,
 } from "./selection";
-import { selectionViewNotice, selectionViewTitle } from "./view-text";
+import { selectionViewTitle } from "./view-text";
 
-export { describeResultThinkingNotice, selectionViewNotice, selectionViewTitle } from "./view-text";
+export { selectionViewTitle } from "./view-text";
 
 export const TRANSLATE_ICON: PluginIcon = {
   svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/></svg>',
@@ -48,7 +48,7 @@ export function SelectionTranslationScope({ agentId, kind, streaming, enabled = 
 
 /**
  * A native selection menu's translation: status, the translation as it
- * streams, its thinking notice, Copy and Retry. The body scrolls within a
+ * streams, Copy and Retry. The body scrolls within a
  * height bounded by the window. Prose in it is not itself translatable.
  */
 export function SelectionTranslationPanel({ view, tokens, onRetry }: {
@@ -61,10 +61,8 @@ export function SelectionTranslationPanel({ view, tokens, onRetry }: {
   const window = useWindowDimensions();
   const message = selectionViewMessage(view);
   const text = selectionViewText(view);
-  const notice = selectionViewNotice(view, lang);
   const danger = tokens.danger ?? tokens.foreground;
   const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
-  const warning = tokens.warning ?? danger;
   const running = view.status === "running" || view.status === "config-loading" || view.status === "settings-loading";
   return (
     <View testID="selection-translation-panel" style={styles.panel}>
@@ -80,12 +78,6 @@ export function SelectionTranslationPanel({ view, tokens, onRetry }: {
         <Text testID="selection-translation-message" selectable={false}
           style={[styles.message, { color: view.status === "error" ? danger : muted, fontFamily: tokens.fontUi }]}>
           {toolbarLabel(message, lang)}{view.status === "error" ? `: ${view.error}` : ""}
-        </Text>
-      ) : null}
-      {notice ? (
-        <Text testID="selection-translation-notice" selectable={false}
-          style={[styles.message, { color: notice.tone === "warning" ? warning : muted, fontFamily: tokens.fontUi }]}>
-          {notice.text}
         </Text>
       ) : null}
       {text ? (
