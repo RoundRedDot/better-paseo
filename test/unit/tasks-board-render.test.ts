@@ -7789,6 +7789,15 @@ describe("Tasks board, phone", () => {
     expect(openAgent).not.toHaveBeenCalled();
   });
 
+  it("closes the phone details sheet when its content leaves for translation settings", () => {
+    act(() => { renderer = TestRenderer.create(screen(true)); });
+    act(() => cards()[0]!.props.onSelect(cards()[0]!.props.card));
+    const sheet = renderer!.root.find((node) => typeof node.type === "function" && node.type.name === "DetailsSheetContent");
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(1);
+    act(() => sheet.props.onCloseSheet());
+    expect(renderer!.root.findAll((node) => (node.type as unknown) === "Modal")).toHaveLength(0);
+  });
+
   it.each([false, true])("keeps the Android detail actions available with footer support %s", async (supported) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
     (Modal as typeof Modal & { supportsFooter?: boolean }).supportsFooter = supported;

@@ -1,4 +1,5 @@
 import { PreferenceSyncSlot } from "../../state/preference-sync-slot";
+import { TranslationSettingsParentCloseContext } from "../../translation/navigation";
 import { UPDATE_INDICATOR_COLOR } from "../../ui/update-indicator";
 import { HoverControl } from "../hover-control";
 import React, { memo, useCallback, useDeferredValue, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type RefObject } from "react";
@@ -342,6 +343,7 @@ export function PhoneBoard(props: {
   const detailsList = detailsCard ? board.lanes[detailsCard.lane]?.cards ?? [] : [];
   const detailsIndex = detailsCard ? detailsList.findIndex((item) => item.id === detailsCard.id) : -1;
   const showDetails = useCallback((id: string) => setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id }), scrollBack: [] }), []);
+  const closeDetailsSheet = useCallback(() => setSheet(null), []);
   const navigateDetails = useCallback((action: DetailNavigation) => setSheet((current) => {
     if (current?.kind !== "details") return current;
     const selection = selectionReducer(current.selection, action);
@@ -635,6 +637,7 @@ export function PhoneBoard(props: {
           backTitle={backId ? backCard?.title ?? cardStrings(board.language).parentUnknown : undefined}
           navigate={navigateDetails}
           onOpen={openFromDetails}
+          onCloseSheet={closeDetailsSheet}
         />
       </Modal>
     </View>
@@ -661,6 +664,7 @@ interface DetailsSheetBodyProps {
   backTitle?: string;
   navigate(action: DetailNavigation): void;
   onOpen?(agentId: string): void;
+  onCloseSheet(): void;
   edge: ReturnType<typeof createDetailChrome>;
   inlineFooter: boolean;
 }
@@ -720,6 +724,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
       ) : null}
       {/* Keyed by the card: a jump to the parent or a step starts on its messages. */}
       <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 }}>
+        <TranslationSettingsParentCloseContext.Provider value={props.onCloseSheet}>
         <TaskDetailCards
           key={card.id}
           translationAgentId={card.subagent ? card.parent?.id : card.id}
@@ -759,6 +764,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           markUnread={board.unread ?? null}
           onScrollEdge={noteEdge}
         />
+        </TranslationSettingsParentCloseContext.Provider>
       </View>
       {props.inlineFooter && !requestInSection(card, board.buttonsFor(card)) ? <DetailsSheetFooter card={card} board={board} theme={theme} onOpen={props.onOpen} edge={props.edge} /> : null}
     </View>

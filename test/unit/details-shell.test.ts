@@ -141,6 +141,7 @@ vi.mock("../../client/details/block-registry", async () => {
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { DetailsHostSlot } from "../../client/details/shell/details-host-slot";
 import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
+import { TranslationSettingsParentCloseContext } from "../../client/translation/navigation";
 import { HoverPreviewContext, PreviewActionsContext, PreviewChromeContext, type PreviewActions } from "../../client/ui/hover-preview";
 import { getEnhancerPreferences, resetEnhancerPreferences, subscribeEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { TextZoomContext } from "../../client/ui/text-zoom";
@@ -171,6 +172,7 @@ const seen = {
   chrome: "",
   inPreview: false,
   body: undefined as DetailsBodyReport | undefined,
+  closeForSettings: null as (() => void) | null,
 };
 function Probe({ id }: { id: string }) {
   seen.shell = useContext(DetailsShellContext);
@@ -178,6 +180,7 @@ function Probe({ id }: { id: string }) {
   seen.chrome = useContext(PreviewChromeContext);
   seen.inPreview = useContext(HoverPreviewContext);
   seen.body = useDetailsBodyScroll();
+  seen.closeForSettings = useContext(TranslationSettingsParentCloseContext);
   return createElement("Text", { testID: `content-${id}` }, id);
 }
 
@@ -369,6 +372,7 @@ beforeEach(() => {
   timings.length = 0;
   seen.shell = null;
   seen.actions = null;
+  seen.closeForSettings = null;
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
   fake.box.blocks = [block("a", 1), block("b", 2), block("c", 3)];
 });
@@ -381,6 +385,15 @@ afterEach(() => {
 });
 
 describe("DetailsHostSlot", () => {
+  it("lets translation settings close the containing details drawer", () => {
+    render(slot());
+    open("a");
+    expect(seen.closeForSettings).not.toBeNull();
+    act(() => seen.closeForSettings!());
+    expect(fake.api.close).toHaveBeenCalledWith(AGENT);
+    expect(fake.box.state.openId).toBeNull();
+  });
+
   it("draws nothing and claims no lease with block details off", () => {
     updateEnhancerPreferences({ blockDetails: false });
     fake.set({ openId: "a" });

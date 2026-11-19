@@ -17,7 +17,7 @@ import {
   resetTranslationStoreForTests,
   translationStore,
 } from "../../client/translation/store";
-import { clearTranslationSettingsTarget, registerTranslationSettingsOpener, translationSettingsTarget } from "../../client/translation/navigation";
+import { clearTranslationSettingsTarget, registerTranslationSettingsOpener, translationSettingsTarget, TranslationSettingsParentCloseContext } from "../../client/translation/navigation";
 import {
   createSelectionTranslation,
   selectionScopeForElement,
@@ -679,6 +679,34 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(renderer!.root.findAllByProps({ testID: "markdown-block-highlight" })).toHaveLength(0);
     expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(0);
     release();
+  });
+
+  it("closes the containing sheet before opening translation settings", async () => {
+    const order: string[] = [];
+    const frames: FrameRequestCallback[] = [];
+    vi.stubGlobal("requestAnimationFrame", (callback: FrameRequestCallback) => { frames.push(callback); return 1; });
+    const release = registerTranslationSettingsOpener(agentApi.api, () => order.push("settings"));
+    try {
+      mocks.rpc.mockResolvedValue(doneState("好"));
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TranslationSettingsParentCloseContext.Provider,
+          { value: () => order.push("sheet") },
+          React.createElement(LiveAssistantRenderer, assistantProps({ text: "Hello", phase: "complete" }, platform) as never)));
+      });
+      select(0);
+      await act(async () => button("Translate selected block")[0]!.props.onPress());
+      await act(async () => button("Translation settings")[0]!.props.onPress());
+      expect(order).toEqual(["sheet"]);
+      expect(renderer!.root.findAllByProps({ testID: "markdown-block-highlight" })).toHaveLength(0);
+      expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(0);
+      expect(frames).toHaveLength(1);
+      act(() => frames[0]!(0));
+      expect(order).toEqual(["sheet", "settings"]);
+    } finally {
+      vi.unstubAllGlobals();
+      clearTranslationSettingsTarget();
+      release();
+    }
   });
 
   it("waits for a streaming reply and shows errors with retry", async () => {

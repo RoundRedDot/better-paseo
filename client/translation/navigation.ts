@@ -1,5 +1,9 @@
 import type { PaseoApi } from "@getpaseo/client";
+import { createContext } from "react";
 import { SETTINGS_SCREEN_ID, setSettingsTab } from "../settings-tab";
+
+/** A sheet hosting selectable text must close before settings replaces it. */
+export const TranslationSettingsParentCloseContext = createContext<(() => void) | null>(null);
 
 const openers = new WeakMap<object, () => void>();
 let targetTranslation = false;

@@ -1,10 +1,10 @@
-import React, { useMemo, type ReactNode } from "react";
+import React, { useContext, useMemo, type ReactNode } from "react";
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
 import { ProviderLogo } from "../components/provider-logo";
-import { openTranslationSettings } from "./navigation";
+import { openTranslationSettings, TranslationSettingsParentCloseContext } from "./navigation";
 import { SyncedLoader } from "../ui/synced-loader";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { MarkdownView } from "../components/markdown/markdown-view";
@@ -63,6 +63,7 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
 }) {
   const { language } = useEnhancerPreferences();
   const paseo = usePaseo();
+  const closeParent = useContext(TranslationSettingsParentCloseContext);
   const lang = resolveLanguage(language ?? "system");
   const window = useWindowDimensions();
   const message = selectionViewMessage(view);
@@ -86,7 +87,12 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
         </View> : <View style={{ flex: 1 }} />}
         <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
           <TooltipAlignContext.Provider value="end">
-            <ToolbarItem label="Translation settings" onPress={() => { onClose(); openTranslationSettings(paseo); }} tokens={tokens} hitSlop={8}>
+            <ToolbarItem label="Translation settings" onPress={() => {
+              onClose();
+              if (!closeParent) { openTranslationSettings(paseo); return; }
+              closeParent();
+              requestAnimationFrame(() => openTranslationSettings(paseo));
+            }} tokens={tokens} hitSlop={8}>
               <Icon name="Settings" size={16} color={tokens.foregroundMuted} />
             </ToolbarItem>
           </TooltipAlignContext.Provider>

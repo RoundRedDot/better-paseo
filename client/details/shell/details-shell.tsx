@@ -23,6 +23,7 @@ import { useRpc } from "@getpaseo/plugin/client";
 import { Icon, useToast } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { DetailsShellContext, type BlockEntry, type Detent, type DetailsForm, type DetailsShellValue, type DetailsZoom } from "../contracts";
+import { TranslationSettingsParentCloseContext } from "../../translation/navigation";
 import { useBlock, useBlockList } from "../block-registry";
 import { detailsApi, useDetails } from "../details-store";
 import { DETAILS_BREAKPOINTS, floatingWidth } from "../layout-model";
@@ -414,6 +415,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   }), [toggleFullscreen, fullscreenOn, close, entry.id, memory, wrapOn, toggleWrap, tokens]);
 
   const content = (
+    <TranslationSettingsParentCloseContext.Provider value={close}>
     <DetailsShellContext.Provider value={shellValue}>
       <PreviewChromeContext.Provider value="details">
         <HoverPreviewContext.Provider value>
@@ -451,6 +453,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
         </HoverPreviewContext.Provider>
       </PreviewChromeContext.Provider>
     </DetailsShellContext.Provider>
+    </TranslationSettingsParentCloseContext.Provider>
   );
 
   const frame = insets === null ? null : form === "side" ? (
