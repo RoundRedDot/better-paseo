@@ -3,7 +3,7 @@ import { ActivityIndicator, Pressable, ScrollView, StyleSheet, Text, View, useWi
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
-import { ProviderLogo, providerBrand } from "../components/provider-logo";
+import { ProviderLogo } from "../components/provider-logo";
 import { openTranslationSettings } from "./navigation";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { MarkdownView } from "../components/markdown/markdown-view";
@@ -71,24 +71,23 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
   const running = view.status === "running" || view.status === "config-loading" || view.status === "settings-loading";
   return (
     <View testID="selection-translation-panel" style={styles.panel}>
-      <View style={styles.header}>
-        <Icon icon={TRANSLATE_ICON} size={13} color={view.status === "error" ? danger : tokens.accent} />
-        <Text selectable={false} numberOfLines={1}
+      <View testID="translation-header" style={styles.header}>
+        <Icon icon={TRANSLATE_ICON} size={13} color={tokens.foregroundMuted} />
+        <Text testID="translation-language" selectable={false} numberOfLines={1}
           style={[styles.title, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
           {selectionViewTitle(view, lang)}
         </Text>
         {running ? <ActivityIndicator size="small" color={tokens.accent} /> : null}
-        <View style={{ flex: 1 }} />
-        <Pressable accessibilityRole="button" accessibilityLabel="Translation settings" onPress={() => { onClose(); openTranslationSettings(paseo); }} hitSlop={8}>
+        {view.modelInfo ? <View style={styles.model}>
+          <ProviderLogo provider={view.modelInfo.provider} size={14} neutralColor={tokens.foregroundMuted} />
+          <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+            {view.modelInfo.model}
+          </Text>
+        </View> : <View style={{ flex: 1 }} />}
+        <Pressable accessibilityRole="button" accessibilityLabel="Translation settings" onPress={() => { onClose(); openTranslationSettings(paseo); }} hitSlop={8} style={styles.settings}>
           <Icon name="Settings" size={16} color={tokens.foregroundMuted} />
         </Pressable>
       </View>
-      {view.modelInfo ? <View style={styles.model}>
-        <ProviderLogo provider={view.modelInfo.provider} size={14} neutralColor={tokens.foregroundMuted} />
-        <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-          {providerBrand(view.modelInfo.provider).displayName} · {view.modelInfo.model}
-        </Text>
-      </View> : null}
       {message ? (
         <Text testID="selection-translation-message" selectable={false}
           style={[styles.message, { color: view.status === "error" ? danger : muted, fontFamily: tokens.fontUi }]}>
@@ -125,8 +124,9 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
 const styles = StyleSheet.create({
   panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
   header: { flexDirection: "row", alignItems: "center", gap: 6 },
-  title: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: "500" },
-  model: { flexDirection: "row", alignItems: "center", gap: 6, minWidth: 0 },
+  title: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: "500", includeFontPadding: false, textAlignVertical: "center" },
+  model: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  settings: { width: 28, height: 28, alignItems: "center", justifyContent: "center" },
   message: { fontSize: 12.5, lineHeight: 18 },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
   textAction: { paddingHorizontal: 6, paddingVertical: 4 },

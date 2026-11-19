@@ -185,6 +185,7 @@ describe("selection bar Translate", () => {
     select("tool output", surface(null));
     expect(display()).toBe("block");
     expect(button("Translate")!.hidden).toBe(true);
+    expect(button("Translation settings")!.hidden).toBe(true);
     expect(host().all((node) => node.className === "row-separator").map((node) => node.hidden)).toEqual([false, true]);
     select("reply words", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
     expect(button("Translate")!.hidden).toBe(false);
@@ -209,7 +210,14 @@ describe("selection bar Translate", () => {
     expect(call.mock.calls[0]![0]).toMatchObject({ action: "start", agentId: "agent-1", text: "the selected words", sourceKind: "reasoning" });
     expect(bar().classList.contains("translating")).toBe(true);
     expect(panel().textContent).toContain("Translating...");
-    expect(panel().textContent).toContain("Codex · gpt-5");
+    const head = panel().querySelector(".panel-head")!;
+    expect(head.querySelector(".panel-model")?.textContent).toBe("gpt-5");
+    expect(head.querySelector(".panel-title")?.textContent).toBe("English");
+    expect(head.textContent).not.toContain("Translation ·");
+    expect(button("Translation settings")?.parentElement?.className).toBe("row");
+    expect(button("Translation settings")?.hidden).toBe(false);
+    expect(panel().textContent).toContain("gpt-5");
+    expect(panel().textContent).not.toContain("Codex");
 
     const markup = '<img src=x onerror="alert(1)">';
     await act(async () => finish({ ...done(markup), thinkingMode: "unsupported_off", thinkingOptionId: "low" }));
@@ -238,7 +246,8 @@ describe("selection bar Translate", () => {
     select("words", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
     button("Translate")!.click();
     await flush();
-    expect(panel().textContent).toContain("Codex · gpt-5");
+    expect(panel().textContent).toContain("gpt-5");
+    expect(panel().textContent).not.toContain("Codex");
     button("Translation settings")!.click();
     expect(open).toHaveBeenCalledWith("chat-presentation");
     expect(translationSettingsTarget()).toBe(true);

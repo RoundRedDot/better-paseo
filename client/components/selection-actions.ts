@@ -24,7 +24,7 @@ import {
 } from "../translation/selection";
 import { selectionViewTitle } from "../translation/view-text";
 import { openTranslationSettings } from "../translation/navigation";
-import { markId, normalizeProvider, providerBrand } from "./provider-logo";
+import { markId, normalizeProvider } from "./provider-logo";
 import { MONO_MARKS, readMark, requestMark, subscribeMarks } from "./marks";
 
 /**
@@ -101,7 +101,7 @@ const ICONS = {
   copy: '<rect width="14" height="14" x="8" y="8" rx="2" ry="2"/><path d="M4 16c-1.1 0-2-.9-2-2V4c0-1.1.9-2 2-2h10c1.1 0 2 .9 2 2"/>',
   check: '<path d="M20 6 9 17l-5-5"/>',
   add: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
-  settings: '<path d="M12 8a4 4 0 1 0 0 8 4 4 0 0 0 0-8z"/><path d="M12 2v2m0 16v2M4.93 4.93l1.42 1.42m11.3 11.3 1.42 1.42M2 12h2m16 0h2M4.93 19.07l1.42-1.42m11.3-11.3 1.42-1.42"/>',
+  settings: '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
   translate: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
 } as const;
 type IconName = keyof typeof ICONS;
@@ -279,7 +279,7 @@ const BAR_CSS = `
   gap: 6px;
   margin-top: ${FLOAT.inset}px;
   padding: 8px 8px 4px;
-  border-top: 1px solid var(--bc-bar-border);
+  border-top: 0.5px solid var(--bc-bar-border);
 }
 .bar.translating .panel { display: flex; }
 .panel-head {
@@ -296,16 +296,15 @@ const BAR_CSS = `
   height: 13px;
   flex: 0 0 auto;
   fill: none;
-  color: var(--bc-bar-accent);
+  color: var(--bc-bar-icon);
   stroke: currentColor;
   stroke-width: 1.75;
   stroke-linecap: round;
   stroke-linejoin: round;
 }
-.panel-head[data-tone="error"] svg { color: var(--bc-bar-danger); }
 .panel-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.panel-settings { margin-left: auto; padding: 3px; height: 24px; }
-.panel-model { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--bc-bar-icon); }
+.row .panel-settings { margin-left: auto; padding: 0; width: 28px; height: 28px; justify-content: center; }
+.panel-model { display: flex; align-items: center; gap: 6px; margin-left: auto; min-width: 0; color: var(--bc-bar-icon); }
 .panel-model img, .panel-model .model-mark { width: 14px; height: 14px; flex: 0 0 auto; }
 .panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .spinner {
@@ -378,11 +377,7 @@ const BAR_CSS = `
 .btn[data-done] svg { color: var(--bc-bar-done); }
 @media (prefers-reduced-motion: reduce) {
   .bar, .bar.leaving, .btn { transition: none; }
-  .panel-settings { margin-left: auto; padding: 3px; height: 24px; }
-.panel-model { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--bc-bar-icon); }
-.panel-model img, .panel-model .model-mark { width: 14px; height: 14px; flex: 0 0 auto; }
-.panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.spinner { animation: none; }
+  .spinner { animation: none; }
 }
 `;
 
@@ -538,6 +533,10 @@ function createBar(actions: BarActions): Bar {
   row.appendChild(separator);
   const translateButton = makeButton(row, "Translate", "translate", () => actions.translate());
   translateButton.hidden = true;
+  const settingsButton = makeButton(row, "Translation settings", "settings", () => actions.settings());
+  settingsButton.className += " panel-settings";
+  settingsButton.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.settings}</svg>`;
+  settingsButton.hidden = true;
 
   // The bar keeps the selection alive: a press inside it must not move the
   // caret, or `window.getSelection()` is empty by the time the click lands.
@@ -562,17 +561,10 @@ function createBar(actions: BarActions): Bar {
     const lang = resolveLanguage(language ?? "system");
     const head = element("div", "panel-head");
     head.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.translate}</svg>`;
-    if (view.status === "error") head.dataset.tone = "error";
     head.appendChild(element("span", "panel-title", selectionViewTitle(view, lang)));
     if (view.status === "running" || view.status === "config-loading" || view.status === "settings-loading") {
       head.appendChild(element("span", "spinner"));
     }
-    const settings = makeButton(head, "Translation settings", "settings", () => actions.settings());
-    settings.className += " panel-settings";
-    settings.replaceChildren();
-    settings.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.settings}</svg>`;
-    settings.title = toolbarLabel("Translation settings", language);
-    panel.appendChild(head);
     if (view.modelInfo) {
       const model = element("div", "panel-model");
       const id = markId(normalizeProvider(view.modelInfo.provider));
@@ -591,9 +583,10 @@ function createBar(actions: BarActions): Bar {
           model.appendChild(image);
         }
       }
-      model.appendChild(element("span", "model-label", `${providerBrand(view.modelInfo.provider).displayName} · ${view.modelInfo.model}`));
-      panel.appendChild(model);
+      model.appendChild(element("span", "model-label", view.modelInfo.model));
+      head.appendChild(model);
     }
+    panel.appendChild(head);
 
     const message = selectionViewMessage(view);
     if (message) {
@@ -714,6 +707,7 @@ function createBar(actions: BarActions): Bar {
         // The panel fades out with the bar, then goes.
         if (view) {
           view = null;
+          settingsButton.hidden = true;
           renderPanel();
           bar.classList.remove("translating");
         }
@@ -726,6 +720,8 @@ function createBar(actions: BarActions): Bar {
     setPanel(next) {
       if (next === view) return;
       view = next;
+      settingsButton.hidden = !next;
+      settingsButton.title = toolbarLabel("Translation settings", readLanguage());
       window.clearTimeout(copiedTimer);
       renderPanel();
       if (anchor && !hidden() && !bar.classList.contains("leaving")) place(anchor, false);
