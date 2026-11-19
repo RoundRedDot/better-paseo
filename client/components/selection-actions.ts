@@ -358,6 +358,7 @@ const BAR_CSS = `
   flex: 0 0 auto;
   transition: background-color 100ms ${FLOAT_EASE.out};
 }
+.row .btn { border-radius: ${FLOAT.radius - FLOAT.inset - 1}px; }
 .btn:hover { background-color: var(--bc-bar-hover); }
 .btn:active { background-color: var(--bc-bar-pressed); }
 .btn:focus { outline: none; }
