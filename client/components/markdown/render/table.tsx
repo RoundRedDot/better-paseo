@@ -5,6 +5,8 @@ import type { RenderContext } from "./context";
 import { inlineWidth, renderInline } from "./inline";
 import { nextReuse, reuseNode, type NodeReuse } from "./reuse";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
+import { ProseText } from "../../../ui/prose-text";
+import { useEnhancerPreferences } from "../../../preferences";
 import { TableCopyMenu } from "./table-copy-menu";
 import { addsCellRange, bindTableCellSelection, TABLE_CELL_TEST_ID } from "./table-selection";
 import { useTableCellSelection } from "./table-touch-selection";
@@ -98,6 +100,10 @@ export function MdTable({
   keyPrefix: string;
 }) {
   const { styles, metrics } = context;
+  // On a phone the setting trades cell selection for text selection in a cell.
+  const { tableTextSelection } = useEnhancerPreferences();
+  const cellText = Platform.OS !== "web" && tableTextSelection;
+  const CellText = cellText ? ProseText : Text;
   const [resized, setResized] = useState<Record<number, number>>({});
   const widths = columnWidths(token, metrics, measuredRows(token, open)).map((width, column) => resized[column] ?? width);
   const frameRef = useRef<View>(null);
@@ -135,7 +141,7 @@ export function MdTable({
   // the row it grew and no other.
   const drawn = useRef<{ context: RenderContext; nodes: NodeReuse["next"] } | null>(null);
   const reuse = nextReuse(drawn, context, open);
-  const columns = `${widths.join(",")}|${aligns.join(",")}`;
+  const columns = `${widths.join(",")}|${aligns.join(",")}|${cellText ? 1 : 0}`;
   const rowSource = (row: number, cells: readonly Tokens.TableCell[], last: boolean) =>
     `${columns}|${last ? 1 : 0}|${rowSpan(ranges, row)}|${JSON.stringify(cells.map((cell) => cell.text))}`;
   const cellTokens = (cells: readonly Tokens.TableCell[]) => () => cells.map((cell) => cell.tokens);
@@ -154,12 +160,12 @@ export function MdTable({
         // One Text per cell: on iOS and Android the frame takes the touches
         // and finds the cell from its rows and column starts.
         return (
-          <Text
+          <CellText
             key={cellKey}
             testID={TABLE_CELL_TEST_ID}
             // On iOS and Android a held cell starts a range, which the
             // platform's own text selection would take over.
-            selectable={Platform.OS === "web"}
+            selectable={Platform.OS === "web" || cellText}
             {...contentTextProps()}
             {...(Platform.OS === "web" ? { dataSet: { tableCellRow: row, tableCellColumn: column } } : {})}
             style={[
@@ -171,7 +177,7 @@ export function MdTable({
             ]}
           >
             {renderInline(cell.tokens, context, cellKey)}
-          </Text>
+          </CellText>
         );
       })}
     </View>
@@ -185,7 +191,7 @@ export function MdTable({
         contentContainerStyle={[styles.tableContent, copyStyles.content]}
         scrollEnabled={!selection.dragging}
         onScrollBeginDrag={ranges.length > 0 ? selection.dismiss : undefined}>
-        <View ref={frameRef} testID="markdown-table-frame" style={styles.tableFrame} {...selection.frameProps}>
+        <View ref={frameRef} testID="markdown-table-frame" style={styles.tableFrame} {...(cellText ? {} : selection.frameProps)}>
           {reuseNode(reuse, `${keyPrefix}h`, rowSource(0, token.header, token.rows.length === 0),
             cellTokens(token.header), () => drawRow(undefined, 0, `${keyPrefix}h`, token.header, styles.tableHeaderRow,
               styles.tableHeaderCell, token.rows.length === 0))}
