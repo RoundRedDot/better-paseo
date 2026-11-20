@@ -1004,12 +1004,12 @@ function translationOffered(): boolean {
 }
 
 /**
- * Where the bar anchors after `clip`, the element that just scrolled, moved:
- * the selection's first line box still showing in it, or null when none does.
+ * Where the bar anchors inside `pane`, a scrolled element holding the
+ * selection: its first line box still showing there, or null when none does.
  */
-function visibleRect(snapshot: Snapshot, clip: Element | null): DOMRect | null {
-  if (!clip || !clip.contains(snapshot.surface)) return snapshot.rect;
-  const box = clip.getBoundingClientRect();
+function visibleRect(snapshot: Snapshot, pane: Element | null): DOMRect | null {
+  if (!pane) return snapshot.rect;
+  const box = pane.getBoundingClientRect();
   return snapshot.rects.find((rect) =>
     rect.bottom > box.top && rect.top < box.bottom && rect.right > box.left && rect.left < box.right) ?? null;
 }
@@ -1029,6 +1029,11 @@ function startController(): Controller {
   let pressed: EventTarget | null = null;
   /** The element a page-driven scroll moved, to hide the bar once its selection leaves it. */
   let scrolled: Element | null = null;
+  /**
+   * The last scrolled element that holds the selection: what shows of it is
+   * judged there, also when another pane scrolls next.
+   */
+  let pane: Element | null = null;
   /** The selection Translate was pressed for, and its job. */
   let translation: { snapshot: Snapshot; job: SelectionTranslation; release(): void } | null = null;
 
@@ -1110,7 +1115,9 @@ function startController(): Controller {
       return;
     }
     // A reply following its output can carry the selection out of its pane.
-    const anchor = visibleRect(snapshot, clip);
+    if (clip?.contains(snapshot.surface)) pane = clip;
+    else if (pane && !pane.contains(snapshot.surface)) pane = null;
+    const anchor = visibleRect(snapshot, pane);
     if (!anchor) {
       hide();
       return;

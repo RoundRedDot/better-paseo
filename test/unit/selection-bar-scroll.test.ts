@@ -237,6 +237,35 @@ describe("selection bar scroll dismissal", () => {
     expect(top()).toBe(200 - 30 - 8);
   });
 
+  it("keeps judging the selection by its own chat while another pane scrolls by itself", () => {
+    const range = (selection as unknown as { getRangeAt(index: number): { commonAncestorContainer: unknown } }).getRangeAt(0);
+    const next = () => ({ ...line, top: line.top + 30, bottom: line.bottom + 30 });
+    selection = { ...selection, getRangeAt: () => ({ commonAncestorContainer: range.commonAncestorContainer, getClientRects: () => [line, next()] }) } as typeof selection;
+    select();
+    // Another pane (a second chat, a streaming terminal) that does not hold the selection.
+    const other = new ElementMock();
+    other.box = { left: 0, top: 0, right: 1024, bottom: 768 };
+    const otherScrolls = () => {
+      const event = new Event("scroll");
+      Object.defineProperty(event, "target", { value: other });
+      captureScroll(event);
+      vi.advanceTimersByTime(100);
+    };
+    // The chat carries the first line out: the bar sits above the second.
+    scroll(true, "page", 165);
+    expect(top()).toBe(65 - 30 - 8);
+    otherScrolls();
+    expect(display()).toBe("block");
+    expect(top()).toBe(65 - 30 - 8);
+    // The chat carries both lines out: the other pane does not bring the bar back.
+    scroll(true, "page", 40);
+    expect(display()).toBe("none");
+    otherScrolls();
+    expect(display()).toBe("none");
+    scroll(true, "page", -205);
+    expect(display()).toBe("block");
+  });
+
   it("keeps a bar put away by a press elsewhere away while the page scrolls", () => {
     on(doc, "pointerdown", new ElementMock());
     on(doc, "pointerup", new ElementMock());
