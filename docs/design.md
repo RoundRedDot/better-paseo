@@ -134,7 +134,7 @@ rule: put its movement behind `motionDuration` and keep at most a short fade.
 - Reading content is selectable (`selectableSurface` overrides the host timeline's
   `user-select: none`); chrome is not: icons, control labels and row verbs use `unselectable`.
   Native has no inheritance, so each text there takes `selectableTextStyle`.
-- On the web a scroller hides its scrollbar while idle. A lane or details column shows a 6 pt
+- On the web a lane or details column hides its scrollbar while idle and shows a 6 pt
   thumb (radius 3) while it scrolls and fades it out 800 ms after the last scroll (in 100, out
   400); its gutter stays reserved so nothing shifts. A horizontal track (`h-scroll.tsx`) is 2 pt
   and holds for 1 s. Native draws the platform indicator.
@@ -428,6 +428,14 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   zoom 0.25 to 8; a double tap resets, and a 96 pt drag, a flick, Escape or back closes it.
 - Selected text on the web raises a floating Copy / Add to chat bar; native uses the platform
   menu.
+- The desktop web translation popup uses the same floating bar for timeline selections and Tasks
+  message translations (`client/components/selection-actions.ts`). Its scrollable translation body
+  has a 4 px vertical scrollbar with a 2 px radius, a transparent track and a thumb in
+  `--bc-bar-subtle` at 40% opacity. The body extends 8 px into the panel's right padding
+  (`margin-right: -8px`) and keeps 10 px of right content padding. This places the scrollbar at
+  the frame's 2 px inner inset, close to the right edge, while leaving space after the text.
+  Keep the scrollbar draggable above the right resize target, and preserve the popup's resize
+  interaction. Native translation sheets use the platform scroll indicator.
 
 ### Block details and previews
 
