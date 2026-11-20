@@ -45,6 +45,7 @@ class ElementMock extends EventTarget {
   style = {
     setProperty: (key: string, value: string) => this.properties.set(key, value),
     getPropertyValue: (key: string) => this.properties.get(key) ?? "",
+    removeProperty: (key: string) => this.properties.delete(key),
   } as Record<string, unknown> & { setProperty(key: string, value: string): void; getPropertyValue(key: string): string };
   get textContent(): string { return this.ownText + this.children.map((child) => child.textContent).join(""); }
   set textContent(value: string) { this.children = []; this.ownText = value; }
@@ -164,6 +165,28 @@ afterEach(() => {
 });
 
 describe("selection bar Translate", () => {
+  it("moves and resizes the translation while preserving its text and selection", async () => {
+    call.mockResolvedValue(done("译文"));
+    select("selected text", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
+    button("Translate")!.click();
+    await flush();
+    const pointer = (type: string, x: number, y: number) => Object.assign(new Event(type, { cancelable: true }), { button: 0, clientX: x, clientY: y });
+    const startLeft = parseFloat(host().style.getPropertyValue("left"));
+    const startTop = parseFloat(host().style.getPropertyValue("top"));
+    host().all((node) => node.className === "drag-handle")[0]!.dispatchEvent(pointer("pointerdown", 100, 100));
+    page.dispatchEvent(pointer("pointermove", 160, 140));
+    page.dispatchEvent(pointer("pointerup", 160, 140));
+    expect(parseFloat(host().style.getPropertyValue("left"))).toBe(startLeft + 60);
+    expect(parseFloat(host().style.getPropertyValue("top"))).toBe(startTop + 40);
+    host().all((node) => node.className === "resize-handle")[0]!.dispatchEvent(pointer("pointerdown", 100, 100));
+    page.dispatchEvent(pointer("pointermove", 200, 170));
+    page.dispatchEvent(pointer("pointerup", 200, 170));
+    expect(bar().style.getPropertyValue("--bc-panel-width")).toBe("360px");
+    expect(bar().style.getPropertyValue("--bc-panel-height")).toBe("100px");
+    expect(panel().textContent).toContain("译文");
+    expect(selected.text).toBe("selected text");
+    expect(display()).toBe("block");
+  });
   it("translates only the selected tool error on its own host and agent", async () => {
     call.mockResolvedValue(done("执行超时"));
     const node = surface({ agentId: "tool-agent", kind: "tool_output", streaming: false });

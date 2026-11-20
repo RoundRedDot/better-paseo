@@ -275,6 +275,11 @@ const BAR_CSS = `
   gap: ${FLOAT.inset}px;
 }
 .row-separator { width: 0.5px; height: 16px; flex: 0 0 auto; background-color: var(--bc-bar-border); }
+.drag-handle { display: none; flex: 1 1 auto; min-width: 24px; align-self: stretch; cursor: move; }
+.bar.translating .drag-handle { display: block; }
+.resize-handle { display: none; position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; }
+.resize-handle::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-right: 1px solid var(--bc-bar-icon); border-bottom: 1px solid var(--bc-bar-icon); opacity: 0.6; }
+.bar.translating .resize-handle { display: block; }
 .bar.translating { width: var(--bc-panel-width); }
 .panel {
   display: none;
@@ -325,6 +330,7 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
   white-space: pre-wrap;
   overflow-wrap: anywhere;
   overflow: auto;
+  height: var(--bc-panel-height, auto);
   overscroll-behavior: contain;
   padding-right: 16px;
   max-height: var(--bc-panel-max, ${PANEL_BODY_MAX}px);
@@ -465,6 +471,9 @@ function createBar(actions: BarActions): Bar {
   /** The selection the bar sits by, to place it again when the panel changes. */
   let anchor: DOMRect | null = null;
   let view: SelectionTranslationView | null = null;
+  let geometry: { left: number; top: number; width: number; bodyHeight: number } | null = null;
+  let endGesture: (() => void) | null = null;
+  let resized = false;
 
   /**
    * An icon and a label in the settings page's language, read on every paint
@@ -544,10 +553,51 @@ function createBar(actions: BarActions): Bar {
   row.appendChild(separator);
   const translateButton = makeButton(row, "Translate", "translate", () => actions.translate());
   translateButton.hidden = true;
+  const dragHandle = document.createElement("div");
+  dragHandle.className = "drag-handle";
+  dragHandle.setAttribute("aria-hidden", "true");
+  row.appendChild(dragHandle);
   const settingsButton = makeButton(row, "Translation settings", "settings", () => actions.settings());
   settingsButton.className += " panel-settings";
   settingsButton.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.settings}</svg>`;
   settingsButton.hidden = true;
+  const resizeHandle = document.createElement("div");
+  resizeHandle.className = "resize-handle";
+  resizeHandle.setAttribute("aria-hidden", "true");
+  bar.appendChild(resizeHandle);
+
+  const beginGesture = (event: PointerEvent, resize: boolean) => {
+    if (!view || event.button !== 0) return;
+    event.preventDefault();
+    const body = panel.querySelector<HTMLElement>(".panel-body");
+    const start = { x: event.clientX, y: event.clientY,
+      left: parseFloat(host.style.getPropertyValue("left")), top: parseFloat(host.style.getPropertyValue("top")),
+      width: bar.offsetWidth, bodyHeight: body?.offsetHeight ?? PANEL_BODY_MAX };
+    const move = (next: PointerEvent) => {
+      const dx = next.clientX - start.x;
+      const dy = next.clientY - start.y;
+      const width = resize ? Math.min(Math.max(360, start.width + dx), window.innerWidth - start.left - GAP) : start.width;
+      const bodyHeight = resize ? Math.min(Math.max(PANEL_BODY_MIN, start.bodyHeight + dy), window.innerHeight - start.top - GAP - (bar.offsetHeight - (body?.offsetHeight ?? 0))) : start.bodyHeight;
+      geometry = { left: resize ? start.left : Math.max(GAP, Math.min(start.left + dx, window.innerWidth - bar.offsetWidth - GAP)),
+        top: resize ? start.top : Math.max(GAP, Math.min(start.top + dy, window.innerHeight - bar.offsetHeight - GAP)), width, bodyHeight };
+      host.style.setProperty("left", `${Math.round(geometry.left)}px`, "important");
+      host.style.setProperty("top", `${Math.round(geometry.top)}px`, "important");
+      bar.style.setProperty("--bc-panel-width", `${Math.round(width)}px`);
+      if (resize) {
+        resized = true;
+        bar.style.setProperty("--bc-panel-height", `${Math.round(bodyHeight)}px`);
+        bar.style.setProperty("--bc-panel-max", `${Math.round(bodyHeight)}px`);
+      }
+    };
+    const end = () => { window.removeEventListener("pointermove", move); window.removeEventListener("pointerup", end); window.removeEventListener("pointercancel", end); endGesture = null; };
+    endGesture?.();
+    endGesture = end;
+    window.addEventListener("pointermove", move);
+    window.addEventListener("pointerup", end);
+    window.addEventListener("pointercancel", end);
+  };
+  dragHandle.addEventListener("pointerdown", (event) => beginGesture(event, false));
+  resizeHandle.addEventListener("pointerdown", (event) => beginGesture(event, true));
 
   // The bar keeps the selection alive: a press inside it must not move the
   // caret, or `window.getSelection()` is empty by the time the click lands.
@@ -638,14 +688,14 @@ function createBar(actions: BarActions): Bar {
     if (translating) bar.classList.add("translating");
     else bar.classList.remove("translating");
     if (translating) {
-      bar.style.setProperty("--bc-panel-width", `${Math.max(0, Math.min(PANEL_WIDTH, window.innerWidth - GAP * 2))}px`);
+      bar.style.setProperty("--bc-panel-width", `${Math.max(0, Math.min(geometry?.width ?? PANEL_WIDTH, window.innerWidth - GAP * 2))}px`);
       const body = panel.querySelector<HTMLElement>(".panel-body");
       if (body) {
         // The body scrolls inside whatever height the viewport leaves.
         bar.style.setProperty("--bc-panel-max", `${PANEL_BODY_MAX}px`);
         const chrome = bar.offsetHeight - body.offsetHeight;
         const room = window.innerHeight - GAP * 2 - chrome;
-        bar.style.setProperty("--bc-panel-max", `${Math.round(Math.max(PANEL_BODY_MIN, Math.min(PANEL_BODY_MAX, room)))}px`);
+        bar.style.setProperty("--bc-panel-max", `${Math.round(Math.max(PANEL_BODY_MIN, Math.min(resized ? geometry!.bodyHeight : PANEL_BODY_MAX, room)))}px`);
       }
     }
     // Measure once visible, then clamp inside the viewport. Above the
@@ -660,8 +710,8 @@ function createBar(actions: BarActions): Bar {
     const top = above >= GAP
       ? above
       : Math.max(GAP, Math.min(rect.bottom + GAP, window.innerHeight - height - GAP));
-    host.style.setProperty("left", `${Math.round(left)}px`, "important");
-    host.style.setProperty("top", `${Math.round(top)}px`, "important");
+    host.style.setProperty("left", `${Math.round(geometry ? Math.max(GAP, Math.min(geometry.left, window.innerWidth - width - GAP)) : left)}px`, "important");
+    host.style.setProperty("top", `${Math.round(geometry ? Math.max(GAP, Math.min(geometry.top, window.innerHeight - height - GAP)) : top)}px`, "important");
     // A bar already up moves with its selection at once; a new one rises 4
     // from the selection's side and fades in, and leaves 2 the other way.
     if (!arriving) return;
@@ -713,6 +763,7 @@ function createBar(actions: BarActions): Bar {
     },
     hide() {
       if (hidden() || bar.classList.contains("leaving")) return;
+      endGesture?.();
       bar.classList.add("leaving");
       bar.classList.remove("shown");
       const reduced = window.matchMedia?.("(prefers-reduced-motion: reduce)").matches ?? false;
@@ -721,6 +772,9 @@ function createBar(actions: BarActions): Bar {
         host.style.setProperty("display", "none", "important");
         if (topLayer && host.matches(":popover-open")) host.hidePopover();
         anchor = null;
+        geometry = null;
+        resized = false;
+        bar.style.setProperty("--bc-panel-height", "");
         // The panel fades out with the bar, then goes.
         if (view) {
           view = null;
@@ -744,6 +798,7 @@ function createBar(actions: BarActions): Bar {
       if (anchor && !hidden() && !bar.classList.contains("leaving")) place(anchor, false);
     },
     dispose() {
+      endGesture?.();
       window.clearTimeout(doneTimer);
       window.clearTimeout(leaveTimer);
       window.clearTimeout(copiedTimer);
