@@ -752,6 +752,7 @@ describe("compact footer on one line", () => {
   it("counts only the items it draws", () => {
     expect(fitOneLine({ copy: 52, model: 84, clock: 54, duration: 46 }, 260, 8)).toEqual({ model: true, clock: true });
     expect(fitOneLine({ copy: 52, model: 84, clock: 54, duration: 46 }, 259, 8)).toEqual({ model: true, clock: false });
+    expect(fitOneLine({ copy: 52, translate: 24, model: 84, clock: 54, duration: 46 }, 260, 8)).toEqual({ model: true, clock: false });
     // No duration and no model: the clock has the room.
     expect(fitOneLine({ copy: 52, clock: 54 }, 114, 8)).toEqual({ model: true, clock: true });
     expect(fitOneLine({ copy: 52, model: 300, clock: 54, duration: 46 }, 200, 8)).toEqual({ model: false, clock: false });

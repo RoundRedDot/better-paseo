@@ -11,6 +11,7 @@ const runtime = vi.hoisted(() => ({
   listeners: new Set<() => void>(),
   api: {} as unknown,
   copyText: vi.fn(async (_text: string) => {}),
+  translate: vi.fn(() => new Promise<never>(() => {})),
 }));
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
@@ -20,7 +21,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
     () => selector(runtime.agent),
   ),
   usePaseo: () => runtime.api,
-  useRpc: () => () => Promise.resolve(null),
+  useRpc: (rpc: unknown) => rpc === translateTimelineItemRpc ? runtime.translate : () => Promise.resolve(null),
   useWorkspace: () => null,
   useSettings: () => ({ data: undefined, status: "loading" }),
 }));
@@ -43,6 +44,8 @@ vi.mock("../../client/components/markdown/markdown-view", async () => {
 import { LiveAssistantRenderer, LiveToolCallRenderer, type LiveAssistantPayload, type LiveToolCallPayload } from "../../client/live-renderers";
 import { AssistantFooter } from "../../client/components/turn-footer";
 import { assistantRows } from "../../client/assistant-transform";
+import { translateTimelineItemRpc } from "../../shared/timeline-translation";
+import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
 import { formatFooterStamp, formatFullStamp } from "../../client/ui/time";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -53,7 +56,10 @@ const catalog: PaseoProviderModelsResult = { provider: "codex", fetchedAt: "now"
   models: [{ provider: "codex", id: "sol", label: "GPT-6.1-Sol", thinkingOptions: [{ id: "medium", label: "Medium" }] }] };
 
 beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; });
-afterEach(() => { expect(runtime.listeners.size).toBe(0); });
+afterEach(() => {
+  resetTranslationSettingsStoreForTests();
+  expect(runtime.listeners.size).toBe(0);
+});
 
 describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform) => {
   it("shows the turn end time while matching the reply by its original timestamp", async () => {
@@ -160,7 +166,8 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
     }
   });
 
-  it("keeps one full-message copy and timing footer after a long streaming reply splits into rows", async () => {
+  it("copies and translates the full reply from one footer after a long reply splits into rows", async () => {
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "codex", model: "sol" }, "footer");
     const text = Array.from({ length: 60 }, (_, index) => `## Part ${index}\n\n${"Paragraph. ".repeat(40)}\n\n`).join("");
     const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page([
       entry({ type: "user_message", text: "prompt" }, 1, 1000, "long"),
@@ -184,6 +191,12 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
       expect(refetch).toHaveBeenCalledTimes(1);
       await act(async () => footers[0]!.findByProps({ accessibilityLabel: "Copy reply" }).props.onPress());
       expect(runtime.copyText).toHaveBeenCalledExactlyOnceWith(text);
+      const translate = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.testID === "footer-translate");
+      expect(translate).toHaveLength(1);
+      expect(runtime.translate).not.toHaveBeenCalled();
+      await act(async () => translate[0]!.props.onPress({ stopPropagation() {} }));
+      expect(runtime.translate).toHaveBeenCalledOnce();
+      expect(runtime.translate.mock.calls[0]).toMatchObject([{ agentId: "long", sourceKind: "assistant_message", text }]);
     } finally { await act(async () => renderer.unmount()); }
   });
 

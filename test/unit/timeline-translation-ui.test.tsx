@@ -144,7 +144,7 @@ vi.mock("../../client/host-row-gap", () => ({ useHostStacksRows: () => false }))
 import { LiveAssistantRenderer, LiveReasoningRenderer } from "../../client/live-renderers";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { SelectionTranslationScope } from "../../client/translation/ui";
-import { MessageTranslateButton } from "../../client/tasks/cards/message-translation";
+import { MessageTranslateButton } from "../../client/translation/message-button";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { segmentReasoning } from "../../client/reasoning/segment";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";

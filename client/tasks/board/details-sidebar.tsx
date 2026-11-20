@@ -1,3 +1,4 @@
+import { selectionWithoutComposer } from "../../components/selection-actions";
 import { PreferenceSyncSlot } from "../../state/preference-sync-slot";
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
@@ -184,7 +185,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   if (short) {
     const parked = outsideIndicator(props.scrollAll === true && props.touch === true);
     return (
-      <View style={{ flex: 1, minHeight: 0 }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
+      <View {...selectionWithoutComposer} style={{ flex: 1, minHeight: 0 }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
         {/* Keyed by the card: a jump to the parent or back starts at the top. */}
         <SheetScrollRoom>
           <ScrollView key={selection.id ?? ""} style={{ flex: 1, marginRight: parked?.marginRight ?? 0 }} contentContainerStyle={{ gap: DETAIL_CARD.gap, paddingRight: parked?.paddingRight ?? 0 }} {...detailScrollProps("column")} testID="details-sidebar-scroll">
@@ -196,7 +197,7 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
     );
   }
   return (
-    <View style={{ flex: 1, minHeight: 0, gap: DETAIL_CARD.gap }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
+    <View {...selectionWithoutComposer} style={{ flex: 1, minHeight: 0, gap: DETAIL_CARD.gap }} onLayout={onLayout} testID={props.testID ?? "details-sidebar"}>
       {/* A tabbed card gives up the room inside, above its own foot. */}
       {columns ? <SheetScrollRoom>{content}</SheetScrollRoom> : content}
       {sheetActions}

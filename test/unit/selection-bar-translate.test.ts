@@ -182,6 +182,30 @@ afterEach(() => {
 });
 
 describe("selection bar Translate", () => {
+  it("offers copy and translate in a details sidebar and restores Add to chat in the conversation", () => {
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const sidebar = new ElementMock();
+    sidebar.dataset.bcnocomposer = "";
+    body.appendChild(sidebar);
+    const details = surface(scope);
+    const root = details.parentElement!;
+    root.remove();
+    sidebar.appendChild(root);
+    const chat = surface(scope);
+
+    select("same reply", details);
+    expect(button("Copy")!.hidden).toBe(false);
+    expect(button("Translate")!.hidden).toBe(false);
+    expect(button("Add to chat")!.hidden).toBe(true);
+    expect(host().all((node) => node.className === "row-separator" && !node.hidden)).toHaveLength(1);
+    button("Add to chat")!.click();
+    expect(copy).not.toHaveBeenCalled();
+
+    select("same reply", chat);
+    expect(button("Add to chat")!.hidden).toBe(false);
+    expect(host().all((node) => node.className === "row-separator" && !node.hidden)).toHaveLength(2);
+  });
+
   it("shows the toolbar when a whole paragraph ends at the next element boundary", () => {
     const node = surface({ agentId: "session-1", kind: "assistant_message", streaming: false });
     selected = { text: "Fix version update checks.\n", node, focus: new ElementMock(), rangeText: "Fix version update checks." };

@@ -77,6 +77,8 @@ export const selectionCodeSurface = { dataSet: { bccode: true, pmono: "" } } as 
  */
 export const selectionCodeText = { dataSet: { bccode: true, pmono: "" } } as unknown as TextProps;
 
+export const selectionWithoutComposer = { dataSet: { bcnocomposer: "" } } as unknown as ViewProps;
+
 const SURFACE_SELECTOR = "[data-bcselection]";
 /** The bar's host, for layers that must treat a press on it as their own. */
 export const SELECTION_BAR_SELECTOR = "[data-bcselectionbar]";
@@ -120,6 +122,7 @@ type IconName = keyof typeof ICONS;
 interface Snapshot {
   text: string;
   isCode: boolean;
+  canAddToChat: boolean;
   rect: DOMRect;
   /** Every line box of the selection, `rect` first. */
   rects: readonly DOMRect[];
@@ -188,7 +191,8 @@ function readSelection(): Snapshot | null {
 
   const element = elementOf(anchor && focus ? range.commonAncestorContainer : anchor ? selection.anchorNode : selection.focusNode);
   const isCode = Boolean(element?.closest(CODE_SELECTOR));
-  return { text, isCode, rect, rects, element, surface, scope: scopeOf(surface) };
+  const canAddToChat = !surface.closest("[data-bcnocomposer]");
+  return { text, isCode, canAddToChat, rect, rects, element, surface, scope: scopeOf(surface) };
 }
 
 /** Markdown the composer can carry: a fence for code, a blockquote for prose. */
@@ -452,8 +456,7 @@ interface Bar {
   setTheme(tokens: ExtendedThemeTokens): void;
   show(rect: DOMRect): void;
   hide(): void;
-  /** Shows Translate for a scoped selection, hides it elsewhere. */
-  setTranslatable(translatable: boolean): void;
+  setSelectionActions(canAddToChat: boolean, canTranslate: boolean): void;
   /** The translation panel's content; null closes it. */
   setPanel(view: SelectionTranslationView | null): void;
   pin(): void;
@@ -525,6 +528,8 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
   /** The selection the bar sits by, to place it again when the panel changes. */
   let anchor: DOMRect | null = null;
   let view: SelectionTranslationView | null = null;
+  let canAddToChat = true;
+  let canTranslate = standalone;
   let geometry: { left: number; top: number; width: number; bodyHeight: number } | null = null;
   let endGesture: (() => void) | null = null;
   let resized = false;
@@ -592,7 +597,7 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
 
   const addButton = makeButton(row, "Add to chat", "add", (button) => {
     const snapshot = actions.snapshot();
-    if (!snapshot) return;
+    if (!snapshot?.canAddToChat) return;
     if (insertIntoComposer(quote(snapshot), snapshot.element)) {
       flash(button, "Added");
       return;
@@ -818,6 +823,14 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     bar.classList.add("shown");
   };
 
+  const updateSelectionActions = () => {
+    copyButton.hidden = Boolean(view);
+    copySeparator.hidden = Boolean(view) || !canAddToChat;
+    addButton.hidden = copySeparator.hidden;
+    translateButton.hidden = !canTranslate;
+    separator.hidden = Boolean(view) || !canTranslate;
+  };
+
   const hidden = () => host.style.getPropertyValue("display") === "none";
   const unsubscribeMarks = subscribeMarks(() => { if (view?.modelInfo) renderPanel(); });
 
@@ -873,10 +886,7 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
         // The panel fades out with the bar, then goes.
         if (view) {
           view = null;
-          copyButton.hidden = false;
-          copySeparator.hidden = false;
-          addButton.hidden = false;
-          separator.hidden = translateButton.hidden;
+          updateSelectionActions();
           settingsButton.hidden = true;
           toggleButton.hidden = true;
           showingOriginal = false;
@@ -885,19 +895,17 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
         }
       }, reduced ? 0 : LEAVE_MS);
     },
-    setTranslatable(translatable) {
-      translateButton.hidden = !translatable;
-      separator.hidden = !translatable;
+    setSelectionActions(addToChat, translate) {
+      canAddToChat = addToChat;
+      canTranslate = translate;
+      updateSelectionActions();
     },
     setPanel(next) {
       if (next === view) return;
       view = next;
       if (!next || next.status !== "done") showingOriginal = false;
       if (!next) geometry = null;
-      copyButton.hidden = Boolean(next);
-      copySeparator.hidden = Boolean(next);
-      addButton.hidden = Boolean(next);
-      separator.hidden = Boolean(next) || translateButton.hidden;
+      updateSelectionActions();
       settingsButton.hidden = !next;
       if (!next) toggleButton.hidden = true;
       settingsButton.title = toolbarLabel("Translation settings", readLanguage());
@@ -1122,7 +1130,7 @@ function startController(): Controller {
       hide();
       return;
     }
-    bar.setTranslatable(snapshot.scope !== null && translationOffered());
+    bar.setSelectionActions(snapshot.canAddToChat, snapshot.scope !== null && translationOffered());
     bar.show(anchor);
   };
 

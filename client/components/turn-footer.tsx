@@ -1,5 +1,6 @@
 import React, { useCallback, useMemo, useRef, useState, type RefObject } from "react";
 import { View, Text, Pressable, StyleSheet, type LayoutChangeEvent } from "react-native";
+import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { unselectable } from "./selection";
 import { radiusV2, space } from "./theme-tokens";
@@ -17,6 +18,8 @@ import type { TurnUsage } from "./user-message";
 import { useEnhancerPreferences } from "../preferences";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { toolbarLabel } from "../i18n/toolbar-strings";
+import { MessageTranslateButton } from "../translation/message-button";
+import { useTranslationSettingsState } from "../translation/settings-store";
 
 /**
  * The host's own reply footer — copy, fork and the turn's time — is drawn by
@@ -45,11 +48,12 @@ interface AssistantFooterProps {
   startedAt?: number | null;
   usage?: TurnUsage | null;
   tokens: ExtendedThemeTokens;
+  translation?: { agentId: string; theme: PluginTheme };
   /** `layout.compact`: a 44pt touch target for Copy. */
   compact?: boolean;
 }
 
-export function AssistantFooter({ text, at, agentName, modelId, modelName, thinkingLabel, durationMs, startedAt, usage, tokens, compact = false }: AssistantFooterProps) {
+export function AssistantFooter({ text, at, agentName, modelId, modelName, thinkingLabel, durationMs, startedAt, usage, tokens, translation, compact = false }: AssistantFooterProps) {
   // The shared copy path (plan §3.8): a check for 1.2 s on success, a toast
   // on failure, and no timer left running after unmount.
   const { copied, copy } = useCopy();
@@ -70,7 +74,9 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
   // replayed turn spans a millisecond or two. Their live turns time normally.
   const visibleDurationMs = (agentName === "grok" || agentName === "cursor") && durationMs != null &&
     durationMs < REPLAY_COLLAPSE_MS ? null : durationMs;
-  const { fit, measure } = useOneLineFit(compact, Boolean(modelName), visibleDurationMs != null);
+  const settings = useTranslationSettingsState();
+  const canTranslate = settings.status !== "ready" || settings.values.enabled;
+  const { fit, measure } = useOneLineFit(compact, Boolean(modelName), visibleDurationMs != null, Boolean(translation && canTranslate));
   const details = <FooterDetails agentName={agentName} modelId={modelId} modelName={modelName} thinkingLabel={thinkingLabel}
     startedAt={startedAt} completedAt={at.getTime()} durationMs={visibleDurationMs} usage={usage} tokens={tokens} />;
   const copyModel = useCallback(() => {
@@ -159,6 +165,10 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
           />
           <Text style={styles.copyLabel}>{toolbarLabel("Copy", language)}</Text>
         </ToolbarItem>
+        {translation && canTranslate ? (
+          <MessageTranslateButton {...translation} kind="assistant_message" text={text} streaming={false}
+            testID="footer-translate" size={FOOTER_HEIGHT} />
+        ) : null}
         {modelName && fit.model ? (
           <ToolbarItem
             onLayout={compact ? measure.model : undefined}
@@ -215,13 +225,13 @@ const FOOTER_HEIGHT = 24;
 /** A replayed Grok or Cursor turn spans under this; a live model turn never does. */
 const REPLAY_COLLAPSE_MS = 1_000;
 
-type FooterSlot = "copy" | "model" | "clock" | "duration";
+type FooterSlot = "copy" | "translate" | "model" | "clock" | "duration";
 export interface FooterFit { model: boolean; clock: boolean }
 
 /**
  * Which items one line holds, given each item's width (absent when not drawn)
  * and the row's. The clock goes first, then the model name: both stay in the
- * long-press details. Copy and the elapsed time always stay.
+ * long-press details. Copy, Translate, and the elapsed time always stay.
  */
 export function fitOneLine(widths: Partial<Record<FooterSlot, number>>, row: number, gap: number): FooterFit {
   const span = (slots: readonly FooterSlot[]) => {
@@ -230,8 +240,8 @@ export function fitOneLine(widths: Partial<Record<FooterSlot, number>>, row: num
   };
   // Half a point of rounding must not drop an item that fits.
   const fits = (slots: readonly FooterSlot[]) => span(slots) <= row + 0.5;
-  if (fits(["copy", "model", "clock", "duration"])) return { model: true, clock: true };
-  if (fits(["copy", "model", "duration"])) return { model: true, clock: false };
+  if (fits(["copy", "translate", "model", "clock", "duration"])) return { model: true, clock: true };
+  if (fits(["copy", "translate", "model", "duration"])) return { model: true, clock: false };
   return { model: false, clock: false };
 }
 
@@ -241,7 +251,7 @@ const FIT_ALL: FooterFit = { model: true, clock: true };
  * Measures the compact row and its items. A dropped item keeps its last width,
  * so a wider row brings it back; an item not drawn at all counts for nothing.
  */
-function useOneLineFit(compact: boolean, hasModel: boolean, hasDuration: boolean) {
+function useOneLineFit(compact: boolean, hasModel: boolean, hasDuration: boolean, hasTranslate: boolean) {
   const [widths, setWidths] = useState<Partial<Record<FooterSlot | "row", number>>>({});
   const measure = useMemo(() => {
     const slot = (name: FooterSlot | "row") => (event: LayoutChangeEvent) => {
@@ -251,7 +261,7 @@ function useOneLineFit(compact: boolean, hasModel: boolean, hasDuration: boolean
     return { row: slot("row"), copy: slot("copy"), model: slot("model"), clock: slot("clock"), duration: slot("duration") };
   }, []);
   const { row, model, duration, ...rest } = widths;
-  const fit = compact && row ? fitOneLine({ ...rest, ...(hasModel ? { model } : {}), ...(hasDuration ? { duration } : {}) },
+  const fit = compact && row ? fitOneLine({ ...rest, ...(hasTranslate ? { translate: FOOTER_HEIGHT } : {}), ...(hasModel ? { model } : {}), ...(hasDuration ? { duration } : {}) },
     row, space.sm) : FIT_ALL;
   return { fit, measure };
 }

@@ -702,6 +702,7 @@ function LiveAssistantMessageRenderer({
           agentId={agentId}
           text={messageText}
           at={timestamp}
+          theme={theme}
           tokens={tokens}
           compact={layout.compact}
           streaming={streaming}
@@ -728,6 +729,7 @@ const TurnFooter = memo(function TurnFooter({
   agentId,
   text,
   at,
+  theme,
   tokens,
   compact,
   streaming,
@@ -735,6 +737,7 @@ const TurnFooter = memo(function TurnFooter({
   agentId: string;
   text: string;
   at: Date;
+  theme: PluginTheme;
   tokens: ReturnType<typeof useThemeTokens>;
   compact: boolean;
   streaming: boolean;
@@ -743,14 +746,15 @@ const TurnFooter = memo(function TurnFooter({
   const paseo = usePaseo();
   const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running, streaming);
   if (!timing) return null;
-  return <CompletedReplyFooter agentId={agentId} text={text} at={new Date(timing.completedAt)} tokens={tokens}
+  return <CompletedReplyFooter agentId={agentId} text={text} theme={theme} at={new Date(timing.completedAt)} tokens={tokens}
     compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage} />;
 });
 
-function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, startedAt, usage }: {
+function CompletedReplyFooter({ agentId, text, at, theme, tokens, compact, durationMs, startedAt, usage }: {
   agentId: string;
   text: string;
   at: Date;
+  theme: PluginTheme;
   tokens: ReturnType<typeof useThemeTokens>;
   compact: boolean;
   durationMs: number | null;
@@ -763,7 +767,7 @@ function CompletedReplyFooter({ agentId, text, at, tokens, compact, durationMs, 
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const paseo = usePaseo();
   const model = useFooterModel(paseo, agentName, modelId, thinkingOptionId, cwd);
-  return <AssistantFooter text={text} at={at} agentName={agentName} modelId={modelId} modelName={model.modelName}
+  return <AssistantFooter translation={{ agentId, theme }} text={text} at={at} agentName={agentName} modelId={modelId} modelName={model.modelName}
     thinkingLabel={model.thinkingLabel}
     durationMs={durationMs} startedAt={startedAt} usage={usage} tokens={tokens} compact={compact} />;
 }

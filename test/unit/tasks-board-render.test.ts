@@ -2659,6 +2659,7 @@ describe("Tasks board, desktop", () => {
     const sidebar = () => hostsById("details-sidebar")[0]!;
     const layoutSidebar = (height: number) => sidebar().props.onLayout({ nativeEvent: { layout: { width: 380, height } } });
     act(() => layoutSidebar(800));
+    expect(sidebar().props.dataSet).toMatchObject({ bcnocomposer: "" });
     const content = sidebar().props.children;
     for (let delta = 1; delta <= 50; delta++) {
       act(() => hostsById("tasks-board-area")[0]!.props.onLayout({ nativeEvent: { layout: { width: 1300 + delta, height: 800 - delta } } }));
@@ -2668,6 +2669,7 @@ describe("Tasks board, desktop", () => {
     // Window resizing still changes lane widths and switches the short-column layout.
     expect(StyleSheet.flatten(hostsById("lane-surface-running")[0]!.props.style).width).toBe((1350 - 48) / 4);
     act(() => layoutSidebar(639));
+    expect(sidebar().props.dataSet).toMatchObject({ bcnocomposer: "" });
     expect(hostsById(selected ? "detail-tab-short-scroll" : "details-sidebar-scroll")).toHaveLength(1);
     act(() => layoutSidebar(640));
     expect(hostsById("details-sidebar-scroll")).toHaveLength(0);
