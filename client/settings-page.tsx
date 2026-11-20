@@ -954,7 +954,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           stacked
         />
         {chat ? <SettingRow title={t.timelineTitle} description={t.timelineDescription} look={look} stacked
-          control={<View accessibilityRole="radiogroup" accessibilityLabel={t.timelineTitle} style={{ flexDirection: "row", gap: 8 }}>
+          control={<View accessibilityRole="radiogroup" accessibilityLabel={t.timelineTitle} style={{ width: look.compact ? "100%" : 300, maxWidth: "100%", flexDirection: "row", gap: 8 }}>
             {([ ["simple", t.timelineSimple, t.timelineSimpleDescription], ["standard", t.timelineStandard, t.timelineStandardDescription], ["detailed", t.timelineDetailed, t.timelineDetailedDescription] ] as const).map(([value, label, description]) => (
               <Pressable key={value} accessibilityRole="radio" aria-checked={preferences.timelineLevel === value} accessibilityState={{ checked: preferences.timelineLevel === value }} onPress={() => updateEnhancerPreferences({ timelineLevel: value })}
                 style={{ flex: 1, minWidth: 0, padding: 10, gap: 6, borderWidth: 1, borderRadius: 8, borderColor: preferences.timelineLevel === value ? tokens.accent : tokens.v2.border }}>

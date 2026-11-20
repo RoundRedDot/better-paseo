@@ -24,9 +24,10 @@ vi.mock("../../client/ui/wide-host-column", () => ({ useWideHostColumn() {} }));
 import { Section, SettingRow } from "../../client/settings-controls";
 import { BetterPaseoSettingsPage } from "../../client/settings-page";
 import { SettingsPreview } from "../../client/settings-preview";
-import { resetEnhancerPreferences } from "../../client/preferences";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { StyleSheet } from "./helpers/rn-mock";
+import { hostChildren, measureHostTree } from "./helpers/yoga-host-layout";
 import { setSettingsTab } from "../../client/settings-tab";
 import { openTranslationSettings, registerTranslationSettingsOpener } from "../../client/translation/navigation";
 import {
@@ -65,6 +66,27 @@ afterEach(() => {
 });
 
 describe("translation settings placement", () => {
+  it.each([[500, false, "en"], [500, false, "zh"], [320, true, "en"], [320, true, "zh"]] as const)("keeps timeline choices readable at %i points, compact %s, %s", async (width, compact, language) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "android";
+    resetEnhancerPreferences();
+    updateEnhancerPreferences({ language });
+    setSettingsTab("display");
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
+        theme: { colors }, layout: { platform: "android", compact }, host: { id: "host" },
+      } as never));
+    });
+    const row = renderer!.root.findAllByType(SettingRow).find((item) => item.props.title === SETTINGS_STRINGS[language].timelineTitle)!;
+    const root = hostChildren(row)[0]!;
+    const frames = measureHostTree(root, { width, wrapText: true });
+    const choices = root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+    expect(choices).toHaveLength(3);
+    for (const choice of choices) {
+      expect(frames.get(choice)!.width).toBeGreaterThan(80);
+      expect(frames.get(choice)!.height).toBeLessThan(400);
+    }
+  });
+
   it("opens at the translation section when requested from the popup", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     resetEnhancerPreferences();
