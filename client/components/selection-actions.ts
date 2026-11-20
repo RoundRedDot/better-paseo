@@ -48,8 +48,8 @@ import { SYNCED_LOADER_FRAMES } from "../ui/synced-loader";
  *
  * In a reply or a thought the bar also offers Translate, for exactly the
  * selected text. Its result opens in a panel under the buttons, bounded to the
- * viewport, and leaves with the bar; a new selection never shows the previous
- * one's result.
+ * viewport. It stays open if the source scrolls or is replaced; a new
+ * selection never shows the previous one's result.
  *
  * Web only. iOS and Android route selection through the platform's own menu,
  * which a plugin cannot extend; `selectable` text there already offers Copy,
@@ -406,6 +406,8 @@ interface Bar {
   setTranslatable(translatable: boolean): void;
   /** The translation panel's content; null closes it. */
   setPanel(view: SelectionTranslationView | null): void;
+  pin(): void;
+  reposition(): void;
   dispose(): void;
 }
 
@@ -415,6 +417,7 @@ interface BarActions {
   translate(): void;
   retry(): void;
   settings(): void;
+  snapshot(): Snapshot | null;
 }
 
 function readLanguage() {
@@ -522,7 +525,7 @@ function createBar(actions: BarActions): Bar {
   };
 
   const copyButton = makeButton(row, "Copy", "copy", (button) => {
-    const snapshot = readSelection();
+    const snapshot = actions.snapshot();
     if (!snapshot) return;
     void copyText(snapshot.text);
     flash(button, "Copied");
@@ -534,7 +537,7 @@ function createBar(actions: BarActions): Bar {
   row.appendChild(copySeparator);
 
   const addButton = makeButton(row, "Add to chat", "add", (button) => {
-    const snapshot = readSelection();
+    const snapshot = actions.snapshot();
     if (!snapshot) return;
     if (insertIntoComposer(quote(snapshot), snapshot.element)) {
       flash(button, "Added");
@@ -791,11 +794,23 @@ function createBar(actions: BarActions): Bar {
     setPanel(next) {
       if (next === view) return;
       view = next;
+      if (!next) geometry = null;
       settingsButton.hidden = !next;
       settingsButton.title = toolbarLabel("Translation settings", readLanguage());
       window.clearTimeout(copiedTimer);
       renderPanel();
       if (anchor && !hidden() && !bar.classList.contains("leaving")) place(anchor, false);
+    },
+    pin() {
+      geometry = {
+        left: parseFloat(host.style.getPropertyValue("left")),
+        top: parseFloat(host.style.getPropertyValue("top")),
+        width: parseFloat(bar.style.getPropertyValue("--bc-panel-width")),
+        bodyHeight: PANEL_BODY_MAX,
+      };
+    },
+    reposition() {
+      if (anchor && !hidden()) place(anchor, false);
     },
     dispose() {
       endGesture?.();
@@ -812,6 +827,7 @@ function createBar(actions: BarActions): Bar {
 interface Controller {
   bar: Bar;
   refs: number;
+  hasTranslation(): boolean;
   dispose(): void;
 }
 
@@ -860,6 +876,7 @@ function startController(): Controller {
   const hide = () => {
     endTranslation(false);
     bar.hide();
+    if (started.refs === 0) started.dispose();
   };
 
   const translate = () => {
@@ -884,6 +901,7 @@ function startController(): Controller {
     translation = { snapshot, job, release };
     job.start();
     bar.setPanel(job.view());
+    bar.pin();
   };
 
   const bar = createBar({
@@ -901,6 +919,9 @@ function startController(): Controller {
       hide();
       openTranslationSettings(paseo);
     },
+    snapshot() {
+      return translation?.snapshot ?? readSelection();
+    },
   });
   let pending = 0;
 
@@ -908,13 +929,17 @@ function startController(): Controller {
     pending = 0;
     const snapshot = dismissed ? null : readSelection();
     if (!snapshot) {
+      if (translation) return;
       hide();
       return;
     }
     // Another selection never shows this one's result; its job keeps running
     // into the session cache under its own key.
     if (translation && !sameSelection(translation.snapshot, snapshot)) endTranslation(true);
-    if (translation && snapshot.scope) translation.job.setStreaming(snapshot.scope.streaming);
+    if (translation && snapshot.scope) {
+      translation.job.setStreaming(snapshot.scope.streaming);
+      return;
+    }
     bar.setTranslatable(snapshot.scope !== null && translationOffered());
     bar.show(snapshot.rect);
   };
@@ -945,8 +970,13 @@ function startController(): Controller {
   // Scrolling inside the panel does not reach here: scroll events do not
   // cross the shadow root.
   const onScroll = () => {
+    if (translation) return;
     dismissed = true;
     hide();
+  };
+  const onResize = () => {
+    if (translation) bar.reposition();
+    else schedule();
   };
 
   // The translated reply settling rebinds its element, with no selection event.
@@ -959,14 +989,14 @@ function startController(): Controller {
   document.addEventListener("selectionchange", onSelectionChange);
   document.addEventListener("pointerdown", onPointerDown, true);
   document.addEventListener("keydown", onKeyDown, true);
-  // The top-layer bar escapes a preview's clipping boundary. Dismiss it on
-  // scroll rather than following a selection outside its visible container.
+  // Dismiss the selection bar on scroll; an open translation stays in place.
   window.addEventListener("scroll", onScroll, true);
-  window.addEventListener("resize", schedule);
+  window.addEventListener("resize", onResize);
 
   const started: Controller = {
     bar,
     refs: 0,
+    hasTranslation: () => translation !== null,
     dispose() {
       release();
       stopScopeWatch();
@@ -976,8 +1006,9 @@ function startController(): Controller {
       document.removeEventListener("pointerdown", onPointerDown, true);
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("scroll", onScroll, true);
-      window.removeEventListener("resize", schedule);
+      window.removeEventListener("resize", onResize);
       bar.dispose();
+      if (controller === started) controller = null;
     },
   };
   const release = claimSelectionBar(started);
@@ -997,6 +1028,7 @@ export function useSelectionActions(tokens: ExtendedThemeTokens, enabled: boolea
     return () => {
       active.refs -= 1;
       if (active.refs > 0) return;
+      if (active.hasTranslation()) return;
       active.dispose();
       if (controller === active) controller = null;
     };

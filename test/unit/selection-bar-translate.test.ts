@@ -89,7 +89,7 @@ let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 let page: EventTarget & { innerWidth: number; innerHeight: number };
 let doc: EventTarget;
 let body: ElementMock;
-let selected: { text: string; node: ElementMock };
+let selected: { text: string; node: ElementMock } | null;
 const call = vi.fn();
 
 type Scope = { agentId: string; kind: "assistant_message" | "user_message" | "reasoning" | "tool_output"; streaming: boolean };
@@ -138,11 +138,14 @@ beforeEach(() => {
   body = new ElementMock();
   vi.stubGlobal("window", Object.assign(page, {
     setTimeout, clearTimeout,
-    getSelection: () => selected && {
-      isCollapsed: false, toString: () => selected.text, rangeCount: 1,
-      anchorNode: selected.node, focusNode: selected.node,
-      getRangeAt: () => ({ commonAncestorContainer: selected.node,
-        getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }] }),
+    getSelection: () => {
+      const current = selected;
+      return current && {
+        isCollapsed: false, toString: () => current.text, rangeCount: 1,
+        anchorNode: current.node, focusNode: current.node,
+        getRangeAt: () => ({ commonAncestorContainer: current.node,
+          getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }] }),
+      };
     },
   }));
   vi.stubGlobal("document", Object.assign(doc, { body, createElement: () => new ElementMock() }));
@@ -158,6 +161,7 @@ beforeEach(() => {
 });
 
 afterEach(() => {
+  doc.dispatchEvent(Object.assign(new Event("keydown"), { key: "Escape" }));
   act(() => renderer?.unmount());
   renderer = undefined;
   vi.useRealTimers();
@@ -165,6 +169,39 @@ afterEach(() => {
 });
 
 describe("selection bar Translate", () => {
+  it("keeps the translation visible when the page scrolls", async () => {
+    call.mockResolvedValue(done("译文"));
+    select("selected text", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
+    button("Translate")!.click();
+    await flush();
+    const position = [host().style.getPropertyValue("left"), host().style.getPropertyValue("top")];
+    page.dispatchEvent(new Event("scroll"));
+    vi.advanceTimersByTime(150);
+    expect(display()).toBe("block");
+    expect(panel().textContent).toContain("译文");
+    expect([host().style.getPropertyValue("left"), host().style.getPropertyValue("top")]).toEqual(position);
+  });
+
+  it("keeps the translation after the selected content is replaced and its renderer unmounts", async () => {
+    call.mockResolvedValue(done("译文"));
+    select("selected text", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
+    button("Translate")!.click();
+    await flush();
+    selected = null;
+    doc.dispatchEvent(new Event("selectionchange"));
+    vi.advanceTimersByTime(150);
+    expect(display()).toBe("block");
+    button("Copy")!.click();
+    expect(copy).toHaveBeenCalledWith("selected text");
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    expect(display()).toBe("block");
+    expect(panel().textContent).toContain("译文");
+    doc.dispatchEvent(Object.assign(new Event("keydown"), { key: "Escape" }));
+    vi.advanceTimersByTime(150);
+    expect(body.children.some((child) => child.getAttribute("data-bcselectionbar") !== null)).toBe(false);
+  });
+
   it("moves and resizes the translation while preserving its text and selection", async () => {
     call.mockResolvedValue(done("译文"));
     select("selected text", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
@@ -184,7 +221,7 @@ describe("selection bar Translate", () => {
     expect(bar().style.getPropertyValue("--bc-panel-width")).toBe("360px");
     expect(bar().style.getPropertyValue("--bc-panel-height")).toBe("100px");
     expect(panel().textContent).toContain("译文");
-    expect(selected.text).toBe("selected text");
+    expect(selected!.text).toBe("selected text");
     expect(display()).toBe("block");
   });
   it("translates only the selected tool error on its own host and agent", async () => {
