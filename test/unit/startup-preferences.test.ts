@@ -295,7 +295,7 @@ describe("preferences read while the plugin loads", () => {
     const cleanup = contribute(plugin.client as never);
     await flush();
     const reload = vi.fn(() => Promise.resolve());
-    const first = { status: "ready", revision: "t1", values: { enabled: true, targetLanguage: "en" }, save: vi.fn(), reset: vi.fn(), reload };
+    const first = { status: "ready", revision: "t1", values: { enabled: true, customModel: true, provider: "codex", model: "gpt-5", targetLanguage: "en" }, save: vi.fn(), reset: vi.fn(), reload };
     host.settings = first;
     // A row's settings slot, reading the host's copy (`useSettings` answers `host.settings`).
     const Row = () => React.createElement(slot.PreferenceSyncSlot);
@@ -303,6 +303,17 @@ describe("preferences read while the plugin loads", () => {
     await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
     await renderer.act(async () => row.unmount());
     expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t1", values: { targetLanguage: "en" } });
+
+    // A selection translated under t1 sits in the session cache.
+    const { createSelectionTranslation } = await import("../../client/translation/selection");
+    const call = vi.fn(async () => ({ state: "done", translation: "Hello", targetLanguageCode: "en", provider: "codex", model: "gpt-5", thinkingMode: "custom", thinkingOptionId: null }));
+    const select = () => createSelectionTranslation({ agentId: "agent-1", kind: "assistant_message", text: "你好", streaming: false,
+      translator: { call: call as never, watch: () => () => {} }, configStore: undefined, interfaceLanguage: () => "en" });
+    const earlier = select();
+    earlier.start();
+    await flush();
+    expect(earlier.view()).toMatchObject({ status: "done" });
+    earlier.dispose();
 
     // Another client changes the target while no row is mounted; the host
     // marks its copy stale but does not read it until asked.
@@ -313,10 +324,18 @@ describe("preferences read while the plugin loads", () => {
     await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
     await flush();
     expect(reload).toHaveBeenCalledTimes(1);
-    expect(store.getTranslationSettingsState().revision).toBe("t1");
-    host.settings = { ...first, revision: "t2", values: { enabled: true, targetLanguage: "ja" } };
+    // While the record is read again, the old settings neither show the cached result nor send.
+    expect(store.getTranslationSettingsState().status).toBe("loading");
+    const during = select();
+    during.start();
+    expect(during.view()).toEqual({ status: "settings-loading" });
+    host.settings = { ...first, revision: "t2", values: { ...first.values, targetLanguage: "ja" } };
     await renderer.act(async () => settle());
     expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t2", values: { targetLanguage: "ja" } });
+    await flush();
+    expect(call).toHaveBeenCalledTimes(2);
+    expect(JSON.parse((call.mock.calls[1] as unknown as [{ configSignature: string }])[0].configSignature)).toMatchObject({ targetCode: "ja" });
+    during.dispose();
 
     // While a row is mounted its own query reads changes.
     plugin.push("timeline-translation");

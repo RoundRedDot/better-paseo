@@ -307,6 +307,11 @@ describe("timeline translation settings", () => {
       rect = { ...rect, top: 40, bottom: 76 };
       await act(async () => { listeners.get("scroll")!(); });
       expect(menuTop()).toBe(82);
+      // Near the window's bottom it opens upward. `top: auto` releases a popover's
+      // UA `inset: 0`, which otherwise pins it to the top (checked in Chromium).
+      rect = { ...rect, top: 600, bottom: 636 };
+      await act(async () => { listeners.get("scroll")!(); });
+      expect(menuTop()).toBe("auto");
       await act(async () => renderer!.unmount());
       renderer = undefined;
       expect(listeners.has("scroll")).toBe(false);
@@ -406,6 +411,30 @@ describe("timeline translation settings", () => {
     const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
     await act(async () => { trigger.props.onPress(); });
     expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Claude Opus 4.1").length).toBeGreaterThan(0);
+  });
+
+  it("keeps the newest catalog when an earlier page's read answers after a later page's", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    const older = { ...good, models: [{ id: "old-model", label: "Old Model", thinkingOptions: [], defaultThinkingOptionId: null }] };
+    let answerFirst!: (value: unknown) => void;
+    mocks.modelsRpc.mockReset()
+      .mockImplementationOnce(() => new Promise((resolve) => { answerFirst = resolve; }))
+      .mockResolvedValue(good);
+    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook() });
+    // The page opens and closes while its read hangs; the next page reads again and answers first.
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    act(() => renderer!.unmount());
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    act(() => renderer!.unmount());
+    await act(async () => { answerFirst(older); });
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    expect(mocks.modelsRpc).toHaveBeenCalledTimes(2);
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
+    await act(async () => { trigger.props.onPress(); });
+    const radio = (label: string) => renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === label).length;
+    expect(radio("Claude Opus 4.1")).toBeGreaterThan(0);
+    expect(radio("Old Model")).toBe(0);
   });
 
   it("shows only the latest catalog read's error and loading state", async () => {

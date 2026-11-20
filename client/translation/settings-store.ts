@@ -181,7 +181,11 @@ const readRefreshes = () => refreshes;
 /** The daemon changed the record (`plugin_settings_changed`). */
 export function noteTranslationSettingsChanged(): void {
   // A mounted hook's own query reads the change.
-  if (mountedReports === 0) hostCopyStale = true;
+  if (mountedReports > 0) return;
+  hostCopyStale = true;
+  // The values held here are out of date: nothing starts or reuses a
+  // translation under them until the next hook has read the record again.
+  translationSettingsSync.report({ status: "loading" });
 }
 
 /**

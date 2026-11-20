@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import {
@@ -55,7 +55,11 @@ let catalogCache: {
   modelsByProvider: {},
 };
 
+/** The latest catalog read of any settings page: only it writes the cache and the shown state. */
+let latestCatalogRead = 0;
+
 export function resetTranslationSettingsCatalogForTests(): void {
+  latestCatalogRead = 0;
   catalogCache = {
     providers: [],
     providerLabels: {},
@@ -257,23 +261,23 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   const [switchingProvider, setSwitchingProvider] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
 
-  // Only the latest read shows its loading state and error: an earlier one may answer last.
-  const latestRead = useRef(0);
+  // Only the latest read, also across page mounts, writes the cache and shows
+  // its loading state and error: an earlier one may answer last.
   const loadModels = useCallback(async (provider: string) => {
-    const read = ++latestRead.current;
+    const read = ++latestCatalogRead;
     setCatalog((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetchModels({ provider });
-      const targetProvider = provider || res.providers[0] || "";
-      const nextModelsByProvider = { ...catalogCache.modelsByProvider };
-      // A failed read is not an empty catalog: the next visit reads it again.
-      if (targetProvider && !res.error) nextModelsByProvider[targetProvider] = res.models;
-      catalogCache = {
-        providers: res.providers,
-        providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
-        modelsByProvider: nextModelsByProvider,
-      };
-      if (read === latestRead.current) {
+      if (read === latestCatalogRead) {
+        const targetProvider = provider || res.providers[0] || "";
+        const nextModelsByProvider = { ...catalogCache.modelsByProvider };
+        // A failed read is not an empty catalog: the next visit reads it again.
+        if (targetProvider && !res.error) nextModelsByProvider[targetProvider] = res.models;
+        catalogCache = {
+          providers: res.providers,
+          providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
+          modelsByProvider: nextModelsByProvider,
+        };
         setCatalog({
           ...catalogCache,
           loading: false,
@@ -282,7 +286,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
       }
       return res.error ? null : res.models;
     } catch (error) {
-      if (read === latestRead.current) {
+      if (read === latestCatalogRead) {
         setCatalog((prev) => ({
           ...prev,
           loading: false,

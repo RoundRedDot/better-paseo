@@ -384,7 +384,8 @@ export function SearchableLanguageSelect({
             {
               backgroundColor: tokens.v2.surface0,
               borderColor: tokens.v2.border,
-              ...(placement?.bottom !== undefined ? { bottom: placement.bottom } : { top: placement?.top ?? 36 }),
+              // `top: auto` too: a popover's UA `inset: 0` would otherwise pin it to the window's top.
+              ...(placement?.bottom !== undefined ? { top: "auto", bottom: placement.bottom } : { top: placement?.top ?? 36 }),
               left: placement?.left ?? 0,
               width: placement?.width ?? 300,
               boxShadow: tokens.isDark ? "0px 8px 32px rgba(0,0,0,0.5)" : "0px 8px 32px rgba(0,0,0,0.12)",
