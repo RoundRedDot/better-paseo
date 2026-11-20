@@ -279,6 +279,8 @@ describe("selection bar Translate", () => {
     select("selected text", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
     button("Translate")!.click();
     await flush();
+    expect(button("Translate")!.textContent).toBe("Translate");
+    expect(host().querySelector(".drag-handle")?.textContent).toBe("");
     const pointer = (type: string, x: number, y: number) => Object.assign(new Event(type, { cancelable: true }), { button: 0, clientX: x, clientY: y });
     const startLeft = parseFloat(host().style.getPropertyValue("left"));
     const startTop = parseFloat(host().style.getPropertyValue("top"));

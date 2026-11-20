@@ -645,7 +645,7 @@ function createBar(actions: BarActions, standalone = false): Bar {
     panel.replaceChildren();
     if (!view) return;
     const language = readLanguage();
-    dragHandle.textContent = toolbarLabel("Translate", language);
+    if (standalone) dragHandle.textContent = toolbarLabel("Translate", language);
     const lang = resolveLanguage(language ?? "system");
     const head = element("div", "panel-head");
     head.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.translate}</svg>`;
