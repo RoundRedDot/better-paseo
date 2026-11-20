@@ -36,6 +36,8 @@ import type { AssistantRowData } from "./assistant-transform";
 import { HOST_REWIND_MENU } from "./ui/host-rewind";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
+import { variantMetrics } from "./components/markdown/render/styles";
+import { useZoomedTokens } from "./ui/text-zoom";
 import { TimelineTailHub } from "./components/hub-live";
 import { AssistantFooter } from "./components/turn-footer";
 import { SystemCard } from "./components/system-card";
@@ -534,18 +536,28 @@ function LiveAssistantRendererBody(props: PluginTimelineItemProps<LiveAssistantP
   </InlineTranslation>;
 }
 
-function InlineReplyBlock({ state, theme, compact, children }: { state: InlineTranslationState; theme: PluginTheme; compact: boolean; children: ReactNode }) {
+function InlineReplyBlock({ state, theme, tokens: given, compact, firstBlock, listContinuation, children }: {
+  state: InlineTranslationState; theme: PluginTheme; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
+  firstBlock: boolean; listContinuation?: boolean; children: ReactNode;
+}) {
   const { hovered, hoverProps } = useHover();
   const input = useInputCapabilities(compact);
   const settings = useTranslationSettingsState();
+  const preferences = useEnhancerPreferences();
+  const tokens = useZoomedTokens(given);
+  const metrics = variantMetrics(preferences.markdownVariant, tokens.typography.content.size, compact);
+  const gap = firstBlock ? 0 : listContinuation ? metrics.itemGap : metrics.blockGap;
+  const top = gap + (metrics.bodyLineHeight - 32) / 2;
   const enabled = settings.status !== "ready" || settings.values.enabled;
   const loading = state.active && state.view && ["running", "settings-loading", "config-loading"].includes(state.view.status);
   return <View onPointerEnter={hoverProps.onHoverIn} onPointerLeave={hoverProps.onHoverOut} style={{ position: "relative", paddingRight: enabled ? 32 : 0 }}>
     <InlineTranslationNotice state={state} theme={theme} />
-    <View style={loading ? { opacity: 0.55 } : undefined}>{children}</View>
-    {enabled ? <View testID="reply-translation-slot" style={{ position: "absolute", right: 0, top: 0, opacity: hovered || input.touch || state.active ? 1 : 0 }} pointerEvents={hovered || input.touch || state.active ? "auto" : "none"}>
-      <InlineTranslateButton state={state} theme={theme} testID="reply-translate" />
-    </View> : null}
+    <View style={{ position: "relative" }}>
+      <View style={loading ? { opacity: 0.55 } : undefined}>{children}</View>
+      {enabled ? <View testID="reply-translation-slot" style={{ position: "absolute", right: 0, top, opacity: hovered || input.touch || state.active ? 1 : 0 }} pointerEvents={hovered || input.touch || state.active ? "auto" : "none"}>
+        <InlineTranslateButton state={state} theme={theme} testID="reply-translate" />
+      </View> : null}
+    </View>
   </View>;
 }
 
@@ -567,7 +579,7 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp, inlin
     {probe.node}
     <PreferenceSyncSlot />
     <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={item.data.phase === "streaming"}>
-      <InlineReplyBlock state={inline} theme={theme} compact={layout.compact}><MarkdownView text={inline.active && inline.view?.status === "done" ? inline.view.result.translation : item.data.text} tokens={tokens} variant={preferences.markdownVariant}
+      <InlineReplyBlock state={inline} theme={theme} tokens={tokens} compact={layout.compact} firstBlock={item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView text={inline.active && inline.view?.status === "done" ? inline.view.result.translation : item.data.text} tokens={tokens} variant={preferences.markdownVariant}
         compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
         listContinuation={item.data.listContinuation}
         probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} /></InlineReplyBlock>
@@ -654,7 +666,7 @@ function LiveAssistantMessageRenderer({
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
         <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={streaming}>
-          {inline ? <InlineReplyBlock state={inline} theme={theme} compact={layout.compact}><MarkdownView
+          {inline ? <InlineReplyBlock state={inline} theme={theme} tokens={tokens} compact={layout.compact} firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView
             text={translated ?? revealed}
             firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
             listContinuation={item.data.listContinuation}

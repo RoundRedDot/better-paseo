@@ -1,4 +1,5 @@
 import React from "react";
+import { StyleSheet } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import type { PaseoAgent, PaseoAgentListResult, PaseoApi } from "@getpaseo/client";
@@ -569,6 +570,25 @@ const markdownRoots = () => renderer!.root.findAll((node) =>
   String(node.type) === "View" && Boolean(node.props.dataSet?.bcselection));
 
 describe("timeline translation", () => {
+  it.each([
+    { label: "first row", data: {}, size: 15, variant: "document" as const },
+    { label: "continued block", data: { blockIndex: 1 }, size: 15, variant: "document" as const },
+    { label: "continued list at a larger font size", data: { blockIndex: 1, listContinuation: true }, size: 24, variant: "compact" as const },
+    { label: "terminal continuation", data: { blockIndex: 1 }, size: 20, variant: "terminal" as const },
+  ])("centers the translation button on the first line of a $label", async ({ data, size, variant }) => {
+    updateEnhancerPreferences({ markdownVariant: variant });
+    const props = { ...assistantProps({ text: "First line for alignment", phase: "complete", ...data }),
+      theme: { ...theme, typography: { fontSize: { content: size } } } };
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, props as never)); });
+    const slot = renderer!.root.find((node) => node.props.testID === "reply-translation-slot");
+    const root = markdownRoots()[0]!;
+    const text = root.find((node) => String(node.type) === "Text" && node.children.includes("First line for alignment"));
+    const top = Number(StyleSheet.flatten(slot.props.style).top);
+    const padding = Number(StyleSheet.flatten(root.props.style).paddingTop ?? 0);
+    const line = Number(StyleSheet.flatten(text.props.style).lineHeight);
+    expect(top + 16).toBe(padding + line / 2);
+  });
+
   it("offers explicit translation without sending text until pressed", async () => {
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(React.Fragment, null,
