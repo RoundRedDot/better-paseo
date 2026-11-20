@@ -6,6 +6,7 @@ import "./helpers/quiet-renderer";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 import { Section, SectionFooter, Segmented, ResetRow, SettingRow, SettingsTips, Toggle, type PageLook } from "../../client/settings-controls";
 import { measureHostTree } from "./helpers/yoga-host-layout";
+import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const globals = globalThis as { __rnMockOS?: string };
@@ -132,16 +133,19 @@ describe("settings reset row", () => {
     vi.useFakeTimers();
     try {
       const onReset = vi.fn();
-      const resetLook = { tokens: { typography: { ui: { size: 14 } }, v2: {}, warning: "#a60" } } as PageLook;
+      const resetLook = { t: SETTINGS_STRINGS.en, tokens: { typography: { ui: { size: 14 } }, v2: {}, warning: "#a60" } } as PageLook;
       act(() => { renderer = TestRenderer.create(React.createElement(ResetRow, {
         look: resetLook, title: "Defaults", description: "Restore this group", confirmDescription: "Confirm restore",
-        action: "Reset", confirm: "Confirm", cancel: "Cancel", onReset,
+        onReset,
       })); });
-      const buttons = (label: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
+      const buttons = (label: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === `${label} · Defaults`);
       const press = async (label: string) => { await act(async () => buttons(label)[0]!.props.onPress()); };
+      expect(buttons("Reset")[0]!.findByType("Text" as never).children).toEqual(["Reset"]);
       await press("Reset");
       expect(onReset).not.toHaveBeenCalled();
       expect(buttons("Confirm")).toHaveLength(1);
+      expect(buttons("Confirm")[0]!.findByType("Text" as never).children).toEqual(["Confirm"]);
+      expect(buttons("Cancel")[0]!.findByType("Text" as never).children).toEqual(["Cancel"]);
       await press("Cancel");
       expect(onReset).not.toHaveBeenCalled();
       expect(buttons("Confirm")).toHaveLength(0);
@@ -155,6 +159,43 @@ describe("settings reset row", () => {
       await press("Confirm");
       expect(onReset).toHaveBeenCalledOnce();
       expect(buttons("Reset")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps confirmation busy while reset is pending and separates the touch targets", async () => {
+    vi.useFakeTimers();
+    try {
+      let finish!: () => void;
+      const onReset = vi.fn(() => new Promise<void>((resolve) => { finish = resolve; }));
+      const onArmedChange = vi.fn();
+      const resetLook = { compact: true, t: SETTINGS_STRINGS.zh, tokens: { typography: { ui: { size: 16 } }, v2: {} } } as PageLook;
+      act(() => { renderer = TestRenderer.create(React.createElement(ResetRow, {
+        look: resetLook, title: "翻译", description: "恢复本组默认值", confirmDescription: "确认恢复",
+        onReset, onArmedChange,
+      })); });
+      const button = (label: string) => renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === `${label} · 翻译`);
+      act(() => button("重置").props.onPress());
+      const cancel = button("取消");
+      const confirm = button("确认");
+      expect(cancel.findByType("Text" as never).children).toEqual(["取消"]);
+      expect(confirm.findByType("Text" as never).children).toEqual(["确认"]);
+      const actions = renderer.root.find((node) => (node.type as unknown) === "View" && "aria-busy" in node.props);
+      const frames = measureHostTree(actions, { width: 288, textScale: 1.4 });
+      const left = frames.get(cancel)!;
+      const right = frames.get(confirm)!;
+      expect(right.left - left.left - left.width).toBeGreaterThanOrEqual(cancel.props.hitSlop + confirm.props.hitSlop);
+      act(() => confirm.props.onPress());
+      expect(onReset).toHaveBeenCalledOnce();
+      expect(onArmedChange.mock.calls).toEqual([[true]]);
+      act(() => { vi.advanceTimersByTime(4000); });
+      expect(button("确认").props.disabled).toBe(true);
+      expect(button("取消").props.disabled).toBe(true);
+      expect(actions.props["aria-busy"]).toBe(true);
+      await act(async () => { finish(); });
+      expect(onArmedChange.mock.calls).toEqual([[true], [false]]);
+      expect(button("重置").props.disabled).toBe(false);
     } finally {
       vi.useRealTimers();
     }

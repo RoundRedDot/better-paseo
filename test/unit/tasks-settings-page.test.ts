@@ -606,10 +606,10 @@ describe("Tasks half of the settings page", () => {
   it("reset asks first, then keeps the board on", async () => {
     const api = makeSettings({ values: { ...applyDensity(DEFAULT_TASKS_SETTINGS, "full"), enabled: true } });
     const r = panel();
-    await act(async () => button(r, "Restore").props.onPress());
+    await act(async () => button(r, "Reset · Restore the Tasks defaults").props.onPress());
     expect(api.save).not.toHaveBeenCalled();
     expect(textOf(r.root)).toContain("This restores card, board and sidebar options to their defaults.");
-    await act(async () => button(r, "Restore now").props.onPress());
+    await act(async () => button(r, "Confirm · Restore the Tasks defaults").props.onPress());
     expect(api.reset).not.toHaveBeenCalled();
     expect(lastSaved(api)).toEqual({ ...STOCK_SETTINGS, board: { ...STOCK_SETTINGS.board, showArchived: false }, enabled: true });
     expect(deviceTasksStore().snapshot().values).toMatchObject({ showArchived: true, hideSubtasks: false, laneWidth: "default", showEmptyGroups: true });
@@ -618,9 +618,9 @@ describe("Tasks half of the settings page", () => {
   it("the armed reset can be cancelled", async () => {
     const api = makeSettings();
     const r = panel();
-    await act(async () => button(r, "Restore").props.onPress());
-    await act(async () => button(r, "Cancel").props.onPress());
-    expect(r.root.findAll((node) => node.props.accessibilityLabel === "Restore now")).toHaveLength(0);
+    await act(async () => button(r, "Reset · Restore the Tasks defaults").props.onPress());
+    await act(async () => button(r, "Cancel · Restore the Tasks defaults").props.onPress());
+    expect(r.root.findAll((node) => node.props.accessibilityLabel === "Confirm · Restore the Tasks defaults")).toHaveLength(0);
     expect(api.save).not.toHaveBeenCalled();
   });
 
@@ -629,8 +629,8 @@ describe("Tasks half of the settings page", () => {
     const r = panel();
     expect(byTestID(r, "tasks-board-preview")).toHaveLength(0);
     expect(textOf(r.root)).toContain("The saved Tasks settings are unusable: bad");
-    await act(async () => button(r, "Restore").props.onPress());
-    await act(async () => button(r, "Restore now").props.onPress());
+    await act(async () => button(r, "Reset · Restore the Tasks defaults").props.onPress());
+    await act(async () => button(r, "Confirm · Restore the Tasks defaults").props.onPress());
     expect(api.reset).toHaveBeenCalledTimes(1);
   });
 

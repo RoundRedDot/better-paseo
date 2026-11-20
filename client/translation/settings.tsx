@@ -5,6 +5,7 @@ import {
   DEFAULT_TRANSLATION_PROMPT,
   resolveThinkingCapability,
   TIMELINE_TRANSLATION_SETTINGS,
+  TRANSLATION_PROMPT_MAX_LENGTH,
   translationModelsRpc,
   type TimelineTranslationSettings,
   type ThinkingOptionInfo,
@@ -179,10 +180,7 @@ const STRINGS = {
     cancel: "Cancel",
     resetSection: "Restore default translation settings",
     resetHint: "Restores translation settings only.",
-    resetAction: "Reset",
-    resetConfirm: "Confirm",
     resetConfirmHint: "Confirm to restore this section’s defaults.",
-    saving: "Saving...",
     unavailable: "Translation settings are currently unavailable from this host.",
     tips: [
       {
@@ -221,10 +219,7 @@ const STRINGS = {
     cancel: "取消",
     resetSection: "恢复默认翻译设置",
     resetHint: "只恢复本组设置，不影响其他组。",
-    resetAction: "重置",
-    resetConfirm: "确认",
     resetConfirmHint: "再点一次「确认」恢复本组默认值。",
-    saving: "正在保存...",
     unavailable: "当前无法从 Paseo 主机读取翻译设置。",
     tips: [
       {
@@ -346,7 +341,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   const controlsDisabled = writeDisabled || !settings.enabled;
 
   return <>
-    <Section title={t.sectionTitle} look={look}>
+    <Section title={t.sectionTitle} look={look} busy={state.saving}>
       {state.status === "error" || state.status === "invalid" ? (
         <View style={{ paddingHorizontal: space.lg, paddingTop: space.md }}>
           <RowNotice look={look} tone="danger" alert text={state.error ? `${t.unavailable} (${state.error})` : t.unavailable} />
@@ -446,19 +441,17 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
       />
 
       <ResetRow look={look} title={t.resetSection} description={t.resetHint} confirmDescription={t.resetConfirmHint}
-        action={t.resetAction} confirm={t.resetConfirm} cancel={t.cancel}
         disabled={writeDisabled} onReset={() => savePatch(DEFAULT_TIMELINE_TRANSLATION_SETTINGS)}
       />
-      {state.saving || state.saveError ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
-        {state.saving ? <RowNotice look={look} text={t.saving} /> : null}
-        {state.saveError ? <RowNotice look={look} text={state.saveError} tone="danger" alert /> : null}
+      {state.saveError ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
+        <RowNotice look={look} text={state.saveError} tone="danger" alert />
       </View> : null}
 
       <SectionFooter look={look}><SettingsTips items={t.tips} look={look} /></SectionFooter>
     </Section>
 
     {promptOpen ? <PromptEditorModal look={look} title={t.promptModalTitle} label={t.promptTitle}
-      value={settings.prompt} defaultValue={DEFAULT_TRANSLATION_PROMPT}
+      value={settings.prompt} defaultValue={DEFAULT_TRANSLATION_PROMPT} maxLength={TRANSLATION_PROMPT_MAX_LENGTH}
       reset={t.resetPrompt} cancel={t.cancel} save={t.save} placeholder={t.promptPlaceholder} trim
       onClose={() => setPromptOpen(false)} onSave={(prompt) => void savePatch({ prompt })}
     /> : null}

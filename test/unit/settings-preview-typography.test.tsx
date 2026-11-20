@@ -24,7 +24,7 @@ vi.mock("../../client/ui/wide-host-column", () => ({ useWideHostColumn() {} }));
 import { Section, SettingRow } from "../../client/settings-controls";
 import { BetterPaseoSettingsPage } from "../../client/settings-page";
 import { SettingsPreview } from "../../client/settings-preview";
-import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { DEFAULT_PREFERENCES, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { StyleSheet } from "./helpers/rn-mock";
 import { hostChildren, measureHostTree } from "./helpers/yoga-host-layout";
@@ -121,6 +121,24 @@ describe("translation settings placement", () => {
     const general = sections[generalIndex]!;
     expect(general.findAllByType(SettingRow).at(-1)?.props.title).toBe(SETTINGS_STRINGS.en.timelineTitle);
     expect(sections[generalIndex + 1]?.props.title).toBe("Translation");
+  });
+
+  it("restores display defaults only after the scoped confirmation", async () => {
+    resetEnhancerPreferences();
+    setSettingsTab("display");
+    const hoverPreview = !DEFAULT_PREFERENCES.hoverPreview;
+    updateEnhancerPreferences({ language: "en", hoverPreview });
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
+        theme: { colors }, layout: { platform: "web", compact: false }, host: { id: "host" },
+      } as never));
+    });
+    const button = (label: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
+    expect(button("Reset · Restore default translation settings").props.disabled).toBe(true);
+    await act(async () => button("Reset · Reset all settings").props.onPress());
+    expect(getEnhancerPreferences().hoverPreview).toBe(hoverPreview);
+    await act(async () => button("Confirm · Reset all settings").props.onPress());
+    expect(getEnhancerPreferences().hoverPreview).toBe(DEFAULT_PREFERENCES.hoverPreview);
   });
 });
 

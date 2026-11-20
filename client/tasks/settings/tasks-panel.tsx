@@ -268,8 +268,7 @@ function ResetRows({ strings, look, hint, onRestore }: {
   return (
     <Section title={strings.resetTitle} look={look}>
       <ResetRow first look={look} title={strings.reset} description={hint}
-        confirmDescription={strings.resetConfirmHint} action={strings.resetAction}
-        confirm={strings.resetConfirm} cancel={strings.resetCancel} onReset={onRestore}
+        confirmDescription={strings.resetConfirmHint} onReset={onRestore}
       />
     </Section>
   );
@@ -280,10 +279,7 @@ function ModuleResetRow({ module, strings, look, onRestore }: {
 }) {
   return (
     <ResetRow look={look} title={strings.moduleReset(module)} description={strings.moduleResetHint}
-      confirmDescription={strings.moduleResetConfirmHint} action={strings.moduleResetAction(module)}
-      confirm={strings.resetConfirm} confirmAccessibilityLabel={strings.moduleResetConfirm(module)}
-      cancel={strings.resetCancel} cancelAccessibilityLabel={`${strings.resetCancel} ${module}`}
-      onReset={onRestore}
+      confirmDescription={strings.moduleResetConfirmHint} onReset={onRestore}
     />
   );
 }

@@ -10,6 +10,8 @@ import {
 export const TRANSLATION_HELPER_LABEL = "better-paseo.purpose";
 export const TRANSLATION_HELPER_PURPOSE = "timeline-translation";
 
+export const TRANSLATION_PROMPT_MAX_LENGTH = 8000;
+
 // Settings saves write the full value object, so a stored prompt keeps the
 // text it was saved with. When this changes, add the old text to
 // PREVIOUS_DEFAULT_TRANSLATION_PROMPTS so untouched defaults follow along.
@@ -76,7 +78,7 @@ export const timelineTranslationSettingsSchema = z.object({
   model: z.string().catch(""),
   thinkingOptionId: z.string().catch(""),
   targetLanguage: z.string().refine(isTranslationLanguageCode).catch(FOLLOW_INTERFACE_LANGUAGE_CODE),
-  prompt: z.string().trim().min(1).max(8000).catch(DEFAULT_TRANSLATION_PROMPT).transform(currentDefaultPrompt),
+  prompt: z.string().trim().min(1).max(TRANSLATION_PROMPT_MAX_LENGTH).catch(DEFAULT_TRANSLATION_PROMPT).transform(currentDefaultPrompt),
 });
 
 export type TimelineTranslationSettings = z.output<typeof timelineTranslationSettingsSchema>;

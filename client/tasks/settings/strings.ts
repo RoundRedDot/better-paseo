@@ -43,8 +43,6 @@ export interface TasksSettingsStrings {
   fields: Record<CardField, string>;
   moduleReset: (module: string) => string;
   moduleResetHint: string;
-  moduleResetAction: (module: string) => string;
-  moduleResetConfirm: (module: string) => string;
   moduleResetConfirmHint: string;
   labelLimit: string;
   labelLimits: Record<LabelLimit, string>;
@@ -74,8 +72,6 @@ export interface TasksSettingsStrings {
   resetTitle: string;
   reset: string;
   resetHint: string;
-  resetAction: string;
-  resetConfirm: string;
   resetConfirmHint: string;
   resetCancel: string;
   /** The cancel row's own label, so it does not repeat its button's "Cancel". */
@@ -120,8 +116,6 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     fieldsHint: "What each card shows. Phones keep the essentials whatever is picked here.",
     moduleReset: (module) => `Reset ${module} settings`,
     moduleResetHint: "Only settings in this section will be restored.",
-    moduleResetAction: (module) => `Reset ${module}`,
-    moduleResetConfirm: (module) => `Confirm reset ${module}`,
     moduleResetConfirmHint: "This restores only this section's settings to their defaults.",
     fields: {
       provider: "Agent brand mark",
@@ -168,8 +162,6 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     resetTitle: "Reset",
     reset: "Restore the Tasks defaults",
     resetHint: "Restore card, board and sidebar options. The board switch and automatic titles are unchanged.",
-    resetAction: "Restore",
-    resetConfirm: "Restore now",
     resetConfirmHint: "This restores card, board and sidebar options to their defaults.",
     resetCancel: "Cancel",
     resetKeep: "Keep the current options",
@@ -211,8 +203,6 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     fieldsHint: "每张卡片显示哪些信息。手机上始终保留最关键的几项。",
     moduleReset: (module) => `恢复「${module}」默认设置`,
     moduleResetHint: "只恢复本组设置，不影响其他组。",
-    moduleResetAction: (module) => `恢复${module}`,
-    moduleResetConfirm: (module) => `确认恢复${module}`,
     moduleResetConfirmHint: "这只会把本组设置恢复为默认值。",
     fields: {
       provider: "Agent 品牌标识",
@@ -259,8 +249,6 @@ export const TASKS_SETTINGS_STRINGS: Readonly<Record<TasksLanguage, TasksSetting
     resetTitle: "恢复",
     reset: "恢复任务看板默认设置",
     resetHint: "恢复卡片、看板和侧栏选项；看板开关和自动标题设置不变。",
-    resetAction: "恢复",
-    resetConfirm: "确认恢复",
     resetConfirmHint: "这会把卡片、看板和侧栏选项恢复为默认值。",
     resetCancel: "取消",
     resetKeep: "保留当前选项",

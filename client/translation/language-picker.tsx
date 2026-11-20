@@ -340,7 +340,9 @@ export function SearchableLanguageSelect({
         >
           {displayLabel}
         </Text>
-        <Icon name={open ? "ChevronUp" : "ChevronDown"} size={14} color={tokens.foregroundMuted} />
+        <View style={styles.triggerIcon}>
+          <Icon name={open ? "ChevronUp" : "ChevronDown"} size={14} color={tokens.foregroundMuted} />
+        </View>
       </Pressable>
 
       {open && Platform.OS === "web" ? (
@@ -397,6 +399,7 @@ const styles = StyleSheet.create({
   anchorWrap: {
     position: "relative",
     flexShrink: 1,
+    minWidth: 0,
     maxWidth: 260,
   },
   trigger: {
@@ -407,7 +410,7 @@ const styles = StyleSheet.create({
     gap: space.sm,
     minHeight: 36,
     minWidth: 168,
-    maxWidth: 260,
+    maxWidth: "100%",
     paddingHorizontal: space.md,
     borderRadius: radiusV2.block,
     borderWidth: 1,
@@ -418,7 +421,9 @@ const styles = StyleSheet.create({
   triggerText: {
     fontWeight: "500",
     flexShrink: 1,
+    minWidth: 0,
   },
+  triggerIcon: { flexShrink: 0, width: 14 },
   popoverCard: {
     position: "fixed" as unknown as "absolute",
     zIndex: 1000,

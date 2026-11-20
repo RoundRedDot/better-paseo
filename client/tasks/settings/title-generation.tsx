@@ -18,7 +18,7 @@ const WORDS = {
     title: "Automatic titles", prompt: "Prompt",
     promptHint: "Instructions the model follows when generating titles. Open the editor to view or change them.",
     tips: [{ label: "Generation", text: "Title generation sends conversation excerpts and the title prompt to a helper agent. It uses the card agent’s provider and model by default, or the selected model when customized. Manual generation also sends them." }, { label: "Recommended models", text: "Oh My Pi / DeepSeek Flash (deepseek/deepseek-flash), thinking low;\nClaude / Haiku 5.5 (claude-haiku-5-5), thinking off. Choose a model available on this host." }, { label: "Background tasks", text: "Title tasks stay off the board and are cleaned up after use when possible; they may trigger host notifications." }],
-    resetTitle: "Reset automatic title settings", resetHint: "Only settings in this section will be restored.", reset: "Reset titles", resetNow: "Reset now", resetCancel: "Cancel", resetConfirmHint: "This restores only automatic title settings to their defaults.", loading: "Loading…", retry: "Retry", loadError: "Could not load title settings.",
+    resetTitle: "Reset automatic title settings", resetHint: "Only settings in this section will be restored.", resetConfirmHint: "This restores only automatic title settings to their defaults.", loading: "Loading…", retry: "Retry", loadError: "Could not load title settings.",
     saveError: "Settings changed elsewhere or could not be saved. Reloaded the latest.",
     editPrompt: "Edit prompt", save: "Save", cancel: "Cancel", resetPrompt: "Reset",
   },
@@ -29,7 +29,7 @@ const WORDS = {
     title: "自动更新标题", prompt: "Prompt",
     promptHint: "生成标题时遵循的指令，打开编辑器即可查看或修改。",
     tips: [{ label: "生成方式", text: "生成标题时，对话摘录和标题提示词会发送给辅助 Agent。默认使用卡片的 Provider 和模型；开启自定义后使用所选模型。手动生成标题时同样会发送。" }, { label: "推荐模型", text: "Oh My Pi / DeepSeek Flash（deepseek/deepseek-flash），思考等级 low；\nClaude / Haiku 5.5（claude-haiku-5-5），思考等级 off。请选择主机可用的模型。" }, { label: "后台任务", text: "后台任务不进入看板，使用后会尝试删除，可能触发宿主通知。" }],
-    resetTitle: "恢复「自动标题」默认设置", resetHint: "只恢复本组设置，不影响其他组。", reset: "恢复自动标题", resetNow: "确认重置", resetCancel: "取消", resetConfirmHint: "这只会把自动标题设置恢复为默认值。", loading: "正在加载…", retry: "重试", loadError: "标题设置加载失败。",
+    resetTitle: "恢复「自动标题」默认设置", resetHint: "只恢复本组设置，不影响其他组。", resetConfirmHint: "这只会把自动标题设置恢复为默认值。", loading: "正在加载…", retry: "重试", loadError: "标题设置加载失败。",
     saveError: "设置已在别处更改或保存失败，已重新加载最新内容。",
     editPrompt: "编辑 Prompt", save: "保存", cancel: "取消", resetPrompt: "重置",
   },
@@ -91,6 +91,7 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const settings = useSettings(TITLE_GENERATION_SETTINGS);
   const loadCatalog = useRpc(titleModelsRpc);
   const [draft, setDraft] = useState(() => settings.status === "ready" ? settings.values : titleGenerationSettingsSchema.parse({}));
+  const [providerError, setProviderError] = useState<string | null>(null);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [switchingProvider, setSwitchingProvider] = useState(false);
   const loadedForSwitch = useRef<string | null>(null);
@@ -145,13 +146,13 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
   const selectProvider = async (provider: string) => {
     if (provider === draft.provider || switchingProvider) return;
     setSwitchingProvider(true);
+    setProviderError(null);
     try {
       const result = await readTitleCatalog(provider, () => loadCatalog({ provider }));
       if (!result || result.error) {
-        setSaveError(result?.error || titleCatalogs.get(provider)?.error || words.loadError);
+        setProviderError(result?.error || titleCatalogs.get(provider)?.error || words.loadError);
         return;
       }
-      setSaveError(null);
       loadedForSwitch.current = provider;
       setDraft((current) => !current.customModel || current.provider !== draft.provider
         ? current
@@ -177,7 +178,8 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
     if (!await settings.reset()) return;
     setDraft(titleGenerationSettingsSchema.parse({}));
   };
-  const notice = error || saveError || settings.saveError;
+  const modelError = providerError || error;
+  const writeError = saveError || settings.saveError;
   return (
     <>
       <Section title={words.title} look={look}>
@@ -186,15 +188,24 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
         } />
         <SettingRow title={words.customModel} description={words.followSource} look={look} disabled={settings.saving} control={
           <Toggle value={draft.customModel} label={words.customModel} look={look} onChange={(customModel) => {
+            setProviderError(null);
             setDraft({ ...draft, customModel });
           }} />
         } />
-        {draft.customModel ? <ModelSettingsControls look={look} language={language} provider={draft.provider} model={draft.model} thinkingOptionId={draft.thinkingOptionId}
-          disableThinking={draft.disableThinking} disabledThinkingLabel={words.automaticThinking} disabled={settings.saving || switchingProvider} loading={loading}
-          providers={catalog.providers} providerLabels={catalog.providerLabels} models={catalog.models}
-          onProvider={(provider) => void selectProvider(provider)}
-          onModel={(model) => setDraft((current) => ({ ...current, ...modelSelection(catalog.models.find((item) => item.id === model), current.thinkingOptionId) }))}
-          onThinking={(thinkingOptionId) => setDraft((current) => ({ ...current, thinkingOptionId }))} onRefresh={() => setRefresh((value) => value + 1)} /> : null}
+        {draft.customModel ? <>
+          <ModelSettingsControls look={look} language={language} provider={draft.provider} model={draft.model} thinkingOptionId={draft.thinkingOptionId}
+            disableThinking={draft.disableThinking} disabledThinkingLabel={words.automaticThinking} disabled={settings.saving || switchingProvider} loading={loading}
+            providers={catalog.providers} providerLabels={catalog.providerLabels} models={catalog.models}
+            onProvider={(provider) => void selectProvider(provider)}
+            onModel={(model) => setDraft((current) => ({ ...current, ...modelSelection(catalog.models.find((item) => item.id === model), current.thinkingOptionId) }))}
+            onThinking={(thinkingOptionId) => setDraft((current) => ({ ...current, thinkingOptionId }))} onRefresh={() => {
+              setProviderError(null);
+              setRefresh((value) => value + 1);
+            }} />
+          {modelError ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
+            <RowNotice look={look} tone="danger" alert text={modelError} />
+          </View> : null}
+        </> : null}
         <SettingRow title={words.disableThinking} description={words.thinkingHint} look={look} disabled={settings.saving} control={
           <Toggle value={draft.disableThinking} label={words.disableThinking} look={look} onChange={(disableThinking) => {
             setDraft({ ...draft, disableThinking });
@@ -204,11 +215,10 @@ export function TitleGenerationSettings({ look }: { look: PageLook }) {
           control={<PlainButton label={words.editPrompt} look={look} disabled={settings.saving} onPress={() => setPromptOpen(true)} />}
         />
         <ResetRow look={look} title={words.resetTitle} description={words.resetHint} confirmDescription={words.resetConfirmHint}
-          action={words.reset} confirm={words.resetNow} cancel={words.resetCancel}
           disabled={settings.saving} onReset={reset} onArmedChange={setConfirmingReset}
         />
-        {notice ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
-          <RowNotice look={look} tone="warning" alert text={notice} />
+        {writeError ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
+          <RowNotice look={look} tone="warning" alert text={writeError} />
         </View> : null}
         <SectionFooter look={look}><SettingsTips items={words.tips} look={look} /></SectionFooter>
       </Section>

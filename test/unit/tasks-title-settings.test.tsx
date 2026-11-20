@@ -25,7 +25,7 @@ import { ProviderLogo } from "../../client/components/provider-logo";
 
 const look = {
   compact: false, t: SETTINGS_STRINGS.zh,
-  tokens: { typography: { ui: { size: 14 }, content: { size: 16 } }, v2: {}, foreground: "#111111", warning: "#bb0000" },
+  tokens: { typography: { ui: { size: 14 }, content: { size: 16 } }, v2: {}, foreground: "#111111", warning: "#aa6600", danger: "#bb0000" },
 } as PageLook;
 let tree: TestRenderer.ReactTestRenderer;
 beforeEach(() => {
@@ -101,12 +101,12 @@ describe("automatic title settings", () => {
     await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
     await editPrompt("Unsaved prompt");
     await act(async () => tree.root.findByProps({ accessibilityLabel: "取消" }).props.onPress());
-    const reset = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "恢复自动标题");
+    const reset = tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "重置 · 恢复「自动标题」默认设置");
     expect(reset.props.disabled).toBe(false);
     await act(async () => reset.props.onPress());
     expect(settings.reset).not.toHaveBeenCalled();
     expect(tree.root.findAll((node) => typeof node.type === "string" && node.children.join("") === "这只会把自动标题设置恢复为默认值。")).toHaveLength(1);
-    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认重置").props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认 · 恢复「自动标题」默认设置").props.onPress());
     expect(settings.reset).toHaveBeenCalledExactlyOnceWith();
     expect(settings.save).not.toHaveBeenCalled();
     expect(customToggle().props.accessibilityState.checked).toBe(false);
@@ -122,8 +122,8 @@ describe("automatic title settings", () => {
     await mount({ reset: vi.fn(async () => false), saveError: "Reset failed" });
     await editPrompt("Keep this prompt");
     await savePrompt();
-    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "恢复自动标题").props.onPress());
-    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认重置").props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "重置 · 恢复「自动标题」默认设置").props.onPress());
+    await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认 · 恢复「自动标题」默认设置").props.onPress());
     expect(customToggle().props.accessibilityState.checked).toBe(true);
     await openPrompt();
     expect(promptInput().props.value).toBe("Keep this prompt");
@@ -132,7 +132,7 @@ describe("automatic title settings", () => {
 
   it("disables title reset while a settings write is pending", async () => {
     await mount({ saving: true });
-    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "恢复自动标题").props.disabled).toBe(true);
+    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "重置 · 恢复「自动标题」默认设置").props.disabled).toBe(true);
   });
 
   it("defaults to following the source and saves without selecting a custom model", async () => {
@@ -343,13 +343,20 @@ describe("automatic title settings", () => {
   });
 
   it("keeps its current provider if the new catalog fails", async () => {
-    const settings = await mount();
+    const settings = await mount({ saveError: "Save offline" });
     state.catalog.mockResolvedValueOnce({ providers: ["claude", "codex"], models: [], error: "Catalog unavailable" });
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === "Provider").props.onPress());
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio" && node.props.accessibilityLabel === "Codex").props.onPress());
     await flushSave();
     expect(settings.save).not.toHaveBeenCalled();
-    expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert").children.join("")).toContain("Catalog unavailable");
+    const alerts = tree.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert");
+    expect(alerts.map((node) => node.children.join(""))).toEqual(["Catalog unavailable", "Save offline"]);
+    expect(alerts[0]!.props.style).toContainEqual(expect.objectContaining({ color: look.tokens.danger }));
+    expect(alerts[1]!.props.style).toContainEqual(expect.objectContaining({ color: look.tokens.warning }));
+    const texts = tree.root.findAll((node) => (node.type as unknown) === "Text").map((node) => node.children.join(""));
+    expect(texts.indexOf("Catalog unavailable")).toBeGreaterThan(texts.indexOf("思考等级"));
+    expect(texts.indexOf("Catalog unavailable")).toBeLessThan(texts.indexOf("关闭标题生成思考模式"));
+    expect(texts.indexOf("Save offline")).toBeGreaterThan(texts.indexOf("恢复「自动标题」默认设置"));
   });
 
   it("opens model and thinking level as anchored menus, not host modals", async () => {

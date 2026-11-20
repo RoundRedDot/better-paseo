@@ -550,8 +550,7 @@ function ResetButton({ look }: { look: PageLook }) {
   return (
     <Group look={look}>
       <ResetRow first look={look} title={t.resetDefaults} description={t.resetDescription}
-        confirmDescription={t.resetConfirmDescription} action={t.resetAction} confirm={t.resetConfirm}
-        cancel={t.resetCancel} onReset={resetEnhancerPreferences}
+        confirmDescription={t.resetConfirmDescription} onReset={resetEnhancerPreferences}
       />
     </Group>
   );

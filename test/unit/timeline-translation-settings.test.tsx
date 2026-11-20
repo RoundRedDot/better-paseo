@@ -5,6 +5,7 @@ import "./helpers/quiet-renderer";
 import { measureHostTree } from "./helpers/yoga-host-layout";
 import {
   DEFAULT_TRANSLATION_PROMPT,
+  TRANSLATION_PROMPT_MAX_LENGTH,
   timelineTranslationSettingsSchema,
   type TimelineTranslationSettings,
 } from "../../shared/timeline-translation";
@@ -379,6 +380,7 @@ describe("timeline translation settings", () => {
     const modalInput = renderer!.root.find(
       (n) => (n.type as unknown) === "TextInput" && n.props.multiline === true,
     );
+    expect(modalInput.props.maxLength).toBe(8000);
     await act(async () => {
       modalInput.props.onChangeText("Keep identifiers exact. Translate cleanly.");
     });
@@ -395,14 +397,14 @@ describe("timeline translation settings", () => {
     );
 
     const resetBtn = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Reset",
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Reset · Restore default translation settings",
     );
     await act(async () => {
       resetBtn.props.onPress();
     });
     // First click asks for confirmation without saving yet.
     const confirmBtn = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Confirm",
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Confirm · Restore default translation settings",
     );
     await act(async () => {
       confirmBtn.props.onPress();
@@ -458,7 +460,52 @@ describe("timeline translation settings", () => {
     );
   });
 
-  it.each([[false, 320, 32], [true, 320, 44]])("fits the dropdowns at a large text size (compact %s, width %i)", async (compact, width, refreshSize) => {
+  it("keeps the editor limit aligned with the translation schema", () => {
+    const longestPrompt = "a".repeat(TRANSLATION_PROMPT_MAX_LENGTH);
+    expect(timelineTranslationSettingsSchema.parse({ prompt: ` ${longestPrompt} ` }).prompt).toBe(longestPrompt);
+    expect(timelineTranslationSettingsSchema.parse({ prompt: `${longestPrompt}a` }).prompt).toBe(DEFAULT_TRANSLATION_PROMPT);
+  });
+
+  it("keeps the footer in place while saving and shows errors in context", async () => {
+    const ready = makeReadySettings({ enabled: true, customModel: true, provider: "claude" });
+    mocks.settingsState = ready;
+    mocks.modelsRpc.mockResolvedValue({ providers: ["claude"], models: [], error: "Model catalog offline" });
+    const look = makeLook();
+    const page = <TimelineTranslationSettingsSection look={look} />;
+    await act(async () => { renderer = TestRenderer.create(page); });
+    const root = () => renderer!.root.findByType(Section).find((node) => (node.type as unknown) === "View" && "aria-busy" in node.props);
+    const footerTop = () => {
+      const footer = renderer!.root.findByType(SectionFooter).findAll((node) => (node.type as unknown) === "View")[0]!;
+      return measureHostTree(root(), { width: 320, wrapText: true }).get(footer)!.top;
+    };
+    const updateState = async (next: unknown) => {
+      mocks.settingsState = next;
+      await act(async () => renderer!.update(React.cloneElement(page)));
+    };
+    const alerts = () => renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert");
+    const topBeforeSave = footerTop();
+    await updateState({ ...ready, saving: true });
+    expect(root().props["aria-busy"]).toBe(true);
+    expect(footerTop()).toBe(topBeforeSave);
+    const enabled = renderer!.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Enable selection translation");
+    expect(enabled.props.disabled).toBe(true);
+    await updateState({ ...ready, saveError: "Write rejected" });
+    expect(root().props["aria-busy"]).toBe(false);
+    expect(alerts().map((node) => node.children.join(""))).toEqual(["Model catalog offline", "Write rejected"]);
+    for (const alert of alerts()) expect(alert.props.style).toContainEqual(expect.objectContaining({ color: look.tokens.danger }));
+    const texts = textValues(renderer!.root);
+    expect(texts.indexOf("Model catalog offline")).toBeGreaterThan(texts.indexOf("Thinking level"));
+    expect(texts.indexOf("Model catalog offline")).toBeLessThan(texts.lastIndexOf("Disable thinking when supported"));
+    expect(texts.indexOf("Write rejected")).toBeGreaterThan(texts.indexOf("Restore default translation settings"));
+    expect(texts.indexOf("Write rejected")).toBeLessThan(texts.indexOf("Manual only"));
+    await updateState({ ...ready, status: "error", error: "Host offline" });
+    expect(alerts()).toHaveLength(1);
+    expect(alerts()[0]!.children.join("")).toContain("Host offline");
+    const failedTexts = textValues(renderer!.root);
+    expect(failedTexts.findIndex((text) => text.includes("Host offline"))).toBeLessThan(failedTexts.indexOf("Enable selection translation"));
+  });
+
+  it.each([[false, 280, 32], [false, 320, 32], [false, 440, 32], [true, 320, 44]])("fits the dropdowns at a large text size (compact %s, width %i)", async (compact, width, refreshSize) => {
     const model = { id: "model", label: "A model with a very long display name", thinkingOptions: [], defaultThinkingOptionId: null };
     mocks.modelsRpc.mockResolvedValue({ providers: ["claude"], models: [model], error: null });
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: model.id });
@@ -475,6 +522,9 @@ describe("timeline translation settings", () => {
       expect(frame.width).toBeGreaterThanOrEqual(168);
       expect(frame.left + frame.width, label).toBeLessThanOrEqual(width - 16);
     }
+    const target = root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Target language");
+    const chevron = target.findByType("Icon" as never);
+    expect(frames.get(chevron)?.width).toBe(14);
     expect(buttonFrame("Refresh models")).toMatchObject({ width: refreshSize, height: refreshSize });
   });
 

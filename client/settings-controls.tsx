@@ -204,11 +204,11 @@ export function PlainButton({
  * card on desktop. A `hidden` section (its parent option is off) is not
  * rendered, so neither pointer nor keyboard can reach its controls.
  */
-export function Section({ title, look, children, hidden = false }: { title: string; look: PageLook; children: React.ReactNode; hidden?: boolean }) {
+export function Section({ title, look, children, hidden = false, busy }: { title: string; look: PageLook; children: React.ReactNode; hidden?: boolean; busy?: boolean }) {
   const { tokens, compact } = look;
   if (hidden) return null;
   return (
-    <View style={styles.section}>
+    <View style={styles.section} aria-busy={busy}>
       <Text
         accessibilityRole="header"
         style={[
@@ -269,25 +269,20 @@ export function RowNotice({ look, text, tone = "neutral", alert = false }: {
 }
 
 export function ResetRow({
-  look, title, description, confirmDescription, action, confirm, cancel, onReset,
-  first, disabled, confirmAccessibilityLabel, cancelAccessibilityLabel, onArmedChange,
+  look, title, description, confirmDescription, onReset, first, disabled, onArmedChange,
 }: {
   look: PageLook;
   title: string;
   description: string;
   confirmDescription: string;
-  action: string;
-  confirm: string;
-  cancel: string;
   onReset(): void | Promise<void>;
   first?: boolean;
   disabled?: boolean;
-  confirmAccessibilityLabel?: string;
-  cancelAccessibilityLabel?: string;
   onArmedChange?(armed: boolean): void;
 }) {
   const [armed, setArmed] = useState(false);
   const [resetting, setResetting] = useState(false);
+  const { t } = look;
   useEffect(() => {
     if (!armed || resetting) return;
     const timer = setTimeout(() => {
@@ -315,13 +310,14 @@ export function ResetRow({
       disarm();
     }
   };
+  const action = armed ? t.resetConfirm : t.resetAction;
   return (
     <SettingRow title={title} look={look} first={first} wrapControl
       description={armed ? <RowNotice look={look} text={confirmDescription} tone="warning" /> : description}
       control={
-        <View style={styles.resetActions}>
-          {armed ? <PlainButton label={cancel} accessibilityLabel={cancelAccessibilityLabel} look={look} onPress={disarm} disabled={resetting} /> : null}
-          <PlainButton label={armed ? confirm : action} accessibilityLabel={armed ? confirmAccessibilityLabel : undefined}
+        <View style={[styles.resetActions, look.compact && styles.resetActionsCompact]} aria-busy={resetting}>
+          {armed ? <PlainButton label={t.resetCancel} accessibilityLabel={`${t.resetCancel} · ${title}`} look={look} onPress={disarm} disabled={resetting} /> : null}
+          <PlainButton label={action} accessibilityLabel={`${action} · ${title}`}
             look={look} onPress={() => void press()} disabled={disabled || resetting} />
         </View>
       }
@@ -466,6 +462,7 @@ const styles = StyleSheet.create({
   footer: { borderTopWidth: 1, paddingTop: space.md, paddingBottom: 14, paddingRight: space.lg },
   footerDesktop: { paddingLeft: space.lg },
   resetActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: space.sm, maxWidth: "100%" },
+  resetActionsCompact: { gap: space.md },
   // Touch: the rule runs from the inset, like a native grouped list.
   rowInset: { paddingLeft: space.lg },
   rowCompact: { minHeight: 44, paddingVertical: 11, paddingRight: space.lg, gap: space.sm },
