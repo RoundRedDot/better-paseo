@@ -945,6 +945,10 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。"));
     expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-menu")).toHaveLength(0);
     expect(button("Copy translation")).toHaveLength(1);
+    await act(async () => button("Show original")[0]!.props.onPress());
+    expect(renderer!.root.findByProps({ testID: "selection-translation-panel" }).findByType(MarkdownView).props.text).toBe("Second paragraph.");
+    await act(async () => button("Show translation")[0]!.props.onPress());
+    expect(renderer!.root.findByProps({ testID: "selection-translation-panel" }).findByType(MarkdownView).props.text).toBe("第二段。");
     const copyButton = button("Copy translation")[0]!;
     const retryButton = button("Retry")[0]!;
     const copyIcon = copyButton.find((node) => String(node.type) === "Icon");

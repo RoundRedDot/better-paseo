@@ -176,7 +176,7 @@ describe("selection bar Translate", () => {
       getBoundingClientRect: () => ({ left: 400, top: 200, bottom: 220, width: 100, height: 20 }),
     });
     body.appendChild(anchor);
-    const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close() {}, retry() {}, settings() {} });
+    const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close() {}, retry() {}, settings() {} }, "Original");
     popup.setView({ status: "running", targetCode: "zh-CN", text: "译文" });
     bar().offsetWidth = 500;
     const pointer = (type: string, x: number, y: number) => Object.assign(new Event(type, { cancelable: true }), { button: 0, clientX: x, clientY: y });
@@ -209,15 +209,19 @@ describe("selection bar Translate", () => {
     const close = vi.fn();
     const retry = vi.fn();
     const settings = vi.fn();
-    const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close, retry, settings });
+    const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close, retry, settings }, "Original message");
     popup.setView({ status: "done", result: done("完整译文") as never, disableThinking: false });
     expect(bar().classList.contains("standalone")).toBe(true);
-    expect(button("Translate")?.textContent).toBe("Translate");
-    expect(button("Translate")?.hidden).toBe(false);
-    expect(button("Translate")?.innerHTML).toContain("<svg");
+    expect(host().querySelector(".panel-heading")?.textContent).toBe("Translate");
+    button("Show original")!.click();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("Original message");
+    button("Copy original")!.click();
+    expect(copy).toHaveBeenCalledWith("Original message");
+    button("Show translation")!.click();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("完整译文");
     updateEnhancerPreferences({ language: "zh" });
     popup.setView({ status: "running", targetCode: "zh-CN", text: "译文" });
-    expect(button("Translate")?.textContent).toBe("翻译");
+    expect(host().querySelector(".panel-heading")?.textContent).toBe("翻译");
     popup.setView({ status: "done", result: done("完整译文") as never, disableThinking: false });
     expect(panel().textContent).toContain("完整译文");
     const bodyPress = new Event("mousedown", { cancelable: true });
@@ -397,6 +401,12 @@ describe("selection bar Translate", () => {
     expect(text.textContent).toBe(markup);
     expect(panel().textContent).not.toContain("Thinking was NOT disabled");
     expect(panel().all((node) => node.html.includes("img"))).toEqual([]);
+    button("Show original")!.click();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("the selected words");
+    button("Copy original")!.click();
+    expect(copy).toHaveBeenCalledWith("the selected words");
+    button("Show translation")!.click();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe(markup);
     expect(button("Copy translation")?.dataset.tip).toBe("Copy translation");
     expect(button("Retry")?.dataset.tip).toBe("Retry");
     expect(button("Retry")?.dataset.icon).toBe("retry");

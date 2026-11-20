@@ -444,7 +444,7 @@ describe("agent note above the question", () => {
       const store = createQuestionDialogStore();
       const current = asked();
       await act(async () => { store.open(current); tree = TestRenderer.create(<TaskQuestionDialog store={store} paseo={paseo as never} cardById={() => current} submit={vi.fn(async () => {})} theme={theme} language="zh" />); });
-      await act(async () => publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "claude", model: "model" }, "question-note"));
+      await act(async () => { await publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "claude", model: "model" }, "question-note"); });
       await act(async () => host("task-question-option-0-0").props.onPress());
       await act(async () => host("task-question-note-translate").props.onPress({ stopPropagation() {} }));
       await vi.waitFor(() => expect(shown()).toContain("Translated note"));

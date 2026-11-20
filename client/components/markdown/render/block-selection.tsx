@@ -183,7 +183,7 @@ function BlockTranslate({ scope, text, tokens, dismiss, copyButton, menuStyle }:
       </Pressable>
     </View> : null}
     {view && !loading ? <TranslationSheet close={dismiss}>
-      <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={dismiss} sheet />
+      <SelectionTranslationPanel original={text} view={view} tokens={tokens} onRetry={start} onClose={dismiss} sheet />
     </TranslationSheet> : null}
   </>;
 }

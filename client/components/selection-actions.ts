@@ -105,6 +105,7 @@ const ICONS = {
   retry: '<path d="M3 12a9 9 0 0 1 9-9 9.75 9.75 0 0 1 6.74 2.74L21 8"/><path d="M21 3v5h-5"/><path d="M21 12a9 9 0 0 1-9 9 9.75 9.75 0 0 1-6.74-2.74L3 16"/><path d="M8 16H3v5"/>',
   add: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
   settings: '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
+  original: '<path d="M6 2h8l5 5v14H5V2zM14 2v6h5M9 12h6M9 16h6"/>',
   translate: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
 } as const;
 type IconName = keyof typeof ICONS;
@@ -320,6 +321,12 @@ const BAR_CSS = `
   stroke-linejoin: round;
 }
 .panel-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.row .panel-toggle { padding: 0; width: 28px; height: 28px; justify-content: center; }
+.row .panel-toggle span { display: none; }
+.panel-heading { display: none; align-items: center; gap: 6px; height: 32px; padding: 0 8px; font-weight: 500; }
+.panel-heading svg { width: 16px; height: 16px; fill: none; stroke: var(--bc-bar-icon); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.bar.translating .panel-heading { display: flex; }
+.bar.translating .translate-action { display: none; }
 .row .panel-settings { margin-left: auto; padding: 0; width: 28px; height: 28px; justify-content: center; }
 .panel-model { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .panel-model img, .panel-model .model-mark { width: 11px; height: 11px; flex: 0 0 auto; }
@@ -441,7 +448,7 @@ function readLanguage() {
   return getEnhancerPreferences().language;
 }
 
-function createBar(actions: BarActions, standalone = false): Bar {
+function createBar(actions: BarActions, standalone = false, original = ""): Bar {
   const host = document.createElement("div");
   host.setAttribute("data-bcselectionbar", "");
   // Host-app rules can match a bare `div`, so the placement properties are set
@@ -495,6 +502,7 @@ function createBar(actions: BarActions, standalone = false): Bar {
   let geometry: { left: number; top: number; width: number; bodyHeight: number } | null = null;
   let endGesture: (() => void) | null = null;
   let resized = false;
+  let showingOriginal = false;
 
   /**
    * An icon and a label in the settings page's language, read on every paint
@@ -577,11 +585,25 @@ function createBar(actions: BarActions, standalone = false): Bar {
   separator.hidden = true;
   row.appendChild(separator);
   const translateButton = makeButton(row, "Translate", "translate", () => actions.translate());
+  translateButton.classList.add("translate-action");
   if (!standalone) translateButton.classList.add("selection-action");
   translateButton.hidden = !standalone;
+  const heading = document.createElement("div");
+  heading.className = "panel-heading";
+  heading.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.translate}</svg>`;
+  const headingText = document.createElement("span");
+  headingText.textContent = toolbarLabel("Translate", readLanguage());
+  heading.appendChild(headingText);
+  row.appendChild(heading);
   const dragHandle = document.createElement("div");
   dragHandle.className = "drag-handle";
   row.appendChild(dragHandle);
+  const toggleButton = makeButton(row, "Show original", "original", () => {
+    showingOriginal = !showingOriginal;
+    renderPanel();
+  });
+  toggleButton.classList.add("panel-toggle");
+  toggleButton.hidden = true;
   const settingsButton = makeButton(row, "Translation settings", "settings", () => actions.settings());
   settingsButton.className += " panel-settings";
   settingsButton.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.settings}</svg>`;
@@ -658,7 +680,12 @@ function createBar(actions: BarActions, standalone = false): Bar {
     panel.replaceChildren();
     if (!view) return;
     const language = readLanguage();
-    if (standalone) paint(translateButton, "Translate", "translate");
+    headingText.textContent = toolbarLabel("Translate", language);
+    const toggleLabel = showingOriginal ? "Show translation" : "Show original";
+    toggleButton.hidden = view.status !== "done";
+    toggleButton.setAttribute("aria-label", toggleLabel);
+    toggleButton.title = toolbarLabel(toggleLabel, language);
+    paint(toggleButton, toggleLabel, showingOriginal ? "translate" : "original");
     const lang = resolveLanguage(language ?? "system");
     const head = element("div", "panel-head");
     head.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.translate}</svg>`;
@@ -686,7 +713,7 @@ function createBar(actions: BarActions, standalone = false): Bar {
     }
     panel.appendChild(head);
 
-    const text = selectionViewText(view);
+    const text = showingOriginal && view.status === "done" ? (standalone ? original : actions.snapshot()!.text) : selectionViewText(view);
     const message = text ? null : selectionViewMessage(view);
     if (message) {
       const line = element("div", "panel-message");
@@ -708,11 +735,11 @@ function createBar(actions: BarActions, standalone = false): Bar {
     if (done !== null || selectionViewRetryable(view)) {
       const buttons = element("div", "panel-actions");
       if (done !== null) {
-        makeButton(buttons, "Copy translation", "copy", (button) => {
-          void copyText(done);
+        makeButton(buttons, showingOriginal ? "Copy original" : "Copy translation", "copy", (button) => {
+          void copyText(text!);
           paint(button, "Copied", "check");
           window.clearTimeout(copiedTimer);
-          copiedTimer = window.setTimeout(() => paint(button, "Copy translation", "copy"), COPIED_MS);
+          copiedTimer = window.setTimeout(() => paint(button, showingOriginal ? "Copy original" : "Copy translation", "copy"), COPIED_MS);
         });
       }
       if (selectionViewRetryable(view)) {
@@ -823,6 +850,8 @@ function createBar(actions: BarActions, standalone = false): Bar {
           addButton.hidden = false;
           separator.hidden = translateButton.hidden;
           settingsButton.hidden = true;
+          toggleButton.hidden = true;
+          showingOriginal = false;
           renderPanel();
           bar.classList.remove("translating");
         }
@@ -835,12 +864,14 @@ function createBar(actions: BarActions, standalone = false): Bar {
     setPanel(next) {
       if (next === view) return;
       view = next;
+      if (!next || next.status !== "done") showingOriginal = false;
       if (!next) geometry = null;
       copyButton.hidden = Boolean(next);
       copySeparator.hidden = Boolean(next);
       addButton.hidden = Boolean(next);
       separator.hidden = Boolean(next) || translateButton.hidden;
       settingsButton.hidden = !next;
+      if (!next) toggleButton.hidden = true;
       settingsButton.title = toolbarLabel("Translation settings", readLanguage());
       window.clearTimeout(copiedTimer);
       renderPanel();
@@ -874,14 +905,14 @@ export function createMessageTranslationBar(anchor: HTMLElement, tokens: Extende
   close(): void;
   retry(): void;
   settings(): void;
-}) {
+}, original: string) {
   const bar = createBar({
     done: actions.close,
     translate() {},
     retry: actions.retry,
     settings: actions.settings,
     snapshot: () => null,
-  }, true);
+  }, true, original);
   bar.setTheme(tokens);
   const onPointerDown = (event: Event) => {
     const target = event.target;

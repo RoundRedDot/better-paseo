@@ -66,13 +66,14 @@ function MessageTranslationButton(props: Props) {
       </View>}
     </Pressable>
     {view && !loading ? Platform.OS === "web"
-      ? <WebMessageTranslation anchor={anchor} view={view} tokens={tokens} retry={start} close={close} />
-      : <TranslationSheet close={close}><SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={close} sheet /></TranslationSheet>
+      ? <WebMessageTranslation original={text!} anchor={anchor} view={view} tokens={tokens} retry={start} close={close} />
+      : <TranslationSheet close={close}><SelectionTranslationPanel original={text!} view={view} tokens={tokens} onRetry={start} onClose={close} sheet /></TranslationSheet>
       : null}
   </View>;
 }
 
 function WebMessageTranslation(props: {
+  original: string;
   anchor: React.RefObject<View | null>;
   view: NonNullable<ReturnType<typeof useSelectionTranslation>["view"]>;
   tokens: ReturnType<typeof useThemeTokens>;
@@ -96,7 +97,7 @@ function WebMessageTranslation(props: {
         closeParent();
         requestAnimationFrame(() => openTranslationSettings(paseo));
       },
-    });
+    }, current.current.original);
     popup.current = bar;
     bar.setView(current.current.view);
     return () => { popup.current = null; bar.dispose(); };

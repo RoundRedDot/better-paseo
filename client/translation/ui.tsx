@@ -1,4 +1,4 @@
-import React, { useContext, useMemo, type ReactNode } from "react";
+import React, { useContext, useMemo, useState, type ReactNode } from "react";
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon, Modal } from "@getpaseo/plugin/client/ui";
@@ -69,8 +69,9 @@ export function TranslationSheet({ close, children }: { close(): void; children:
   </Modal>;
 }
 
-export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, sheet = false }: {
+export function SelectionTranslationPanel({ view, original, tokens, onRetry, onClose, sheet = false }: {
   view: SelectionTranslationView;
+  original: string;
   tokens: ExtendedThemeTokens;
   onRetry(): void;
   onClose(): void;
@@ -82,7 +83,8 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, shee
   const closeParent = useContext(TranslationSettingsParentCloseContext);
   const lang = resolveLanguage(language ?? "system");
   const window = useWindowDimensions();
-  const text = selectionViewText(view);
+  const [showingOriginal, setShowingOriginal] = useState(false);
+  const text = showingOriginal && view.status === "done" ? original : selectionViewText(view);
   const message = text ? null : selectionViewMessage(view);
   const danger = tokens.danger ?? tokens.foreground;
   const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
@@ -105,6 +107,9 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, shee
         </View>
         <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
           <TooltipAlignContext.Provider value="end">
+            {view.status === "done" ? <ToolbarItem label={showingOriginal ? "Show translation" : "Show original"} onPress={() => setShowingOriginal(!showingOriginal)} tokens={tokens} hitSlop={8}>
+              <Icon icon={showingOriginal ? TRANSLATE_ICON : SHOW_ORIGINAL_ICON} size={16} color={tokens.foregroundMuted} />
+            </ToolbarItem> : null}
             <ToolbarItem label="Translation settings" onPress={() => {
               onClose();
               if (!closeParent) { openTranslationSettings(paseo); return; }
@@ -141,10 +146,10 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, shee
           <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
             <TooltipSideContext.Provider value="above"><TooltipAlignContext.Provider value="end">
             {view.status === "done" ? (
-              <ToolbarCopyButton text={view.result.translation} tokens={tokens} label="Copy translation" />
+              <ToolbarCopyButton text={text!} tokens={tokens} label={showingOriginal ? "Copy original" : "Copy translation"} />
             ) : null}
             {selectionViewRetryable(view) ? (
-              <ToolbarButton icon="RefreshCw" label="Retry" onPress={onRetry} tokens={tokens} />
+              <ToolbarButton icon="RefreshCw" label="Retry" onPress={() => { setShowingOriginal(false); onRetry(); }} tokens={tokens} />
             ) : null}
             </TooltipAlignContext.Provider></TooltipSideContext.Provider>
           </ToolbarMetricsContext.Provider>
