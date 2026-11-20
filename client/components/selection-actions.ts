@@ -334,6 +334,8 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
   position: relative;
   z-index: 1;
   color: var(--bc-bar-text);
+  user-select: text;
+  -webkit-user-select: text;
   font-size: 13px;
   line-height: 19px;
   white-space: pre-wrap;
@@ -575,8 +577,8 @@ function createBar(actions: BarActions, standalone = false): Bar {
   separator.hidden = true;
   row.appendChild(separator);
   const translateButton = makeButton(row, "Translate", "translate", () => actions.translate());
-  translateButton.classList.add("selection-action");
-  translateButton.hidden = true;
+  if (!standalone) translateButton.classList.add("selection-action");
+  translateButton.hidden = !standalone;
   const dragHandle = document.createElement("div");
   dragHandle.className = "drag-handle";
   row.appendChild(dragHandle);
@@ -635,7 +637,10 @@ function createBar(actions: BarActions, standalone = false): Bar {
 
   // The bar keeps the selection alive: a press inside it must not move the
   // caret, or `window.getSelection()` is empty by the time the click lands.
-  const holdSelection = (event: MouseEvent) => event.preventDefault();
+  const holdSelection = (event: MouseEvent) => {
+    if (panel.querySelector(".panel-body")?.contains(event.target as Node)) return;
+    event.preventDefault();
+  };
   bar.addEventListener("mousedown", holdSelection);
 
   document.body.appendChild(host);
@@ -653,7 +658,7 @@ function createBar(actions: BarActions, standalone = false): Bar {
     panel.replaceChildren();
     if (!view) return;
     const language = readLanguage();
-    if (standalone) dragHandle.textContent = toolbarLabel("Translate", language);
+    if (standalone) paint(translateButton, "Translate", "translate");
     const lang = resolveLanguage(language ?? "system");
     const head = element("div", "panel-head");
     head.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.translate}</svg>`;
