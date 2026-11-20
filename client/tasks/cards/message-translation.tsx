@@ -21,6 +21,7 @@ type Props = {
   theme: PluginTheme;
   testID: string;
   size?: number;
+  onOpenChange?(open: boolean): void;
 };
 
 /** One explicit whole-message translation, with the same controller as text selections. */
@@ -35,12 +36,13 @@ function MessageTranslationButton(props: Props) {
   const tokens = useThemeTokens(props.theme, preferences);
   const [text, setText] = useState<string | null>(null);
   const anchor = useRef<View>(null);
-  const close = () => setText(null);
+  useEffect(() => () => props.onOpenChange?.(false), [props.onOpenChange]);
+  const close = () => { setText(null); props.onOpenChange?.(false); };
   const label = toolbarLabel("Translate", preferences.language);
   return <View ref={anchor} collapsable={false}>
     <HoverControl base={tokens.surface0} foreground={tokens.foreground} accessibilityRole="button" accessibilityLabel={label}
       {...tipProps(label)} testID={props.testID} hitSlop={4}
-      onPress={(event) => { event.stopPropagation(); setText(props.text); }}
+      onPress={(event) => { event.stopPropagation(); setText(props.text); props.onOpenChange?.(true); }}
       style={{ width: props.size ?? 32, height: props.size ?? 32, alignItems: "center", justifyContent: "center", borderRadius: 16 }}>
       <Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} />
     </HoverControl>

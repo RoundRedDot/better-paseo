@@ -322,6 +322,7 @@ function LiveReasoningRendererBody({
   useSelectionActions(tokens, preferences.selectionActions);
   const text = item.data.text || "";
   const streaming = item.data.phase === "streaming";
+  const translation = useMemo(() => ({ agentId, theme }), [agentId, theme]);
   const settledKey = streaming ? undefined : `thought:${text}`;
   // The host updates the timestamp as a thought streams, without moving its slot.
   const arrivalRef = useRef({ agentId, at: timestamp.getTime() });
@@ -386,6 +387,7 @@ function LiveReasoningRendererBody({
           compact={layout.compact}
           storeKey={storeKey}
           copyText={text}
+          translation={translation}
         />
       </SelectionTranslationScope>
       <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />

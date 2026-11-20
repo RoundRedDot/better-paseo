@@ -8,6 +8,8 @@ import { surfaceProps } from "./view-props";
 import { MarkdownView } from "./markdown/markdown-view";
 import { variantMetrics } from "./markdown/render/styles";
 import type { ReasoningTraceData } from "../../shared/contracts";
+import type { PluginTheme } from "@getpaseo/plugin";
+import { MessageTranslateButton } from "../tasks/cards/message-translation";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon, RowText } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
 import { useScrollAnchor } from "../ui/scroll-anchor";
@@ -310,6 +312,7 @@ export interface ReasoningCardProps {
   storeKey: string;
   /** What "copy" puts on the clipboard: the whole thought. */
   copyText: string;
+  translation?: { agentId: string; theme: PluginTheme };
 }
 
 /**
@@ -332,6 +335,7 @@ export function ReasoningCard({
   compact = false,
   storeKey,
   copyText,
+  translation,
 }: ReasoningCardProps) {
   const label = reasoningHeaderText(segmentation, streaming, durationMs);
   const { language } = useEnhancerPreferences();
@@ -346,6 +350,7 @@ export function ReasoningCard({
   // Owned here, not by the row: an opened card moves the row into `StickyCard`.
   const scrollAnchor = useScrollAnchor(expanded);
   const { copy } = useCopy();
+  const [translationOpen, setTranslationOpen] = useState(false);
   const copySource = useCallback(() => copyTextOf(copyText), [copyText]);
   const onLongPress = useCallback(() => {
     const value = copySource();
@@ -399,7 +404,12 @@ export function ReasoningCard({
         ) : undefined
       }
       meta={label.meta.map((part) => toolbarLabel(part, language))}
-      actions={<ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />}
+      actionsActive={translationOpen}
+      actions={<>
+        {translation ? <MessageTranslateButton agentId={translation.agentId} theme={translation.theme} kind="reasoning"
+          text={copySource()} streaming={streaming} testID="reasoning-translate" size={24} onOpenChange={setTranslationOpen} /> : null}
+        <ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />
+      </>}
       onLongPress={onLongPress}
       accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}
       previewContent={() => (

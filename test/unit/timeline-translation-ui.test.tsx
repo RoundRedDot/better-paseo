@@ -142,6 +142,10 @@ import { LiveAssistantRenderer, LiveReasoningRenderer } from "../../client/live-
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { SelectionTranslationScope } from "../../client/translation/ui";
 import { MessageTranslateButton } from "../../client/tasks/cards/message-translation";
+import { ReasoningCard } from "../../client/components/reasoning-trace";
+import { segmentReasoning } from "../../client/reasoning/segment";
+import { DisclosureHeader } from "../../client/ui/disclosure-header";
+import { SelectionTranslationPanel } from "../../client/translation/ui";
 import * as pluginClient from "@getpaseo/plugin/client";
 
 const HostContext = (pluginClient as unknown as { HostContext: React.Context<{ api: PaseoApi; rpc: typeof mocks.rpc } | null> }).HostContext;
@@ -344,6 +348,32 @@ describe.each(["web", "ios", "android"] as const)("%s whole-message translation"
     await act(async () => renderer!.update(React.createElement(MessageTranslateButton, { ...props, text: "First chunk and more", streaming: false })));
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ text: "First chunk", sourceKind: "assistant_message" });
+  });
+});
+
+describe.each(["web", "ios", "android"] as const)("%s thought translation", (platform) => {
+  it("honors the setting and translates the same complete thought as copy", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    mocks.hover = false;
+    const text = "First thought.\n\nSecond **paragraph**.";
+    const card = React.createElement(ReasoningCard, {
+      segmentation: segmentReasoning(text), streaming: false, durationMs: null, expanded: true,
+      onToggle: vi.fn(), tokens: makeTokens(), storeKey: "translation-thought", copyText: text,
+      translation: { agentId: "agent-1", theme },
+    });
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, "thought-off");
+    await act(async () => { renderer = TestRenderer.create(card); });
+    expect(renderer!.root.findAll((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate")).toHaveLength(0);
+    await act(async () => { publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "thought-on"); });
+    mocks.rpc.mockResolvedValue(doneState("译文"));
+    const button = renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate");
+    await act(async () => button.props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ agentId: "agent-1", sourceKind: "reasoning", text });
+    expect(JSON.stringify(renderer!.toJSON())).toContain("译文");
+    expect(renderer!.root.findByType(DisclosureHeader).props.actionsActive).toBe(true);
+    await act(async () => renderer!.root.findByType(SelectionTranslationPanel).props.onClose());
+    expect(renderer!.root.findByType(DisclosureHeader).props.actionsActive).toBe(false);
   });
 });
 
