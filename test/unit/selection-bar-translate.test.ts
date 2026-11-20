@@ -89,7 +89,7 @@ let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 let page: EventTarget & { innerWidth: number; innerHeight: number };
 let doc: EventTarget;
 let body: ElementMock;
-let selected: { text: string; node: ElementMock } | null;
+let selected: { text: string; node: ElementMock; focus?: ElementMock; boundedText?: string } | null;
 const call = vi.fn();
 
 type Scope = { agentId: string; kind: "assistant_message" | "user_message" | "reasoning" | "tool_output"; streaming: boolean };
@@ -142,9 +142,12 @@ beforeEach(() => {
       const current = selected;
       return current && {
         isCollapsed: false, toString: () => current.text, rangeCount: 1,
-        anchorNode: current.node, focusNode: current.node,
-        getRangeAt: () => ({ commonAncestorContainer: current.node,
-          getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }] }),
+        anchorNode: current.node, focusNode: current.focus ?? current.node,
+        getRangeAt: () => ({ commonAncestorContainer: current.node, startContainer: current.node,
+          getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }],
+          cloneRange: () => ({ commonAncestorContainer: current.node,
+            setStartBefore() {}, setEndAfter() {}, toString: () => current.boundedText ?? current.text,
+            getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }] }) }),
       };
     },
   }));
@@ -169,6 +172,23 @@ afterEach(() => {
 });
 
 describe("selection bar Translate", () => {
+  it("shows the toolbar when a whole paragraph ends at the next element boundary", () => {
+    const node = surface({ agentId: "session-1", kind: "assistant_message", streaming: false });
+    selected = { text: "Fix version update checks.\n", node, focus: new ElementMock(), boundedText: "Fix version update checks." };
+    doc.dispatchEvent(new Event("selectionchange"));
+    vi.advanceTimersByTime(0);
+    expect(display()).toBe("block");
+    expect(button("Translate")).toBeDefined();
+  });
+
+  it("does not show the toolbar when a selection includes text outside the surface", () => {
+    const node = surface({ agentId: "session-1", kind: "assistant_message", streaming: false });
+    selected = { text: "Reply outside text", node, focus: new ElementMock(), boundedText: "Reply" };
+    doc.dispatchEvent(new Event("selectionchange"));
+    vi.advanceTimersByTime(0);
+    expect(display()).toBe("none");
+  });
+
   it("resizes from either side and the bottom while keeping the opposite edge fixed", () => {
     act(() => renderer?.unmount());
     renderer = undefined;

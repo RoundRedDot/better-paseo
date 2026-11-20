@@ -141,28 +141,40 @@ function elementOf(node: Node | null): HTMLElement | null {
 
 /**
  * The live selection, or null when it is empty, collapsed, or outside every
- * plugin surface. Both ends must sit in the same surface: a drag that runs from
- * a callout into host chrome is not a callout selection.
+ * plugin surface. Both ends must belong to one surface, except for an empty
+ * boundary beyond it. A drag into host text is not a callout selection.
  */
 function readSelection(): Snapshot | null {
   const selection = window.getSelection();
   if (!selection || selection.isCollapsed || selection.rangeCount === 0) return null;
 
-  const text = selection.toString().trim();
-  if (!text) return null;
-
   const anchor = elementOf(selection.anchorNode)?.closest(SURFACE_SELECTOR);
   const focus = elementOf(selection.focusNode)?.closest(SURFACE_SELECTOR);
-  if (!anchor || anchor !== focus) return null;
+  if ((!anchor && !focus) || (anchor && focus && anchor !== focus)) return null;
+  const surface = (anchor ?? focus)!;
 
-  const range = selection.getRangeAt(0);
+  let range = selection.getRangeAt(0);
+  let text = selection.toString().trim();
+  if (!text) return null;
+  if (!anchor || !focus) {
+    // A browser's whole-line selection can end at the next element's start.
+    // Accept that boundary only when no text outside the surface was selected.
+    const bounded = range.cloneRange();
+    if (surface.contains(range.startContainer)) bounded.setEndAfter(surface);
+    else bounded.setStartBefore(surface);
+    const inside = bounded.toString().trim();
+    if (!inside || inside !== text) return null;
+    range = bounded;
+    text = inside;
+  }
+
   const rects = range.getClientRects();
   const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
   if (!rect || (rect.width === 0 && rect.height === 0)) return null;
 
-  const element = elementOf(range.commonAncestorContainer);
+  const element = elementOf(anchor && focus ? range.commonAncestorContainer : anchor ? selection.anchorNode : selection.focusNode);
   const isCode = Boolean(element?.closest(CODE_SELECTOR));
-  return { text, isCode, rect, element, surface: anchor, scope: scopeOf(anchor) };
+  return { text, isCode, rect, element, surface, scope: scopeOf(surface) };
 }
 
 /** Markdown the composer can carry: a fence for code, a blockquote for prose. */
