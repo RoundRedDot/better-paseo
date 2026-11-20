@@ -22,7 +22,7 @@ import {
 } from "../../../shared/tasks-settings";
 import { CARD_TITLE_LINE_COUNTS } from "../device-store";
 import { mix, radiusV2, space } from "../../components/theme-tokens";
-import { PHONE_PREVIEW_WIDTH, PlainButton, Section, Segmented, SettingsTips, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "../../settings-controls";
+import { Group, PHONE_PREVIEW_WIDTH, PlainButton, ResetRow, Section, Segmented, SettingsTips, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "../../settings-controls";
 import { HOST_FONT, TaskText, TasksTypography } from "../typography";
 import { StatusIcon } from "../cards";
 import { taskTokens } from "../cards/tokens";
@@ -262,58 +262,28 @@ function FieldChip({ label, on, onPress, look }: { label: string; on: boolean; o
   );
 }
 
-/** Restore asks a second time, in place. */
-function ResetRows({ strings, look, hint, onRestore }: { strings: TasksSettingsStrings; look: PageLook; hint: string; onRestore(): void }) {
-  const [armed, setArmed] = useState(false);
+function ResetRows({ strings, look, hint, onRestore }: {
+  strings: TasksSettingsStrings; look: PageLook; hint: string; onRestore(): Promise<void>;
+}) {
   return (
     <Section title={strings.resetTitle} look={look}>
-      <SettingRow
-        title={strings.reset}
-        description={armed ? strings.resetConfirmHint : hint}
-        control={
-          <View style={styles.buttons}>
-            {armed ? <PlainButton label={strings.resetCancel} onPress={() => setArmed(false)} look={look} /> : null}
-            <PlainButton
-              label={armed ? strings.resetConfirm : strings.resetAction}
-              onPress={() => {
-                if (!armed) return setArmed(true);
-                setArmed(false);
-                onRestore();
-              }}
-              look={look}
-            />
-          </View>
-        }
-        look={look}
-        first
+      <ResetRow first look={look} title={strings.reset} description={hint}
+        confirmDescription={strings.resetConfirmHint} action={strings.resetAction}
+        confirm={strings.resetConfirm} cancel={strings.resetCancel} onReset={onRestore}
       />
     </Section>
   );
 }
 
-/** A two-step reset that stays inside its settings module. */
-function ModuleResetRow({ module, strings, look, onRestore }: { module: string; strings: TasksSettingsStrings; look: PageLook; onRestore(): void }) {
-  const [armed, setArmed] = useState(false);
+function ModuleResetRow({ module, strings, look, onRestore }: {
+  module: string; strings: TasksSettingsStrings; look: PageLook; onRestore(): Promise<void>;
+}) {
   return (
-    <SettingRow
-      title={strings.moduleReset(module)}
-      description={armed ? strings.moduleResetConfirmHint : strings.moduleResetHint}
-      control={
-        <View style={styles.buttons}>
-          {armed ? <PlainButton label={strings.resetCancel} accessibilityLabel={`${strings.resetCancel} ${module}`} onPress={() => setArmed(false)} look={look} /> : null}
-          <PlainButton
-            label={armed ? strings.resetConfirm : strings.moduleResetAction(module)}
-            accessibilityLabel={armed ? strings.moduleResetConfirm(module) : strings.moduleResetAction(module)}
-            onPress={() => {
-              if (!armed) return setArmed(true);
-              setArmed(false);
-              onRestore();
-            }}
-            look={look}
-          />
-        </View>
-      }
-      look={look}
+    <ResetRow look={look} title={strings.moduleReset(module)} description={strings.moduleResetHint}
+      confirmDescription={strings.moduleResetConfirmHint} action={strings.moduleResetAction(module)}
+      confirm={strings.resetConfirm} confirmAccessibilityLabel={strings.moduleResetConfirm(module)}
+      cancel={strings.resetCancel} cancelAccessibilityLabel={`${strings.resetCancel} ${module}`}
+      onReset={onRestore}
     />
   );
 }
@@ -330,25 +300,13 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
 
   const switchSection = (
     <View style={styles.section}>
-      <View
-        style={[
-          controlStyles.group,
-          { backgroundColor: look.tokens.v2.surface1 },
-          look.compact ? null : [controlStyles.groupDesktop, { borderColor: look.tokens.v2.border }],
-        ]}
-      >
+      <Group look={look}>
         <EnabledRow form={form} strings={strings} look={look} />
         <OpenTasksShortcut value={form.openShortcut} ready={form.shortcutReady} onChange={form.setOpenShortcut} strings={strings} look={look} />
         {form.turnedOn ? <EnabledNotice strings={strings} look={look} /> : null}
-      </View>
+      </Group>
       {settings.status === "ready" ? (
-        <View
-          style={[
-            controlStyles.group,
-            { backgroundColor: look.tokens.v2.surface1 },
-            look.compact ? null : [controlStyles.groupDesktop, { borderColor: look.tokens.v2.border }],
-          ]}
-        >
+        <Group look={look}>
           <SettingRow
             title={strings.showArchived}
             description={strings.showArchivedHint}
@@ -363,7 +321,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
             look={look}
             first
           />
-        </View>
+        </Group>
       ) : null}
       <FormNotes form={form} strings={strings} look={look} />
     </View>
@@ -373,7 +331,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
     return (
       <View style={styles.panel} testID="tasks-settings-panel">
         {switchSection}
-        <ResetRows strings={strings} look={look} hint={strings.resetInvalidHint} onRestore={() => void form.restoreDefaults()} />
+        <ResetRows strings={strings} look={look} hint={strings.resetInvalidHint} onRestore={() => form.restoreDefaults()} />
       </View>
     );
   }
@@ -478,7 +436,7 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         module={strings.cardTitle}
         strings={strings}
         look={look}
-        onRestore={() => void form.restoreCardDefaults()}
+        onRestore={() => form.restoreCardDefaults()}
       />
     </Section>
   );
@@ -587,11 +545,11 @@ export function TasksSettingsPanel({ look, theme, side, hostId }: { look: PageLo
         module={strings.boardTitle}
         strings={strings}
         look={look}
-        onRestore={() => void form.restoreBoardDefaults()}
+        onRestore={() => form.restoreBoardDefaults()}
       />
     </Section>
   );
-  const reset = <ResetRows strings={strings} look={look} hint={strings.resetHint} onRestore={() => void form.restoreDefaults()} />;
+  const reset = <ResetRows strings={strings} look={look} hint={strings.resetHint} onRestore={() => form.restoreDefaults()} />;
 
   return (
     <View style={styles.panel} testID="tasks-settings-panel">
@@ -653,5 +611,4 @@ const styles = StyleSheet.create({
   chipCompact: { minHeight: 34, paddingHorizontal: 12 },
   chipMark: { fontSize: 12, lineHeight: 16, minWidth: 10, textAlign: "center", fontWeight: "600" },
   chipLabel: { fontSize: 13, lineHeight: 18 },
-  buttons: { flexDirection: "row", alignItems: "center", gap: space.sm },
 });

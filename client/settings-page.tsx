@@ -53,7 +53,7 @@ import { SettingsPreview } from "./settings-preview";
 import { selectionCodeText } from "./components/selection-actions";
 import { CommandBand } from "./ui/command-band";
 import { SelectableSpan, SelectableText } from "./ui/prose-text";
-import { PHONE_PREVIEW_WIDTH, PlainButton, Section, SectionNote, Segmented, SettingsTips, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "./settings-controls";
+import { Group, PHONE_PREVIEW_WIDTH, PlainButton, ResetRow, Section, SectionNote, Segmented, SettingsTips, SettingRow, Toggle, controlStyles, settingsTextStyle, type PageLook } from "./settings-controls";
 import { FileOpenChoices } from "./settings-file-open";
 import { installedEditorsRpc } from "../shared/file-rpc";
 import { FILE_OPEN_APPS, type FileOpenApp } from "../shared/file-open-apps";
@@ -545,30 +545,15 @@ function PreviewPanel({
   );
 }
 
-/** Reset needs a second press within a few seconds: it reaches every client of the host. */
 function ResetButton({ look }: { look: PageLook }) {
-  const { tokens, t } = look;
-  const [armed, setArmed] = useState(false);
-  useEffect(() => {
-    if (!armed) return;
-    const timer = setTimeout(() => setArmed(false), RESET_ARM_MS);
-    return () => clearTimeout(timer);
-  }, [armed]);
+  const { t } = look;
   return (
-    <View style={styles.reset}>
-      <PlainButton
-        label={armed ? t.resetConfirm : t.resetDefaults}
-        onPress={() => {
-          if (!armed) return setArmed(true);
-          setArmed(false);
-          resetEnhancerPreferences();
-        }}
-        look={look}
+    <Group look={look}>
+      <ResetRow first look={look} title={t.resetDefaults} description={t.resetDescription}
+        confirmDescription={t.resetConfirmDescription} action={t.resetAction} confirm={t.resetConfirm}
+        cancel={t.resetCancel} onReset={resetEnhancerPreferences}
       />
-      <Text style={[styles.rowNote, settingsTextStyle(tokens, -1), { color: armed ? tokens.warning : tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-        {t.resetDescription}
-      </Text>
-    </View>
+    </Group>
   );
 }
 
@@ -954,10 +939,10 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           stacked
         />
         {chat ? <SettingRow title={t.timelineTitle} description={t.timelineDescription} look={look} stacked
-          control={<View accessibilityRole="radiogroup" accessibilityLabel={t.timelineTitle} style={{ width: look.compact ? "100%" : 300, maxWidth: "100%", flexDirection: "row", gap: 8 }}>
+          control={<View accessibilityRole="radiogroup" accessibilityLabel={t.timelineTitle} style={{ width: look.compact ? "100%" : 300, maxWidth: "100%", flexDirection: "row", gap: space.sm }}>
             {([ ["simple", t.timelineSimple, t.timelineSimpleDescription], ["standard", t.timelineStandard, t.timelineStandardDescription], ["detailed", t.timelineDetailed, t.timelineDetailedDescription] ] as const).map(([value, label, description]) => (
               <Pressable key={value} accessibilityRole="radio" aria-checked={preferences.timelineLevel === value} accessibilityState={{ checked: preferences.timelineLevel === value }} onPress={() => updateEnhancerPreferences({ timelineLevel: value })}
-                style={{ flex: 1, minWidth: 0, padding: 10, gap: 6, borderWidth: 1, borderRadius: 8, borderColor: preferences.timelineLevel === value ? tokens.accent : tokens.v2.border }}>
+                style={{ flex: 1, minWidth: 0, padding: space.sm, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.card, borderColor: preferences.timelineLevel === value ? tokens.accent : tokens.v2.border }}>
                 <TimelineLevelIllustration level={value} tokens={tokens} />
                 <Text style={[settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{label}{value === "standard" ? ` · ${t.timelineDefault}` : ""}</Text>
                 <Text style={[settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{description}</Text>
@@ -1416,7 +1401,6 @@ const TWO_COLUMN_MIN = 960;
 const PREVIEW_MIN_HEIGHT = 320;
 /** Window height the side preview leaves for Paseo's header and the page's own padding. */
 const PREVIEW_WINDOW_MARGIN = 140;
-const RESET_ARM_MS = 4000;
 /** React Native's types lack `sticky`; React Native Web passes it through to CSS. */
 const stickyColumn = (Platform.OS === "web" ? { position: "sticky", top: space.lg } : null) as ViewStyle | null;
 
@@ -1521,6 +1505,5 @@ const styles = {
       borderRadius: radiusV2.bubble,
       padding: space.lg,
     },
-    reset: { gap: space.sm },
   }),
 };

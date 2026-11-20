@@ -3,7 +3,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema } from "../../shared/title-generation";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
-import { Section, SettingsTips, SettingRow, type PageLook } from "../../client/settings-controls";
+import { Section, SectionFooter, SettingsTips, SettingRow, type PageLook } from "../../client/settings-controls";
 import "./helpers/quiet-renderer";
 
 const state = vi.hoisted(() => {
@@ -53,10 +53,11 @@ async function mount(extra: object = {}) {
 const flushSave = async () => { await act(async () => { await vi.advanceTimersByTimeAsync(500); }); };
 const customToggle = () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch" && node.props.accessibilityLabel === "自定义自动标题模型");
 
-const promptDisplay = () => tree.root.findByProps({ testID: "title-generation-prompt" });
+const promptInput = () => tree.root.find((node) => typeof node.type === "string" && node.props.testID === "title-prompt-edit-input");
+const openPrompt = async () => { await act(async () => tree.root.findByProps({ accessibilityLabel: "编辑 Prompt" }).props.onPress()); };
 const editPrompt = async (value: string) => {
-  await act(async () => tree.root.findByProps({ accessibilityLabel: "编辑 Prompt" }).props.onPress());
-  await act(async () => tree.root.findByProps({ testID: "title-prompt-edit-input" }).props.onChangeText(value));
+  await openPrompt();
+  await act(async () => promptInput().props.onChangeText(value));
 };
 const savePrompt = async () => { await act(async () => tree.root.findByProps({ accessibilityLabel: "保存" }).props.onPress()); };
 
@@ -110,9 +111,10 @@ describe("automatic title settings", () => {
     expect(settings.save).not.toHaveBeenCalled();
     expect(customToggle().props.accessibilityState.checked).toBe(false);
     expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "关闭标题生成思考模式").props.accessibilityState.checked).toBe(true);
-    expect(promptDisplay().props.value).toBe(titleGenerationSettingsSchema.parse({}).prompt);
-    expect(promptDisplay().props.value).toContain("Use the language of the first user message.");
-    expect(promptDisplay().props.value).toContain("Limit the title to 60 characters including spaces.");
+    await openPrompt();
+    expect(promptInput().props.value).toBe(titleGenerationSettingsSchema.parse({}).prompt);
+    expect(promptInput().props.value).toContain("Use the language of the first user message.");
+    expect(promptInput().props.value).toContain("Limit the title to 60 characters including spaces.");
     expect(tree.root.findAllByType(ProviderLogo)).toHaveLength(0);
   });
 
@@ -123,7 +125,8 @@ describe("automatic title settings", () => {
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "恢复自动标题").props.onPress());
     await act(async () => tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "确认重置").props.onPress());
     expect(customToggle().props.accessibilityState.checked).toBe(true);
-    expect(promptDisplay().props.value).toBe("Keep this prompt");
+    await openPrompt();
+    expect(promptInput().props.value).toBe("Keep this prompt");
     expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityRole === "alert").children.join("")).toContain("Reset failed");
   });
 
@@ -190,7 +193,9 @@ describe("automatic title settings", () => {
     await act(async () => tree.update(<TitleGenerationSettings look={{ ...look, compact }} />));
     expect(customToggle().props.accessibilityState.checked).toBe(true);
     expect(tree.root.findByType(ProviderLogo).props.provider).toBe("claude");
-    expect(promptDisplay().props.value).toBe("Shared prompt");
+    await openPrompt();
+    expect(promptInput().props.value).toBe("Shared prompt");
+    await act(async () => tree.root.findByProps({ accessibilityLabel: "取消" }).props.onPress());
     expect(tree.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "关闭标题生成思考模式").props.accessibilityState.checked).toBe(false);
     await flushSave();
     expect(settings.save).not.toHaveBeenCalled();
@@ -213,20 +218,23 @@ describe("automatic title settings", () => {
 
   it("saves only on confirmation and discards cancelled or empty edits", async () => {
     const settings = await mount();
-    const original = promptDisplay().props.value;
-    await editPrompt("Cancelled");
-    const input = tree.root.findByProps({ testID: "title-prompt-edit-input" });
+    await openPrompt();
+    const original = promptInput().props.value;
+    expect(tree.root.findByProps({ accessibilityLabel: "保存" }).props.disabled).toBe(true);
+    await act(async () => promptInput().props.onChangeText("Cancelled"));
+    const input = promptInput();
     if (input.props.onContentSizeChange) {
       await act(async () => input.props.onContentSizeChange({ nativeEvent: { contentSize: { height: 360 } } }));
-      expect(tree.root.findByProps({ testID: "title-prompt-edit-input" }).props.style[1].height).toBe(360);
+      expect(promptInput().props.style[2].height).toBe(360);
     }
     await flushSave();
     expect(settings.save).not.toHaveBeenCalled();
     await act(async () => tree.root.findByProps({ accessibilityLabel: "取消" }).props.onPress());
-    expect(promptDisplay().props.value).toBe(original);
-    await editPrompt("   ");
+    await openPrompt();
+    expect(promptInput().props.value).toBe(original);
+    await act(async () => promptInput().props.onChangeText("   "));
     expect(tree.root.findByProps({ accessibilityLabel: "保存" }).props.disabled).toBe(true);
-    await act(async () => tree.root.findByProps({ testID: "title-prompt-edit-input" }).props.onChangeText("Final"));
+    await act(async () => promptInput().props.onChangeText("Final"));
     expect(tree.root.findAllByProps({ testID: "task-rename-auto-title" })).toHaveLength(0);
     await savePrompt();
     await flushSave();
@@ -237,7 +245,7 @@ describe("automatic title settings", () => {
     const settings = await mount({ values: titleGenerationSettingsSchema.parse({ prompt: "Custom prompt" }) });
     await editPrompt("Unsaved edit");
     await act(async () => tree.root.findByProps({ accessibilityLabel: "重置" }).props.onPress());
-    expect(tree.root.findByProps({ testID: "title-prompt-edit-input" }).props.value).toBe(DEFAULT_TITLE_PROMPT);
+    expect(promptInput().props.value).toBe(DEFAULT_TITLE_PROMPT);
     await flushSave();
     expect(settings.save).not.toHaveBeenCalled();
     await savePrompt();
@@ -366,18 +374,18 @@ describe("automatic title settings", () => {
     expect(settings.save).toHaveBeenLastCalledWith(expect.objectContaining({ model: "sonnet", thinkingOptionId: "" }), "r1");
   });
 
-  it("keeps the section note outside the grouped rows and uses a single first row", async () => {
+  it("puts the footer inside the card after the rows in display order", async () => {
     await mount();
     const section = tree.root.findByType(Section);
-    expect(section.findAllByType(SettingsTips)).toHaveLength(0);
-    const tips = tree.root.findByType(SettingsTips).props.items;
+    const footer = section.findByType(SectionFooter);
+    const tips = footer.findByType(SettingsTips).props.items;
     expect(tips.map((item: { label: string }) => item.label)).toEqual(["生成方式", "推荐模型", "后台任务"]);
     expect(tips[0].text).toContain("对话摘录和标题提示词");
     expect(tips[1].text).toContain("deepseek/deepseek-flash");
     expect(tips[1].text).toContain("claude-haiku-5-5");
     expect(tips[2].text).toContain("后台任务不进入看板");
     expect(section.findAllByType(SettingRow).map((row) => [row.props.title, row.props.first === true])).toEqual([
-      ["自动优化新任务标题", true], ["自定义自动标题模型", false], ["关闭标题生成思考模式", false], ["Provider", false], ["模型", false], ["思考等级", false], ["Prompt", false], ["恢复「自动标题」默认设置", false],
+      ["自动优化新任务标题", true], ["自定义自动标题模型", false], ["Provider", false], ["模型", false], ["思考等级", false], ["关闭标题生成思考模式", false], ["Prompt", false], ["恢复「自动标题」默认设置", false],
     ]);
   });
 

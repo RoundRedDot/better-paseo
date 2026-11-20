@@ -4,7 +4,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { Segmented, SettingsTips, Toggle, type PageLook } from "../../client/settings-controls";
+import { Section, SectionFooter, Segmented, ResetRow, SettingRow, SettingsTips, Toggle, type PageLook } from "../../client/settings-controls";
 import { measureHostTree } from "./helpers/yoga-host-layout";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -99,16 +99,64 @@ describe("wrapped settings choices", () => {
   });
 });
 
-describe("settings tips layout", () => {
-  it.each([320, 390])("keeps long mobile tips within %i points", (width) => {
-    const mobileLook = { compact: true, tokens: { typography: { ui: { size: 16 } }, v2: {} } } as PageLook;
+describe("settings section footer", () => {
+  it.each([[true, 320], [true, 390], [false, 280], [false, 440]])("aligns its labels with the rows (compact %s, width %i)", (compact, width) => {
+    const look = { compact, tokens: { typography: { ui: { size: 16 } }, v2: { border: "#aaa" } } } as PageLook;
     const text = "生成标题时，对话摘录和标题提示词会发送给辅助 Agent。默认使用卡片的 Provider 和模型。";
-    act(() => { renderer = TestRenderer.create(React.createElement(SettingsTips, { items: [{ label: "生成方式", text }], look: mobileLook, inset: true })); });
+    const footer = React.createElement(SectionFooter, { look, children:
+      React.createElement(SettingsTips, { items: [{ label: "生成方式", text }], look }),
+    });
+    act(() => { renderer = TestRenderer.create(React.createElement(Section, { title: "设置", look, children: [
+      React.createElement(SettingRow, { key: "row", title: "选项", look, first: true }),
+      React.cloneElement(footer, { key: "footer" }),
+    ] })); });
     const root = renderer.root.find((node) => node.type === ("View" as React.ElementType));
     const frames = measureHostTree(root, { width, wrapText: true });
-    const body = renderer.root.find((node) => node.type === ("Text" as React.ElementType) && node.children.includes(text));
-    const frame = frames.get(body)!;
-    expect(frame.left + frame.width).toBeLessThanOrEqual(width);
+    const textFrame = (value: string) => frames.get(renderer.root.find((node) => typeof node.type === "string" && node.children.includes(value)))!;
+    const row = textFrame("选项");
+    const label = textFrame("生成方式");
+    const frame = textFrame(text);
+    expect(label.left).toBe(row.left);
+    expect(frame.left + frame.width).toBeLessThanOrEqual(width - 16);
     expect(frame.height).toBeGreaterThan(22);
+    expect(frame.left === label.left).toBe(compact || width < 300);
+    const rule = renderer.root.findByType(SectionFooter).find((node) =>
+      typeof node.type === "string" && Array.isArray(node.props.style) && node.props.style.some((style: { borderTopWidth?: number } | null) => style?.borderTopWidth === 1),
+    );
+    expect(frames.get(rule)!.left).toBe(compact ? row.left : 1);
+  });
+});
+
+describe("settings reset row", () => {
+  it("requires confirmation and disarms on cancellation or after four seconds", async () => {
+    vi.useFakeTimers();
+    try {
+      const onReset = vi.fn();
+      const resetLook = { tokens: { typography: { ui: { size: 14 } }, v2: {}, warning: "#a60" } } as PageLook;
+      act(() => { renderer = TestRenderer.create(React.createElement(ResetRow, {
+        look: resetLook, title: "Defaults", description: "Restore this group", confirmDescription: "Confirm restore",
+        action: "Reset", confirm: "Confirm", cancel: "Cancel", onReset,
+      })); });
+      const buttons = (label: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
+      const press = async (label: string) => { await act(async () => buttons(label)[0]!.props.onPress()); };
+      await press("Reset");
+      expect(onReset).not.toHaveBeenCalled();
+      expect(buttons("Confirm")).toHaveLength(1);
+      await press("Cancel");
+      expect(onReset).not.toHaveBeenCalled();
+      expect(buttons("Confirm")).toHaveLength(0);
+      await press("Reset");
+      act(() => { vi.advanceTimersByTime(3999); });
+      expect(buttons("Confirm")).toHaveLength(1);
+      act(() => { vi.advanceTimersByTime(1); });
+      expect(buttons("Confirm")).toHaveLength(0);
+      expect(onReset).not.toHaveBeenCalled();
+      await press("Reset");
+      await press("Confirm");
+      expect(onReset).toHaveBeenCalledOnce();
+      expect(buttons("Reset")).toHaveLength(1);
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });

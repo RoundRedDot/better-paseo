@@ -1,7 +1,6 @@
-import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, StyleSheet, Text, TextInput, View } from "react-native";
+import React, { useCallback, useEffect, useMemo, useState } from "react";
+import { View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
-import { Modal } from "@getpaseo/plugin/client/ui";
 import {
   DEFAULT_TRANSLATION_PROMPT,
   resolveThinkingCapability,
@@ -12,19 +11,21 @@ import {
 } from "../../shared/timeline-translation";
 import { ModelSettingsControls } from "../model-settings-controls";
 import { modelSelection } from "../../shared/model-catalog";
-import { radiusV2 } from "../components/theme-tokens";
+import { radiusV2, space } from "../components/theme-tokens";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { useEnhancerPreferences } from "../preferences";
 import {
   PlainButton,
   Section,
-  SectionNote,
+  ResetRow,
+  RowNotice,
+  SectionFooter,
   SettingRow,
   SettingsTips,
   Toggle,
-  settingsTextStyle,
   type PageLook,
 } from "../settings-controls";
+import { PromptEditorModal } from "../settings-prompt-editor";
 import { SearchableLanguageSelect } from "./language-picker";
 import {
   DEFAULT_TIMELINE_TRANSLATION_SETTINGS,
@@ -157,7 +158,7 @@ export function describeThinkingStatus(
 
 const STRINGS = {
   en: {
-    sectionTitle: "Timeline Translation",
+    sectionTitle: "Translation",
     enableTitle: "Enable selection translation",
     enableDescription: "Adds Translate to the menu for text you select in a reply or thought: the floating selection bar on desktop and web, the double-tap block menu on iOS and Android. The original text stays as it is.",
     targetTitle: "Target language",
@@ -166,25 +167,21 @@ const STRINGS = {
     targetEmpty: "No matching language",
     customModelTitle: "Choose provider and model",
     customModelDescription: "Off uses the current conversation's provider and model.",
-    providerTitle: "Provider",
-    providerPlaceholder: "Select provider",
-    refreshTitle: "Refresh models",
-    modelTitle: "Model",
-    modelPlaceholder: "Select model",
     disableThinkingTitle: "Disable thinking when supported",
     disableThinkingDescription: "Applies only when the model exposes a genuine off, none, or disabled option.",
-    thinkingOptionTitle: "Thinking level",
-    thinkingDefaultOption: "Model default",
     promptTitle: "Translation prompt",
-    promptDescription: "Sent only with the text you selected.",
+    promptDescription: "Instructions the model follows when translating. Open the editor to view or change them.",
     editPrompt: "Edit prompt",
     resetPrompt: "Reset prompt",
     promptModalTitle: "Translation prompt",
     promptPlaceholder: "Enter translation instructions...",
     save: "Save",
     cancel: "Cancel",
-    resetSection: "Reset translation settings",
-    resetConfirm: "Press again to reset",
+    resetSection: "Restore default translation settings",
+    resetHint: "Restores translation settings only.",
+    resetAction: "Reset",
+    resetConfirm: "Confirm",
+    resetConfirmHint: "Confirm to restore this section’s defaults.",
     saving: "Saving...",
     unavailable: "Translation settings are currently unavailable from this host.",
     tips: [
@@ -203,7 +200,7 @@ const STRINGS = {
     ],
   },
   zh: {
-    sectionTitle: "时间线翻译",
+    sectionTitle: "翻译",
     enableTitle: "启用选中文本翻译",
     enableDescription: "在回复或思考过程中选中文本后，菜单里提供「翻译」：桌面端和网页端在浮动选择栏里，iOS 和 Android 在双击选中段落后的菜单里。原文保持不变。",
     targetTitle: "目标语言",
@@ -212,25 +209,21 @@ const STRINGS = {
     targetEmpty: "没有匹配的语言",
     customModelTitle: "指定 Provider 与模型",
     customModelDescription: "关闭时复用当前会话正在使用的 Provider 与模型。",
-    providerTitle: "Provider",
-    providerPlaceholder: "选择 Provider",
-    refreshTitle: "刷新模型",
-    modelTitle: "模型",
-    modelPlaceholder: "选择模型",
     disableThinkingTitle: "支持时关闭思考",
     disableThinkingDescription: "仅在模型明确支持 off / none / disabled 选项时生效，不静默降档。",
-    thinkingOptionTitle: "思考挡位",
-    thinkingDefaultOption: "模型默认",
     promptTitle: "翻译 Prompt",
-    promptDescription: "仅与你选中的文本一起发送。",
+    promptDescription: "模型翻译时遵循的指令，打开编辑器即可查看或修改。",
     editPrompt: "编辑 Prompt",
     resetPrompt: "重置 Prompt",
     promptModalTitle: "编辑翻译 Prompt",
     promptPlaceholder: "输入翻译提示词...",
     save: "保存",
     cancel: "取消",
-    resetSection: "重置翻译设置",
-    resetConfirm: "再点一次确认重置",
+    resetSection: "恢复默认翻译设置",
+    resetHint: "只恢复本组设置，不影响其他组。",
+    resetAction: "重置",
+    resetConfirm: "确认",
+    resetConfirmHint: "再点一次「确认」恢复本组默认值。",
     saving: "正在保存...",
     unavailable: "当前无法从 Paseo 主机读取翻译设置。",
     tips: [
@@ -285,15 +278,6 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   }));
   const [switchingProvider, setSwitchingProvider] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
-  const [promptDraft, setPromptDraft] = useState(settings.prompt);
-  const [confirmReset, setConfirmReset] = useState(false);
-  const resetTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
-
-  useEffect(() => {
-    return () => {
-      if (resetTimer.current) clearTimeout(resetTimer.current);
-    };
-  }, []);
 
   const loadModels = useCallback(async (provider: string) => {
     setCatalog((prev) => ({ ...prev, loading: true, error: null }));
@@ -361,17 +345,12 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   const writeDisabled = state.status !== "ready" || state.saving;
   const controlsDisabled = writeDisabled || !settings.enabled;
 
-  const statusToneColor =
-    thinkingStatus.tone === "warning"
-      ? tokens.warning
-      : thinkingStatus.tone === "accent"
-        ? tokens.accent
-        : tokens.foregroundMuted;
-
-  return (
+  return <>
     <Section title={t.sectionTitle} look={look}>
       {state.status === "error" || state.status === "invalid" ? (
-        <SectionNote text={state.error ? `${t.unavailable} (${state.error})` : t.unavailable} look={look} />
+        <View style={{ paddingHorizontal: space.lg, paddingTop: space.md }}>
+          <RowNotice look={look} tone="danger" alert text={state.error ? `${t.unavailable} (${state.error})` : t.unavailable} />
+        </View>
       ) : null}
 
       <SettingRow
@@ -391,6 +370,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
       />
 
       <SettingRow
+        wrapControl
         title={t.targetTitle}
         description={t.targetDescription}
         control={
@@ -425,6 +405,16 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         disabled={controlsDisabled}
       />
 
+      {settings.customModel ? <>
+        <ModelSettingsControls look={look} language={lang} provider={settings.provider} model={settings.model} thinkingOptionId={settings.thinkingOptionId}
+          disableThinking={settings.disableThinking} disabledThinkingLabel={t.disableThinkingTitle} disabled={controlsDisabled || switchingProvider} loading={catalog.loading}
+          providers={catalog.providers} providerLabels={catalog.providerLabels} models={models}
+          onProvider={(provider) => void selectProvider(provider)}
+          onModel={(model) => void savePatch(modelSelection(models.find((entry) => entry.id === model), settings.thinkingOptionId))}
+          onThinking={(thinkingOptionId) => void savePatch({ thinkingOptionId })} onRefresh={() => void loadModels(settings.provider)} />
+        {catalog.error ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={catalog.error} tone="danger" alert /></View> : null}
+      </> : null}
+
       <SettingRow
         title={t.disableThinkingTitle}
         description={t.disableThinkingDescription}
@@ -439,201 +429,38 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         }
         look={look}
         disabled={controlsDisabled}
+        below={thinkingStatus.tone !== "warning" ? (
+          <View style={{ backgroundColor: tokens.v2.surface2, borderRadius: radiusV2.block, paddingVertical: space.sm, paddingHorizontal: space.md }}>
+            <RowNotice look={look} text={thinkingStatus.text} tone={thinkingStatus.tone} />
+          </View>
+        ) : null}
       />
-
-      {thinkingStatus.tone !== "warning" ? <View
-        style={[
-          styles.thinkingNoticeBox,
-          {
-            borderColor: tokens.v2.border,
-            backgroundColor: tokens.v2.surface2,
-          },
-        ]}
-      >
-        <Text style={[styles.noticeText, settingsTextStyle(tokens, -1), { color: statusToneColor, fontFamily: tokens.fontUi }]}>
-          {thinkingStatus.text}
-        </Text>
-      </View> : null}
-
-      {settings.customModel ? <>
-        <ModelSettingsControls look={look} language={lang} provider={settings.provider} model={settings.model} thinkingOptionId={settings.thinkingOptionId}
-          disableThinking={settings.disableThinking} disabledThinkingLabel={t.disableThinkingTitle} disabled={controlsDisabled || switchingProvider} loading={catalog.loading}
-          providers={catalog.providers} providerLabels={catalog.providerLabels} models={models}
-          onProvider={(provider) => void selectProvider(provider)}
-          onModel={(model) => void savePatch(modelSelection(models.find((entry) => entry.id === model), settings.thinkingOptionId))}
-          onThinking={(thinkingOptionId) => void savePatch({ thinkingOptionId })} onRefresh={() => void loadModels(settings.provider)} />
-        {catalog.error ? <View style={styles.noticeRow}><Text style={[styles.noticeText, settingsTextStyle(tokens, -1), { color: tokens.danger, fontFamily: tokens.fontUi }]}>{catalog.error}</Text></View> : null}
-      </> : null}
 
       <SettingRow
         title={t.promptTitle}
-        description={settings.prompt}
-        control={
-          <View style={styles.inlineControls}>
-            <PlainButton
-              label={t.editPrompt}
-              onPress={() => {
-                setPromptDraft(settings.prompt);
-                setPromptOpen(true);
-              }}
-              look={look}
-              disabled={controlsDisabled}
-            />
-            {settings.prompt !== DEFAULT_TRANSLATION_PROMPT ? (
-              <PlainButton
-                label={t.resetPrompt}
-                onPress={() => void savePatch({ prompt: DEFAULT_TRANSLATION_PROMPT })}
-                look={look}
-                disabled={controlsDisabled}
-              />
-            ) : null}
-          </View>
-        }
+        description={t.promptDescription}
+        control={<PlainButton label={t.editPrompt} look={look} onPress={() => setPromptOpen(true)} disabled={controlsDisabled} />}
         look={look}
+        wrapControl
         disabled={controlsDisabled}
       />
 
-      <View style={styles.footerRow}>
-        <PlainButton
-          label={confirmReset ? t.resetConfirm : t.resetSection}
-          onPress={() => {
-            if (!confirmReset) {
-              setConfirmReset(true);
-              if (resetTimer.current) clearTimeout(resetTimer.current);
-              resetTimer.current = setTimeout(() => setConfirmReset(false), 3000);
-              return;
-            }
-            setConfirmReset(false);
-            if (resetTimer.current) {
-              clearTimeout(resetTimer.current);
-              resetTimer.current = null;
-            }
-            void savePatch(DEFAULT_TIMELINE_TRANSLATION_SETTINGS);
-          }}
-          look={look}
-          disabled={writeDisabled}
-        />
-        {state.saving ? (
-          <Text style={[styles.savingText, settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-            {t.saving}
-          </Text>
-        ) : null}
-        {state.saveError ? (
-          <Text style={[styles.savingText, settingsTextStyle(tokens, -1), { color: tokens.danger, fontFamily: tokens.fontUi }]}>
-            {state.saveError}
-          </Text>
-        ) : null}
-      </View>
+      <ResetRow look={look} title={t.resetSection} description={t.resetHint} confirmDescription={t.resetConfirmHint}
+        action={t.resetAction} confirm={t.resetConfirm} cancel={t.cancel}
+        disabled={writeDisabled} onReset={() => savePatch(DEFAULT_TIMELINE_TRANSLATION_SETTINGS)}
+      />
+      {state.saving || state.saveError ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
+        {state.saving ? <RowNotice look={look} text={t.saving} /> : null}
+        {state.saveError ? <RowNotice look={look} text={state.saveError} tone="danger" alert /> : null}
+      </View> : null}
 
-      <View style={styles.tipsWrap}>
-        <SettingsTips items={t.tips} look={look} inset />
-      </View>
-
-      {promptOpen ? (
-        <Modal
-          title={t.promptModalTitle}
-          open={promptOpen}
-          onOpenChange={setPromptOpen}
-        >
-          <Modal.Content>
-            <View style={styles.modalBody}>
-              <TextInput
-                value={promptDraft}
-                onChangeText={setPromptDraft}
-                placeholder={t.promptPlaceholder}
-                placeholderTextColor={tokens.foregroundSubtle ?? tokens.foregroundMuted}
-                multiline
-                numberOfLines={5}
-                style={[
-                  styles.promptInput,
-                  settingsTextStyle(tokens, -1),
-                  {
-                    color: tokens.foreground,
-                    fontFamily: tokens.fontUi,
-                    borderColor: tokens.v2.border,
-                    backgroundColor: tokens.v2.surface0,
-                  },
-                ]}
-              />
-              <View style={styles.modalActions}>
-                <PlainButton
-                  label={t.resetPrompt}
-                  onPress={() => setPromptDraft(DEFAULT_TRANSLATION_PROMPT)}
-                  look={look}
-                />
-                <View style={styles.modalSpacer} />
-                <PlainButton
-                  label={t.cancel}
-                  onPress={() => setPromptOpen(false)}
-                  look={look}
-                />
-                <PlainButton
-                  label={t.save}
-                  onPress={() => {
-                    const trimmed = promptDraft.trim();
-                    if (trimmed) void savePatch({ prompt: trimmed });
-                    setPromptOpen(false);
-                  }}
-                  look={look}
-                  disabled={!promptDraft.trim()}
-                />
-              </View>
-            </View>
-          </Modal.Content>
-        </Modal>
-      ) : null}
+      <SectionFooter look={look}><SettingsTips items={t.tips} look={look} /></SectionFooter>
     </Section>
-  );
-}
 
-const styles = StyleSheet.create({
-  inlineControls: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-    flexWrap: "wrap",
-    justifyContent: "flex-end",
-  },
-  thinkingNoticeBox: {
-    marginHorizontal: 14,
-    marginBottom: 10,
-    paddingHorizontal: 10,
-    paddingVertical: 8,
-    borderWidth: 1,
-    borderRadius: radiusV2.block,
-  },
-  noticeRow: {
-    paddingHorizontal: 14,
-    paddingBottom: 8,
-  },
-  noticeText: {},
-  footerRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 10,
-    paddingHorizontal: 14,
-    paddingVertical: 10,
-  },
-  savingText: {},
-  tipsWrap: {
-    paddingBottom: 12,
-  },
-  modalBody: {
-    gap: 12,
-  },
-  promptInput: {
-    minHeight: Platform.OS === "web" ? 130 : 110,
-    textAlignVertical: "top",
-    padding: 10,
-    borderWidth: 1,
-    borderRadius: radiusV2.block,
-  },
-  modalActions: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  modalSpacer: {
-    flex: 1,
-  },
-});
+    {promptOpen ? <PromptEditorModal look={look} title={t.promptModalTitle} label={t.promptTitle}
+      value={settings.prompt} defaultValue={DEFAULT_TRANSLATION_PROMPT}
+      reset={t.resetPrompt} cancel={t.cancel} save={t.save} placeholder={t.promptPlaceholder} trim
+      onClose={() => setPromptOpen(false)} onSave={(prompt) => void savePatch({ prompt })}
+    /> : null}
+  </>;
+}

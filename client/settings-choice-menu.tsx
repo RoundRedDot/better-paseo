@@ -96,6 +96,7 @@ export function ChoiceMenuSelect({
   look,
   label,
   disabled = false,
+  minWidth = 0,
 }: {
   value: string;
   /** The closed control's face; null shows `label`'s placeholder without a logo. */
@@ -106,6 +107,7 @@ export function ChoiceMenuSelect({
   /** The control's name, the setting title. */
   label: string;
   disabled?: boolean;
+  minWidth?: number;
 }) {
   const { tokens, compact } = look;
   const trigger = useRef<View>(null);
@@ -131,6 +133,7 @@ export function ChoiceMenuSelect({
           styles.trigger,
           compact ? styles.triggerCompact : null,
           {
+            minWidth,
             borderColor: tokens.v2.border,
             backgroundColor: pressed ? tokens.v2.surface2 : tokens.v2.surface0,
             opacity: disabled ? 0.5 : 1,
@@ -323,7 +326,6 @@ const styles = StyleSheet.create({
     alignSelf: "flex-start",
     maxWidth: "100%",
     flexShrink: 1,
-    minWidth: 0,
     flexDirection: "row",
     alignItems: "center",
     gap: space.sm,

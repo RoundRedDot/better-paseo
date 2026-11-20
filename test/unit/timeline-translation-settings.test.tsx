@@ -2,6 +2,7 @@ import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import "./helpers/quiet-renderer";
+import { measureHostTree } from "./helpers/yoga-host-layout";
 import {
   DEFAULT_TRANSLATION_PROMPT,
   timelineTranslationSettingsSchema,
@@ -10,6 +11,7 @@ import {
 import { ProviderLogo } from "../../client/components/provider-logo";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { DEFAULT_PREFERENCES, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { Section, SectionFooter, SettingRow } from "../../client/settings-controls";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import {
   getTranslationSettingsState,
@@ -41,6 +43,8 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
   return {
     Icon: (props: Record<string, unknown>) => ReactModule.createElement("Icon", props),
     Modal,
+    TextInput: "TextInput",
+    ScrollView: "ScrollView",
   };
 });
 
@@ -356,6 +360,13 @@ describe("timeline translation settings", () => {
     const allTexts = textValues(renderer!.root).join("\n");
     expect(allTexts).not.toContain("does not expose an off, none, or disabled thinking option");
     expect(allTexts).toContain("Disable thinking when supported");
+    const section = renderer!.root.findByType(Section);
+    expect(section.findAllByType(SettingRow).map((row) => row.props.title)).toEqual([
+      "Enable selection translation", "Target language", "Choose provider and model",
+      "Provider", "Model", "Thinking level", "Disable thinking when supported",
+      "Translation prompt", "Restore default translation settings",
+    ]);
+    expect(section.findByType(SectionFooter)).toBeDefined();
 
     // Open prompt modal, change prompt, save, then test 2-step reset.
     const editBtn = renderer!.root.find(
@@ -384,14 +395,14 @@ describe("timeline translation settings", () => {
     );
 
     const resetBtn = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Reset translation settings",
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Reset",
     );
     await act(async () => {
       resetBtn.props.onPress();
     });
     // First click asks for confirmation without saving yet.
     const confirmBtn = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Press again to reset",
+      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Confirm",
     );
     await act(async () => {
       confirmBtn.props.onPress();
@@ -405,26 +416,35 @@ describe("timeline translation settings", () => {
   it("shows an untouched earlier default prompt as the default and saves the current text", async () => {
     const legacyDefault =
       "Translate the supplied text into the target language. Preserve Markdown, code blocks, inline code, commands, paths, links, and technical identifiers. Return only the translation, without explanations.";
-    const resetPromptButtons = () => renderer!.root.findAll(
-      (n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Reset prompt",
+    const button = (label: string) => renderer!.root.find(
+      (node) => typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === label,
     );
+    const promptInput = () => renderer!.root.find(
+      (node) => typeof node.type === "string" && node.props.multiline === true,
+    );
+    const render = async (prompt: string) => {
+      mocks.settingsState = makeReadySettings({ enabled: true, prompt });
+      await act(async () => { renderer = TestRenderer.create(<TimelineTranslationSettingsSection look={makeLook()} />); });
+    };
 
-    // The host hands the page values already parsed by the settings schema.
-    mocks.settingsState = makeReadySettings({ enabled: true, prompt: "Keep it terse." });
-    await act(async () => {
-      renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }));
-    });
-    expect(resetPromptButtons().length).toBeGreaterThan(0);
+    await render("Keep it terse.");
+    expect(textValues(renderer!.root)).not.toContain("Keep it terse.");
+    await act(async () => button("Edit prompt").props.onPress());
+    expect(promptInput().props.value).toBe("Keep it terse.");
+    expect(button("Save").props.disabled).toBe(true);
+    await act(async () => button("Reset prompt").props.onPress());
+    expect(promptInput().props.value).toBe(DEFAULT_TRANSLATION_PROMPT);
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+    await act(async () => button("Save").props.onPress());
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ prompt: DEFAULT_TRANSLATION_PROMPT }), "rev-1");
     act(() => renderer!.unmount());
 
-    mocks.settingsState = makeReadySettings({ enabled: true, prompt: legacyDefault });
-    await act(async () => {
-      renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }));
-    });
-    expect(resetPromptButtons()).toHaveLength(0);
-    const texts = textValues(renderer!.root).join("\n");
-    expect(texts).toContain(DEFAULT_TRANSLATION_PROMPT);
-    expect(texts).not.toContain("Translate the supplied text");
+    // The host parses saved settings before exposing them to the page.
+    await render(legacyDefault);
+    await act(async () => button("Edit prompt").props.onPress());
+    expect(promptInput().props.value).toBe(DEFAULT_TRANSLATION_PROMPT);
+    expect(button("Save").props.disabled).toBe(true);
+    await act(async () => button("Cancel").props.onPress());
 
     const masterSwitch = renderer!.root.find(
       (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable selection translation",
@@ -436,6 +456,26 @@ describe("timeline translation settings", () => {
       expect.objectContaining({ enabled: false, prompt: DEFAULT_TRANSLATION_PROMPT }),
       "rev-1",
     );
+  });
+
+  it.each([[false, 320, 32], [true, 320, 44]])("fits the dropdowns at a large text size (compact %s, width %i)", async (compact, width, refreshSize) => {
+    const model = { id: "model", label: "A model with a very long display name", thinkingOptions: [], defaultThinkingOptionId: null };
+    mocks.modelsRpc.mockResolvedValue({ providers: ["claude"], models: [model], error: null });
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: model.id });
+    await act(async () => {
+      renderer = TestRenderer.create(<TimelineTranslationSettingsSection look={makeLook(compact)} />);
+    });
+    const root = renderer!.root.findByType(Section).findAll((node) => node.type === ("View" as React.ElementType))[0]!;
+    const frames = measureHostTree(root, { width, wrapText: true, textScale: 1.4 });
+    const buttonFrame = (label: string) => frames.get(root.find((node) =>
+      typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === label,
+    ))!;
+    for (const label of ["Target language", "Provider", "Model", "Thinking level"]) {
+      const frame = buttonFrame(label);
+      expect(frame.width).toBeGreaterThanOrEqual(168);
+      expect(frame.left + frame.width, label).toBeLessThanOrEqual(width - 16);
+    }
+    expect(buttonFrame("Refresh models")).toMatchObject({ width: refreshSize, height: refreshSize });
   });
 
   it("renders natively in Chinese and uses Modal for language picker on iOS", async () => {
@@ -450,7 +490,7 @@ describe("timeline translation settings", () => {
     });
 
     const texts = textValues(renderer!.root).join("\n");
-    expect(texts).toContain("时间线翻译");
+    expect(renderer!.root.findByType(Section).props.title).toBe("翻译");
     expect(texts).toContain("跟随界面语言");
 
     const trigger = renderer!.root.find(

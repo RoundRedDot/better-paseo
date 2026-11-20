@@ -100,8 +100,8 @@ describe("translation settings placement", () => {
       } as never));
     });
     const sections = renderer!.root.findAllByType(Section);
-    expect(sections[0]?.props.title).toBe("Timeline Translation");
-    expect(sections.filter((section) => section.props.title === "Timeline Translation")).toHaveLength(1);
+    expect(sections[0]?.props.title).toBe("Translation");
+    expect(sections.filter((section) => section.props.title === "Translation")).toHaveLength(1);
     expect(open).toHaveBeenCalledWith("chat-presentation");
     release();
   });
@@ -120,7 +120,7 @@ describe("translation settings placement", () => {
     expect(generalIndex).toBeGreaterThanOrEqual(0);
     const general = sections[generalIndex]!;
     expect(general.findAllByType(SettingRow).at(-1)?.props.title).toBe(SETTINGS_STRINGS.en.timelineTitle);
-    expect(sections[generalIndex + 1]?.props.title).toBe("Timeline Translation");
+    expect(sections[generalIndex + 1]?.props.title).toBe("Translation");
   });
 });
 

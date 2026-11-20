@@ -34,14 +34,17 @@ export function ModelSettingsControls({ look, language, provider, model, thinkin
     : selectedModel && !options.length ? words.unsupported
       : chosenThinking?.name ?? (thinkingOptionId || words.choose);
   const blocked = disabled || loading;
+  const refreshSize = look.compact ? 44 : 32;
   const menu = (label: string, value: string, selected: MenuChoice | null, choices: MenuChoice[], onChange: (value: string) => void, unavailable = false) =>
-    <ChoiceMenuSelect label={label} value={value} selected={selected} choices={choices} onChange={onChange} look={look} disabled={blocked || unavailable} />;
+    <ChoiceMenuSelect label={label} value={value} selected={selected} choices={choices} onChange={onChange} look={look}
+      disabled={blocked || unavailable} minWidth={168}
+    />;
   return <>
-    <SettingRow title={words.provider} look={look} disabled={disabled} control={menu(words.provider, provider, providerChoices.find((item) => item.value === provider) ?? { value: "", name: words.choose, logo: null }, providerChoices, onProvider)} />
-    <SettingRow title={words.model} look={look} disabled={disabled} control={<View style={{ flexDirection: "row", alignItems: "center", gap: space.sm, maxWidth: "100%" }}>
-      <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onRefresh} style={{ width: 40, height: 44, alignItems: "center", justifyContent: "center", opacity: blocked ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable>
+    <SettingRow title={words.provider} look={look} wrapControl disabled={disabled} control={menu(words.provider, provider, providerChoices.find((item) => item.value === provider) ?? { value: "", name: words.choose, logo: null }, providerChoices, onProvider)} />
+    <SettingRow title={words.model} look={look} wrapControl disabled={disabled} control={<View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm, maxWidth: "100%" }}>
+      <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onRefresh} style={{ width: refreshSize, height: refreshSize, alignItems: "center", justifyContent: "center", opacity: blocked ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable>
       {menu(words.model, model, modelChoices.find((item) => item.value === model) ?? { value: "", name: words.choose, logo: null }, modelChoices, (next) => { if (next !== model) onModel(next); }, !provider)}
     </View>} />
-    <SettingRow title={words.thinking} look={look} disabled={disabled} control={menu(words.thinking, thinkingOptionId, { value: thinkingOptionId, name: thinkingLabel, logo: null }, thinkingChoices, onThinking, disableThinking || !options.length)} />
+    <SettingRow title={words.thinking} look={look} wrapControl disabled={disabled} control={menu(words.thinking, thinkingOptionId, { value: thinkingOptionId, name: thinkingLabel, logo: null }, thinkingChoices, onThinking, disableThinking || !options.length)} />
   </>;
 }

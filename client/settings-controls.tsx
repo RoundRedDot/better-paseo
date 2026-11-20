@@ -1,5 +1,5 @@
 import { TextUpdateDot } from "./ui/text-update-dot";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { ActivityIndicator, Pressable, StyleSheet, Text, View } from "react-native";
 import { radiusV2, space, type ExtendedThemeTokens } from "./components/theme-tokens";
 import { TYPE } from "./ui/tokens/typography";
@@ -219,16 +219,113 @@ export function Section({ title, look, children, hidden = false }: { title: stri
       >
         {title}
       </Text>
-      <View
-        style={[
-          styles.group,
-          { backgroundColor: tokens.v2.surface1 },
-          compact ? null : [styles.groupDesktop, { borderColor: tokens.v2.border }],
-        ]}
-      >
+      <Group look={look}>{children}</Group>
+    </View>
+  );
+}
+
+export function Group({ look, children }: { look: PageLook; children: React.ReactNode }) {
+  const { tokens, compact } = look;
+  return (
+    <View style={[
+      styles.group,
+      { backgroundColor: tokens.v2.surface1 },
+      !compact && [styles.groupDesktop, { borderColor: tokens.v2.border }],
+    ]}>
+      {children}
+    </View>
+  );
+}
+
+export function SectionFooter({ look, children }: { look: PageLook; children: React.ReactNode }) {
+  return (
+    <View style={look.compact ? styles.rowInset : undefined}>
+      <View style={[
+        styles.footer,
+        !look.compact && styles.footerDesktop,
+        { borderTopColor: look.tokens.v2.border },
+      ]}>
         {children}
       </View>
     </View>
+  );
+}
+
+export function RowNotice({ look, text, tone = "neutral", alert = false }: {
+  look: PageLook;
+  text: string;
+  tone?: "neutral" | "accent" | "warning" | "danger";
+  alert?: boolean;
+}) {
+  const { tokens } = look;
+  return (
+    <Text accessibilityRole={alert ? "alert" : undefined} style={[
+      styles.rowNote, settingsTextStyle(tokens, -1),
+      { color: tone === "neutral" ? tokens.foregroundMuted : tokens[tone], fontFamily: tokens.fontUi },
+    ]}>
+      {text}
+    </Text>
+  );
+}
+
+export function ResetRow({
+  look, title, description, confirmDescription, action, confirm, cancel, onReset,
+  first, disabled, confirmAccessibilityLabel, cancelAccessibilityLabel, onArmedChange,
+}: {
+  look: PageLook;
+  title: string;
+  description: string;
+  confirmDescription: string;
+  action: string;
+  confirm: string;
+  cancel: string;
+  onReset(): void | Promise<void>;
+  first?: boolean;
+  disabled?: boolean;
+  confirmAccessibilityLabel?: string;
+  cancelAccessibilityLabel?: string;
+  onArmedChange?(armed: boolean): void;
+}) {
+  const [armed, setArmed] = useState(false);
+  const [resetting, setResetting] = useState(false);
+  useEffect(() => {
+    if (!armed || resetting) return;
+    const timer = setTimeout(() => {
+      setArmed(false);
+      onArmedChange?.(false);
+    }, 4000);
+    return () => clearTimeout(timer);
+  }, [armed, resetting, onArmedChange]);
+
+  const disarm = () => {
+    setArmed(false);
+    onArmedChange?.(false);
+  };
+  const press = async () => {
+    if (!armed) {
+      setArmed(true);
+      onArmedChange?.(true);
+      return;
+    }
+    setResetting(true);
+    try {
+      await onReset();
+    } finally {
+      setResetting(false);
+      disarm();
+    }
+  };
+  return (
+    <SettingRow title={title} look={look} first={first} wrapControl
+      description={armed ? <RowNotice look={look} text={confirmDescription} tone="warning" /> : description}
+      control={
+        <View style={styles.resetActions}>
+          {armed ? <PlainButton label={cancel} accessibilityLabel={cancelAccessibilityLabel} look={look} onPress={disarm} disabled={resetting} /> : null}
+          <PlainButton label={armed ? confirm : action} accessibilityLabel={armed ? confirmAccessibilityLabel : undefined}
+            look={look} onPress={() => void press()} disabled={disabled || resetting} />
+        </View>
+      }
+    />
   );
 }
 
@@ -250,10 +347,10 @@ export function SectionNote({ text, look }: { text: string; look: PageLook }) {
 }
 
 /** Related notes grouped by subject, using the same muted colour as row descriptions. */
-export function SettingsTips({ items, look, inset = false }: { items: ReadonlyArray<{ label: string; text: string }>; look: PageLook; inset?: boolean }) {
+export function SettingsTips({ items, look }: { items: ReadonlyArray<{ label: string; text: string }>; look: PageLook }) {
   const noteStyle = [styles.rowNote, settingsTextStyle(look.tokens, -1), { color: look.tokens.foregroundMuted, fontFamily: look.tokens.fontUi }];
   return (
-    <View style={[styles.tips, inset ? (look.compact ? styles.sectionTitleInset : styles.sectionTitleDesktop) : null]}>
+    <View style={styles.tips}>
       {items.map((item) => (
         <View key={item.label} style={[styles.tip, look.compact ? styles.tipCompact : null]}>
           <Text style={[noteStyle, styles.tipLabel]}>{item.label}</Text>
@@ -279,6 +376,7 @@ export function SettingRow({
   first = false,
   stacked = false,
   disabled = false,
+  wrapControl = false,
   below,
 }: {
   title: string;
@@ -288,6 +386,7 @@ export function SettingRow({
   first?: boolean;
   stacked?: boolean;
   disabled?: boolean;
+  wrapControl?: boolean;
   /** Extra content under the row (the font preview, a custom family). */
   below?: React.ReactNode;
 }) {
@@ -295,7 +394,7 @@ export function SettingRow({
   const rule = first ? null : { borderTopWidth: 1, borderTopColor: tokens.v2.border };
   const dim = disabled ? styles.rowDisabled : null;
   const text = (
-    <View style={compact ? styles.rowText : styles.rowTextDesktop}>
+    <View style={compact ? (wrapControl ? styles.rowTextWrap : styles.rowText) : styles.rowTextDesktop}>
       <Text
         style={[
           compact ? styles.rowTitleCompact : styles.rowTitleDesktop, settingsTextStyle(tokens),
@@ -321,7 +420,7 @@ export function SettingRow({
               {control}
             </>
           ) : (
-            <View style={styles.rowLine}>
+            <View style={[styles.rowLine, wrapControl && styles.rowLineWrap]}>
               {text}
               {control}
             </View>
@@ -361,14 +460,19 @@ const styles = StyleSheet.create({
   tip: { flexDirection: "row", flexWrap: "wrap", columnGap: space.md, rowGap: 2 },
   tipCompact: { flexDirection: "column", flexWrap: "nowrap" },
   tipLabel: { width: 92, fontWeight: "500" },
-  tipText: { flexGrow: 1, flexShrink: 1, flexBasis: 180, minWidth: 0 },
+  tipText: { flexGrow: 1, flexShrink: 1, flexBasis: 180, minWidth: 180, maxWidth: "100%" },
   group: { borderRadius: radiusV2.card, overflow: "hidden" },
   groupDesktop: { borderWidth: 1 },
+  footer: { borderTopWidth: 1, paddingTop: space.md, paddingBottom: 14, paddingRight: space.lg },
+  footerDesktop: { paddingLeft: space.lg },
+  resetActions: { flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", gap: space.sm, maxWidth: "100%" },
   // Touch: the rule runs from the inset, like a native grouped list.
   rowInset: { paddingLeft: space.lg },
   rowCompact: { minHeight: 44, paddingVertical: 11, paddingRight: space.lg, gap: space.sm },
   rowStacked: { gap: space.md },
   rowLine: { flexDirection: "row", alignItems: "center", gap: space.lg },
+  rowLineWrap: { flexWrap: "wrap", rowGap: space.sm },
+  rowTextWrap: { flexGrow: 1, flexShrink: 1, flexBasis: 72, minWidth: 0, gap: 2 },
   rowText: { flex: 1, minWidth: 0, gap: 2 },
   rowDisabled: { opacity: 0.45 },
   rowTitleCompact: {

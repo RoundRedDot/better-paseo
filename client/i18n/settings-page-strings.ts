@@ -277,7 +277,10 @@ const en = {
   releaseNotesMissing: "No release notes are available for this directory version yet.",
   releaseNotesUnavailable: "Could not load the release notes. Try again.",
   resetDefaults: "Reset all settings",
-  resetConfirm: "Press again to reset",
+  resetAction: "Reset",
+  resetConfirm: "Confirm",
+  resetCancel: "Cancel",
+  resetConfirmDescription: "Confirm to restore chat presentation defaults for every client of this host.",
   resetDescription: "Resets chat presentation options for every client of this host. Tasks board settings are separate.",
 };
 
@@ -537,7 +540,10 @@ const zh: SettingsStrings = {
   releaseNotesMissing: "该市场版本暂无更新说明。",
   releaseNotesUnavailable: "无法读取更新说明，请重试。",
   resetDefaults: "恢复全部默认设置",
-  resetConfirm: "再点一次确认恢复",
+  resetAction: "重置",
+  resetConfirm: "确认",
+  resetCancel: "取消",
+  resetConfirmDescription: "再点一次「确认」，恢复这台主机上所有客户端的聊天展示默认设置。",
   resetDescription: "把聊天展示选项恢复为默认值，这台主机的所有客户端都会生效。任务看板设置单独恢复。",
 };
 
