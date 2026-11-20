@@ -121,6 +121,8 @@ interface Snapshot {
   text: string;
   isCode: boolean;
   rect: DOMRect;
+  /** Every line box of the selection, `rect` first. */
+  rects: readonly DOMRect[];
   /** The element the selection sits in, to find its own chat's composer. */
   element: Element | null;
   /** The plugin surface holding both ends of the selection. */
@@ -179,13 +181,14 @@ function readSelection(): Snapshot | null {
     range = bounded;
   }
 
-  const rects = range.getClientRects();
-  const rect = rects.length > 0 ? rects[0] : range.getBoundingClientRect();
+  const lines = range.getClientRects();
+  const rect = lines.length > 0 ? lines[0] : range.getBoundingClientRect();
   if (!rect || (rect.width === 0 && rect.height === 0)) return null;
+  const rects = lines.length > 0 ? Array.from(lines) : [rect];
 
   const element = elementOf(anchor && focus ? range.commonAncestorContainer : anchor ? selection.anchorNode : selection.focusNode);
   const isCode = Boolean(element?.closest(CODE_SELECTOR));
-  return { text, isCode, rect, element, surface, scope: scopeOf(surface) };
+  return { text, isCode, rect, rects, element, surface, scope: scopeOf(surface) };
 }
 
 /** Markdown the composer can carry: a fence for code, a blockquote for prose. */
@@ -1000,11 +1003,15 @@ function translationOffered(): boolean {
   return !(settings.status === "ready" && !settings.values.enabled);
 }
 
-/** Whether `rect` shows inside `clip`, the element that just scrolled. */
-function visibleIn(rect: DOMRect, clip: Element | null, surface: Element): boolean {
-  if (!clip || !clip.contains(surface)) return true;
+/**
+ * Where the bar anchors after `clip`, the element that just scrolled, moved:
+ * the selection's first line box still showing in it, or null when none does.
+ */
+function visibleRect(snapshot: Snapshot, clip: Element | null): DOMRect | null {
+  if (!clip || !clip.contains(snapshot.surface)) return snapshot.rect;
   const box = clip.getBoundingClientRect();
-  return rect.bottom > box.top && rect.top < box.bottom && rect.right > box.left && rect.left < box.right;
+  return snapshot.rects.find((rect) =>
+    rect.bottom > box.top && rect.top < box.bottom && rect.right > box.left && rect.left < box.right) ?? null;
 }
 
 function startController(): Controller {
@@ -1103,12 +1110,13 @@ function startController(): Controller {
       return;
     }
     // A reply following its output can carry the selection out of its pane.
-    if (!visibleIn(snapshot.rect, clip, snapshot.surface)) {
+    const anchor = visibleRect(snapshot, clip);
+    if (!anchor) {
       hide();
       return;
     }
     bar.setTranslatable(snapshot.scope !== null && translationOffered());
-    bar.show(snapshot.rect);
+    bar.show(anchor);
   };
 
   // Selection events fire per character during a drag, so they coalesce to the

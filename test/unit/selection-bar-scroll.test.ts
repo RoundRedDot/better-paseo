@@ -216,6 +216,27 @@ describe("selection bar scroll dismissal", () => {
     expect(display()).toBe("block");
   });
 
+  it("stays with a two-paragraph selection while its later line still shows in the chat", () => {
+    // Chromium (checked headless): scrolled past the chat's top, the first line
+    // box is outside the scroller while the next paragraph's is inside.
+    const range = (selection as unknown as { getRangeAt(index: number): { commonAncestorContainer: unknown } }).getRangeAt(0);
+    const next = () => ({ ...line, top: line.top + 30, bottom: line.bottom + 30 });
+    selection = { ...selection, getRangeAt: () => ({ commonAncestorContainer: range.commonAncestorContainer, getClientRects: () => [line, next()] }) } as typeof selection;
+    select();
+    expect(top()).toBe(200 - 30 - 8);
+    // The first line leaves the chat's top (60); the second, at 65, shows.
+    scroll(true, "page", 165);
+    expect(display()).toBe("block");
+    // Above the line that still shows.
+    expect(top()).toBe(65 - 30 - 8);
+    // Both lines gone: the bar goes, and returns with them.
+    scroll(true, "page", 40);
+    expect(display()).toBe("none");
+    scroll(true, "page", -205);
+    expect(display()).toBe("block");
+    expect(top()).toBe(200 - 30 - 8);
+  });
+
   it("keeps a bar put away by a press elsewhere away while the page scrolls", () => {
     on(doc, "pointerdown", new ElementMock());
     on(doc, "pointerup", new ElementMock());
