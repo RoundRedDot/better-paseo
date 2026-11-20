@@ -674,7 +674,8 @@ describe("timeline translation", () => {
       assistantProps({ text: "First line for alignment", phase: "complete" }) as never)); });
     const press = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate").props.onPress({ stopPropagation() {} });
     await act(async () => press());
-    await vi.waitFor(() => expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-loading").length).toBeGreaterThan(0));
+    await vi.waitFor(() => expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status").length).toBeGreaterThan(0));
+    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-loading")).toHaveLength(0);
     // The status line above the reply moves the text and the button together.
     expect(Math.abs(alignment().offset)).toBeLessThanOrEqual(0.5);
     await act(async () => pending.resolve(doneState("---\n\n# First line for alignment\n\n正文")));
@@ -731,20 +732,49 @@ describe("timeline translation", () => {
       const pressable = button();
       const fill = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "reply-translate-fill");
       const icon = fill.find((node) => String(node.type) === "Icon");
-      return { label: pressable.props.accessibilityLabel, tip: pressable.props.dataSet?.bctip, glyph: icon.props.name ?? (icon.props.icon === TRANSLATE_ICON ? "translate" : "other") };
+      return { label: pressable.props.accessibilityLabel, glyph: icon.props.name ?? (icon.props.icon === TRANSLATE_ICON ? "translate" : "other") };
     };
-    expect(state()).toEqual({ label: "Translate", tip: "Translate", glyph: "translate" });
+    expect(state()).toEqual({ label: "Translate", glyph: "translate" });
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     // Still translating: the action has not changed yet.
-    expect(state()).toEqual({ label: "Translate", tip: "Translate", glyph: "translate" });
+    expect(state()).toEqual({ label: "Translate", glyph: "translate" });
     await act(async () => pending.resolve(doneState("译文")));
-    await vi.waitFor(() => expect(state()).toEqual({ label: "Show original", tip: "Show original", glyph: "Undo2" }));
+    await vi.waitFor(() => expect(state()).toEqual({ label: "Show original", glyph: "Undo2" }));
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     expect(JSON.stringify(renderer!.toJSON())).toContain("Glyph block");
-    expect(state()).toEqual({ label: "Translate", tip: "Translate", glyph: "translate" });
+    expect(state()).toEqual({ label: "Translate", glyph: "translate" });
     await act(async () => button().props.onPress({ stopPropagation() {} }));
-    expect(state()).toEqual({ label: "Show original", tip: "Show original", glyph: "Undo2" });
+    expect(state()).toEqual({ label: "Show original", glyph: "Undo2" });
     expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it.each([
+    { language: "en" as const, initial: "Translate", restored: "Show original" },
+    { language: "zh" as const, initial: "翻译", restored: "显示原文" },
+  ])("shows the $language hover tooltip and rounded rectangle in both states", async ({ language, initial, restored }) => {
+    updateEnhancerPreferences({ language });
+    mocks.rpc.mockResolvedValue(doneState("译文"));
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
+      assistantProps({ text: "Tooltip source", phase: "complete" }) as never)); });
+    const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate");
+    const checkHover = (label: string) => {
+      vi.useFakeTimers();
+      act(() => button().props.onHoverIn());
+      act(() => { vi.advanceTimersByTime(400); });
+      expect(collectTexts(renderer!.root)).toContain(label);
+      expect(StyleSheet.flatten(button().props.style).borderRadius).toBe(6);
+      expect(StyleSheet.flatten(button().props.style).backgroundColor).toBeDefined();
+      act(() => button().props.onHoverOut());
+      vi.useRealTimers();
+    };
+    checkHover(initial);
+    const stopPropagation = vi.fn();
+    await act(async () => button().props.onPress({ stopPropagation }));
+    await vi.waitFor(() => expect(button().props.accessibilityLabel).toBe(restored));
+    expect(stopPropagation).toHaveBeenCalledOnce();
+    checkHover(restored);
+    await act(async () => button().props.onPress({ stopPropagation }));
+    checkHover(initial);
   });
 
   it("names the restore action in Chinese too", async () => {
@@ -755,7 +785,7 @@ describe("timeline translation", () => {
     const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate");
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     await vi.waitFor(() => expect(button().props.accessibilityLabel).toBe("显示原文"));
-    expect(button().props.dataSet?.bctip).toBe("显示原文");
+    expect(renderer!.root.findAll((node) => String(node.type) === "Icon" && node.props.name === "Undo2")).toHaveLength(1);
   });
 
   it("keeps the original visible during translation and offers retry on failure", async () => {
@@ -767,7 +797,8 @@ describe("timeline translation", () => {
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(JSON.stringify(renderer!.toJSON())).toContain("Waiting block");
-    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-loading").length).toBeGreaterThan(0);
+    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status").length).toBeGreaterThan(0);
+    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-loading")).toHaveLength(0);
     await act(async () => pending.resolve({ state: "error", error: "offline" } as never));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("Translation failed"));
     expect(JSON.stringify(renderer!.toJSON())).toContain("Waiting block");

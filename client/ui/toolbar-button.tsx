@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
-import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle, type StyleProp, type ViewProps } from "react-native";
+import { Animated, Modal, Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type ViewStyle, type StyleProp, type ViewProps, type GestureResponderEvent } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space } from "../components/theme-tokens";
@@ -147,10 +147,12 @@ export function ToolbarItem({
   pressedStyle,
   iconSize,
   iconBackground,
+  testID,
 }: Omit<ToolbarButtonProps, "icon" | "color" | "onPress"> & {
   /** Or drawn from the hover state, for an icon that brightens under the pointer. */
   children: ReactNode | ((state: { hovered: boolean }) => ReactNode);
-  onPress?: () => void;
+  onPress?: (event: GestureResponderEvent) => void;
+  testID?: string;
   iconSize?: number;
   iconBackground?: string;
   buttonStyle?: StyleProp<ViewStyle>;
@@ -251,6 +253,7 @@ export function ToolbarItem({
     <View ref={anchorRef} collapsable={details || onLongPress ? false : undefined} onLayout={onLayout}
       style={[styles.anchor, open && styles.raised]}>
       <Pressable
+        testID={testID}
         accessibilityRole={onPress ? "button" : "image"}
         accessibilityLabel={spoken ? toolbarLabel(accessibilityLabel, preferences.language) : accessibilityLabel}
         accessibilityState={onPress ? checked === undefined ? { disabled } : { disabled, checked } : undefined}

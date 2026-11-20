@@ -3,7 +3,8 @@ import { Pressable, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { useThemeTokens } from "../components/theme-tokens";
+import { radiusV2, useThemeTokens } from "../components/theme-tokens";
+import { ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { useEnhancerPreferences } from "../preferences";
@@ -50,7 +51,7 @@ function InlineTranslationSession({ agentId, kind, text, streaming, children }: 
   return <>{children({ view, active, toggle })}</>;
 }
 
-export function InlineTranslateButton({ state, theme, testID, base }: { state: InlineTranslationState; theme: PluginTheme; testID: string; base?: string }) {
+export function InlineTranslateButton({ state, theme, testID, base, timeline = false }: { state: InlineTranslationState; theme: PluginTheme; testID: string; base?: string; timeline?: boolean }) {
   const settings = useTranslationSettingsState();
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences);
@@ -60,6 +61,13 @@ export function InlineTranslateButton({ state, theme, testID, base }: { state: I
   // glyph says so; otherwise it translates (or retries) with the translate mark.
   const showingTranslation = state.active && state.view?.status === "done";
   const label = showingTranslation ? (resolveLanguage(preferences.language ?? "system") === "zh" ? "显示原文" : "Show original") : state.active && state.view && selectionViewRetryable(state.view) ? toolbarLabel("Retry", preferences.language) : toolbarLabel("Translate", preferences.language);
+  if (timeline) return <TooltipSideContext.Provider value="auto"><ToolbarItem testID={testID} label={label} tokens={tokens} align="end"
+    buttonStyle={{ width: 32, height: 32, borderRadius: radiusV2.block }}
+    onPress={(event) => { event.stopPropagation(); state.toggle(); }}>
+    <View pointerEvents="none" testID={`${testID}-fill`}>{showingTranslation
+      ? <Icon name="Undo2" size={14} color={tokens.foregroundMuted} />
+      : <Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} />}</View>
+  </ToolbarItem></TooltipSideContext.Provider>;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} hitSlop={4} {...tipProps(label)} {...hoverProps}
     onPress={(event) => { event.stopPropagation(); state.toggle(); }}
     style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
@@ -69,12 +77,12 @@ export function InlineTranslateButton({ state, theme, testID, base }: { state: I
   </Pressable>;
 }
 
-export function InlineTranslationNotice({ state, theme }: { state: InlineTranslationState; theme: PluginTheme }) {
+export function InlineTranslationNotice({ state, theme, showLoader = true }: { state: InlineTranslationState; theme: PluginTheme; showLoader?: boolean }) {
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences);
   if (!state.active || !state.view) return null;
   const message = selectionViewMessage(state.view);
   if (!message) return null;
-  return <View style={{ paddingHorizontal: 6, paddingTop: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>{["running", "settings-loading", "config-loading"].includes(state.view.status) ? <SyncedLoader color={tokens.foregroundMuted} gridTestID="inline-translation-loading" /> : null}<Text testID="inline-translation-status" style={{ color: tokens.foregroundMuted, fontSize: 12 }}>{toolbarLabel(message, preferences.language)}{state.view.status === "error" ? `: ${state.view.error}` : ""}</Text></View>;
+  return <View style={{ paddingHorizontal: 6, paddingTop: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>{showLoader && ["running", "settings-loading", "config-loading"].includes(state.view.status) ? <SyncedLoader color={tokens.foregroundMuted} gridTestID="inline-translation-loading" /> : null}<Text testID="inline-translation-status" style={{ color: tokens.foregroundMuted, fontSize: 12 }}>{toolbarLabel(message, preferences.language)}{state.view.status === "error" ? `: ${state.view.error}` : ""}</Text></View>;
 }
 
