@@ -104,6 +104,9 @@ vi.mock("@getpaseo/plugin/client", async () => {
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const ReactModule = await import("react");
   return {
+    Modal: Object.assign((props: { children?: React.ReactNode; onOpenChange(open: boolean): void }) => ReactModule.createElement("Modal", { onRequestClose: () => props.onOpenChange(false) }, props.children), {
+      Content: (props: { children?: React.ReactNode; scrollable?: boolean }) => ReactModule.createElement("SheetContent", props, props.children),
+    }),
     Icon: (props: Record<string, unknown>) => ReactModule.createElement("Icon", props),
     copyText: vi.fn(async () => true),
     useToast: () => ({ show() {}, error: mocks.toastError }),
@@ -649,7 +652,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ text: "Second paragraph.", agentId: "agent-1", sourceKind: "assistant_message" });
     expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(1);
-    expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "footer-details-center")).toHaveLength(1);
+    expect(renderer!.root.find((node) => String(node.type) === "SheetContent").props.scrollable).toBe(true);
     expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-menu")).toHaveLength(0);
     expect(panelText()).toContain("Translating...");
     const activity = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-loading");
@@ -703,8 +706,8 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(collectTexts(header).join(" ")).not.toContain("Claude ·");
     expect(panelText()).not.toContain("Thinking was NOT disabled");
     // Touching translated prose must not cancel the source block and unmount the modal.
-    const body = renderer!.root.findByProps({ testID: "selection-translation-body" });
-    expect(body.props.nestedScrollEnabled).toBe(true);
+    const body = renderer!.root.find((node) => String(node.type) === "SheetContent");
+    expect(body.props.scrollable).toBe(true);
     expect(body.findAll((node) => node.props.testID === "markdown-block-selection")).toHaveLength(0);
     const translatedMarkdown = body.findByType(MarkdownView);
     const markdownRoot = translatedMarkdown.find((node) => String(node.type) === "View");

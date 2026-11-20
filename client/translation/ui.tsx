@@ -1,7 +1,7 @@
 import React, { useContext, useMemo, type ReactNode } from "react";
 import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { PluginIcon } from "@getpaseo/plugin/client";
-import { Icon } from "@getpaseo/plugin/client/ui";
+import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
 import { ProviderLogo } from "../components/provider-logo";
 import { openTranslationSettings, TranslationSettingsParentCloseContext } from "./navigation";
@@ -55,11 +55,22 @@ export function SelectionTranslationScope({ agentId, kind, streaming, enabled = 
  * streams, Copy and Retry. The body scrolls within a
  * height bounded by the window. Prose in it is not itself translatable.
  */
-export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
+export function TranslationSheet({ close, children }: { close(): void; children: ReactNode }) {
+  const closeParent = useContext(TranslationSettingsParentCloseContext);
+  const { language } = useEnhancerPreferences();
+  return <Modal title={toolbarLabel("Translate", language)} open onOpenChange={(open) => { if (!open) close(); }}>
+    <Modal.Content scrollable contentContainerStyle={{ padding: 0, gap: 0 }}>
+      <TranslationSettingsParentCloseContext.Provider value={closeParent}>{children}</TranslationSettingsParentCloseContext.Provider>
+    </Modal.Content>
+  </Modal>;
+}
+
+export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, sheet = false }: {
   view: SelectionTranslationView;
   tokens: ExtendedThemeTokens;
   onRetry(): void;
   onClose(): void;
+  sheet?: boolean;
 }) {
   const { language } = useEnhancerPreferences();
   const paseo = usePaseo();
@@ -108,7 +119,9 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose }: {
           </Text>
         </View>
       ) : null}
-      {text ? (
+      {text && sheet ? <SelectionTranslationContext.Provider value={null}>
+        <MarkdownView text={text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
+      </SelectionTranslationContext.Provider> : text ? (
         <ScrollView testID="selection-translation-body" nestedScrollEnabled
           style={{ maxHeight: Math.max(120, Math.round(window.height * 0.45)) }}>
           <SelectionTranslationContext.Provider value={null}>

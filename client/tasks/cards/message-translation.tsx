@@ -8,8 +8,8 @@ import { useEnhancerPreferences } from "../../preferences";
 import { useSelectionTranslation } from "../../translation/selection";
 import { useTranslationSettingsState } from "../../translation/settings-store";
 import type { TranslationSourceKind } from "../../translation/store";
-import { SelectionTranslationPanel, TRANSLATE_ICON } from "../../translation/ui";
-import { AnchoredToolbarDetails, CenteredToolbarDetails } from "../../ui/toolbar-button";
+import { SelectionTranslationPanel, TranslationSheet, TRANSLATE_ICON } from "../../translation/ui";
+import { AnchoredToolbarDetails } from "../../ui/toolbar-button";
 import { HoverControl } from "../hover-control";
 import { tipProps } from "./card-hints";
 
@@ -55,9 +55,9 @@ function MessageTranslationResult(props: Props & { anchor: React.RefObject<View 
   const window = useWindowDimensions();
   useEffect(() => { start(); }, [start]);
   if (!view) return null;
-  const panel = <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={props.close} />;
+  const panel = <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={props.close} sheet={Platform.OS !== "web"} />;
   const width = Math.min(420, window.width - 16);
   return Platform.OS === "web"
     ? <AnchoredToolbarDetails anchor={props.anchor} close={props.close} tokens={tokens} width={width}>{panel}</AnchoredToolbarDetails>
-    : <CenteredToolbarDetails close={props.close} tokens={tokens} width={Math.min(360, width)}>{panel}</CenteredToolbarDetails>;
+    : <TranslationSheet close={props.close}>{panel}</TranslationSheet>;
 }

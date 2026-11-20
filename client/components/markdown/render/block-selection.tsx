@@ -1,5 +1,5 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, useWindowDimensions, type GestureResponderEvent } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import type { Token, Tokens } from "../../../vendor/marked";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
@@ -8,9 +8,8 @@ import { useScrollDismiss } from "../../../ui/scroll-anchor";
 import { FLOAT, floatPressed } from "../../../ui/tokens/float";
 import { useEnhancerPreferences } from "../../../preferences";
 import { toolbarLabel } from "../../../i18n/toolbar-strings";
-import { CenteredToolbarDetails } from "../../../ui/toolbar-button";
 import { SelectionTranslationContext, useSelectionTranslation, type SelectionTranslationScopeValue } from "../../../translation/selection";
-import { SelectionTranslationPanel, TRANSLATE_ICON } from "../../../translation/ui";
+import { SelectionTranslationPanel, TranslationSheet, TRANSLATE_ICON } from "../../../translation/ui";
 import { useTranslationSettingsState } from "../../../translation/settings-store";
 import { inlineText } from "./inline";
 import { localImagePath } from "./local-path";
@@ -167,7 +166,6 @@ function BlockTranslate({ scope, text, tokens, dismiss, copyButton, menuStyle }:
 }) {
   const { language } = useEnhancerPreferences();
   const { view, start } = useSelectionTranslation(scope, text);
-  const window = useWindowDimensions();
   return <>
     {!view ? <View testID="markdown-block-menu" style={menuStyle}>
       {copyButton}
@@ -181,9 +179,9 @@ function BlockTranslate({ scope, text, tokens, dismiss, copyButton, menuStyle }:
         </Text>
       </Pressable>
     </View> : null}
-    {view ? <CenteredToolbarDetails close={dismiss} tokens={tokens} width={Math.min(360, window.width - 16)}>
-      <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={dismiss} />
-    </CenteredToolbarDetails> : null}
+    {view ? <TranslationSheet close={dismiss}>
+      <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={dismiss} sheet />
+    </TranslationSheet> : null}
   </>;
 }
 
