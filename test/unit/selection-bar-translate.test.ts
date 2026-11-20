@@ -169,6 +169,36 @@ afterEach(() => {
 });
 
 describe("selection bar Translate", () => {
+  it("resizes from either side and the bottom while keeping the opposite edge fixed", () => {
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    const anchor = Object.assign(new ElementMock(), {
+      getBoundingClientRect: () => ({ left: 400, top: 200, bottom: 220, width: 100, height: 20 }),
+    });
+    body.appendChild(anchor);
+    const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close() {}, retry() {}, settings() {} });
+    popup.setView({ status: "running", targetCode: "zh-CN", text: "译文" });
+    bar().offsetWidth = 500;
+    const pointer = (type: string, x: number, y: number) => Object.assign(new Event(type, { cancelable: true }), { button: 0, clientX: x, clientY: y });
+    const drag = (edge: string, x: number, y: number) => {
+      host().querySelector(`.resize-${edge}`)!.dispatchEvent(pointer("pointerdown", 100, 100));
+      page.dispatchEvent(pointer("pointermove", x, y));
+      page.dispatchEvent(pointer("pointerup", x, y));
+    };
+    const left = parseFloat(host().style.getPropertyValue("left"));
+    drag("left", 50, 100);
+    expect(parseFloat(host().style.getPropertyValue("left"))).toBe(left - 50);
+    expect(bar().style.getPropertyValue("--bc-panel-width")).toBe("550px");
+    bar().offsetWidth = 550;
+    drag("right", 140, 100);
+    expect(parseFloat(host().style.getPropertyValue("left"))).toBe(left - 50);
+    expect(bar().style.getPropertyValue("--bc-panel-width")).toBe("590px");
+    const top = host().style.getPropertyValue("top");
+    drag("bottom", 100, 140);
+    expect(host().style.getPropertyValue("top")).toBe(top);
+    expect(bar().style.getPropertyValue("--bc-panel-height")).toBe("70px");
+    popup.dispose();
+  });
   it("uses the same movable panel for whole messages and cleans it up", () => {
     act(() => renderer?.unmount());
     renderer = undefined;
@@ -182,6 +212,11 @@ describe("selection bar Translate", () => {
     const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close, retry, settings });
     popup.setView({ status: "done", result: done("完整译文") as never, disableThinking: false });
     expect(bar().classList.contains("standalone")).toBe(true);
+    expect(host().querySelector(".drag-handle")?.textContent).toBe("Translate");
+    updateEnhancerPreferences({ language: "zh" });
+    popup.setView({ status: "running", targetCode: "zh-CN", text: "译文" });
+    expect(host().querySelector(".drag-handle")?.textContent).toBe("翻译");
+    popup.setView({ status: "done", result: done("完整译文") as never, disableThinking: false });
     expect(panel().textContent).toContain("完整译文");
     button("Retry")!.click();
     button("Copy translation")!.click();

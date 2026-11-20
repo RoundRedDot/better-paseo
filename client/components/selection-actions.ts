@@ -276,11 +276,17 @@ const BAR_CSS = `
 }
 .row-separator { width: 0.5px; height: 16px; flex: 0 0 auto; background-color: var(--bc-bar-border); }
 .bar.standalone .selection-action { display: none; }
-.drag-handle { display: none; flex: 1 1 auto; min-width: 24px; align-self: stretch; cursor: move; }
-.bar.translating .drag-handle { display: block; }
+.drag-handle { display: none; flex: 1 1 auto; min-width: 24px; align-self: stretch; cursor: move; align-items: center; padding-left: 8px; color: var(--bc-bar-text); font-size: 13px; font-weight: 600; }
+.bar.translating .drag-handle { display: flex; }
 .resize-handle { display: none; position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; }
 .resize-handle::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-right: 1px solid var(--bc-bar-icon); border-bottom: 1px solid var(--bc-bar-icon); opacity: 0.6; }
 .bar.translating .resize-handle { display: block; }
+.resize-edge { display: none; position: absolute; touch-action: none; }
+.bar.translating .resize-edge { display: block; }
+.resize-left, .resize-right { top: 8px; bottom: 16px; width: 8px; cursor: ew-resize; }
+.resize-left { left: 0; }
+.resize-right { right: 0; }
+.resize-bottom { left: 8px; right: 16px; bottom: 0; height: 8px; cursor: ns-resize; }
 .bar.translating { width: var(--bc-panel-width); }
 .panel {
   display: none;
@@ -565,7 +571,6 @@ function createBar(actions: BarActions, standalone = false): Bar {
   translateButton.hidden = true;
   const dragHandle = document.createElement("div");
   dragHandle.className = "drag-handle";
-  dragHandle.setAttribute("aria-hidden", "true");
   row.appendChild(dragHandle);
   const settingsButton = makeButton(row, "Translation settings", "settings", () => actions.settings());
   settingsButton.className += " panel-settings";
@@ -576,7 +581,7 @@ function createBar(actions: BarActions, standalone = false): Bar {
   resizeHandle.setAttribute("aria-hidden", "true");
   bar.appendChild(resizeHandle);
 
-  const beginGesture = (event: PointerEvent, resize: boolean) => {
+  const beginGesture = (event: PointerEvent, direction: "move" | "left" | "right" | "bottom" | "corner") => {
     if (!view || event.button !== 0) return;
     event.preventDefault();
     const body = panel.querySelector<HTMLElement>(".panel-body");
@@ -586,14 +591,18 @@ function createBar(actions: BarActions, standalone = false): Bar {
     const move = (next: PointerEvent) => {
       const dx = next.clientX - start.x;
       const dy = next.clientY - start.y;
-      const width = resize ? Math.min(Math.max(360, start.width + dx), window.innerWidth - start.left - GAP) : start.width;
-      const bodyHeight = resize ? Math.min(Math.max(PANEL_BODY_MIN, start.bodyHeight + dy), window.innerHeight - start.top - GAP - (bar.offsetHeight - (body?.offsetHeight ?? 0))) : start.bodyHeight;
-      geometry = { left: resize ? start.left : Math.max(GAP, Math.min(start.left + dx, window.innerWidth - bar.offsetWidth - GAP)),
-        top: resize ? start.top : Math.max(GAP, Math.min(start.top + dy, window.innerHeight - bar.offsetHeight - GAP)), width, bodyHeight };
+      const horizontal = direction === "left" || direction === "right" || direction === "corner";
+      const vertical = direction === "bottom" || direction === "corner";
+      const width = direction === "left"
+        ? Math.min(Math.max(360, start.width - dx), start.left + start.width - GAP)
+        : horizontal ? Math.min(Math.max(360, start.width + dx), window.innerWidth - start.left - GAP) : start.width;
+      const bodyHeight = vertical ? Math.min(Math.max(PANEL_BODY_MIN, start.bodyHeight + dy), window.innerHeight - start.top - GAP - (bar.offsetHeight - (body?.offsetHeight ?? 0))) : start.bodyHeight;
+      geometry = { left: direction === "left" ? start.left + start.width - width : direction === "move" ? Math.max(GAP, Math.min(start.left + dx, window.innerWidth - bar.offsetWidth - GAP)) : start.left,
+        top: direction === "move" ? Math.max(GAP, Math.min(start.top + dy, window.innerHeight - bar.offsetHeight - GAP)) : start.top, width, bodyHeight };
       host.style.setProperty("left", `${Math.round(geometry.left)}px`, "important");
       host.style.setProperty("top", `${Math.round(geometry.top)}px`, "important");
       bar.style.setProperty("--bc-panel-width", `${Math.round(width)}px`);
-      if (resize) {
+      if (vertical) {
         resized = true;
         bar.style.setProperty("--bc-panel-height", `${Math.round(bodyHeight)}px`);
         bar.style.setProperty("--bc-panel-max", `${Math.round(bodyHeight)}px`);
@@ -606,8 +615,15 @@ function createBar(actions: BarActions, standalone = false): Bar {
     window.addEventListener("pointerup", end);
     window.addEventListener("pointercancel", end);
   };
-  dragHandle.addEventListener("pointerdown", (event) => beginGesture(event, false));
-  resizeHandle.addEventListener("pointerdown", (event) => beginGesture(event, true));
+  dragHandle.addEventListener("pointerdown", (event) => beginGesture(event, "move"));
+  resizeHandle.addEventListener("pointerdown", (event) => beginGesture(event, "corner"));
+  for (const direction of ["left", "right", "bottom"] as const) {
+    const edge = document.createElement("div");
+    edge.className = `resize-edge resize-${direction}`;
+    edge.setAttribute("aria-hidden", "true");
+    edge.addEventListener("pointerdown", (event) => beginGesture(event, direction));
+    bar.appendChild(edge);
+  }
 
   // The bar keeps the selection alive: a press inside it must not move the
   // caret, or `window.getSelection()` is empty by the time the click lands.
@@ -629,6 +645,7 @@ function createBar(actions: BarActions, standalone = false): Bar {
     panel.replaceChildren();
     if (!view) return;
     const language = readLanguage();
+    dragHandle.textContent = toolbarLabel("Translate", language);
     const lang = resolveLanguage(language ?? "system");
     const head = element("div", "panel-head");
     head.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.translate}</svg>`;
