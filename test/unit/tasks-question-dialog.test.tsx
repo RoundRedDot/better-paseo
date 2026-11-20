@@ -4,6 +4,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
 
 vi.hoisted(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; });
+const translateRpc = vi.hoisted(() => vi.fn());
 const modalRenders = vi.hoisted(() => ({ count: 0 }));
 const keyboard = vi.hoisted(() => ({ hide: undefined as (() => void) | undefined, show: undefined as (() => void) | undefined, blur: vi.fn(), scrollToEnd: vi.fn() }));
 vi.mock("react-native", async () => {
@@ -17,7 +18,7 @@ vi.mock("react-native", async () => {
 vi.mock("@getpaseo/plugin/client", () => ({
   useSettings: () => ({ status: "loading" }),
   usePaseo: () => undefined,
-  useRpc: () => vi.fn(),
+  useRpc: () => translateRpc,
 }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -41,7 +42,7 @@ import { permissionButtons, respondToPermission } from "../../client/tasks/actio
 import { previewSampleCards } from "../../client/tasks/sample-cards";
 import { createFakePaseo } from "./helpers/fake-paseo";
 import type { TaskCard } from "../../client/tasks/model";
-import { MessageTranslateButton } from "../../client/tasks/cards/message-translation";
+import { InlineTranslation } from "../../client/translation/inline";
 import { SelectionTranslationScope } from "../../client/translation/ui";
 import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
 
@@ -418,8 +419,8 @@ describe("agent note above the question", () => {
     expect(shown()).toContain("需要处理两项");
     expect(shown()).not.toContain("等待方案确认");
     expect(shown()).not.toContain("---");
-    const translate = tree!.root.findByType(MessageTranslateButton);
-    expect(translate.props).toMatchObject({ agentId: current.id, kind: "assistant_message", testID: "task-question-note-translate" });
+    const translate = tree!.root.findByType(InlineTranslation);
+    expect(translate.props).toMatchObject({ agentId: current.id, kind: "assistant_message" });
     expect(translate.props.text).toContain("需要处理两项");
     const translateButton = host("task-question-note-translate");
     const copyButton = host("task-question-note-copy");
@@ -436,26 +437,26 @@ describe("agent note above the question", () => {
     expect(order).toEqual([...order].sort((a, b) => a - b));
   });
 
-  it("keeps the answer draft when translation settings closes the question dialog", async () => {
-    vi.stubGlobal("requestAnimationFrame", vi.fn(() => 1));
+  it("translates the note in place and restores the original without disturbing the answer", async () => {
+    translateRpc.mockReset().mockResolvedValue({ state: "done", translation: "Translated note", targetLanguageCode: "zh-CN", provider: "claude", model: "model", thinkingMode: "disabled", thinkingOptionId: "off" });
     try {
       const { paseo } = timeline([{ error: null, entries: rows }]);
       const store = createQuestionDialogStore();
       const current = asked();
       await act(async () => { store.open(current); tree = TestRenderer.create(<TaskQuestionDialog store={store} paseo={paseo as never} cardById={() => current} submit={vi.fn(async () => {})} theme={theme} language="zh" />); });
-      const draft = { selections: { 0: [0] }, texts: { 1: "draft answer" } };
-      await act(async () => store.change(draft));
+      await act(async () => publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "claude", model: "model" }, "question-note"));
+      await act(async () => host("task-question-option-0-0").props.onPress());
       await act(async () => host("task-question-note-translate").props.onPress({ stopPropagation() {} }));
-      expect(host("task-question-note-translate-spinner")).toBeDefined();
-      await act(async () => { publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "question-note"); });
-      const settings = tree!.root.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Translation settings");
-      await act(async () => settings.props.onPress());
-      expect(store.get()).toBeNull();
-      await act(async () => store.open(current));
-      expect(store.get()?.draft).toEqual(draft);
+      await vi.waitFor(() => expect(shown()).toContain("Translated note"));
+      expect(shown()).not.toContain("需要处理两项");
+      expect(tree!.root.findAllByType("HostModal" as never)).toHaveLength(1);
+      expect(store.get()?.draft.selections[0]).toEqual([0]);
+      await act(async () => host("task-question-note-translate").props.onPress({ stopPropagation() {} }));
+      expect(shown()).toContain("需要处理两项");
+      expect(shown()).not.toContain("Translated note");
+      expect(translateRpc).toHaveBeenCalledOnce();
     } finally {
-      resetTranslationSettingsStoreForTests();
-      vi.unstubAllGlobals();
+      await act(async () => resetTranslationSettingsStoreForTests());
     }
   });
 

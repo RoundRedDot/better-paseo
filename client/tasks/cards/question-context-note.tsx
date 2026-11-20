@@ -5,7 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/ui";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { useSelectionActions } from "../../components/selection-actions";
 import { SelectionTranslationScope } from "../../translation/ui";
-import { MessageTranslateButton } from "./message-translation";
+import { InlineTranslation, InlineTranslateButton, InlineTranslationNotice, type InlineTranslationState } from "../../translation/inline";
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { useThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
@@ -44,6 +44,9 @@ export function QuestionContextNote(props: NoteProps) {
   const { context } = props.read;
   if (context.state === "idle" || context.state === "none") return null;
   if (context.state === "error") return <NoteError {...props} />;
+  if (context.state === "ready" && props.translationAgentId) return <InlineTranslation agentId={props.translationAgentId} kind="assistant_message" text={context.text} streaming={false}>
+    {(translation) => <NoteBody {...props} ready={context} translation={translation} />}
+  </InlineTranslation>;
   return <NoteBody {...props} ready={context.state === "ready" ? context : null} />;
 }
 
@@ -65,7 +68,7 @@ function NoteError(props: NoteProps) {
 }
 
 /** The note read (`ready`), or three placeholder lines while it is read. */
-function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: "ready" }> | null }) {
+function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: "ready" }> | null; translation?: InlineTranslationState }) {
   const { ready } = props;
   const [expanded, setExpanded] = useState(false);
   const preferences = useEnhancerPreferences();
@@ -81,6 +84,7 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
   const box = { borderRadius: 10, paddingHorizontal: 12, paddingVertical: 10, backgroundColor: colors.surface1 };
   const font = Math.round(prose.typography.content.size * 0.9 * adjustment);
   const line = variantMetrics(preferences.markdownVariant, font, props.compact === true).bodyLineHeight;
+  const text = props.translation?.active && props.translation.view?.status === "done" ? props.translation.view.result.translation : ready?.text;
   const at = ready?.timestamp ? Date.parse(ready.timestamp) : NaN;
   return <View testID="task-question-note" style={{ gap: 8 }}>
     <View style={{ flexDirection: "row", alignItems: "center", gap: 6, minHeight: 28 }}>
@@ -89,8 +93,7 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
       {Number.isFinite(at) ? <Text numberOfLines={1} style={[meta, { flexShrink: 1 }]}>· {formatRelative(Date.now() - at, props.language)}</Text> : null}
       <View style={{ flex: 1 }} />
       <View testID="task-question-note-actions" style={{ flexDirection: "row", alignItems: "center" }}>
-      {ready && props.translationAgentId ? <MessageTranslateButton agentId={props.translationAgentId} kind="assistant_message" text={ready.text}
-        streaming={false} theme={props.theme} testID="task-question-note-translate" size={28} /> : null}
+      {props.translation ? <InlineTranslateButton state={props.translation} theme={props.theme} base={colors.surface0} testID="task-question-note-translate" /> : null}
       {ready ? <Pressable accessibilityRole="button" accessibilityLabel={words.copyContext} {...tipProps(words.copyContext)} {...hoverProps} onPress={() => { void copy(ready.text, { label: "Copy agent note" }); }}
         hitSlop={4} testID="task-question-note-copy" style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
         {({ pressed }) => <View pointerEvents="none" testID="task-question-note-copy-fill" style={{ width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(colors.surface0, colors.foreground, hovered, pressed, "transparent") }}>
@@ -99,13 +102,14 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
       </Pressable> : null}
       </View>
     </View>
+    {props.translation ? <InlineTranslationNotice state={props.translation} theme={props.theme} /> : null}
     {ready ? <View style={box}>
       <FoldedText id="task-question-note" language={props.language} tokens={tokens} line={line} limit={props.compact ? NOTE_LINES.compact : NOTE_LINES.wide}
         expanded={expanded} fadeColor={colors.surface1} touch={props.compact} onToggle={() => setExpanded((open) => !open)}>
         <HoverPreviewContext.Provider value>
           {props.translationAgentId ? <SelectionTranslationScope agentId={props.translationAgentId} kind="assistant_message" streaming={false}>
-            <MarkdownView text={ready.text} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />
-          </SelectionTranslationScope> : <MarkdownView text={ready.text} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />}
+            <MarkdownView text={text!} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />
+          </SelectionTranslationScope> : <MarkdownView text={text!} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />}
         </HoverPreviewContext.Provider>
       </FoldedText>
     </View> : <View testID="task-question-note-loading" accessible accessibilityRole="progressbar" accessibilityLabel={words.contextLoading} style={box}>
