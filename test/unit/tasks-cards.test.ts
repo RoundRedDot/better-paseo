@@ -1381,25 +1381,27 @@ describe("TaskCardView rows", () => {
     const old = { ...orphan, parent: { id: "old", title: "多设备连接", missing: true, archived: false } };
     await act(async () => tree.update(cardElement(old, { onReveal, fields: fields("minimal") })));
     expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(["多设备连接"]);
-    // Historical links retain one label across parent states; the icon follows the archive state.
+    // Historical links keep the unlink icon across parent states.
     const subtaskMarks = () => tree.root.findAll((node) => typeof node.type === "string" && node.props.testID === "task-card-subtask-mark");
-    const tagIcons = () => icons(hostByTestId(tree.root, "task-card-meta-archived"));
     const inferred = (parent: Partial<NonNullable<TaskCard["parent"]>>) => ({ ...orphan, parent: { id: "former", title: "多设备连接", missing: true, archived: true, ...parent, detached: true as const } });
     const cases = [
-      { parent: { archivedAs: "agent" as const }, zh: ["多设备连接", "历史关联"], en: ["多设备连接", "History"], icon: "Archive" },
-      { parent: { archived: false, archivedAs: "workspace" as const }, zh: ["多设备连接", "历史关联"], en: ["多设备连接", "History"], icon: "Archive" },
+      { parent: { archivedAs: "agent" as const }, zh: "多设备连接", en: "多设备连接" },
+      { parent: { archived: false, archivedAs: "workspace" as const }, zh: "多设备连接", en: "多设备连接" },
       // Restored: on the board, not archived.
-      { parent: { missing: false, archived: false }, zh: ["多设备连接", "历史关联"], en: ["多设备连接", "History"], icon: "Info" },
+      { parent: { missing: false, archived: false }, zh: "多设备连接", en: "多设备连接" },
       // Unreadable: no title, archive unknown.
-      { parent: { title: null, archived: null }, zh: ["父任务", "历史关联"], en: ["Parent task", "History"], icon: "Info" },
+      { parent: { title: null, archived: null }, zh: "父任务", en: "Parent task" },
     ];
-    for (const { parent, zh, en, icon } of cases) {
+    for (const { parent, zh, en } of cases) {
       await act(async () => tree.update(cardElement(inferred(parent), { onReveal, fields: fields("minimal") })));
-      expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(zh);
-      expect(tagIcons()).toEqual([icon]);
+      expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual([zh]);
+      const history = hostByTestId(tree.root, "task-card-meta-history");
+      expect(icons(history)).toEqual(["Unlink"]);
+      expect(history.props.accessibilityLabel).toContain("历史关联根据归档时间推测，可能有误");
       expect(subtaskMarks()).toHaveLength(0);
       await act(async () => tree.update(cardElement(inferred(parent), { onReveal, fields: fields("minimal"), language: "en" })));
-      expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual(en);
+      expect(texts(hostByTestId(tree.root, "task-card-meta"))).toEqual([en]);
+      expect(hostByTestId(tree.root, "task-card-meta-history").props.accessibilityLabel).toContain("The former relationship is inferred");
     }
     await act(async () => hostByTestId(tree.root, "task-card-meta-parent").props.onPress());
     expect(onReveal).toHaveBeenLastCalledWith("former");
@@ -1409,20 +1411,37 @@ describe("TaskCardView rows", () => {
     platform.__rnMockOS = "web";
     try {
       const web = await render(cardElement(inferred({ archivedAs: "agent" }), { onReveal, fields: fields("minimal") }));
-      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("历史关联根据归档时间推测，可能有误");
-      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("父任务：已归档");
+      expect(hostByTestId(web.root, "task-card-meta-history").props.dataSet?.bctip).toContain("历史关联根据归档时间推测，可能有误");
+      expect(hostByTestId(web.root, "task-card-meta-history").props.dataSet?.bctip).toContain("父任务：已归档");
       await act(async () => web.update(cardElement(inferred({ archived: false, archivedAs: "workspace" }), { onReveal, fields: fields("minimal") })));
-      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("父任务：工作区已归档");
+      expect(hostByTestId(web.root, "task-card-meta-history").props.dataSet?.bctip).toContain("父任务：工作区已归档");
       await act(async () => web.update(cardElement(inferred({ missing: false, archived: false }), { onReveal, fields: fields("minimal") })));
-      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("父任务当前未归档");
+      expect(hostByTestId(web.root, "task-card-meta-history").props.dataSet?.bctip).toContain("父任务当前未归档");
       await act(async () => web.update(cardElement(inferred({ archived: null }), { onReveal, fields: fields("minimal"), language: "en" })));
-      expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toContain("Parent archive status unknown");
+      expect(hostByTestId(web.root, "task-card-meta-history").props.dataSet?.bctip).toContain("Parent archive status unknown");
       await act(async () => web.update(cardElement(orphan, { onReveal, fields: fields("minimal"), language: "en" })));
       expect(hostByTestId(web.root, "task-card-meta-parent-tag-tip").props.dataSet?.bctip).toBe("Parent: Archived");
     } finally {
       if (saved === undefined) delete platform.__rnMockOS;
       else platform.__rnMockOS = saved;
     }
+  });
+
+  it.each([false, true])("keeps the historical link on the card corner diagonal with a context ring (compact: %s)", async (compact) => {
+    const parent = sample("sample-child-1").parent!;
+    const card = { ...sample("sample-running"), parent, context: { usedTokens: 90, maxTokens: 100 } };
+    const tree = await render(cardElement(card, { compact }));
+    const ringStyle = flat(hostByTestId(tree.root, "task-card-context").props.style);
+    const ringWidth = flat(hostByTestId(tree.root, "context-ring").props.style).width;
+    await act(async () => tree.update(cardElement({ ...card, parent: { ...parent, detached: true } }, { compact })));
+    const frame = flat(hostByTestId(tree.root, `task-card-${card.id}`).props.style);
+    const meta = hostByTestId(tree.root, "task-card-meta");
+    const history = hostByTestId(meta, "task-card-meta-history");
+    const inset = flat(history.props.style);
+    expect(inset).toMatchObject({ width: ringWidth, height: ringStyle.height, marginRight: ringStyle.marginRight, justifyContent: "center" });
+    expect(history.find((node) => (node.type as unknown) === "Icon").props.size).toBe(ringWidth);
+    expect(Number(frame.paddingTop) + (Number(inset.height) - Number(inset.width)) / 2).toBe(Number(frame.paddingHorizontal) + Number(inset.marginRight));
+    expect(flat(hostByTestId(meta, "task-card-context").props.style).marginRight).toBeCloseTo(0);
   });
 
   it.each([

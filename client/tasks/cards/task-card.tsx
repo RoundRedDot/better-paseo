@@ -865,14 +865,14 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // when the meta row has nothing to say. Its details card opens downwards
   // over the rows below, so the ring's row is raised above them while it shows.
   const ratio = contextRatio(card.context);
-  const ringFor = (line: number) =>
+  const ringFor = (line: number, hasHistory = false) =>
     layout.context && ratio !== null && card.context ? (
       <ContextMeter
         tokens={tokens}
         strings={strings}
         compact={compact}
         line={line}
-        nudge={ringNudge(m, line, scale)}
+        nudge={hasHistory ? 0 : ringNudge(m, line, scale)}
         context={card.context}
         ratio={ratio}
         cost={card.usage?.totalCostUsd ?? null}
@@ -886,15 +886,17 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const avatar = layout.projectAvatar;
   const metaStyle = text(m.metaSize, m.metaLine, muted);
   const parentLabel = card.parent ? card.parent.title ?? strings.parentUnknown : null;
-  // An archived parent, itself or with its workspace, is tagged so beside its link.
-  // A link the plugin inferred says so, whatever the parent's state.
+  // Inferred links use the corner icon and put the parent's archive state in its tip.
   let parentArchive: string | null = null;
   if (card.parent?.archivedAs === "workspace") parentArchive = strings.workspaceArchived;
   else if (card.parent?.archivedAs === "agent" || (card.parent?.missing && card.parent.archived === true)) parentArchive = strings.archived;
-  const shownParentTag = parentTag(parentArchive, card.parent?.detached ? { label: strings.parentHistory, tip: strings.parentHistoryHint(parentArchive, card.parent.archived) } : null);
+  const historyTip = card.parent?.detached ? strings.parentHistoryHint(parentArchive, card.parent.archived) : null;
+  const shownParentTag = historyTip === null ? parentTag(parentArchive, null) : null;
+  const metaLine = Math.round(m.metaLine * scale);
+  const historySize = CONTEXT_RING_BITMAPS.card.size;
   // Beside a context ring the text fades out before it instead of ending in
   // an ellipsis: clipped, with the fade only once the text no longer fits.
-  const metaRing = hasMeta ? ringFor(m.metaLine) : null;
+  const metaRing = hasMeta ? ringFor(m.metaLine, historyTip !== null) : null;
   const clip = metaRing !== null;
   const fit = (key: keyof typeof metaFit) =>
     clip
@@ -908,7 +910,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const clipText = clip ? CLIP_TEXT : null;
   const metaRow = hasMeta ? (
     <View
-      style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: Math.round(m.metaLine * scale), zIndex: ringZ }}
+      style={{ flexDirection: "row", alignItems: "center", gap: GAP, minHeight: metaLine, zIndex: ringZ }}
       testID="task-card-meta"
     >
       {avatar ? (
@@ -954,7 +956,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
               {...parentHover.hoverProps}
               style={{ flexDirection: "row", alignItems: "center", gap: 4, flexShrink: PARENT_SHRINK, minWidth: 0, overflow: "hidden" }}
               testID="task-card-meta-parent"
-              {...hintProps(hint("parent", () => pair(strings.details.parent, card.parent?.detached && shownParentTag ? `${parentLabel} \u00b7 ${shownParentTag.label}` : parentLabel)))}
+              {...hintProps(hint("parent", () => pair(strings.details.parent, historyTip !== null ? `${parentLabel} \u00b7 ${strings.parentHistory}` : parentLabel)))}
             >
               <View style={{ flexShrink: 0 }}>
                 <Icon name="CornerLeftUp" size={Math.round(m.metaSize * scale)} color={parentHover.hovered ? tokens.foreground : muted} />
@@ -971,12 +973,24 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
           {metaCut ? <EdgeFade color={background} /> : null}
         </View>
         {shownParentTag !== null ? (
-          <View {...tipProps(shownParentTag.tip ?? pair(strings.details.parent, shownParentTag.label))} style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")} testID="task-card-meta-parent-tag-tip">
+          <View {...tipProps(pair(strings.details.parent, shownParentTag.label))} style={{ marginLeft: ARCHIVED_TAG_GAP, flexShrink: 0 }} onLayout={fit("tag")} testID="task-card-meta-parent-tag-tip">
             <ArchivedTag tokens={tokens} label={shownParentTag.label} icon={shownParentTag.icon} testID="task-card-meta-archived" />
           </View>
         ) : null}
       </View>
       {metaRing}
+      {historyTip !== null ? (
+        <View
+          {...tipProps(historyTip)}
+          accessible
+          accessibilityRole="image"
+          accessibilityLabel={`${strings.parentHistory} · ${historyTip}`}
+          style={{ width: historySize, height: metaLine, flexShrink: 0, justifyContent: "center", marginRight: -ringNudge(m, m.metaLine, scale) }}
+          testID="task-card-meta-history"
+        >
+          <Icon name="Unlink" size={historySize} color={muted} />
+        </View>
+      ) : null}
     </View>
   ) : null;
 
