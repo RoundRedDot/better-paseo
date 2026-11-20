@@ -11,7 +11,10 @@ import { useThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
 import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useCopy } from "../../ui/use-copy";
+import { useHover } from "../../ui/use-hover";
+import { iconHoverSize } from "../../ui/icon-hover-size";
 import { HoverControl } from "../hover-control";
+import { hoverFill } from "../hover-fill";
 import type { QuestionContext } from "../data/question-context";
 import type { TasksLanguage } from "../i18n";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontAdjustment } from "../typography";
@@ -71,6 +74,7 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
   useSelectionActions(prose, !!props.translationAgentId && preferences.selectionActions);
   const adjustment = useTasksFontAdjustment();
   const { copied, copy } = useCopy();
+  const { hovered, hoverProps } = useHover();
   const tokens = taskTokens(props.theme);
   const colors = props.theme.colors;
   const words = cardStrings(props.language).questions;
@@ -87,10 +91,12 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
       <View style={{ flex: 1 }} />
       {ready && props.translationAgentId ? <MessageTranslateButton agentId={props.translationAgentId} kind="assistant_message" text={ready.text}
         streaming={false} theme={props.theme} testID="task-question-note-translate" size={28} /> : null}
-      {ready ? <HoverControl base={colors.surface0} foreground={colors.foreground} accessibilityRole="button" accessibilityLabel={words.copyContext} {...tipProps(words.copyContext)} onPress={() => { void copy(ready.text, { label: "Copy agent note" }); }}
+      {ready ? <Pressable accessibilityRole="button" accessibilityLabel={words.copyContext} {...tipProps(words.copyContext)} {...hoverProps} onPress={() => { void copy(ready.text, { label: "Copy agent note" }); }}
         hitSlop={4} testID="task-question-note-copy" style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
-        <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : colors.foregroundMuted} />
-      </HoverControl> : null}
+        {({ pressed }) => <View pointerEvents="none" testID="task-question-note-copy-fill" style={{ width: iconHoverSize(14), height: iconHoverSize(14), borderRadius: iconHoverSize(14) / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(colors.surface0, colors.foreground, hovered, pressed, "transparent") }}>
+          <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : colors.foregroundMuted} />
+        </View>}
+      </Pressable> : null}
     </View>
     {ready ? <View style={box}>
       <FoldedText id="task-question-note" language={props.language} tokens={tokens} line={line} limit={props.compact ? NOTE_LINES.compact : NOTE_LINES.wide}
