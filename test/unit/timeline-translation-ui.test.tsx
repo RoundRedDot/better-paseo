@@ -147,6 +147,7 @@ import { segmentReasoning } from "../../client/reasoning/segment";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
 import { SelectionTranslationPanel } from "../../client/translation/ui";
 import * as pluginClient from "@getpaseo/plugin/client";
+import { AnchoredToolbarDetails } from "../../client/ui/toolbar-button";
 
 const HostContext = (pluginClient as unknown as { HostContext: React.Context<{ api: PaseoApi; rpc: typeof mocks.rpc } | null> }).HostContext;
 
@@ -336,6 +337,7 @@ describe.each(["web", "ios", "android"] as const)("%s whole-message translation"
     expect(stopPropagation).toHaveBeenCalledOnce();
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ agentId: "agent-1", sourceKind: "user_message", text });
     expect(JSON.stringify(renderer!.toJSON())).toContain("完整译文");
+    if (platform === "web") expect(renderer!.root.findByType(AnchoredToolbarDetails).props.movable).toBe(true);
   });
 
   it("keeps the pressed text while a reply streams and waits for completion", async () => {

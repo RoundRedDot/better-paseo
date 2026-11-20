@@ -8,7 +8,7 @@ import { openTranslationSettings, TranslationSettingsParentCloseContext } from "
 import { SyncedLoader } from "../ui/synced-loader";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { MarkdownView } from "../components/markdown/markdown-view";
-import { ToolbarButton, ToolbarCopyButton, ToolbarItem, ToolbarMetricsContext, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
+import { ResizedToolbarDetailsContext, ToolbarButton, ToolbarCopyButton, ToolbarItem, ToolbarMetricsContext, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
 import { useEnhancerPreferences } from "../preferences";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { toolbarLabel } from "../i18n/toolbar-strings";
@@ -74,6 +74,7 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, shee
 }) {
   const { language } = useEnhancerPreferences();
   const paseo = usePaseo();
+  const resized = useContext(ResizedToolbarDetailsContext);
   const closeParent = useContext(TranslationSettingsParentCloseContext);
   const lang = resolveLanguage(language ?? "system");
   const window = useWindowDimensions();
@@ -83,7 +84,7 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, shee
   const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
   const running = view.status === "running" || view.status === "config-loading" || view.status === "settings-loading";
   return (
-    <View testID="selection-translation-panel" style={styles.panel}>
+    <View testID="selection-translation-panel" style={[styles.panel, resized && { flex: 1, minHeight: 0 }]}>
       <View testID="translation-header" style={styles.header}>
         <View style={styles.headerInfo}>
           <Icon icon={TRANSLATE_ICON} size={12} color={muted} />
@@ -125,7 +126,7 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, shee
         <MarkdownView text={text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
       </SelectionTranslationContext.Provider> : text ? (
         <ScrollView testID="selection-translation-body" nestedScrollEnabled
-          style={{ maxHeight: Math.max(120, Math.round(window.height * 0.45)) }}>
+          style={resized ? { flex: 1, minHeight: 0 } : { maxHeight: Math.max(120, Math.round(window.height * 0.45)) }}>
           <SelectionTranslationContext.Provider value={null}>
             <MarkdownView text={text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
           </SelectionTranslationContext.Provider>

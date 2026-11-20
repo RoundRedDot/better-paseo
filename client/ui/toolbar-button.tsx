@@ -13,7 +13,8 @@ import { FLOAT, floatShadow } from "./tokens/float";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { anchoredTooltipOrigin, liftStackingRow, placeTooltipNear, type DomBox, type TooltipPlacement, type WindowBox } from "./tooltip-placement";
-import { bindDetailsEscape, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, pinTooltipLayer, suppressTouchCallout } from "../web";
+import { bindDetailsEscape, bindPreviewFrame, bindRowHover, bindTouchDismiss, openToolbarDetailsLayer, pinTooltipLayer, suppressTouchCallout } from "../web";
+import type { PreviewBox } from "./preview-frame";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { SafeInset } from "./safe-inset";
 import { usePreviewEntrance } from "./use-preview-entrance";
@@ -346,14 +347,19 @@ export function CenteredToolbarDetails({ close, children, tokens, width = TOOLTI
 }
 
 /** The modal avoids clipping by native timeline rows; its panel stays by the pressed control. */
-export function AnchoredToolbarDetails({ anchor, close, children, tokens, width = TOOLTIP_SLOT }: {
+export const ResizedToolbarDetailsContext = createContext(false);
+
+export function AnchoredToolbarDetails({ anchor, close, children, tokens, width = TOOLTIP_SLOT, movable = false }: {
   anchor: RefObject<View | null>;
   close(): void;
   children: ReactNode;
   width?: number;
   tokens: ExtendedThemeTokens;
+  movable?: boolean;
 }) {
   const stageRef = useRef<View>(null);
+  const panelRef = useRef<View>(null);
+  const [box, setBox] = useState<PreviewBox | null>(null);
   const [bounds, setBounds] = useState<{ anchor: WindowBox; stage: WindowBox } | null>(null);
   const [panel, setPanel] = useState<{ width: number; height: number } | null>(null);
   const [shown, setShown] = useState(false);
@@ -367,6 +373,21 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
     });
   }, [anchor]);
   const origin = bounds && panel ? anchoredTooltipOrigin(bounds.anchor, bounds.stage, panel) : null;
+  useLayoutEffect(() => {
+    if (!movable || !bounds || !origin) return;
+    const node = panelRef.current as unknown as HTMLElement | null;
+    if (!node) return;
+    return bindPreviewFrame(node, {
+      toolbar: () => node.querySelector('[data-testid="translation-header"]'),
+      readBox: () => {
+        const rect = node.getBoundingClientRect();
+        return { x: rect.left - bounds.stage.x, y: rect.top - bounds.stage.y, width: rect.width, height: rect.height };
+      },
+      writeBox: setBox,
+      hold: () => {}, place: () => {}, leave: () => {},
+      bounds: () => ({ width: bounds.stage.width, height: bounds.stage.height }),
+    });
+  }, [movable, bounds, Boolean(origin)]);
   return (
     <Modal visible transparent animationType="none" onRequestClose={close} onShow={() => { setShown(true); measure(); }} statusBarTranslucent>
       <Pressable accessibilityRole="button" accessibilityLabel="Close preview"
@@ -374,16 +395,16 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
       <SafeInset pointerEvents="box-none" style={StyleSheet.absoluteFill}>
         <View ref={stageRef} collapsable={false} testID="toolbar-details-stage" pointerEvents="box-none"
           onLayout={measure} style={{ flex: 1 }}>
-          <View testID="toolbar-details-panel" accessibilityViewIsModal
+          <View ref={panelRef} testID="toolbar-details-panel" accessibilityViewIsModal
             pointerEvents={origin ? "auto" : "none"} accessibilityElementsHidden={!origin}
             onLayout={(event) => {
               const { width, height } = event.nativeEvent.layout;
               setPanel((previous) => previous?.width === width && previous.height === height ? previous : { width, height });
             }}
-            style={{ position: "absolute", width: bounds ? Math.min(width, bounds.stage.width - 16) : width,
-              maxWidth: "100%", opacity: origin ? 1 : 0, left: origin?.left ?? 0, top: origin?.top ?? 0 }}>
-            <ToolbarDetailsFrame tokens={tokens} ready={shown && origin !== null}>
-              {children}
+            style={{ position: "absolute", width: box?.width ?? (bounds ? Math.min(width, bounds.stage.width - 16) : width),
+              height: box?.height, maxWidth: "100%", opacity: origin ? 1 : 0, left: box?.x ?? origin?.left ?? 0, top: box?.y ?? origin?.top ?? 0 }}>
+            <ToolbarDetailsFrame tokens={tokens} ready={shown && origin !== null} stretch={box !== null}>
+              <ResizedToolbarDetailsContext.Provider value={box !== null}>{children}</ResizedToolbarDetailsContext.Provider>
             </ToolbarDetailsFrame>
           </View>
         </View>
@@ -393,15 +414,15 @@ export function AnchoredToolbarDetails({ anchor, close, children, tokens, width 
 }
 
 /** Shared popup frame; desktop dropdown motion does not change its measured bounds. */
-export function ToolbarDetailsFrame({ tokens, children, side = "above", ready = true }: {
-  tokens: ExtendedThemeTokens; children: ReactNode; side?: TooltipPlacement; ready?: boolean;
+export function ToolbarDetailsFrame({ tokens, children, side = "above", ready = true, stretch = false }: {
+  tokens: ExtendedThemeTokens; children: ReactNode; side?: TooltipPlacement; ready?: boolean; stretch?: boolean;
 }) {
   const shift = Platform.OS === "web" ? DROPDOWN_REVEAL.shift : PREVIEW_REVEAL.shift;
   const entrance = usePreviewEntrance({ ready, from: side === "below" ? -shift : shift, dropdown: true });
-  return <Animated.View style={[entrance, Platform.OS === "web" && { transformOrigin: side === "below" ? "center top" : "center bottom" }]}>
+  return <Animated.View style={[entrance, stretch && { flex: 1 }, Platform.OS === "web" && { transformOrigin: side === "below" ? "center top" : "center bottom" }]}>
     <View testID="toolbar-details-frame" style={{ backgroundColor: tokens.surface0, borderColor: tokens.v2.border,
-      borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens) }}>
-      <View style={{ borderRadius: FLOAT.radius - 1, overflow: "hidden" }}>{children}</View>
+      borderWidth: 1, borderRadius: FLOAT.radius, boxShadow: floatShadow(tokens), flex: stretch ? 1 : undefined }}>
+      <View style={{ borderRadius: FLOAT.radius - 1, overflow: "hidden", flex: stretch ? 1 : undefined }}>{children}</View>
     </View>
   </Animated.View>;
 }
