@@ -47,6 +47,7 @@ function createMockEnv(options?: {
   runResult?: { status: string; lastMessage?: string | null; error?: string | null };
   streamChunks?: Array<{ text: string; messageId?: string }>;
   throwOnRun?: boolean;
+  archiveResult?: { error: string | null };
 }) {
   const dir = makeTempDir();
   const parsed = timelineTranslationSettingsSchema.parse({
@@ -146,6 +147,7 @@ function createMockEnv(options?: {
         return {
           async archive() {
             captured.archived += 1;
+            return { requestId: "archive-1", workspaceId: "ws-1", archivedAt: options?.archiveResult?.error ? null : "2026-11-20T00:00:00.000Z", error: null, ...options?.archiveResult };
           },
           agents: {
             async create(agentInput: unknown) {
@@ -467,6 +469,45 @@ describe("timeline translation server service", () => {
     expect(captured.deletedHelpers).toEqual(["helper-agent-1"]);
   });
 
+  it("reports an archive the daemon answered with an error and keeps the helper", async () => {
+    // The daemon's archive_workspace_response carries the failure in `error`; the SDK resolves it.
+    const { translator, paseo, captured, configSignature } = createMockEnv({
+      archiveResult: { error: "workspace is busy" },
+    });
+    await translator.request({
+      action: "start", jobId: "job-archive", agentId: "source-agent-1", text: "Archive path",
+      sourceKind: "assistant_message", interfaceLanguage: "en", configSignature,
+    }, paseo);
+    const settled = await waitForJob(translator, paseo, "job-archive");
+    expect(settled).toEqual({ state: "error", error: "Could not archive the translation helper: workspace is busy" });
+    expect(captured.archived).toBe(1);
+    expect(captured.deletedHelpers).toEqual([]);
+  });
+
+  it("names the target language once in the prompt it sends", async () => {
+    const { translator, paseo, captured, configSignature } = createMockEnv();
+    await translator.request({
+      action: "start", jobId: "job-prompt", agentId: "source-agent-1", text: "Hello",
+      sourceKind: "assistant_message", interfaceLanguage: "en", configSignature,
+    }, paseo);
+    await waitForJob(translator, paseo, "job-prompt");
+    expect(captured.prompts[0]).toContain("Target language: Simplified Chinese / 简体中文 (zh-CN)\nSource kind:");
+  });
+
+  it("passes the conversation's own thinking option on when the catalog does not list it", async () => {
+    const { translator, paseo, captured, configSignature } = createMockEnv({
+      settings: { disableThinking: false },
+      agentThinkingId: "default",
+      thinkingOptions: [{ id: "low", label: "Low" }, { id: "high", label: "High" }],
+    });
+    await translator.request({
+      action: "start", jobId: "job-inherit", agentId: "source-agent-1", text: "Hello",
+      sourceKind: "assistant_message", interfaceLanguage: "en", configSignature,
+    }, paseo);
+    expect(await waitForJob(translator, paseo, "job-inherit")).toMatchObject({ state: "done", thinkingMode: "inherited", thinkingOptionId: "default" });
+    expect((captured.agentConfigs[0] as { config: { thinkingOptionId?: string } }).config.thinkingOptionId).toBe("default");
+  });
+
   it("rejects translation when disabled in settings", async () => {
     const { translator, paseo, configSignature } = createMockEnv({
       settings: { enabled: false },
@@ -505,7 +546,10 @@ describe("timeline translation server service", () => {
     } as never)!;
     expect(restarted.text).toBe("Fresh");
 
-    const prompt = buildTranslationPrompt("Translate", "Japanese (ja)", "ja", "reasoning", "Step 1");
+    const prompt = buildTranslationPrompt("Translate", "Japanese / 日本語 (ja)", "reasoning", "Step 1");
+    // The target names its code once (`resolveTranslationTarget().promptTarget`).
+    expect(prompt).toContain("Target language: Japanese / 日本語 (ja)\n");
+    expect(prompt.match(/\(ja\)/g)).toHaveLength(1);
     expect(prompt).toContain("Source kind: assistant reasoning");
     expect(prompt).toContain("Step 1");
   });

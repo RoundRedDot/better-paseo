@@ -132,12 +132,12 @@ export function BlockSelection({ source, blocks, tokens, children }: {
 }
 
 function BlockCopyMenu({ text, tokens, dismiss }: { text: string; tokens: ExtendedThemeTokens; dismiss(): void }) {
-  // Only a selected block observes the list: idle blocks keep their streamed reuse.
-  useScrollDismiss(true, dismiss);
   const scope = useContext(SelectionTranslationContext);
   const settings = useTranslationSettingsState();
   // Off in settings hides Translate; any other state explains itself in the popup.
   const translatable = scope !== null && !(settings.status === "ready" && !settings.values.enabled);
+  // Only a selected block observes the list: idle blocks keep their streamed reuse.
+  useScrollDismiss(!translatable, dismiss);
   const { copy } = useCopy();
   const { language } = useEnhancerPreferences();
   const mounted = useRef(true);
@@ -168,8 +168,14 @@ function BlockTranslate({ scope, text, tokens, dismiss, copyButton, menuStyle }:
   const { language } = useEnhancerPreferences();
   const { view, start } = useSelectionTranslation(scope, text);
   const loading = selectionViewLoading(view);
+  // Once shown, the sheet stays through Retry and closes with the selection.
+  const [opened, setOpened] = useState(false);
+  const sheet = view !== null && (opened || !loading);
+  if (sheet && !opened) setOpened(true);
+  // The sheet covers the list; the list moving under it (a reply streaming) keeps it open.
+  useScrollDismiss(!sheet, dismiss);
   return <>
-    {!view || loading ? <View testID="markdown-block-menu" style={menuStyle}>
+    {!sheet ? <View testID="markdown-block-menu" style={menuStyle}>
       {copyButton}
       <View testID="translation-menu-separator" accessible={false} style={[styles.separator, { backgroundColor: tokens.v2.border }]} />
       <Pressable accessibilityRole="button" accessibilityLabel="Translate selected block" accessibilityState={{ busy: loading }}
@@ -182,7 +188,7 @@ function BlockTranslate({ scope, text, tokens, dismiss, copyButton, menuStyle }:
         </Text>
       </Pressable>
     </View> : null}
-    {view && !loading ? <TranslationSheet close={dismiss}>
+    {sheet ? <TranslationSheet close={dismiss}>
       <SelectionTranslationPanel original={text} view={view} tokens={tokens} onRetry={start} onClose={dismiss} sheet />
     </TranslationSheet> : null}
   </>;

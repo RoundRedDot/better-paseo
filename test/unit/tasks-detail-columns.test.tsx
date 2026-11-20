@@ -106,6 +106,21 @@ describe("details columns", () => {
     expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status")).toHaveLength(0);
   });
 
+  it("opens a closed section when its message is translated, where the result and errors show", async () => {
+    const message = { prompt: { state: "ready" as const, text: "Reply" }, load() {} };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} lastMessage={message} translationAgentId="session-1" columns={false} tabs />); });
+    const expanded = () => host(renderer!.root, "detail-message-heading").props.accessibilityState.expanded;
+    if (expanded()) await act(async () => host(renderer!.root, "detail-message-heading").props.onPress({}));
+    expect(expanded()).toBe(false);
+    await act(async () => host(renderer!.root, "detail-message-translate").props.onPress({ stopPropagation() {} }));
+    expect(expanded()).toBe(true);
+    // A later press on the active translation (Retry, Show original) leaves the section as the reader set it.
+    await act(async () => host(renderer!.root, "detail-message-heading").props.onPress({}));
+    expect(expanded()).toBe(false);
+    await act(async () => host(renderer!.root, "detail-message-translate").props.onPress({ stopPropagation() {} }));
+    expect(expanded()).toBe(false);
+  });
+
   it.each(["en", "zh"] as const)("places %s message times beside their titles and keeps actions at the right", async (language) => {
     const message = { prompt: { state: "ready" as const, text: "Message", timestamp: new Date(NOW - 60_000).toISOString() }, load() {} };
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} language={language} firstPrompt={message} humanMessage={{ ...message, prompt: { ...message.prompt, text: "Follow-up" } }} lastMessage={message} translationAgentId="session-1" columns={false} tabs />); });

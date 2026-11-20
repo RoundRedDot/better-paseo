@@ -49,6 +49,7 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
   };
 });
 
+import { placeLanguageMenu } from "../../client/translation/language-picker";
 import {
   TimelineTranslationSettings as TimelineTranslationSettingsSection,
   describeThinkingStatus,
@@ -263,6 +264,57 @@ describe("timeline translation settings", () => {
     );
   });
 
+  it("places the web language menu beside its control, sized to the side it opens on", () => {
+    const chrome = 60;
+    const viewport = { width: 1024, height: 768 };
+    for (const top of [8, 100, 300, 420, 520, 600, 690, 724]) {
+      const rect = { top, bottom: top + 36, right: 600, width: 200 };
+      const place = placeLanguageMenu(rect, viewport);
+      const height = place.listMaxHeight + chrome;
+      const menuTop = place.top ?? viewport.height - place.bottom! - height;
+      const menuBottom = place.top !== undefined ? place.top + height : viewport.height - place.bottom!;
+      // Never over the control, and inside the window whenever that side holds a short list.
+      expect(menuBottom <= rect.top || menuTop >= rect.bottom, `top ${top}`).toBe(true);
+      const room = place.top !== undefined ? viewport.height - rect.bottom - 14 : rect.top - 14;
+      if (room >= chrome + 96) expect(menuTop >= 8 && menuBottom <= viewport.height - 8, `top ${top}`).toBe(true);
+    }
+    // Opening upward anchors the menu's bottom to the control, so a filtered, shorter list stays attached.
+    expect(placeLanguageMenu({ top: 600, bottom: 636, right: 600, width: 200 }, viewport)).toEqual({ bottom: 174, left: 320, width: 280, listMaxHeight: 340 });
+    expect(placeLanguageMenu({ top: 212, bottom: 248, right: 600, width: 200 }, { width: 1024, height: 300 })).toMatchObject({ bottom: 94, listMaxHeight: 138 });
+  });
+
+  it("keeps the web language menu on its control while the page scrolls", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const listeners = new Map<string, () => void>();
+    vi.stubGlobal("window", {
+      innerWidth: 1024, innerHeight: 768,
+      addEventListener: (type: string, listener: () => void) => { listeners.set(type, listener); },
+      removeEventListener: (type: string) => { listeners.delete(type); },
+    });
+    try {
+      let rect = { top: 100, bottom: 136, right: 600, width: 200, left: 400, height: 36 };
+      mocks.settingsState = makeReadySettings({ enabled: true });
+      await act(async () => {
+        renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }), {
+          createNodeMock: () => ({ getBoundingClientRect: () => rect, contains: () => false }),
+        });
+      });
+      const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Target language");
+      await act(async () => { trigger.props.onPress(); });
+      const menuTop = () => renderer!.root.find((n) => String(n.type) === "View" && n.findAll((c) => (c.type as unknown) === "TextInput").length > 0 &&
+        JSON.stringify(n.props.style).includes("fixed")).props.style.flat().find((part: { top?: number }) => part && "top" in part)?.top;
+      expect(menuTop()).toBe(142);
+      rect = { ...rect, top: 40, bottom: 76 };
+      await act(async () => { listeners.get("scroll")!(); });
+      expect(menuTop()).toBe(82);
+      await act(async () => renderer!.unmount());
+      renderer = undefined;
+      expect(listeners.has("scroll")).toBe(false);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("shows provider logos in the shared menu and refreshes beside the model", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5", thinkingOptionId: "high" });
     const originalModels = await mocks.modelsRpc({ provider: "claude" });
@@ -339,6 +391,39 @@ describe("timeline translation settings", () => {
     await act(async () => { option.props.onPress(); });
     expect(mocks.saveSpy).not.toHaveBeenCalled();
     expect(textValues(renderer!.root)).toContain("Catalog unavailable");
+  });
+
+  it("reads a provider's catalog again on the next visit after it failed", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    mocks.modelsRpc.mockReset().mockResolvedValueOnce({ ...good, models: [], error: "Catalog unavailable" }).mockResolvedValue(good);
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    expect(textValues(renderer!.root)).toContain("Catalog unavailable");
+    act(() => renderer!.unmount());
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    expect(mocks.modelsRpc).toHaveBeenCalledTimes(2);
+    expect(textValues(renderer!.root)).not.toContain("Catalog unavailable");
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
+    await act(async () => { trigger.props.onPress(); });
+    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Claude Opus 4.1").length).toBeGreaterThan(0);
+  });
+
+  it("shows only the latest catalog read's error and loading state", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    let failFirst!: (error: Error) => void;
+    mocks.modelsRpc.mockReset()
+      .mockImplementationOnce(() => new Promise((_, reject) => { failFirst = reject; }))
+      .mockResolvedValue(good);
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const refresh = () => renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
+    expect(refresh().props.disabled).toBe(true);
+    // The reader refreshes while the first read hangs; the refresh answers first.
+    await act(async () => { refresh().props.onPress(); });
+    expect(refresh().props.disabled).toBe(false);
+    await act(async () => { failFirst(new Error("offline")); });
+    expect(textValues(renderer!.root)).not.toContain("offline");
+    expect(refresh().props.disabled).toBe(false);
   });
 
   it("loads the model catalog without an unsupported-thinking warning and edits/resets prompt", async () => {

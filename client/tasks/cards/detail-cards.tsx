@@ -1253,6 +1253,10 @@ function SectionContent(props: SectionProps & { translation?: InlineTranslationS
   // The last subtask row keeps 8 (touch 10) above the next hairline.
   const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
   const toggle = () => { if (!reducedMotion) prepareSubtaskToggle(props.closed); props.onToggleSection(!props.closed); };
+  // The translation and its status show in the section's body: translating a closed one opens it.
+  const inline = props.translation;
+  const translateButton = inline ? <InlineTranslateButton state={props.closed && !inline.active
+    ? { ...inline, toggle: () => { toggle(); inline.toggle(); } } : inline} theme={props.theme} base={tokens.card.background} testID={`${testID}-translate`} /> : null;
   return (
     <View testID={testID} onLayout={onLayout}>
       {props.divider ? <View style={{ height: StyleSheet.hairlineWidth, marginLeft: m.padH, marginRight: m.padH - gutter, backgroundColor: tokens.card.border }} /> : null}
@@ -1265,7 +1269,7 @@ function SectionContent(props: SectionProps & { translation?: InlineTranslationS
             <Text testID={`${testID}-heading-title`} style={{ flexShrink: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
             {messageTime ? <Text testID={`${testID}-heading-time`} {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, marginLeft: 6, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`· ${messageTime}`}</Text> : null}
             <View style={{ flex: 1 }} />
-            {props.translation ? <InlineTranslateButton state={props.translation} theme={props.theme} base={tokens.card.background} testID={`${testID}-translate`} /> : null}
+            {translateButton}
             {read?.prompt.state === "ready" ? (
               <DetailCopyButton label={copyLabel} tokens={tokens} copied={copied} testID={`${testID}-copy`} target={28} hitSlop={6} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} />
             ) : null}

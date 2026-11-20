@@ -358,9 +358,50 @@ describe.each(["web", "ios", "android"] as const)("%s whole-message translation"
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ text: "First chunk", sourceKind: "assistant_message" });
   });
+
+  it.runIf(platform !== "web")("keeps the sheet open while Retry runs", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    const retried = deferred<TranslationJobState>();
+    mocks.rpc.mockRejectedValueOnce(new Error("provider down")).mockReturnValueOnce(retried.promise);
+    await act(async () => { renderer = TestRenderer.create(React.createElement(MessageTranslateButton, {
+      agentId: "agent-1", kind: "user_message", text: "Hello", streaming: false, theme, testID: "whole-translate",
+    })); });
+    await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "whole-translate").props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("provider down"));
+    const modals = () => renderer!.root.findAll((node) => String(node.type) === "Modal");
+    expect(modals()).toHaveLength(1);
+    const retry = renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Retry");
+    await act(async () => retry.props.onPress());
+    expect(modals()).toHaveLength(1);
+    await act(async () => retried.resolve(doneState("你好")));
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("你好"));
+    expect(modals()).toHaveLength(1);
+    await act(async () => modals()[0]!.props.onRequestClose());
+    expect(modals()).toHaveLength(0);
+  });
+});
+
+// A pointer (here an iPad's) reaches a closed thought's actions by hovering its row; touch shows them once opened.
+it.each([
+  { label: "a closed thought", text: "First thought.\n\nSecond **paragraph**.", expanded: false },
+  { label: "a one-line thought with nothing to open", text: "Short thought.", expanded: true },
+])("shows a thought's translation failure under the header of $label", async ({ text, expanded }) => {
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+  mocks.rpc.mockRejectedValueOnce(new Error("provider down"));
+  await act(async () => { renderer = TestRenderer.create(React.createElement(ReasoningCard, {
+    segmentation: segmentReasoning(text), streaming: false, durationMs: null, expanded,
+    onToggle: vi.fn(), tokens: makeTokens(), storeKey: "translation-thought-closed", copyText: text,
+    translation: { agentId: "agent-1", theme },
+  })); });
+  await act(async () => renderer!.root.findByType(DisclosureHeader).findAll((node) => typeof node.props.onHoverIn === "function")[0]!.props.onHoverIn());
+  await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate").props.onPress({ stopPropagation() {} }));
+  const status = () => renderer!.root.findAll((node) => String(node.type) === "Text" && node.props.testID === "inline-translation-status");
+  await vi.waitFor(() => expect(status()).toHaveLength(1));
+  expect(collectTexts(status()[0]!).join("")).toContain("provider down");
 });
 
 describe.each(["web", "ios", "android"] as const)("%s thought translation", (platform) => {
+
   it("honors the setting and translates the same complete thought as copy", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     mocks.hover = false;
@@ -566,6 +607,43 @@ describe("selection translation", () => {
     job.dispose();
     // Disposing releases the model feed it held.
     expect(agentApi.subscriptions[0]!.release).toHaveBeenCalled();
+  });
+
+  it("reads the model again on retry while another row of the same conversation holds it", async () => {
+    agentApi.refresh.mockResolvedValueOnce(null);
+    mocks.rpc.mockResolvedValue(doneState("好"));
+    const config = createTranslationAgentConfigStore(agentApi.api);
+    const retireRow = config.subscribe("agent-1", vi.fn());
+    await vi.waitFor(() => expect(config.read("agent-1")).toEqual({ status: "error" }));
+    const job = selection("Model", { configStore: config });
+    job.start();
+    expect(job.view()).toEqual({ status: "config-error" });
+    job.start();
+    await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
+    expect(agentApi.refresh).toHaveBeenCalledTimes(2);
+    job.dispose();
+    retireRow();
+  });
+
+  it("restarts a failed model feed on retry while other conversations keep it open", async () => {
+    agentApi.list.mockRejectedValueOnce(new Error("offline"));
+    mocks.rpc.mockResolvedValue(doneState("好"));
+    const config = createTranslationAgentConfigStore(agentApi.api);
+    const otherListener = vi.fn();
+    const retireOther = config.subscribe("agent-2", otherListener);
+    await vi.waitFor(() => expect(config.read("agent-2")).toEqual({ status: "error" }));
+    const job = selection("Model", { configStore: config });
+    job.start();
+    expect(job.view()).toEqual({ status: "config-error" });
+    job.start();
+    await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
+    expect(agentApi.list).toHaveBeenCalledTimes(2);
+    // The other conversation's row recovers with the same feed.
+    expect(config.read("agent-2")).toMatchObject({ status: "ready" });
+    expect(otherListener).toHaveBeenCalled();
+    job.dispose();
+    retireOther();
+    expect(agentApi.subscriptions[0]!.release).toHaveBeenCalledOnce();
   });
 
 
@@ -1081,8 +1159,16 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     });
     await vi.waitFor(() => expect(panelText()).toContain("provider down"));
     expect(mocks.rpc.mock.calls[0]![0].text).toBe("Done part.");
+    const retried = deferred<TranslationJobState>();
+    mocks.rpc.mockReturnValueOnce(retried.promise);
     await act(async () => button("Retry")[0]!.props.onPress());
+    // The sheet stays up while Retry runs instead of closing and opening again.
+    expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(1);
+    expect(panelText()).toContain("Translating...");
+    expect(renderer!.root.findAll((node) => node.props.testID === "markdown-block-menu")).toHaveLength(0);
+    await act(async () => retried.resolve(doneState("好的")));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("好的"));
+    expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(1);
   });
 
   it("offers no Translate outside a conversation or when translation is off", async () => {

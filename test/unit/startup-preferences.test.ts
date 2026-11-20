@@ -287,6 +287,47 @@ describe("preferences read while the plugin loads", () => {
     expect(plugin.observers.size).toBe(0);
   });
 
+  it("reads translation settings again when a hook mounts after another client changed them", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const { contribute, slot, React, renderer } = await load();
+    const store = await import("../../client/translation/settings-store");
+    const plugin = fakeClient(() => Promise.resolve(null));
+    const cleanup = contribute(plugin.client as never);
+    await flush();
+    const reload = vi.fn(() => Promise.resolve());
+    const first = { status: "ready", revision: "t1", values: { enabled: true, targetLanguage: "en" }, save: vi.fn(), reset: vi.fn(), reload };
+    host.settings = first;
+    // A row's settings slot, reading the host's copy (`useSettings` answers `host.settings`).
+    const Row = () => React.createElement(slot.PreferenceSyncSlot);
+    let row!: ReactTestRenderer;
+    await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
+    await renderer.act(async () => row.unmount());
+    expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t1", values: { targetLanguage: "en" } });
+
+    // Another client changes the target while no row is mounted; the host
+    // marks its copy stale but does not read it until asked.
+    plugin.push("timeline-translation");
+    await flush();
+    let settle!: () => void;
+    reload.mockImplementation(() => new Promise<void>((resolve) => (settle = resolve)));
+    await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
+    await flush();
+    expect(reload).toHaveBeenCalledTimes(1);
+    expect(store.getTranslationSettingsState().revision).toBe("t1");
+    host.settings = { ...first, revision: "t2", values: { enabled: true, targetLanguage: "ja" } };
+    await renderer.act(async () => settle());
+    expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t2", values: { targetLanguage: "ja" } });
+
+    // While a row is mounted its own query reads changes.
+    plugin.push("timeline-translation");
+    await renderer.act(async () => row.unmount());
+    await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
+    await flush();
+    expect(reload).toHaveBeenCalledTimes(1);
+    await renderer.act(async () => row.unmount());
+    cleanup();
+  });
+
   it("reads a change the host had not answered when the last settings hook unmounts", async () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const { contribute, preferences, slot, React, renderer } = await load();

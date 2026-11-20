@@ -20,6 +20,43 @@ import {
 import { radiusV2, space } from "../components/theme-tokens";
 import { settingsTextStyle, type PageLook } from "../settings-controls";
 
+/** The menu's chrome around its list: padding, border, search box and gap. */
+const MENU_CHROME = 8 * 2 + 1 * 2 + 34 + 8;
+const MENU_GAP = 6;
+const MENU_EDGE = 8;
+const LIST_MAX = 340;
+const LIST_MIN = 96;
+
+export interface LanguageMenuPlacement {
+  /** Set when the menu opens below the control. */
+  top?: number;
+  /** Set when it opens above: measured from the window's bottom, so the menu grows up from the control. */
+  bottom?: number;
+  left: number;
+  width: number;
+  listMaxHeight: number;
+}
+
+/**
+ * Where the web menu sits, in window coordinates: below the control when
+ * there is room for a useful list, else on the roomier side, its list sized
+ * to what that side holds.
+ */
+export function placeLanguageMenu(
+  rect: { top: number; bottom: number; right: number; width: number },
+  viewport: { width: number; height: number },
+): LanguageMenuPlacement {
+  const width = Math.min(Math.max(rect.width, 280), viewport.width - MENU_EDGE * 2);
+  const left = Math.max(MENU_EDGE, Math.min(rect.right - width, viewport.width - width - MENU_EDGE));
+  const roomBelow = viewport.height - rect.bottom - MENU_GAP - MENU_EDGE;
+  const roomAbove = rect.top - MENU_GAP - MENU_EDGE;
+  const below = roomBelow >= MENU_CHROME + 160 || roomBelow >= roomAbove;
+  const listMaxHeight = Math.max(LIST_MIN, Math.min(LIST_MAX, (below ? roomBelow : roomAbove) - MENU_CHROME));
+  return below
+    ? { top: rect.bottom + MENU_GAP, left, width, listMaxHeight }
+    : { bottom: viewport.height - rect.top + MENU_GAP, left, width, listMaxHeight };
+}
+
 export interface SearchableLanguageSelectProps {
   value: string;
   onChange: (code: string) => void;
@@ -222,7 +259,7 @@ export function SearchableLanguageSelect({
   const [query, setQuery] = useState("");
   const triggerRef = useRef<View>(null);
   const menuRef = useRef<View>(null);
-  const [placement, setPlacement] = useState<{ top: number; left: number; width: number; maxHeight: number } | null>(null);
+  const [placement, setPlacement] = useState<LanguageMenuPlacement | null>(null);
 
   const selected =
     findTranslationLanguage(value) ??
@@ -260,18 +297,9 @@ export function SearchableLanguageSelect({
 
     const updatePosition = () => {
       if (!anchor || typeof anchor.getBoundingClientRect !== "function") return;
-      const rect = anchor.getBoundingClientRect();
       const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
       const vh = typeof window !== "undefined" ? window.innerHeight : 768;
-      const desiredWidth = Math.max(rect.width, 280);
-      const width = Math.min(desiredWidth, vw - 16);
-      const left = Math.max(8, Math.min(rect.right - width, vw - width - 8));
-      const spaceBelow = vh - rect.bottom - 12;
-      const spaceAbove = rect.top - 12;
-      const openBelow = spaceBelow >= 220 || spaceBelow >= spaceAbove;
-      const maxHeight = Math.max(160, Math.min(340, (openBelow ? spaceBelow : spaceAbove) - 8));
-      const top = openBelow ? rect.bottom + 6 : Math.max(8, rect.top - maxHeight - 48);
-      setPlacement({ top, left, width, maxHeight });
+      setPlacement(placeLanguageMenu(anchor.getBoundingClientRect(), { width: vw, height: vh }));
     };
 
     updatePosition();
@@ -290,6 +318,8 @@ export function SearchableLanguageSelect({
       window.addEventListener("keydown", onKeyDown);
       window.addEventListener("mousedown", onPointerDown, true);
       window.addEventListener("resize", updatePosition);
+      // The settings page scrolls under the fixed menu: follow the control.
+      window.addEventListener("scroll", updatePosition, true);
     }
 
     return () => {
@@ -297,6 +327,7 @@ export function SearchableLanguageSelect({
         window.removeEventListener("keydown", onKeyDown);
         window.removeEventListener("mousedown", onPointerDown, true);
         window.removeEventListener("resize", updatePosition);
+        window.removeEventListener("scroll", updatePosition, true);
       }
       try {
         menuEl?.hidePopover?.();
@@ -353,7 +384,7 @@ export function SearchableLanguageSelect({
             {
               backgroundColor: tokens.v2.surface0,
               borderColor: tokens.v2.border,
-              top: placement?.top ?? 36,
+              ...(placement?.bottom !== undefined ? { bottom: placement.bottom } : { top: placement?.top ?? 36 }),
               left: placement?.left ?? 0,
               width: placement?.width ?? 300,
               boxShadow: tokens.isDark ? "0px 8px 32px rgba(0,0,0,0.5)" : "0px 8px 32px rgba(0,0,0,0.12)",
@@ -369,7 +400,7 @@ export function SearchableLanguageSelect({
             look={look}
             searchPlaceholder={searchPlaceholder}
             emptyLabel={emptyLabel}
-            maxListHeight={placement?.maxHeight ?? 300}
+            maxListHeight={placement?.listMaxHeight ?? 300}
           />
         </View>
       ) : null}

@@ -249,7 +249,7 @@ export default function contribute(client: PluginClientContext) {
           if (!getEnhancerPreferences().assistantMarkdown) return undefined;
           if (!item.text.trim()) return undefined;
           if (getEnhancerPreferences().liveUiReplies && hasUiFence(item.text, phase)) return undefined;
-          return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase, item.messageId) };
+          return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
         },
       }),
   );
@@ -259,8 +259,7 @@ export default function contribute(client: PluginClientContext) {
     version: 1,
     schema: z.object({ text: z.string(), phase: z.string().optional(),
       blockIndex: z.number().int().nonnegative().optional(), messageText: z.string().optional(),
-      sourceText: z.string().optional(), listContinuation: z.boolean().optional(),
-      sourceId: z.string().optional(), externalSegment: z.boolean().optional() }),
+      listContinuation: z.boolean().optional() }),
     Component: LiveAssistantRenderer,
   });
 

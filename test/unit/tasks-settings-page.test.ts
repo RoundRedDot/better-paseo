@@ -1266,3 +1266,24 @@ it.each([["en", true, 320], ["zh", true, 390], ["en", false, 1000], ["zh", false
     if (!compact) expect(frames.get(versions[0]!)!.top).toBe(frames.get(versions[1]!)!.top);
   } finally { act(() => r?.unmount()); }
 });
+
+it.each([false, true])("keeps translation settings, which the Tasks board also uses, with chat off (opened from a translation: %s)", async (fromTranslation) => {
+  const { TimelineTranslationSettings } = await import("../../client/translation/settings");
+  const { registerTranslationSettingsOpener, openTranslationSettings, clearTranslationSettingsTarget } = await import("../../client/translation/navigation");
+  makeSettings();
+  updateEnhancerPreferences({ chatEnabled: false });
+  setSettingsTab("display");
+  const host = {} as never;
+  const release = registerTranslationSettingsOpener(host, () => {});
+  if (fromTranslation) openTranslationSettings(host);
+  let r!: Renderer;
+  try {
+    act(() => { r = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, { theme: theme as never, layout: { platform: "web", compact: false } as never, host: {} as never })); });
+    expect(r.root.findAllByType(TimelineTranslationSettings)).toHaveLength(1);
+    act(() => r.unmount());
+  } finally {
+    clearTranslationSettingsTarget();
+    release();
+    resetEnhancerPreferences();
+  }
+});

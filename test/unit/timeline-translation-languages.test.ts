@@ -82,4 +82,16 @@ describe("timeline translation language catalog", () => {
     expect(formatTranslationLanguageLabel(jaEntry, "zh")).toContain("日本語");
     expect(formatTranslationLanguageLabel(jaEntry, "en")).toContain("Japanese");
   });
+
+  it("does not repeat a name that is the same in Chinese and natively", () => {
+    expect(formatTranslationLanguageLabel(findTranslationLanguage("zh-CN")!, "zh")).toBe("简体中文");
+    expect(formatTranslationLanguageLabel(findTranslationLanguage("wyw")!, "zh")).toBe("文言文");
+    expect(formatTranslationLanguageLabel(findTranslationLanguage("zh-TW")!, "zh")).toBe("繁体中文 · 繁體中文");
+    for (const entry of TRANSLATION_LANGUAGES) {
+      for (const language of ["zh", "en"] as const) {
+        const [first, second] = formatTranslationLanguageLabel(entry, language).split(" · ");
+        expect(second, `${entry.code} ${language}`).not.toBe(first);
+      }
+    }
+  });
 });

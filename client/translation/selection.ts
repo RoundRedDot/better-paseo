@@ -323,10 +323,9 @@ export function createSelectionTranslation(options: SelectionTranslationOptions)
       // A second press on a shown result, or Retry, makes a new job.
       force = requested && (current?.status === "error" || current?.status === "done" ||
         current?.status === "stale" || current?.status === "config-error");
-      if (force && current?.status === "config-error" && releaseConfig) {
-        // A fresh subscription re-reads the conversation's model.
-        releaseConfig();
-        releaseConfig = null;
+      if (force && current?.status === "config-error") {
+        // Other rows may hold the same feed: ask it to read the model again.
+        options.configStore?.retry(options.agentId);
         force = false;
       }
       if (current?.status === "stale") startedJob = null;

@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import {
@@ -28,11 +28,7 @@ import {
 } from "../settings-controls";
 import { PromptEditorModal } from "../settings-prompt-editor";
 import { SearchableLanguageSelect } from "./language-picker";
-import {
-  DEFAULT_TIMELINE_TRANSLATION_SETTINGS,
-  reportTranslationSettings,
-  type RemoteTranslationSettings,
-} from "./settings-store";
+import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, useTranslationSettingsReport } from "./settings-store";
 
 export interface TranslationModelEntry {
   id: string;
@@ -251,20 +247,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     return DEFAULT_TIMELINE_TRANSLATION_SETTINGS;
   }, [state]);
 
-  const remote: RemoteTranslationSettings =
-    state.status === "ready"
-      ? { status: "ready", values: state.values, revision: state.revision }
-      : state.status === "invalid"
-        ? { status: "invalid", error: state.error, revision: state.revision }
-        : state.status === "error"
-          ? { status: "error", error: state.error }
-          : { status: "loading" };
-  const revision = "revision" in remote ? remote.revision : "";
-  const remoteError = "error" in remote ? remote.error : "";
-
-  useEffect(() => {
-    reportTranslationSettings(remote);
-  }, [remote.status, revision, remoteError]);
+  useTranslationSettingsReport(state);
 
   const [catalog, setCatalog] = useState<TranslationCatalogState>(() => ({
     ...catalogCache,
@@ -274,30 +257,38 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   const [switchingProvider, setSwitchingProvider] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
 
+  // Only the latest read shows its loading state and error: an earlier one may answer last.
+  const latestRead = useRef(0);
   const loadModels = useCallback(async (provider: string) => {
+    const read = ++latestRead.current;
     setCatalog((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetchModels({ provider });
       const targetProvider = provider || res.providers[0] || "";
       const nextModelsByProvider = { ...catalogCache.modelsByProvider };
-      if (targetProvider) nextModelsByProvider[targetProvider] = res.models;
+      // A failed read is not an empty catalog: the next visit reads it again.
+      if (targetProvider && !res.error) nextModelsByProvider[targetProvider] = res.models;
       catalogCache = {
         providers: res.providers,
         providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
         modelsByProvider: nextModelsByProvider,
       };
-      setCatalog({
-        ...catalogCache,
-        loading: false,
-        error: res.error,
-      });
+      if (read === latestRead.current) {
+        setCatalog({
+          ...catalogCache,
+          loading: false,
+          error: res.error,
+        });
+      }
       return res.error ? null : res.models;
     } catch (error) {
-      setCatalog((prev) => ({
-        ...prev,
-        loading: false,
-        error: error instanceof Error ? error.message : String(error),
-      }));
+      if (read === latestRead.current) {
+        setCatalog((prev) => ({
+          ...prev,
+          loading: false,
+          error: error instanceof Error ? error.message : String(error),
+        }));
+      }
       return null;
     }
   }, [fetchModels]);

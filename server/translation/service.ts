@@ -55,8 +55,8 @@ export function appendTranslationChunk(
 
 export function buildTranslationPrompt(
   prompt: string,
+  /** `resolveTranslationTarget(...).promptTarget`: the language's names and code. */
   targetPrompt: string,
-  targetCode: string,
   sourceKind: "assistant_message" | "user_message" | "reasoning" | "tool_output",
   text: string,
 ): string {
@@ -66,7 +66,7 @@ export function buildTranslationPrompt(
     reasoning: "assistant reasoning",
     tool_output: "tool output",
   }[sourceKind];
-  return `${prompt}\n\nTarget language: ${targetPrompt} (${targetCode})\nSource kind: ${kindLabel}\n\nText to translate:\n${text}`;
+  return `${prompt}\n\nTarget language: ${targetPrompt}\nSource kind: ${kindLabel}\n\nText to translate:\n${text}`;
 }
 
 async function resolveThinkingForTranslation(
@@ -113,13 +113,12 @@ async function resolveThinkingForTranslation(
       thinkingMode: valid && isRealThinkingOffId(valid) ? "disabled" : "custom",
     };
   }
+  // The conversation already runs with this option on the same provider and
+  // model, so it is passed on as is, listed in the catalog or not.
   const inherited = original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId ?? undefined;
-  const valid = inherited && capability.options.some((option) => option.id === inherited)
-    ? inherited
-    : (inherited || undefined);
   return {
-    thinkingOptionId: valid,
-    thinkingMode: valid && isRealThinkingOffId(valid) ? "disabled" : "inherited",
+    thinkingOptionId: inherited || undefined,
+    thinkingMode: inherited && isRealThinkingOffId(inherited) ? "disabled" : "inherited",
   };
 }
 
@@ -222,7 +221,6 @@ export function createTimelineTranslator(deps: Dependencies) {
       const fullPrompt = buildTranslationPrompt(
         config.prompt,
         target.promptTarget,
-        target.code,
         input.sourceKind,
         input.text,
       );
@@ -240,10 +238,11 @@ export function createTimelineTranslator(deps: Dependencies) {
       throw error;
     } finally {
       unsubscribe?.();
-      let cleanupError: string | null = null;
-      await workspace.archive().catch((error: unknown) => {
-        cleanupError = error instanceof Error ? error.message : String(error);
-      });
+      // The daemon reports a failed archive in the response, not as a rejection.
+      const cleanupError = await workspace.archive().then(
+        (result) => result?.error ?? null,
+        (error: unknown) => error instanceof Error ? error.message : String(error),
+      );
       if (!cleanupError && helperId) {
         await deps.deleteHelper(helperId).catch((error: unknown) => {
           console.error(`Could not delete translation helper ${helperId}: ${error instanceof Error ? error.message : String(error)}`);

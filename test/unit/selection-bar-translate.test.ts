@@ -89,7 +89,12 @@ let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 let page: EventTarget & { innerWidth: number; innerHeight: number };
 let doc: EventTarget;
 let body: ElementMock;
-let selected: { text: string; node: ElementMock; focus?: ElementMock; boundedText?: string } | null;
+/**
+ * `text` is what `Selection.toString()` returns (line breaks between blocks);
+ * `rangeText` what `Range.toString()` returns for the part inside the surface
+ * (no breaks, as in Chromium); `outsideText` the selected text beyond it.
+ */
+let selected: { text: string; node: ElementMock; focus?: ElementMock; rangeText?: string; outsideText?: string } | null;
 const call = vi.fn();
 
 type Scope = { agentId: string; kind: "assistant_message" | "user_message" | "reasoning" | "tool_output"; streaming: boolean };
@@ -145,9 +150,14 @@ beforeEach(() => {
         anchorNode: current.node, focusNode: current.focus ?? current.node,
         getRangeAt: () => ({ commonAncestorContainer: current.node, startContainer: current.node,
           getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }],
-          cloneRange: () => ({ commonAncestorContainer: current.node,
-            setStartBefore() {}, setEndAfter() {}, toString: () => current.boundedText ?? current.text,
-            getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }] }) }),
+          cloneRange: () => {
+            let part = current.rangeText ?? current.text;
+            const beyond = () => { part = current.outsideText ?? ""; };
+            const inside = () => { part = current.rangeText ?? current.text; };
+            return { commonAncestorContainer: current.node,
+              setStartBefore: inside, setEndAfter: inside, setStartAfter: beyond, setEndBefore: beyond, toString: () => part,
+              getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }] };
+          } }),
       };
     },
   }));
@@ -174,16 +184,30 @@ afterEach(() => {
 describe("selection bar Translate", () => {
   it("shows the toolbar when a whole paragraph ends at the next element boundary", () => {
     const node = surface({ agentId: "session-1", kind: "assistant_message", streaming: false });
-    selected = { text: "Fix version update checks.\n", node, focus: new ElementMock(), boundedText: "Fix version update checks." };
+    selected = { text: "Fix version update checks.\n", node, focus: new ElementMock(), rangeText: "Fix version update checks." };
     doc.dispatchEvent(new Event("selectionchange"));
     vi.advanceTimersByTime(0);
     expect(display()).toBe("block");
     expect(button("Translate")).toBeDefined();
   });
 
+  it("keeps the toolbar and the block breaks for several whole paragraphs ending at the next element", async () => {
+    // Chromium (checked headless): Selection gives "A\n\nB", Range gives "AB".
+    call.mockResolvedValue(done("译文"));
+    const node = surface({ agentId: "session-1", kind: "assistant_message", streaming: false });
+    selected = { text: "First paragraph.\n\nSecond paragraph.\n\n", node, focus: new ElementMock(),
+      rangeText: "First paragraph.Second paragraph." };
+    doc.dispatchEvent(new Event("selectionchange"));
+    vi.advanceTimersByTime(0);
+    expect(display()).toBe("block");
+    button("Translate")!.click();
+    await flush();
+    expect(call.mock.calls[0]![0]).toMatchObject({ text: "First paragraph.\n\nSecond paragraph." });
+  });
+
   it("does not show the toolbar when a selection includes text outside the surface", () => {
     const node = surface({ agentId: "session-1", kind: "assistant_message", streaming: false });
-    selected = { text: "Reply outside text", node, focus: new ElementMock(), boundedText: "Reply" };
+    selected = { text: "Reply outside text", node, focus: new ElementMock(), rangeText: "Reply", outsideText: "outside text" };
     doc.dispatchEvent(new Event("selectionchange"));
     vi.advanceTimersByTime(0);
     expect(display()).toBe("none");
@@ -441,6 +465,24 @@ describe("selection bar Translate", () => {
     const max = Number.parseInt(bar().style.getPropertyValue("--bc-panel-max"), 10);
     expect(max).toBeLessThanOrEqual(200 - 16);
     expect(Number.parseInt(host().style.getPropertyValue("top"), 10)).toBeGreaterThanOrEqual(8);
+  });
+
+  it("redraws a fading panel that showed the original after its selection is gone", async () => {
+    const { seedMarkBitmaps } = await import("../../client/components/marks");
+    call.mockResolvedValue(done("译文"));
+    select("the selected words", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
+    button("Translate")!.click();
+    await flush();
+    button("Show original")!.click();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("the selected words");
+    // A press elsewhere clears the selection and starts the fade out; the model's
+    // mark answers within it and redraws the panel.
+    selected = null;
+    doc.dispatchEvent(Object.assign(new Event("keydown"), { key: "Escape" }));
+    expect(() => seedMarkBitmaps({ "lobe:codex": "data:image/png;base64,AA==" })).not.toThrow();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("译文");
+    vi.advanceTimersByTime(200);
+    expect(display()).toBe("none");
   });
 
   it("opens settings on the selected host", async () => {

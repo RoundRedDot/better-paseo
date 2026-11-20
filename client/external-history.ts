@@ -36,7 +36,6 @@ export function externalHistoryRows(text: string, phase: string, messageId?: str
   const lastText = parts.findLastIndex((part) => part.kind === "text" && part.text.trim());
   let hash = 2166136261;
   for (let index = 0; index < text.length; index++) hash = Math.imul(hash ^ text.charCodeAt(index), 16777619);
-  const sourceId = messageId ?? `ext:${hash >>> 0}`;
   const rows: PluginTimelineItem[] = [];
   parts.forEach((part, index) => {
     if (part.kind === "tool") {
@@ -51,7 +50,7 @@ export function externalHistoryRows(text: string, phase: string, messageId?: str
     if (!part.text.trim()) return;
     rows.push({
       type: "plugin" as const, kind: "omp-assistant", version: 1,
-      data: { text: part.text, phase, blockIndex: index, sourceId, externalSegment: true,
+      data: { text: part.text, phase, blockIndex: index,
         ...(index === lastText ? { messageText: text } : {}) },
     });
   });

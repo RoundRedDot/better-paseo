@@ -355,6 +355,25 @@ export function createTranslationAgentConfigStore(paseo: Pick<PaseoApi, "agents"
 
   return {
     read: (agentId: string) => agents.get(agentId)?.snapshot ?? AGENT_CONFIG_LOADING,
+    /**
+     * Reads a conversation's model again after it failed to load. A failed feed
+     * is shared by every row on this host, so it restarts for all of them; a
+     * single failed read retries only that conversation.
+     */
+    retry(agentId: string) {
+      const entry = agents.get(agentId);
+      if (!entry || entry.snapshot.status !== "error") return;
+      if (feedStatus === "error") {
+        stop?.();
+        for (const each of agents.values()) {
+          each.version += 1;
+          publish(each, AGENT_CONFIG_LOADING);
+        }
+        stop = watch();
+        return;
+      }
+      if (feedStatus === "ready") void refresh(agentId, entry);
+    },
     subscribe(agentId: string, listener: () => void) {
       let entry = agents.get(agentId);
       if (!entry) {

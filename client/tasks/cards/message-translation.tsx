@@ -42,10 +42,14 @@ function MessageTranslationButton(props: Props) {
   const [text, setText] = useState<string | null>(null);
   const { view, start } = useSelectionTranslation(props, text);
   const loading = text !== null && (!view || selectionViewLoading(view));
+  // Once shown, the translation stays open through Retry; closing ends it.
+  const [opened, setOpened] = useState(false);
+  const shown = text !== null && view !== null && (opened || !loading);
+  if (shown && !opened) setOpened(true);
   useEffect(() => { start(); }, [start]);
   const anchor = useRef<View>(null);
   useEffect(() => () => props.onOpenChange?.(false), [props.onOpenChange]);
-  const close = () => { setText(null); props.onOpenChange?.(false); };
+  const close = () => { setText(null); setOpened(false); props.onOpenChange?.(false); };
   const { hovered, hoverProps } = useHover();
   const label = toolbarLabel("Translate", preferences.language);
   const iconSize = 14;
@@ -65,7 +69,7 @@ function MessageTranslationButton(props: Props) {
           : <Icon icon={TRANSLATE_ICON} size={iconSize} color={tokens.foregroundMuted} />}
       </View>}
     </Pressable>
-    {view && !loading ? Platform.OS === "web"
+    {shown && view ? Platform.OS === "web"
       ? <WebMessageTranslation original={text!} anchor={anchor} view={view} tokens={tokens} retry={start} close={close} />
       : <TranslationSheet close={close}><SelectionTranslationPanel original={text!} view={view} tokens={tokens} onRetry={start} onClose={close} sheet /></TranslationSheet>
       : null}

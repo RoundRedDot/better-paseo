@@ -156,7 +156,7 @@ export function formatTranslationLanguageLabel(entry: TranslationLanguageEntry, 
     return uiLanguage === "zh" ? entry.zhName : entry.enName;
   }
   if (uiLanguage === "zh") {
-    return `${entry.zhName} \u00B7 ${entry.nativeName}`;
+    return entry.zhName === entry.nativeName ? entry.zhName : `${entry.zhName} \u00B7 ${entry.nativeName}`;
   }
   return entry.enName === entry.nativeName ? entry.enName : `${entry.enName} \u00B7 ${entry.nativeName}`;
 }

@@ -161,18 +161,22 @@ function readSelection(): Snapshot | null {
   const surface = (anchor ?? focus)!;
 
   let range = selection.getRangeAt(0);
-  let text = selection.toString().trim();
+  const text = selection.toString().trim();
   if (!text) return null;
   if (!anchor || !focus) {
     // A browser's whole-line selection can end at the next element's start.
     // Accept that boundary only when no text outside the surface was selected.
+    // Compare Range text with Range text: `Selection.toString()` puts line
+    // breaks between blocks and `Range.toString()` does not.
+    const startsInside = surface.contains(range.startContainer);
+    const outside = range.cloneRange();
+    if (startsInside) outside.setStartAfter(surface);
+    else outside.setEndBefore(surface);
+    if (outside.toString().trim()) return null;
     const bounded = range.cloneRange();
-    if (surface.contains(range.startContainer)) bounded.setEndAfter(surface);
+    if (startsInside) bounded.setEndAfter(surface);
     else bounded.setStartBefore(surface);
-    const inside = bounded.toString().trim();
-    if (!inside || inside !== text) return null;
     range = bounded;
-    text = inside;
   }
 
   const rects = range.getClientRects();
@@ -732,7 +736,9 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     }
     panel.appendChild(head);
 
-    const text = showingOriginal && view.status === "done" ? (standalone ? original : actions.snapshot()!.text) : selectionViewText(view);
+    // While the bar fades out its selection may be gone already; the translation stays then.
+    const source = standalone ? original : actions.snapshot()?.text;
+    const text = showingOriginal && view.status === "done" && source !== undefined ? source : selectionViewText(view);
     const message = text ? null : selectionViewMessage(view);
     if (message) {
       const line = element("div", "panel-message");

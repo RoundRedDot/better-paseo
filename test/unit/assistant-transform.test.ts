@@ -12,6 +12,8 @@ describe("long reply history rows", () => {
     expect(Math.max(...rows.map((row) => row.data.text.length))).toBeLessThan(2000);
     expect(rows.filter((row) => "messageText" in row.data)).toHaveLength(1);
     expect(rows.at(-1)!.data).toMatchObject({ messageText: longReply });
+    // No other row carries the whole reply again.
+    expect(rows.filter((row) => Object.values(row.data).includes(longReply))).toHaveLength(1);
   });
 
   it("keeps the streaming reply in one stable slot and keeps short replies unchanged", () => {

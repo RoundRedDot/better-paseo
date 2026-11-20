@@ -422,10 +422,12 @@ function ReasoningCardContent({ segmentation: originalSegmentation, streaming, d
       )}
     />
   );
+  const notice = inline && translation ? <InlineTranslationNotice state={inline} theme={translation.theme} /> : null;
+  // Closed (or with nothing to open), the header carries a finished translation; a failure or wait shows under it.
   const body = expanded ? (
     <FadeIn>
       <View {...surfaceProps(selectionSurface)} style={[styles.body, selectableSurface]}>
-        {inline && translation ? <InlineTranslationNotice state={inline} theme={translation.theme} /> : null}
+        {notice}
         <View style={inline?.active && inline.view && ["running", "settings-loading", "config-loading"].includes(inline.view.status) ? { opacity: 0.55 } : undefined}>
         <ReasoningSectionsView
           segmentation={segmentation}
@@ -437,7 +439,7 @@ function ReasoningCardContent({ segmentation: originalSegmentation, streaming, d
         </View>
       </View>
     </FadeIn>
-  ) : null;
+  ) : notice;
 
   // A long opened thought pins its row on a host with the sticky API (S6).
   if (expanded && STICKY_SUPPORTED) {
