@@ -18,7 +18,6 @@ import { getEnhancerPreferences, useEnhancerPreferences } from "../../preference
 import { TaskText as Text, TASK_MONO as MONO, HOST_FONT as F, HOST_LINE, useTasksFontScale, useTasksFontAdjustment, taskControlHeight } from "../typography";
 import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useHover } from "../../ui/use-hover";
-import { iconHoverSize } from "../../ui/icon-hover-size";
 import { hoverFill } from "../hover-fill";
 import { HoverControl } from "../hover-control";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
@@ -1194,12 +1193,12 @@ function ErrorBlock(props: Inner) {
 function DetailCopyButton(props: { label: string; tokens: TaskTokens; copied: boolean; testID?: string; base?: string; target?: number; hitSlop?: number; marginRight?: number; onPress(event: GestureResponderEvent): void }) {
   const { hovered, hoverProps } = useHover();
   const iconSize = 14;
-  const fillSize = iconHoverSize(iconSize);
+  const fillSize = 24;
   return (
     <Pressable accessibilityRole="button" accessibilityLabel={props.label} {...tipProps(props.label)} {...hoverProps}
       onPress={props.onPress} hitSlop={props.hitSlop ?? 4} testID={props.testID}
       style={{ width: props.target ?? 32, height: props.target ?? 32, marginRight: props.marginRight, alignItems: "center", justifyContent: "center" }}>
-      {({ pressed }) => <View pointerEvents="none" testID={props.testID ? `${props.testID}-fill` : undefined} style={{ width: fillSize, height: fillSize, borderRadius: fillSize / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.base ?? props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") }}>
+      {({ pressed }) => <View pointerEvents="none" testID={props.testID ? `${props.testID}-fill` : undefined} style={{ width: fillSize, height: fillSize, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.base ?? props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") }}>
         <Icon name={props.copied ? "Check" : "Copy"} size={iconSize} color={props.copied ? props.tokens.success : props.tokens.foregroundMuted} />
       </View>}
     </Pressable>
@@ -1267,9 +1266,9 @@ function SectionContent(props: SectionProps & { translation?: InlineTranslationS
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
             {props.translation ? <InlineTranslateButton state={props.translation} theme={props.theme} base={tokens.card.background} testID={`${testID}-translate`} /> : null}
             {read?.prompt.state === "ready" ? (
-              <DetailCopyButton label={copyLabel} tokens={tokens} copied={copied} testID={`${testID}-copy`} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} />
+              <DetailCopyButton label={copyLabel} tokens={tokens} copied={copied} testID={`${testID}-copy`} target={28} hitSlop={6} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} />
             ) : null}
-            <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
+            <View testID={`${testID}-chevron`} style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
               <SectionChevron closed={props.closed} color={tokens.foregroundMuted} />
             </View>
           </HoverControl>
@@ -1726,7 +1725,7 @@ function PropertyRow(props: {
 function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onPress(): void }) {
   const { hovered, hoverProps } = useHover();
   const iconSize = 14;
-  const fillSize = iconHoverSize(iconSize);
+  const fillSize = 24;
   return (
     <Pressable
       accessibilityRole="button"
@@ -1739,7 +1738,7 @@ function RowAction(props: { icon: string; label: string; tokens: TaskTokens; onP
       {...hoverProps}
       style={{ width: 24, height: 24, alignItems: "center", justifyContent: "center" }}
     >
-      {({ pressed }) => <View pointerEvents="none" style={{ width: fillSize, height: fillSize, borderRadius: fillSize / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") }}>
+      {({ pressed }) => <View pointerEvents="none" style={{ width: fillSize, height: fillSize, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.tokens.card.background, props.tokens.foreground, hovered, pressed, "transparent") }}>
         <Icon name={props.icon} size={iconSize} color={hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
       </View>}
     </Pressable>
@@ -2073,7 +2072,7 @@ function KeyCap(props: { label: string; tokens: TaskTokens }) {
 /** A header icon button, matching the toolbar's quiet outline on web. */
 export function RoundIcon(props: { icon: string; label: string; size: number; iconSize: number; tokens: TaskTokens; active?: boolean; onPress(): void; testID?: string }) {
   const { hovered, hoverProps } = useHover();
-  const fillSize = iconHoverSize(props.iconSize);
+  const fillSize = 24;
   const base = props.active ? props.tokens.surface2 : props.tokens.card.background;
   return (
     <Pressable
@@ -2088,7 +2087,7 @@ export function RoundIcon(props: { icon: string; label: string; size: number; ic
           width: props.size,
           height: props.size,
           marginVertical: -(props.size - 18) / 2,
-          borderRadius: props.size / 2,
+          borderRadius: 6,
           borderWidth: Platform.OS === "web" ? StyleSheet.hairlineWidth : 0,
           borderColor: "transparent",
           alignItems: "center" as const,
@@ -2097,7 +2096,7 @@ export function RoundIcon(props: { icon: string; label: string; size: number; ic
       }}
     >
       {({ pressed }) => <View pointerEvents="none" testID={props.testID ? `${props.testID}-fill` : undefined}
-        style={{ width: fillSize, height: fillSize, borderRadius: fillSize / 2, alignItems: "center", justifyContent: "center",
+        style={{ width: fillSize, height: fillSize, borderRadius: 6, alignItems: "center", justifyContent: "center",
           backgroundColor: hoverFill(base, props.tokens.foreground, hovered, pressed, "transparent") }}>
         <Icon name={props.icon} size={props.iconSize} color={props.active ? props.tokens.accent : hovered ? props.tokens.foreground : props.tokens.foregroundMuted} />
       </View>}

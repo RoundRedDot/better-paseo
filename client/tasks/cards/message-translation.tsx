@@ -12,7 +12,6 @@ import { openTranslationSettings, TranslationSettingsParentCloseContext } from "
 import { useTranslationSettingsState } from "../../translation/settings-store";
 import type { TranslationSourceKind } from "../../translation/store";
 import { SelectionTranslationPanel, TranslationSheet, TRANSLATE_ICON } from "../../translation/ui";
-import { iconHoverSize } from "../../ui/icon-hover-size";
 import { useHover } from "../../ui/use-hover";
 import { hoverFill } from "../hover-fill";
 import { tipProps } from "./card-hints";
@@ -50,7 +49,7 @@ function MessageTranslationButton(props: Props) {
   const { hovered, hoverProps } = useHover();
   const label = toolbarLabel("Translate", preferences.language);
   const iconSize = 14;
-  const fillSize = iconHoverSize(iconSize);
+  const fillSize = 24;
   return <View ref={anchor} collapsable={false}>
     <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ busy: loading }}
       {...tipProps(label)} {...hoverProps} testID={props.testID} hitSlop={4}
@@ -61,7 +60,7 @@ function MessageTranslationButton(props: Props) {
         props.onOpenChange?.(true);
       }}
       style={{ width: props.size ?? 32, height: props.size ?? 32, alignItems: "center", justifyContent: "center" }}>
-      {({ pressed }) => <View pointerEvents="none" testID={`${props.testID}-fill`} style={{ width: fillSize, height: fillSize, borderRadius: fillSize / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}>
+      {({ pressed }) => <View pointerEvents="none" testID={`${props.testID}-fill`} style={{ width: fillSize, height: fillSize, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}>
         {loading ? <SpinnerRing size={iconSize} color={tokens.foregroundMuted} testID={`${props.testID}-spinner`} />
           : <Icon icon={TRANSLATE_ICON} size={iconSize} color={tokens.foregroundMuted} />}
       </View>}

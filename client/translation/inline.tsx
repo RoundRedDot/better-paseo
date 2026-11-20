@@ -14,7 +14,6 @@ import { translationAgentConfigStoreFor, useTranslateCaller, type TranslationSou
 import { SHOW_ORIGINAL_ICON, TRANSLATE_ICON } from "./ui";
 import { useHover } from "../ui/use-hover";
 import { hoverFill } from "../tasks/hover-fill";
-import { iconHoverSize } from "../ui/icon-hover-size";
 import { tipProps } from "../tasks/cards/card-hints";
 import { SpinnerRing } from "../tasks/cards/status-icon";
 
@@ -72,10 +71,10 @@ export function InlineTranslateButton({ state, theme, testID, base, timeline = f
     onPress={(event) => { event.stopPropagation(); state.toggle(); }}>
     <View pointerEvents="none" testID={`${testID}-fill`}>{icon}</View>
   </ToolbarItem></TooltipSideContext.Provider></View>;
-  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} hitSlop={4} {...tipProps(label)} {...hoverProps}
+  return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} hitSlop={6} {...tipProps(label)} {...hoverProps}
     onPress={(event) => { event.stopPropagation(); state.toggle(); }}
-    style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
-    {({ pressed }) => <View pointerEvents="none" testID={`${testID}-fill`} style={{ width: iconHoverSize(14), height: iconHoverSize(14), borderRadius: iconHoverSize(14) / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}>{icon}</View>}
+    style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
+    {({ pressed }) => <View pointerEvents="none" testID={`${testID}-fill`} style={{ width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}>{icon}</View>}
   </Pressable>;
 }
 

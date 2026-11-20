@@ -4185,10 +4185,9 @@ describe("TaskDetailCards", () => {
         expect(heading().props.accessibilityState.expanded).toBe(true);
         const copyButton = () => hostByTestId(tree.root, `${id}-copy`);
         const fill = () => hostByTestId(tree.root, `${id}-copy-fill`);
-        const iconSize = fill().find((node) => (node.type as unknown) === "Icon").props.size;
-        const diameter = Math.round(iconSize * 1.7);
-        expect(flat(copyButton().props.style)).toMatchObject({ width: 32, height: 32 });
-        expect(flat(fill().props.style)).toMatchObject({ width: diameter, height: diameter, borderRadius: diameter / 2, backgroundColor: "transparent" });
+        expect(flat(copyButton().props.style)).toMatchObject({ width: 28, height: 28 });
+        expect(flat(hostByTestId(tree.root, `${id}-chevron`).props.style)).toMatchObject({ width: 28, height: 28 });
+        expect(flat(fill().props.style)).toMatchObject({ width: 24, height: 24, borderRadius: 6, backgroundColor: "transparent" });
         await act(async () => copyButton().props.onHoverIn());
         const tokens = taskTokens(LIGHT);
         expect(flat(fill().props.style).backgroundColor).toBe(hoverFill(tokens.card.background, tokens.foreground, true, false, "transparent"));

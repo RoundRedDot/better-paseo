@@ -12,7 +12,6 @@ import { useEnhancerPreferences } from "../../preferences";
 import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useCopy } from "../../ui/use-copy";
 import { useHover } from "../../ui/use-hover";
-import { iconHoverSize } from "../../ui/icon-hover-size";
 import { HoverControl } from "../hover-control";
 import { hoverFill } from "../hover-fill";
 import type { QuestionContext } from "../data/question-context";
@@ -89,14 +88,16 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
       <Text style={[meta, { color: colors.foreground, fontWeight: "600" }]}>{words.context}</Text>
       {Number.isFinite(at) ? <Text numberOfLines={1} style={[meta, { flexShrink: 1 }]}>· {formatRelative(Date.now() - at, props.language)}</Text> : null}
       <View style={{ flex: 1 }} />
+      <View testID="task-question-note-actions" style={{ flexDirection: "row", alignItems: "center" }}>
       {ready && props.translationAgentId ? <MessageTranslateButton agentId={props.translationAgentId} kind="assistant_message" text={ready.text}
         streaming={false} theme={props.theme} testID="task-question-note-translate" size={28} /> : null}
       {ready ? <Pressable accessibilityRole="button" accessibilityLabel={words.copyContext} {...tipProps(words.copyContext)} {...hoverProps} onPress={() => { void copy(ready.text, { label: "Copy agent note" }); }}
         hitSlop={4} testID="task-question-note-copy" style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center" }}>
-        {({ pressed }) => <View pointerEvents="none" testID="task-question-note-copy-fill" style={{ width: iconHoverSize(14), height: iconHoverSize(14), borderRadius: iconHoverSize(14) / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(colors.surface0, colors.foreground, hovered, pressed, "transparent") }}>
+        {({ pressed }) => <View pointerEvents="none" testID="task-question-note-copy-fill" style={{ width: 24, height: 24, borderRadius: 6, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(colors.surface0, colors.foreground, hovered, pressed, "transparent") }}>
           <Icon name={copied ? "Check" : "Copy"} size={14} color={copied ? tokens.success : colors.foregroundMuted} />
         </View>}
       </Pressable> : null}
+      </View>
     </View>
     {ready ? <View style={box}>
       <FoldedText id="task-question-note" language={props.language} tokens={tokens} line={line} limit={props.compact ? NOTE_LINES.compact : NOTE_LINES.wide}

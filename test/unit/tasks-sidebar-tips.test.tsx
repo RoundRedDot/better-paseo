@@ -150,13 +150,13 @@ describe("sidebar action tips", () => {
     const root = await render(<TaskDetailCards {...details("en", "sample-running", { onMenu() {} })} />);
     for (const id of ["detail-menu", "detail-close"]) {
       const button = () => host(root, id);
-      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: StyleSheet.flatten(button().props.style).width / 2, borderColor: "transparent" });
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderRadius: 6, borderColor: "transparent" });
       await act(async () => button().props.onHoverIn());
       const fill = () => host(root, `${id}-fill`);
       const icon = button().find((node) => (node.type as unknown) === "Icon");
-      const diameter = Math.round(icon.props.size * 1.7);
+      const diameter = 24;
       expect(fill().find((node) => (node.type as unknown) === "Icon")).toBe(icon);
-      expect(StyleSheet.flatten(fill().props.style)).toMatchObject({ width: diameter, height: diameter, borderRadius: diameter / 2, backgroundColor: detailColors(taskTokens(THEME)).rowHover });
+      expect(StyleSheet.flatten(fill().props.style)).toMatchObject({ width: diameter, height: diameter, borderRadius: 6, backgroundColor: detailColors(taskTokens(THEME)).rowHover });
       expect(StyleSheet.flatten(button().props.style)).toMatchObject({ borderWidth: StyleSheet.hairlineWidth, borderColor: "transparent" });
       await act(async () => button().props.onHoverOut());
       expect(StyleSheet.flatten(fill().props.style).backgroundColor).toBe("transparent");

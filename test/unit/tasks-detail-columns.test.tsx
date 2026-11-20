@@ -97,8 +97,10 @@ describe("details columns", () => {
     const translateFill = host(renderer!.root, "detail-message-translate-fill");
     const copyFill = host(renderer!.root, "detail-message-copy-fill");
     expect(translateFill.props.style).toEqual(copyFill.props.style);
+    expect(translateFill.props.style).toMatchObject({ width: 24, height: 24, borderRadius: 6 });
     expect(translateFill.findByType(Icon).props.size).toBe(copyFill.findByType(Icon).props.size);
     expect(translate.props.style).toEqual(copy.props.style);
+    expect(translate.props.style).toMatchObject({ width: 28, height: 28 });
     await act(async () => translate.props.onPress({ stopPropagation() {} }));
     expect(host(translateFill, "detail-message-translate-spinner")).toBeDefined();
     expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status")).toHaveLength(0);

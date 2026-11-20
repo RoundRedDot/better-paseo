@@ -425,8 +425,10 @@ describe("agent note above the question", () => {
     const copyButton = host("task-question-note-copy");
     await act(async () => { translateButton.props.onHoverIn(); copyButton.props.onHoverIn(); });
     expect(host("task-question-note-translate-fill").props.style).toEqual(host("task-question-note-copy-fill").props.style);
-    expect(host("task-question-note-copy-fill").props.style.width).toBe(24);
+    expect(host("task-question-note-copy-fill").props.style).toMatchObject({ width: 24, height: 24, borderRadius: 6 });
     expect(copyButton.props.style).toEqual(translateButton.props.style);
+    expect(host("task-question-note-actions").props.style).toMatchObject({ flexDirection: "row", alignItems: "center" });
+    expect(copyButton.props.style).toMatchObject({ width: 28, height: 28 });
     expect(tree!.root.findByType(SelectionTranslationScope).props).toMatchObject({ agentId: current.id, kind: "assistant_message" });
     // The note sits between the task and the question.
     const order = ["task-question-context", "task-question-note", "task-question-field"].map((id) => shown().indexOf(`"testID":"${id}"`));
