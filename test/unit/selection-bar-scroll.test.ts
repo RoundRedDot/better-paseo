@@ -42,6 +42,9 @@ class ElementMock extends EventTarget {
   }
   box = { left: 0, top: 0, right: 1024, bottom: 768 };
   overflow = "visible";
+  position = "static";
+  display = "block";
+  offsetParent: ElementMock | null = null;
   getBoundingClientRect() { return this.box; }
   closest(selector: string) { return selector === "[data-bcselection]" ? this : null; }
 }
@@ -120,7 +123,9 @@ beforeEach(() => {
   });
   vi.stubGlobal("window", Object.assign(page, {
     setTimeout, clearTimeout, innerWidth: 1024, innerHeight: 768, getSelection: () => selection,
-    getComputedStyle: (element: ElementMock) => ({ overflowX: element.overflow, overflowY: element.overflow }),
+    getComputedStyle: (element: ElementMock) => ({
+      overflowX: element.overflow, overflowY: element.overflow, position: element.position, display: element.display,
+    }),
   }));
   vi.stubGlobal("document", Object.assign(doc, { body, createElement: () => new ElementMock() }));
   act(() => { renderer = TestRenderer.create(React.createElement(Actions)); });
@@ -317,6 +322,32 @@ describe("selection bar scroll dismissal", () => {
     expect(display()).toBe("block");
     scroll(true, "page", 170);
     expect(display()).toBe("none");
+  });
+
+  it.each([false, true])("keeps fixed details clipped only if a row establishes its containing block (transformed=%s)", (transformed) => {
+    const timeline = new ElementMock();
+    timeline.overflow = "hidden";
+    timeline.box.bottom = 100;
+    const row = timeline.appendChild(new ElementMock());
+    const details = row.appendChild(new ElementMock());
+    details.position = "fixed";
+    details.offsetParent = transformed ? row : null;
+    details.appendChild(scroller);
+    select();
+    vi.advanceTimersByTime(100);
+    expect(display()).toBe(transformed ? "none" : "block");
+  });
+
+  it("does not count overflow on a non-replaced inline selection ancestor as clipping", () => {
+    const inline = new ElementMock();
+    inline.display = "inline";
+    inline.overflow = "hidden";
+    inline.box.bottom = 100;
+    const text = scroller.children[0]!;
+    scroller.appendChild(inline).appendChild(text);
+    select();
+    vi.advanceTimersByTime(100);
+    expect(display()).toBe("block");
   });
 
   it("skips a collapsed range fragment at a selected line boundary", () => {

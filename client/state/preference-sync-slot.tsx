@@ -93,6 +93,7 @@ const isRefreshing = () => refreshing;
  */
 export function watchPreferenceChanges(client: Pick<PluginClientContext, "paseo" | "rpc">): () => void {
   let live = true;
+  const translationRead = settingsRpc(TIMELINE_TRANSLATION_SETTINGS.id).read;
   // Only the latest read reports: an earlier one may answer last.
   let latestRead = 0;
   const read = () => {
@@ -115,7 +116,7 @@ export function watchPreferenceChanges(client: Pick<PluginClientContext, "paseo"
       if (message.type !== "status") return;
       const { status, settingsId } = message.payload;
       if (status === "plugin_settings_changed" && settingsId === TIMELINE_TRANSLATION_SETTINGS.id) {
-        noteTranslationSettingsChanged();
+        noteTranslationSettingsChanged(async () => client.rpc(translationRead, {}));
         return;
       }
       if (status !== "plugin_settings_changed" || settingsId !== PREFERENCES_SETTINGS.id) return;

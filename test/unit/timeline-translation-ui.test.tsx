@@ -68,6 +68,7 @@ function createMockAgentApi() {
       release: vi.fn(async () => { observers.clear(); }),
       unobserve,
       reconnect() { for (const observer of observers) observer.snapshot(snapshot); },
+      fail(error: Error) { for (const observer of observers) observer.error?.(error); },
       update(agentId: string, config: RawAgentConfig) {
         for (const observer of observers) {
           observer.update({ type: "agent_update", payload: { kind: "upsert", agent: { ...config, id: agentId } } } as Parameters<AgentListObserver["update"]>[0]);
@@ -306,6 +307,33 @@ describe("timeline translation agent configuration", () => {
     await vi.waitFor(() => expect(config.read("agent-1").status).toBe("error"));
     config.retry("agent-1");
     expect(agentApi.list).toHaveBeenCalledOnce();
+  });
+
+  it("does not refresh a conversation that drops its last reader during retry", async () => {
+    agentApi.refresh.mockResolvedValueOnce(null);
+    const config = createTranslationAgentConfigStore(agentApi.api);
+    const retire = config.subscribe("agent-1", () => {
+      if (config.read("agent-1").status === "loading") retire();
+    });
+    await vi.waitFor(() => expect(config.read("agent-1").status).toBe("error"));
+    config.retry("agent-1");
+    expect(agentApi.refresh).toHaveBeenCalledOnce();
+    expect(agentApi.subscriptions[0]!.release).toHaveBeenCalledOnce();
+  });
+
+  it("stops the failed feed from publishing after a reader restarts it", async () => {
+    const config = createTranslationAgentConfigStore(agentApi.api);
+    const retireFirst = config.subscribe("agent-1", () => {
+      if (config.read("agent-1").status === "error") config.retry("agent-1");
+    });
+    const retireSecond = config.subscribe("agent-2", vi.fn());
+    await vi.waitFor(() => expect(config.read("agent-2").status).toBe("ready"));
+    agentApi.subscriptions[0]!.fail(new Error("offline"));
+    expect(config.read("agent-2").status).toBe("loading");
+    await vi.waitFor(() => expect(config.read("agent-2").status).toBe("ready"));
+    expect(agentApi.list).toHaveBeenCalledTimes(2);
+    retireFirst();
+    retireSecond();
   });
 });
 

@@ -476,6 +476,41 @@ describe("timeline translation settings", () => {
     expect(mocks.saveSpy).not.toHaveBeenCalled();
   });
 
+  it.each([
+    { provider: "cursor" }, { customModel: false }, { enabled: false }, { targetLanguage: "ja" },
+  ])("ignores a provider selection after settings change to %j without another catalog read", async (patch) => {
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    let finish!: (value: unknown) => void;
+    mocks.modelsRpc.mockReset().mockResolvedValueOnce(good).mockResolvedValueOnce(good)
+      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const original = { enabled: true, customModel: true, provider: "claude" };
+    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook() });
+    mocks.settingsState = makeReadySettings({ ...original, provider: "cursor" });
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    mocks.settingsState = makeReadySettings(original);
+    await act(async () => { renderer!.update(page()); });
+    const provider = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    await act(async () => { provider.props.onPress(); });
+    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
+    await act(async () => { option.props.onPress(); });
+    mocks.settingsState = { ...makeReadySettings({ ...original, ...patch }), revision: "rev-2" };
+    await act(async () => { renderer!.update(page()); });
+    expect(mocks.modelsRpc.mock.calls).toEqual([[{ provider: "cursor" }], [{ provider: "claude" }], [{ provider: "codex" }]]);
+    await act(async () => { finish(good); });
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+  });
+
+  it("fetches the active provider's models after previously fetching only the provider list", async () => {
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    mocks.modelsRpc.mockReset().mockResolvedValueOnce({ ...good, models: [] }).mockResolvedValueOnce(good);
+    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook() });
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "" });
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    mocks.settingsState = { ...makeReadySettings({ enabled: true, customModel: true, provider: "claude" }), revision: "rev-2" };
+    await act(async () => { renderer!.update(page()); });
+    expect(mocks.modelsRpc.mock.calls).toEqual([[{ provider: "" }], [{ provider: "claude" }]]);
+  });
+
   it("shows only the latest catalog read's error and loading state", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
     const good = await mocks.modelsRpc({ provider: "claude" });

@@ -260,11 +260,11 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   }));
   const [switchingProvider, setSwitchingProvider] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
-  const mounted = useRef(false);
+  const committedSettings = useRef<typeof state | null>(null);
   useLayoutEffect(() => {
-    mounted.current = true;
-    return () => { mounted.current = false; };
-  }, []);
+    committedSettings.current = state;
+    return () => { committedSettings.current = null; };
+  }, [state]);
 
   // Only the latest read, also across page mounts, writes the cache and shows
   // its loading state and error: an earlier one may answer last.
@@ -273,12 +273,11 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     setCatalog((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetchModels({ provider });
-      if (!mounted.current || read !== latestCatalogRead) return null;
-      const targetProvider = provider || res.providers[0] || "";
+      if (!committedSettings.current || read !== latestCatalogRead) return null;
       const nextModelsByProvider = { ...catalogCache.modelsByProvider };
       // The provider snapshot succeeds independently of the model lookup.
       // A model error must not be cached as an empty catalog.
-      if (targetProvider && !res.error) nextModelsByProvider[targetProvider] = res.models;
+      if (provider && !res.error) nextModelsByProvider[provider] = res.models;
       catalogCache = {
         providers: res.providers,
         providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
@@ -287,7 +286,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
       setCatalog({ ...catalogCache, loading: false, error: res.error });
       return res.error ? null : { read, models: res.models };
     } catch (error) {
-      if (mounted.current && read === latestCatalogRead) {
+      if (committedSettings.current && read === latestCatalogRead) {
         setCatalog((prev) => ({
           ...prev,
           loading: false,
@@ -316,15 +315,17 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   }, [state]);
 
   const selectProvider = async (provider: string) => {
-    if (provider === settings.provider || switchingProvider) return;
+    if (state.status !== "ready" || provider === settings.provider || switchingProvider) return;
     setSwitchingProvider(true);
     try {
       const catalogRead = await loadModels(provider);
-      if (!catalogRead || !mounted.current || catalogRead.read !== latestCatalogRead) return;
+      if (!catalogRead || catalogRead.read !== latestCatalogRead) return;
+      const current = committedSettings.current;
+      if (current?.status !== "ready" || current.saving || current.revision !== state.revision) return;
       const firstModel = catalogRead.models[0];
       await savePatch({ provider, ...modelSelection(firstModel, settings.thinkingOptionId) });
     } finally {
-      if (mounted.current) setSwitchingProvider(false);
+      if (committedSettings.current) setSwitchingProvider(false);
     }
   };
 

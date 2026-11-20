@@ -42,10 +42,11 @@ const TRANSFORMERS = [
   "omp-enhanced-error",
 ];
 
-function fakeClient(read: () => unknown) {
+function fakeClient(read: () => unknown, readTranslation?: () => unknown) {
   const registrations: Registration[] = [];
   const rpc = vi.fn((contract: { name: string }) => {
     if (contract.name === "settings.presentation.read") return read();
+    if (contract.name === "settings.timeline-translation.read" && readTranslation) return readTranslation();
     return Promise.reject(new Error(`unexpected rpc ${contract.name}`));
   });
   // The host's session events: `push` delivers one to every observer.
@@ -291,7 +292,9 @@ describe("preferences read while the plugin loads", () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const { contribute, slot, React, renderer } = await load();
     const store = await import("../../client/translation/settings-store");
-    const plugin = fakeClient(() => Promise.resolve(null));
+    const changed = { status: "ready", revision: "t3" };
+    const readTranslation = vi.fn(async () => changed);
+    const plugin = fakeClient(() => Promise.resolve(null), readTranslation);
     const cleanup = contribute(plugin.client as never);
     await flush();
     const reload = vi.fn(() => Promise.resolve());
@@ -340,6 +343,8 @@ describe("preferences read while the plugin loads", () => {
     // The leader can leave before the host's read reports. Its replacement
     // must not reuse t2 while the missed change is still being read.
     plugin.push("timeline-translation");
+    await flush();
+    expect(readTranslation).toHaveBeenCalledOnce();
     await renderer.act(async () => row.unmount());
     await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
     expect(reload).toHaveBeenCalledTimes(2);
@@ -391,7 +396,7 @@ describe("preferences read while the plugin loads", () => {
   });
 
   it("observes a refetch error even though the host reload fulfills", async () => {
-    const { React, renderer } = await load();
+    const { React, renderer, slot } = await load();
     const { QueryClient, QueryClientProvider, useQuery } = await import("@tanstack/react-query");
     const store = await import("../../client/translation/settings-store");
     const client = new QueryClient();
@@ -432,7 +437,28 @@ describe("preferences read while the plugin loads", () => {
     const confirmed = await mount();
     expect(read).toHaveBeenCalledOnce();
     expect(reloadFulfilled).not.toHaveBeenCalled();
+    // The host has already applied a save, then both observers see a push.
+    // A refetch with the same data does not change the hook's public state.
+    const saved = { ...current, revision: "t3", values: { ...current.values, enabled: false } };
+    await renderer.act(async () => { client.setQueryData(key, saved); });
+    await renderer.act(async () => {
+      await vi.waitFor(() => expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t3" }));
+    });
+    const confirmRead = vi.fn(async () => saved);
+    const plugin = fakeClient(async () => null, confirmRead);
+    const stop = slot.watchPreferenceChanges(plugin.client as never);
+    read.mockResolvedValueOnce(saved);
+    await renderer.act(async () => {
+      plugin.push("timeline-translation");
+      await client.invalidateQueries({ queryKey: key });
+    });
     await renderer.act(async () => confirmed.unmount());
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t3", values: { enabled: false } });
+    expect(confirmRead).toHaveBeenCalledOnce();
+    const reopened = await mount();
+    expect(reloadFulfilled).not.toHaveBeenCalled();
+    await renderer.act(async () => reopened.unmount());
+    stop();
     store.noteTranslationSettingsChanged();
     read.mockRejectedValueOnce(new Error("query failed"));
     const failed = await mount();

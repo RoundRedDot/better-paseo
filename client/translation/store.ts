@@ -288,6 +288,7 @@ export function createTranslationAgentConfigStore(paseo: Pick<PaseoApi, "agents"
     const version = ++entry.version;
     publish(entry, AGENT_CONFIG_LOADING);
     const isCurrent = () => agents.get(agentId) === entry && entry.version === version;
+    if (!isCurrent()) return;
     try {
       const result = await paseo.agents.ref(agentId).refresh();
       if (!isCurrent()) return;
@@ -307,6 +308,7 @@ export function createTranslationAgentConfigStore(paseo: Pick<PaseoApi, "agents"
       if (closed) return;
       feedStatus = "error";
       for (const entry of agents.values()) {
+        if (closed) return;
         entry.version += 1;
         publish(entry, AGENT_CONFIG_ERROR);
       }

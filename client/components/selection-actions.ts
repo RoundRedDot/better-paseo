@@ -1022,7 +1022,8 @@ function visibleRect(snapshot: Snapshot): DOMRect | null {
     element && element !== document.body && element !== document.documentElement;
     element = element.parentElement) {
     const style = window.getComputedStyle(element);
-    if (style.overflowX !== "visible" || style.overflowY !== "visible") {
+    if (style.display !== "inline" && style.display !== "contents" &&
+      (style.overflowX !== "visible" || style.overflowY !== "visible")) {
       const box = element.getBoundingClientRect();
       if (style.overflowX !== "visible") {
         left = Math.max(left, box.left);
@@ -1035,6 +1036,9 @@ function visibleRect(snapshot: Snapshot): DOMRect | null {
     }
     // Preview and details popovers escape the original ancestor's clip.
     if (typeof (element as HTMLElement).showPopover === "function" && element.matches(":popover-open")) break;
+    // Without an open popover, details can still be fixed to the viewport.
+    // A transformed row instead gives the fixed layer an offset parent.
+    if (style.position === "fixed" && "offsetParent" in element && element.offsetParent === null) break;
   }
   if (left >= right || top >= bottom) return null;
   return snapshot.rects.find((rect) =>
