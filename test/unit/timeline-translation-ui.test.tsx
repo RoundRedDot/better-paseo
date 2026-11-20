@@ -148,7 +148,7 @@ import { MessageTranslateButton } from "../../client/tasks/cards/message-transla
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { segmentReasoning } from "../../client/reasoning/segment";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
-import { SelectionTranslationPanel, TRANSLATE_ICON } from "../../client/translation/ui";
+import { SelectionTranslationPanel, SHOW_ORIGINAL_ICON, TRANSLATE_ICON } from "../../client/translation/ui";
 import * as pluginClient from "@getpaseo/plugin/client";
 
 const HostContext = (pluginClient as unknown as { HostContext: React.Context<{ api: PaseoApi; rpc: typeof mocks.rpc } | null> }).HostContext;
@@ -746,19 +746,19 @@ describe("timeline translation", () => {
       const pressable = button();
       const fill = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "reply-translate-fill");
       const icon = fill.find((node) => String(node.type) === "Icon");
-      return { label: pressable.props.accessibilityLabel, glyph: icon.props.name ?? (icon.props.icon === TRANSLATE_ICON ? "translate" : "other") };
+      return { label: pressable.props.accessibilityLabel, glyph: icon.props.icon };
     };
-    expect(state()).toEqual({ label: "Translate", glyph: "translate" });
+    expect(state()).toEqual({ label: "Translate", glyph: TRANSLATE_ICON });
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     expect(button().props.accessibilityLabel).toBe("Translate");
     expect(button().findAll((node) => String(node.type) === "View" && node.props.testID === "reply-translate-spinner")).toHaveLength(1);
     await act(async () => pending.resolve(doneState("译文")));
-    await vi.waitFor(() => expect(state()).toEqual({ label: "Show original", glyph: "Undo2" }));
+    await vi.waitFor(() => expect(state()).toEqual({ label: "Show original", glyph: SHOW_ORIGINAL_ICON }));
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     expect(JSON.stringify(renderer!.toJSON())).toContain("Glyph block");
-    expect(state()).toEqual({ label: "Translate", glyph: "translate" });
+    expect(state()).toEqual({ label: "Translate", glyph: TRANSLATE_ICON });
     await act(async () => button().props.onPress({ stopPropagation() {} }));
-    expect(state()).toEqual({ label: "Show original", glyph: "Undo2" });
+    expect(state()).toEqual({ label: "Show original", glyph: SHOW_ORIGINAL_ICON });
     expect(mocks.rpc).toHaveBeenCalledOnce();
   });
 
@@ -799,7 +799,7 @@ describe("timeline translation", () => {
     const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate");
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     await vi.waitFor(() => expect(button().props.accessibilityLabel).toBe("显示原文"));
-    expect(renderer!.root.findAll((node) => String(node.type) === "Icon" && node.props.name === "Undo2")).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => String(node.type) === "Icon" && node.props.icon === SHOW_ORIGINAL_ICON)).toHaveLength(1);
   });
 
   it("keeps the original visible during translation and offers retry on failure", async () => {

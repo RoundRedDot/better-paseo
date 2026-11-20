@@ -11,7 +11,7 @@ import { useEnhancerPreferences } from "../preferences";
 import { selectionViewLoading, selectionViewMessage, selectionViewRetryable, createSelectionTranslation, type SelectionTranslationView } from "./selection";
 import { useTranslationSettingsState } from "./settings-store";
 import { translationAgentConfigStoreFor, useTranslateCaller, type TranslationSourceKind } from "./store";
-import { TRANSLATE_ICON } from "./ui";
+import { SHOW_ORIGINAL_ICON, TRANSLATE_ICON } from "./ui";
 import { useHover } from "../ui/use-hover";
 import { hoverFill } from "../tasks/hover-fill";
 import { iconHoverSize } from "../ui/icon-hover-size";
@@ -65,7 +65,7 @@ export function InlineTranslateButton({ state, theme, testID, base, timeline = f
   const icon = loading
     ? <SpinnerRing size={14} color={tokens.foregroundMuted} testID={`${testID}-spinner`} />
     : showingTranslation
-      ? <Icon name="Undo2" size={14} color={tokens.foregroundMuted} />
+      ? <Icon icon={SHOW_ORIGINAL_ICON} size={14} color={tokens.foregroundMuted} />
       : <Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} />;
   if (timeline) return <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}><TooltipSideContext.Provider value="auto"><ToolbarItem testID={testID} label={label} tokens={tokens} align="end"
     buttonStyle={{ width: 24, height: 24, borderRadius: radiusV2.block }}
