@@ -1256,7 +1256,7 @@ function Section(props: Inner & { section: DetailSection; replyStreaming: boolea
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
             {read?.prompt.state === "ready" && props.translationAgentId ? <MessageTranslateButton
               agentId={props.translationAgentId} kind={section === "message" ? "assistant_message" : "user_message"}
-              text={read.prompt.text} streaming={section === "message" && props.replyStreaming} theme={props.theme} testID={`${testID}-translate`} /> : null}
+              text={read.prompt.text} streaming={section === "message" && props.replyStreaming} theme={props.theme} base={tokens.card.background} testID={`${testID}-translate`} /> : null}
             {read?.prompt.state === "ready" ? (
               <DetailCopyButton label={copyLabel} tokens={tokens} copied={copied} testID={`${testID}-copy`} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} />
             ) : null}

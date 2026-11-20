@@ -1196,9 +1196,11 @@ A card that waits on a request names the request, then gives its answers.
   28%. Values are 2xl in the turn hero and lg in summary tiles.
 - Sections are divided by a hairline inset 12; a heading is a radius-6 row whose chevron turns −90°
   when closed and whose muted text turns `foreground` on hover. A message heading ends with the
-  message's own time, and its tip gives the full timestamp. Its Copy button keeps a 32 pt
-  target with a centered circular hover and press fill sized to `round(icon size × 1.7)`;
-  the 14 pt icon therefore has a 24 pt fill. The same rule applies to all three message headings.
+  message's own time, and its tip gives the full timestamp. Its Translate and Copy buttons share
+  a 32 pt target, a 14 pt icon and a centered circular hover and press fill sized to
+  `round(icon size × 1.7)` (24 pt). Mix the fill against the actual card surface, including
+  in dark themes, and keep the larger target independent of the visible fill. Apply this rule
+  to all three message headings and preserve each action's tooltip and behaviour.
 - Message bodies sit in a `sunk` box of radius 8 and fold after 4 lines or 240 characters under a
   fade; while the timeline is read they breathe as a skeleton instead of saying Loading.
 - While a visible, open agent is running, assistant-message events and subscription recovery

@@ -85,6 +85,19 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it("matches the translation button's icon and hover feedback to copy", async () => {
+    const message = { prompt: { state: "ready" as const, text: "Reply" }, load() {} };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} lastMessage={message} translationAgentId="session-1" columns={false} tabs />); });
+    const translate = host(renderer!.root, "detail-message-translate");
+    const copy = host(renderer!.root, "detail-message-copy");
+    await act(async () => { translate.props.onHoverIn({}); copy.props.onHoverIn({}); });
+    const translateFill = host(renderer!.root, "detail-message-translate-fill");
+    const copyFill = host(renderer!.root, "detail-message-copy-fill");
+    expect(translateFill.props.style).toEqual(copyFill.props.style);
+    expect(translateFill.findByType(Icon).props.size).toBe(copyFill.findByType(Icon).props.size);
+    expect(translate.props.style).toEqual(copy.props.style);
+  });
+
   it("scopes first, human and reply text to the real session, keeping previews unscoped", async () => {
     const base = props(false);
     const messages = {

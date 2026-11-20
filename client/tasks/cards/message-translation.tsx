@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from "react";
-import { Platform, View, useWindowDimensions } from "react-native";
+import { Platform, Pressable, View, useWindowDimensions } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { useThemeTokens } from "../../components/theme-tokens";
@@ -10,7 +10,9 @@ import { useTranslationSettingsState } from "../../translation/settings-store";
 import type { TranslationSourceKind } from "../../translation/store";
 import { SelectionTranslationPanel, TranslationSheet, TRANSLATE_ICON } from "../../translation/ui";
 import { AnchoredToolbarDetails } from "../../ui/toolbar-button";
-import { HoverControl } from "../hover-control";
+import { iconHoverSize } from "../../ui/icon-hover-size";
+import { useHover } from "../../ui/use-hover";
+import { hoverFill } from "../hover-fill";
 import { tipProps } from "./card-hints";
 
 type Props = {
@@ -22,6 +24,7 @@ type Props = {
   testID: string;
   size?: number;
   onOpenChange?(open: boolean): void;
+  base?: string;
 };
 
 /** One explicit whole-message translation, with the same controller as text selections. */
@@ -38,14 +41,19 @@ function MessageTranslationButton(props: Props) {
   const anchor = useRef<View>(null);
   useEffect(() => () => props.onOpenChange?.(false), [props.onOpenChange]);
   const close = () => { setText(null); props.onOpenChange?.(false); };
+  const { hovered, hoverProps } = useHover();
   const label = toolbarLabel("Translate", preferences.language);
+  const iconSize = 14;
+  const fillSize = iconHoverSize(iconSize);
   return <View ref={anchor} collapsable={false}>
-    <HoverControl base={tokens.surface0} foreground={tokens.foreground} accessibilityRole="button" accessibilityLabel={label}
-      {...tipProps(label)} testID={props.testID} hitSlop={4}
+    <Pressable accessibilityRole="button" accessibilityLabel={label}
+      {...tipProps(label)} {...hoverProps} testID={props.testID} hitSlop={4}
       onPress={(event) => { event.stopPropagation(); setText(props.text); props.onOpenChange?.(true); }}
-      style={{ width: props.size ?? 32, height: props.size ?? 32, alignItems: "center", justifyContent: "center", borderRadius: 16 }}>
-      <Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} />
-    </HoverControl>
+      style={{ width: props.size ?? 32, height: props.size ?? 32, alignItems: "center", justifyContent: "center" }}>
+      {({ pressed }) => <View pointerEvents="none" testID={`${props.testID}-fill`} style={{ width: fillSize, height: fillSize, borderRadius: fillSize / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}>
+        <Icon icon={TRANSLATE_ICON} size={iconSize} color={tokens.foregroundMuted} />
+      </View>}
+    </Pressable>
     {text !== null ? <MessageTranslationResult {...props} text={text} anchor={anchor} close={close} /> : null}
   </View>;
 }
