@@ -36,6 +36,12 @@ class ElementMock extends EventTarget {
   attachShadow() { return this.shadowRoot = new ElementMock(); }
   appendChild(child: ElementMock) { child.parentElement = this; this.children.push(child); return child; }
   remove() { this.parentElement?.children.splice(this.parentElement.children.indexOf(this), 1); }
+  contains(node: unknown): boolean {
+    for (let at = node as ElementMock | null; at; at = at.parentElement) if (at === this) return true;
+    return false;
+  }
+  box = { left: 0, top: 0, right: 1024, bottom: 768 };
+  getBoundingClientRect() { return this.box; }
   closest(selector: string) { return selector === "[data-bcselection]" ? this : null; }
 }
 
@@ -51,14 +57,34 @@ let page: EventTarget;
 let doc: EventTarget;
 let body: ElementMock;
 let selection: { isCollapsed: boolean; toString(): string };
+/** The selected text's line, as the browser reports it; a scroll moves it. */
+let line: { left: number; right: number; top: number; bottom: number; width: number; height: number };
+/** The chat's scroller, holding the selected text. */
+let scroller: ElementMock;
 let captureScroll: (event: Event) => void;
-const display = () => body.children[0]!.style.getPropertyValue("display");
+const host = () => body.children[0]!;
+const display = () => host().style.getPropertyValue("display");
+const top = () => Number.parseFloat(host().style.getPropertyValue("top"));
 function select() { doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0); }
-function scroll(nested: boolean) {
+function on(target: EventTarget, type: string, from: unknown = scroller) {
+  const event = new Event(type);
+  Object.defineProperty(event, "target", { value: from });
+  target.dispatchEvent(event);
+}
+type Cause = "wheel" | "touch" | "key" | "page";
+/**
+ * One scroll of the chat (`nested`) or the window. The reader's scrolls come
+ * from a wheel, a touch, or a key just before; the page's own come alone.
+ */
+function scroll(nested: boolean, cause: Cause = "wheel", by = 0) {
+  if (cause === "wheel") on(doc, "wheel");
+  if (cause === "touch") on(doc, "touchmove");
+  if (cause === "key") doc.dispatchEvent(Object.assign(new Event("keydown"), { key: "PageDown" }));
+  line = { ...line, top: line.top - by, bottom: line.bottom - by };
   const event = new Event("scroll");
   if (nested) {
     // Element scroll events do not bubble: they reach window in capture only.
-    Object.defineProperty(event, "target", { value: new ElementMock() });
+    Object.defineProperty(event, "target", { value: scroller });
     captureScroll(event);
   } else page.dispatchEvent(event);
   vi.advanceTimersByTime(100);
@@ -72,13 +98,14 @@ beforeEach(() => {
   page = new EventTarget();
   doc = new EventTarget();
   body = new ElementMock();
-  const text = new ElementMock();
+  scroller = new ElementMock();
+  scroller.box = { left: 0, top: 60, right: 1024, bottom: 700 };
+  const text = scroller.appendChild(new ElementMock());
+  line = { left: 120, right: 220, top: 200, bottom: 220, width: 100, height: 20 };
   selection = Object.assign({
     isCollapsed: false, toString: () => "selected output", rangeCount: 1,
     anchorNode: text, focusNode: text,
-    getRangeAt: () => ({ commonAncestorContainer: text,
-      getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }],
-    }),
+    getRangeAt: () => ({ commonAncestorContainer: text, getClientRects: () => [line] }),
   });
   const add = page.addEventListener.bind(page);
   vi.spyOn(page, "addEventListener").mockImplementation((type, listener, options) => {
@@ -102,20 +129,91 @@ afterEach(() => {
 });
 
 describe("selection bar scroll dismissal", () => {
-  it.each([true, false])("hides on scroll (nested=%s), keeps the highlight, and reopens for a new selection", (nested) => {
-    scroll(nested);
+  it.each([
+    [true, "wheel"], [false, "wheel"], [true, "touch"], [true, "key"],
+  ] as const)("hides on the reader's scroll (nested=%s, %s), keeps the highlight, and reopens for a new selection", (nested, cause) => {
+    scroll(nested, cause, 40);
     expect(display()).toBe("none");
     expect(selection.isCollapsed).toBe(false);
     page.dispatchEvent(new Event("resize"));
-    scroll(nested);
+    scroll(nested, "page");
     expect(display()).toBe("none");
     select();
     expect(display()).toBe("block");
   });
 
-  it("does not reopen from a selection update queued before scrolling", () => {
-    doc.dispatchEvent(new Event("selectionchange"));
-    scroll(true);
+  it("hides when the reader drags the chat's scrollbar", () => {
+    on(doc, "pointerdown", scroller);
+    select();
+    expect(display()).toBe("block");
+    scroll(true, "page", 40);
     expect(display()).toBe("none");
+    on(doc, "pointerup", scroller);
+  });
+
+  it("hides when the reader drags an overlay scrollbar drawn beside the chat", () => {
+    on(doc, "pointerdown", new ElementMock());
+    select();
+    expect(display()).toBe("block");
+    scroll(true, "page", 40);
+    expect(display()).toBe("none");
+  });
+
+  it("stays while the chat scrolls by itself under a press on its text", () => {
+    const text = scroller.appendChild(new ElementMock());
+    on(doc, "pointerdown", text);
+    select();
+    scroll(true, "page", 20);
+    expect(display()).toBe("block");
+    on(doc, "pointerup", text);
+  });
+
+  it("does not reopen from a selection update queued before the reader scrolls", () => {
+    doc.dispatchEvent(new Event("selectionchange"));
+    scroll(true, "wheel");
+    expect(display()).toBe("none");
+  });
+
+  // A double-clicked word in a chat that is still writing its reply: the host
+  // keeps the chat pinned to its end and scrolls it a moment after the
+  // selection, with no wheel or key from the reader.
+  it("stays with a double-clicked word while the chat follows its streaming output", () => {
+    on(doc, "pointerdown", new ElementMock());
+    vi.advanceTimersByTime(100);
+    expect(display()).toBe("none");
+    on(doc, "pointerup", new ElementMock());
+    select();
+    expect(display()).toBe("block");
+    const before = top();
+    scroll(true, "page", 24);
+    expect(display()).toBe("block");
+    expect(top()).toBe(before - 24);
+    scroll(false, "page");
+    expect(display()).toBe("block");
+  });
+
+  it("follows a page scroll that comes after the reader's gesture has ended", () => {
+    on(doc, "wheel");
+    vi.advanceTimersByTime(1000);
+    scroll(true, "page", 10);
+    expect(display()).toBe("block");
+  });
+
+  it("hides while the page carries the selection out of the chat, and returns with it", () => {
+    scroll(true, "page", 400);
+    expect(display()).toBe("none");
+    scroll(true, "page", -400);
+    expect(display()).toBe("block");
+  });
+
+  it("keeps a bar put away by a press elsewhere away while the page scrolls", () => {
+    on(doc, "pointerdown", new ElementMock());
+    on(doc, "pointerup", new ElementMock());
+    vi.advanceTimersByTime(100);
+    expect(display()).toBe("none");
+    scroll(true, "page", 10);
+    expect(display()).toBe("none");
+    select();
+    expect(display()).toBe("block");
   });
 });

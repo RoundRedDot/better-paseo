@@ -93,6 +93,13 @@ const PANEL_BODY_MIN = 48;
 const COPIED_MS = 1200;
 
 const GAP = 8;
+/**
+ * How long after a wheel, touch move, or scrolling key a scroll still counts
+ * as the reader's own. Any later scroll is the page moving by itself.
+ */
+const USER_SCROLL_MS = 400;
+/** Keys that scroll the page when focus is not in a field. */
+const SCROLL_KEYS = new Set(["PageUp", "PageDown", "Home", "End", "ArrowUp", "ArrowDown", " "]);
 /** How long a pressed button shows its check before the bar steps aside. */
 const DONE_MS = 700;
 /** The bar's fade out, after which it leaves the page. */
@@ -987,10 +994,28 @@ function translationOffered(): boolean {
   return !(settings.status === "ready" && !settings.values.enabled);
 }
 
+/** Whether `rect` shows inside `clip`, the element that just scrolled. */
+function visibleIn(rect: DOMRect, clip: Element | null, surface: Element): boolean {
+  if (!clip || !clip.contains(surface)) return true;
+  const box = clip.getBoundingClientRect();
+  return rect.bottom > box.top && rect.top < box.bottom && rect.right > box.left && rect.left < box.right;
+}
+
 function startController(): Controller {
-  // Set after an action or scroll, until the selection changes: keep the
-  // highlight without letting a queued update bring the bar back over it.
+  // Set after an action or the reader's own scroll, until the selection
+  // changes: keep the highlight without letting a queued update bring the bar
+  // back over it.
   let dismissed = false;
+  /** When the reader last turned a wheel, moved a touch, or pressed a scrolling key. */
+  let gestureAt = Number.NEGATIVE_INFINITY;
+  /**
+   * What the held pointer pressed. Dragging a scrollbar, the element's own or
+   * an overlay beside it, scrolls with the button down; a press on the
+   * content inside (a double click, a selection drag) is not scrolling it.
+   */
+  let pressed: EventTarget | null = null;
+  /** The element a page-driven scroll moved, to hide the bar once its selection leaves it. */
+  let scrolled: Element | null = null;
   /** The selection Translate was pressed for, and its job. */
   let translation: { snapshot: Snapshot; job: SelectionTranslation; release(): void } | null = null;
 
@@ -1056,6 +1081,8 @@ function startController(): Controller {
 
   const sync = () => {
     pending = 0;
+    const clip = scrolled;
+    scrolled = null;
     const snapshot = dismissed ? null : readSelection();
     if (!snapshot) {
       if (translation) return;
@@ -1067,6 +1094,11 @@ function startController(): Controller {
     if (translation && !sameSelection(translation.snapshot, snapshot)) endTranslation(true);
     if (translation && snapshot.scope) {
       translation.job.setStreaming(snapshot.scope.streaming);
+      return;
+    }
+    // A reply following its output can carry the selection out of its pane.
+    if (!visibleIn(snapshot.rect, clip, snapshot.surface)) {
+      hide();
       return;
     }
     bar.setTranslatable(snapshot.scope !== null && translationOffered());
@@ -1081,15 +1113,33 @@ function startController(): Controller {
     pending = window.setTimeout(sync, 0);
   };
 
+  /** Events from inside the shadow root are retargeted to the host. */
+  const onBar = (target: EventTarget | null) => target instanceof Node && bar.host.contains(target);
+
   const onPointerDown = (event: Event) => {
-    const target = event.target;
-    // Events from inside the shadow root are retargeted to the host, so a press
-    // on a button reads as a press on the bar and leaves it open.
-    if (target instanceof Node && bar.host.contains(target)) return;
+    // A press on a button reads as a press on the bar and leaves it open.
+    if (onBar(event.target)) return;
+    pressed = event.target;
+    // A press elsewhere puts the bar away until the selection changes; a
+    // press that selects (a double click) changes it, and brings the bar.
+    dismissed = true;
     hide();
+  };
+  const onPointerUp = () => {
+    pressed = null;
+  };
+  const draggingScrollbar = (target: EventTarget | null) => {
+    if (pressed === null) return false;
+    if (pressed === target) return true;
+    const scroller = target as Node | null;
+    return !(typeof scroller?.contains === "function" && pressed instanceof Node && scroller.contains(pressed));
+  };
+  const onGesture = (event: Event) => {
+    if (!onBar(event.target)) gestureAt = Date.now();
   };
   const onKeyDown = (event: KeyboardEvent) => {
     if (event.key === "Escape") hide();
+    else if (SCROLL_KEYS.has(event.key)) gestureAt = Date.now();
   };
 
   const onSelectionChange = () => {
@@ -1098,10 +1148,20 @@ function startController(): Controller {
   };
   // Scrolling inside the panel does not reach here: scroll events do not
   // cross the shadow root.
-  const onScroll = () => {
+  const onScroll = (event: Event) => {
     if (translation) return;
-    dismissed = true;
-    hide();
+    // The reader's own scroll puts the bar away, as a press does.
+    const own = Date.now() - gestureAt < USER_SCROLL_MS || draggingScrollbar(event.target);
+    if (own) {
+      dismissed = true;
+      hide();
+      return;
+    }
+    // The page scrolled by itself: a reply following its output, a list
+    // keeping its place. The highlight stays, so the bar follows it.
+    const target = event.target as Element | null;
+    scrolled = typeof target?.getBoundingClientRect === "function" ? target : null;
+    schedule();
   };
   const onResize = () => {
     if (translation) bar.reposition();
@@ -1117,8 +1177,13 @@ function startController(): Controller {
 
   document.addEventListener("selectionchange", onSelectionChange);
   document.addEventListener("pointerdown", onPointerDown, true);
+  document.addEventListener("pointerup", onPointerUp, true);
+  document.addEventListener("pointercancel", onPointerUp, true);
+  document.addEventListener("wheel", onGesture, { capture: true, passive: true });
+  document.addEventListener("touchmove", onGesture, { capture: true, passive: true });
   document.addEventListener("keydown", onKeyDown, true);
-  // Dismiss the selection bar on scroll; an open translation stays in place.
+  // The reader's scroll dismisses the bar, the page's own scroll moves it;
+  // an open translation stays in place either way.
   window.addEventListener("scroll", onScroll, true);
   window.addEventListener("resize", onResize);
 
@@ -1133,6 +1198,10 @@ function startController(): Controller {
       window.clearTimeout(pending);
       document.removeEventListener("selectionchange", onSelectionChange);
       document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("pointerup", onPointerUp, true);
+      document.removeEventListener("pointercancel", onPointerUp, true);
+      document.removeEventListener("wheel", onGesture, true);
+      document.removeEventListener("touchmove", onGesture, true);
       document.removeEventListener("keydown", onKeyDown, true);
       window.removeEventListener("scroll", onScroll, true);
       window.removeEventListener("resize", onResize);
