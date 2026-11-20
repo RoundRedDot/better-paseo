@@ -292,13 +292,24 @@ describe("preferences read while the plugin loads", () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const { contribute, slot, React, renderer } = await load();
     const store = await import("../../client/translation/settings-store");
-    const changed = { status: "ready", revision: "t3" };
-    const readTranslation = vi.fn(async () => changed);
+    const reload = vi.fn(() => Promise.resolve());
+    const first = { status: "ready", revision: "t1", values: { enabled: true, customModel: true, provider: "codex", model: "gpt-5", targetLanguage: "en" }, save: vi.fn(), reset: vi.fn(), reload };
+    // The daemon's record; the plugin's own reads answer when the test lets them.
+    let daemon: { status: string; revision: string; values: unknown } = first;
+    const answers: (() => void)[] = [];
+    const readTranslation = vi.fn(() => {
+      const seen = daemon;
+      return new Promise((resolve) => answers.push(() => resolve(seen)));
+    });
+    const answer = async () => {
+      await renderer.act(async () => {
+        while (answers.length) answers.shift()!();
+        await flush();
+      });
+    };
     const plugin = fakeClient(() => Promise.resolve(null), readTranslation);
     const cleanup = contribute(plugin.client as never);
     await flush();
-    const reload = vi.fn(() => Promise.resolve());
-    const first = { status: "ready", revision: "t1", values: { enabled: true, customModel: true, provider: "codex", model: "gpt-5", targetLanguage: "en" }, save: vi.fn(), reset: vi.fn(), reload };
     host.settings = first;
     // A row's settings slot, reading the host's copy (`useSettings` answers `host.settings`).
     const Row = () => React.createElement(slot.PreferenceSyncSlot);
@@ -320,48 +331,56 @@ describe("preferences read while the plugin loads", () => {
 
     // Another client changes the target while no row is mounted; the host
     // marks its copy stale but does not read it until asked.
+    const second = { ...first, revision: "t2", values: { ...first.values, targetLanguage: "ja" } };
+    daemon = second;
     plugin.push("timeline-translation");
     await flush();
-    let settle!: () => void;
-    reload.mockImplementation(() => new Promise<void>((resolve) => (settle = resolve)));
-    await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
-    await flush();
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(readTranslation).toHaveBeenCalledOnce();
     // While the record is read again, the old settings neither show the cached result nor send.
     expect(store.getTranslationSettingsState().status).toBe("loading");
     const during = select();
     during.start();
     expect(during.view()).toEqual({ status: "settings-loading" });
-    host.settings = { ...first, revision: "t2", values: { ...first.values, targetLanguage: "ja" } };
-    await renderer.act(async () => settle());
+    // A row mounts on the host's retained t1 copy before the read answers.
+    await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
+    expect(store.getTranslationSettingsState().status).toBe("loading");
+    expect(during.view()).toEqual({ status: "settings-loading" });
+    expect(call).toHaveBeenCalledOnce();
+    await answer();
     expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t2", values: { targetLanguage: "ja" } });
+    // The host's copy is older than the record read: it is read again.
+    expect(reload).toHaveBeenCalledTimes(1);
+    host.settings = second;
+    await renderer.act(async () => { row.update(React.createElement(Row)); });
     await flush();
     expect(call).toHaveBeenCalledTimes(2);
     expect(JSON.parse((call.mock.calls[1] as unknown as [{ configSignature: string }])[0].configSignature)).toMatchObject({ targetCode: "ja" });
     during.dispose();
 
-    // The leader can leave before the host's read reports. Its replacement
-    // must not reuse t2 while the missed change is still being read.
+    // The leader can leave before the change is read. Its replacement must
+    // not reuse t2 while the missed change is still being read.
+    daemon = { ...first, revision: "t3" };
     plugin.push("timeline-translation");
     await flush();
-    expect(readTranslation).toHaveBeenCalledOnce();
+    expect(readTranslation).toHaveBeenCalledTimes(2);
+    expect(store.getTranslationSettingsState().status).toBe("loading");
     await renderer.act(async () => row.unmount());
     await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
-    expect(reload).toHaveBeenCalledTimes(2);
     expect(store.getTranslationSettingsState().status).toBe("loading");
-    host.settings = { ...first, revision: "t3" };
-    await renderer.act(async () => settle());
+    await answer();
     expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t3" });
+    expect(reload).toHaveBeenCalledTimes(2);
     await renderer.act(async () => row.unmount());
     cleanup();
   });
 
-  it("does not reopen cached translation settings after an older read or a failed reload", async () => {
+  it("does not reopen cached translation settings after an older read or a failed read", async () => {
     (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
     const { React, renderer } = await load();
     const store = await import("../../client/translation/settings-store");
-    const reads: { resolve(): void; reject(error: Error): void }[] = [];
-    const reload = vi.fn(() => new Promise<void>((resolve, reject) => { reads.push({ resolve, reject }); }));
+    const reads: { resolve(record: unknown): void; reject(error: Error): void }[] = [];
+    const read = vi.fn(() => new Promise((resolve, reject) => { reads.push({ resolve, reject }); }));
+    const reload = vi.fn(() => Promise.resolve());
     const cached = {
       status: "ready" as const, revision: "t1", values: store.DEFAULT_TIMELINE_TRANSLATION_SETTINGS,
       saving: false, saveError: null, save: vi.fn(), reset: vi.fn(), reload,
@@ -375,27 +394,38 @@ describe("preferences read while the plugin loads", () => {
     };
     const initial = await mount();
     await renderer.act(async () => initial.unmount());
-    store.noteTranslationSettingsChanged();
+    store.noteTranslationSettingsChanged(read);
     const first = await mount();
+    // The host's cached t1 is not shown while the change is read.
+    expect(store.getTranslationSettingsState().status).toBe("loading");
     await renderer.act(async () => first.unmount());
     const second = await mount();
-    expect(reload).toHaveBeenCalledTimes(2);
-    await renderer.act(async () => store.noteTranslationSettingsChanged());
-    expect(reload).toHaveBeenCalledTimes(3);
-    await renderer.act(async () => reads[0]!.resolve());
+    expect(store.getTranslationSettingsState().status).toBe("loading");
+    await renderer.act(async () => store.noteTranslationSettingsChanged(read));
+    await renderer.act(async () => store.noteTranslationSettingsChanged(read));
+    expect(read).toHaveBeenCalledTimes(3);
+    await renderer.act(async () => reads[0]!.resolve({ status: "ready", revision: "t1", values: {} }));
     await renderer.act(async () => reads[1]!.reject(new Error("superseded")));
     expect(store.getTranslationSettingsState().status).toBe("loading");
     await renderer.act(async () => reads[2]!.reject(new Error("settings offline")));
     expect(store.getTranslationSettingsState()).toMatchObject({ status: "error", error: "settings offline" });
     await renderer.act(async () => second.unmount());
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "error", error: "settings offline" });
+    // The next hook reads again; its cached t1 still does not reopen.
     const third = await mount();
-    current = { ...cached, revision: "t2" };
-    await renderer.act(async () => reads[3]!.resolve());
+    expect(read).toHaveBeenCalledTimes(4);
+    expect(store.getTranslationSettingsState().status).toBe("loading");
+    await renderer.act(async () => reads[3]!.resolve({ status: "ready", revision: "t2", values: {} }));
     expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t2" });
+    expect(reload).toHaveBeenCalledOnce();
+    current = { ...cached, revision: "t2" };
+    await renderer.act(async () => third.update(React.createElement(Report)));
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t2" });
+    expect(read).toHaveBeenCalledTimes(4);
     await renderer.act(async () => third.unmount());
   });
 
-  it("observes a refetch error even though the host reload fulfills", async () => {
+  it("observes a failed read and recovers without reopening the host's cached copy", async () => {
     const { React, renderer, slot } = await load();
     const { QueryClient, QueryClientProvider, useQuery } = await import("@tanstack/react-query");
     const store = await import("../../client/translation/settings-store");
@@ -425,9 +455,12 @@ describe("preferences read while the plugin loads", () => {
     expect(read).not.toHaveBeenCalled();
     // The host invalidates its shared query on a push while an observer is active.
     const current = { ...cached, revision: "t2" };
+    // The daemon's record, as the plugin's own settings RPC reads it.
+    let daemon: typeof cached = current;
+    const daemonRead = vi.fn(async () => daemon);
     read.mockResolvedValueOnce(current);
     await renderer.act(async () => {
-      store.noteTranslationSettingsChanged(async () => current);
+      store.noteTranslationSettingsChanged(daemonRead);
       await client.invalidateQueries({ queryKey: key });
     });
     await renderer.act(async () => {
@@ -440,6 +473,7 @@ describe("preferences read while the plugin loads", () => {
     // The host has already applied a save, then both observers see a push.
     // A refetch with the same data does not change the hook's public state.
     const saved = { ...current, revision: "t3", values: { ...current.values, enabled: false } };
+    daemon = saved;
     await renderer.act(async () => { client.setQueryData(key, saved); });
     await renderer.act(async () => {
       await vi.waitFor(() => expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t3" }));
@@ -458,15 +492,32 @@ describe("preferences read while the plugin loads", () => {
     const reopened = await mount();
     expect(reloadFulfilled).not.toHaveBeenCalled();
     await renderer.act(async () => reopened.unmount());
+    expect(read).toHaveBeenCalledTimes(2);
     stop();
-    store.noteTranslationSettingsChanged();
-    read.mockRejectedValueOnce(new Error("query failed"));
-    const failed = await mount();
-    expect(reloadFulfilled).toHaveBeenCalledOnce();
+    // A change while unmounted whose read fails, and fails again for the next hook.
+    daemon = current;
+    const failing = vi.fn<() => Promise<unknown>>()
+      .mockRejectedValueOnce(new Error("query failed"))
+      .mockRejectedValueOnce(new Error("query failed"))
+      .mockImplementation(async () => daemon);
+    await renderer.act(async () => store.noteTranslationSettingsChanged(failing));
     expect(store.getTranslationSettingsState()).toMatchObject({ status: "error", error: "query failed", revision: null });
+    const failed = await mount();
+    expect(failing).toHaveBeenCalledTimes(2);
+    // The host's cached t3 is not reopened while the record cannot be read.
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "error", error: "query failed", revision: null });
+    expect(reloadFulfilled).not.toHaveBeenCalled();
     await renderer.act(async () => failed.unmount());
     read.mockResolvedValueOnce(current);
     const recovered = await mount();
+    expect(failing).toHaveBeenCalledTimes(3);
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t2" });
+    // The host's copy (t3) is older than the record read: it is read again.
+    await renderer.act(async () => {
+      await vi.waitFor(() => expect(reloadFulfilled).toHaveBeenCalledOnce());
+    });
+    expect(read).toHaveBeenCalledTimes(3);
+    expect(client.getQueryData(key)).toMatchObject({ revision: "t2" });
     expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t2" });
     await renderer.act(async () => recovered.unmount());
     client.clear();
@@ -514,6 +565,12 @@ describe("preferences read while the plugin loads", () => {
       });
       return row;
     };
+    // The revisions the store showed (ready or invalid).
+    const shown: (string | null)[] = [];
+    const stopSpy = store.translationSettingsSync.subscribe(() => {
+      const state = store.getTranslationSettingsState();
+      if (state.status === "ready" || state.status === "invalid") shown.push(state.revision);
+    });
     let row = await mount();
     await renderer.act(async () => {
       if (initialLoad) {
@@ -528,24 +585,36 @@ describe("preferences read while the plugin loads", () => {
       }
       daemon = latest;
       plugin.push("timeline-translation");
+      // From the latest push on, only t3 may show.
+      shown.length = 0;
+      expect(store.getTranslationSettingsState().status).toBe("loading");
       void client.invalidateQueries({ queryKey: key });
       if (!initialLoad) client.setQueryData(key, intermediate);
     });
     await renderer.act(async () => {
-      await vi.waitFor(() => expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t2" }));
+      await vi.waitFor(() => expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t3" }));
     });
-    expect(confirm).toHaveBeenCalledTimes(initialLoad ? 1 : 2);
+    // The host still holds t2 (a delayed save or its first read), with its
+    // invalidation reads in flight.
+    expect(client.getQueryData(key)).toMatchObject({ revision: "t2" });
     await renderer.act(async () => row.unmount());
-    expect(store.getTranslationSettingsState().status).toBe("loading");
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t3" });
 
     read.mockResolvedValueOnce(latest);
     row = await mount();
-    expect(reload).toHaveBeenCalledOnce();
+    await renderer.act(async () => {
+      await vi.waitFor(() => expect(client.getQueryData(key)).toMatchObject({ revision: "t3" }));
+    });
+    expect(reload).toHaveBeenCalled();
     expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t3" });
     await renderer.act(async () => {
       for (const finish of finishPushReads) finish(intermediate);
     });
     expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t3" });
+    expect(client.getQueryData(key)).toMatchObject({ revision: "t3" });
+    expect(shown.length).toBeGreaterThan(0);
+    expect(shown.filter((revision) => revision !== "t3")).toEqual([]);
+    stopSpy();
     await renderer.act(async () => row.unmount());
     stop();
     client.clear();
