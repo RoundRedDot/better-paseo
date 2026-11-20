@@ -169,9 +169,10 @@ export function resetTranslationSettingsStoreForTests(): void {
 // preferences do, `preference-sync-slot.tsx`).
 let mountedReports = 0;
 let hostCopyStale = false;
-// A push has no revision. Keep the last reported revision until the host
-// delivers a new one or a reload confirms the record at the current revision.
-let pendingChange: { revision: string | null } | null = null;
+type SettingsRevision = { status: "ready" | "invalid"; revision: string };
+// A push has no revision. A host report can still be from an earlier read
+// or save, so only acknowledge the record confirmed for the latest push.
+let pendingChange: { confirmed?: SettingsRevision } | null = null;
 let activeReload: object | null = null;
 let reloadCompleted = false;
 let failedRevision: string | null | undefined;
@@ -189,10 +190,16 @@ function notifyRefresh() {
   for (const listener of refreshListeners) listener();
 }
 
+function acknowledgeChange(record: Pick<TranslationSettingsSnapshot, "status" | "revision">): void {
+  const confirmed = pendingChange?.confirmed;
+  if (confirmed && confirmed.status === record.status && confirmed.revision === record.revision) {
+    pendingChange = null;
+  }
+}
+
 /** The daemon changed the record (`plugin_settings_changed`). */
-export function noteTranslationSettingsChanged(read?: () => Promise<{ status: "ready" | "invalid"; revision: string }>): void {
-  const snapshot = translationSettingsSync.snapshot();
-  const change = { revision: snapshot.revision };
+export function noteTranslationSettingsChanged(read?: () => Promise<SettingsRevision>): void {
+  const change: NonNullable<typeof pendingChange> = {};
   pendingChange = change;
   if (activeReload || reloadCompleted) {
     // This push can replace the host's refetch. Only the new read may report.
@@ -207,14 +214,12 @@ export function noteTranslationSettingsChanged(read?: () => Promise<{ status: "r
     translationSettingsSync.report({ status: "loading" });
     return;
   }
-  // The host reports a new revision, but a same-revision refetch does not
-  // change the hook state. Confirm that case with the settings RPC.
-  if (read && !hostCopyStale && (snapshot.status === "ready" || snapshot.status === "invalid")) {
+  if (read && !hostCopyStale) {
     void read().then((record) => {
-      if (pendingChange === change && translationSettingsSync.snapshot() === snapshot &&
-        record.status === snapshot.status && record.revision === snapshot.revision) {
-        pendingChange = null;
-      }
+      if (pendingChange !== change) return;
+      change.confirmed = record;
+      // A same-revision refetch may not cause the hook to report again.
+      acknowledgeChange(translationSettingsSync.snapshot());
     }, () => {
       // The settings hook still owns the read and reports its own errors.
     });
@@ -280,7 +285,8 @@ export function useTranslationSettingsReport(state: SettingsState<typeof TIMELIN
     if (hostCopyStale || activeReload) return;
     if (remote.status === "ready" || remote.status === "invalid") {
       if (remote.revision === failedRevision) return;
-      if (reloadCompleted || remote.revision !== pendingChange?.revision) pendingChange = null;
+      if (reloadCompleted) pendingChange = null;
+      else acknowledgeChange(remote);
     }
     reloadCompleted = false;
     failedRevision = undefined;

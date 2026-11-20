@@ -427,7 +427,7 @@ describe("preferences read while the plugin loads", () => {
     const current = { ...cached, revision: "t2" };
     read.mockResolvedValueOnce(current);
     await renderer.act(async () => {
-      store.noteTranslationSettingsChanged();
+      store.noteTranslationSettingsChanged(async () => current);
       await client.invalidateQueries({ queryKey: key });
     });
     await renderer.act(async () => {
@@ -469,6 +469,85 @@ describe("preferences read while the plugin loads", () => {
     const recovered = await mount();
     expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t2" });
     await renderer.act(async () => recovered.unmount());
+    client.clear();
+  });
+
+  it.each([false, true])("does not retire the latest notification after an intermediate host revision (initial load=%s)", async (initialLoad) => {
+    const { React, renderer, slot } = await load();
+    const { QueryClient, QueryClientProvider, useQuery } = await import("@tanstack/react-query");
+    const store = await import("../../client/translation/settings-store");
+    const client = new QueryClient();
+    const key = ["translation-settings"];
+    const first = { status: "ready" as const, revision: "t1", values: store.DEFAULT_TIMELINE_TRANSLATION_SETTINGS };
+    const intermediate = { ...first, revision: "t2", values: { ...first.values, targetLanguage: "ja" } };
+    const latest = { ...first, revision: "t3", values: { ...first.values, targetLanguage: "en" } };
+    let daemon = first;
+    const confirm = vi.fn(async () => daemon);
+    const plugin = fakeClient(async () => null, confirm);
+    const stop = slot.watchPreferenceChanges(plugin.client as never);
+    const read = vi.fn<() => Promise<typeof first>>();
+    let finishInitial!: (record: typeof first) => void;
+    if (initialLoad) {
+      read.mockImplementationOnce(() => new Promise((resolve) => { finishInitial = resolve; }));
+    } else {
+      client.setQueryData(key, first);
+    }
+    // Keep the invalidations' responses in flight until an explicit reload
+    // replaces them, as when the daemon's response has not reached the host.
+    const finishPushReads: ((record: typeof first) => void)[] = [];
+    read.mockImplementation(() => new Promise((resolve) => { finishPushReads.push(resolve); }));
+    const actions = { saving: false, saveError: null, save: vi.fn(), reset: vi.fn() };
+    const reload = vi.fn();
+    function Report() {
+      const query = useQuery({ queryKey: key, queryFn: read, retry: false, refetchOnMount: false, gcTime: Infinity });
+      store.useTranslationSettingsReport({
+        ...actions,
+        ...(query.data ?? { status: "loading" }),
+        reload: async () => { reload(); await query.refetch(); },
+      });
+      return null;
+    }
+    const mount = async () => {
+      let row!: ReactTestRenderer;
+      await renderer.act(async () => {
+        row = renderer.create(React.createElement(QueryClientProvider, { client }, React.createElement(Report)));
+      });
+      return row;
+    };
+    let row = await mount();
+    await renderer.act(async () => {
+      if (initialLoad) {
+        finishInitial(intermediate);
+        await flush();
+        expect(client.getQueryData(key)).toMatchObject({ revision: "t2" });
+        expect(store.getTranslationSettingsState().status).toBe("loading");
+      } else {
+        daemon = intermediate;
+        plugin.push("timeline-translation");
+        void client.invalidateQueries({ queryKey: key });
+      }
+      daemon = latest;
+      plugin.push("timeline-translation");
+      void client.invalidateQueries({ queryKey: key });
+      if (!initialLoad) client.setQueryData(key, intermediate);
+    });
+    await renderer.act(async () => {
+      await vi.waitFor(() => expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t2" }));
+    });
+    expect(confirm).toHaveBeenCalledTimes(initialLoad ? 1 : 2);
+    await renderer.act(async () => row.unmount());
+    expect(store.getTranslationSettingsState().status).toBe("loading");
+
+    read.mockResolvedValueOnce(latest);
+    row = await mount();
+    expect(reload).toHaveBeenCalledOnce();
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t3" });
+    await renderer.act(async () => {
+      for (const finish of finishPushReads) finish(intermediate);
+    });
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t3" });
+    await renderer.act(async () => row.unmount());
+    stop();
     client.clear();
   });
 
