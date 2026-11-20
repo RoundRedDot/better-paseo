@@ -4,7 +4,8 @@ import type { TextProps, ViewProps } from "react-native";
 import { copyText } from "@getpaseo/plugin/client/ui";
 import { radiusV2 } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import { FLOAT, FLOAT_EASE, floatHover, floatPressed, floatShadow } from "../ui/tokens/float";
+import { FLOAT, FLOAT_EASE, floatHover, floatPressed } from "../ui/tokens/float";
+import { CARD_RADIUS, CARD_SHADOW } from "../ui/tokens/card";
 import { getEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { resolveLanguage } from "../i18n/settings-strings";
@@ -245,8 +246,7 @@ export function insertIntoComposer(snippet: string, from: Element | null): boole
   return true;
 }
 
-// The floating controls' family (float.ts): a rounded frame 30 tall lifted by
-// a shadow, with toolbar-sized items, muted icons and a success check.
+// The floating controls' sizing and motion, with the task card's corners and shadow.
 const BAR_CSS = `
 :host { all: initial; }
 .bar {
@@ -257,7 +257,7 @@ const BAR_CSS = `
   padding: ${FLOAT.inset}px;
   border-style: solid;
   border-width: 1px;
-  border-radius: ${FLOAT.radius}px;
+  border-radius: ${CARD_RADIUS}px;
   box-shadow: var(--bc-bar-shadow);
   background-color: var(--bc-bar-bg);
   font-size: 12px;
@@ -266,8 +266,9 @@ const BAR_CSS = `
   -webkit-user-select: none;
   opacity: 0;
   transform: translateY(var(--bc-bar-from, 4px));
-  transition: opacity 140ms ${FLOAT_EASE.out}, transform 140ms ${FLOAT_EASE.out};
+  transition: opacity 140ms ${FLOAT_EASE.out}, transform 140ms ${FLOAT_EASE.out}, box-shadow 140ms ${FLOAT_EASE.out};
 }
+@media (hover: hover) { .bar:hover { box-shadow: var(--bc-bar-shadow-hover); } }
 .row {
   display: flex;
   align-items: center;
@@ -366,7 +367,7 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
   flex: 0 0 auto;
   transition: background-color 100ms ${FLOAT_EASE.out};
 }
-.row .btn { border-radius: ${FLOAT.radius - FLOAT.inset - 1}px; }
+.row .btn { border-radius: ${CARD_RADIUS - FLOAT.inset - 1}px; }
 .btn:hover { background-color: var(--bc-bar-hover); }
 .btn:active { background-color: var(--bc-bar-pressed); }
 .btn:focus { outline: none; }
@@ -681,7 +682,8 @@ function createBar(actions: BarActions): Bar {
       // The bar floats over text, so it needs the theme's one opaque surface;
       // the derived surfaces are translucent by design.
       host.style.setProperty("--bc-bar-bg", tokens.surface0);
-      host.style.setProperty("--bc-bar-shadow", floatShadow(tokens));
+      host.style.setProperty("--bc-bar-shadow", CARD_SHADOW[tokens.isDark ? "dark" : "light"].rest);
+      host.style.setProperty("--bc-bar-shadow-hover", CARD_SHADOW[tokens.isDark ? "dark" : "light"].hover);
       host.style.setProperty("--bc-bar-text", tokens.foreground);
       host.style.setProperty("--bc-bar-icon", tokens.foregroundMuted);
       host.style.setProperty("--bc-bar-subtle", tokens.foregroundSubtle);

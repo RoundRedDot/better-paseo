@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { mix } from "../../components/theme-tokens";
 import { themeKey } from "../../ui/tokens/theme-key";
+import { CARD_SHADOW } from "../../ui/tokens/card";
 
 /**
  * The board's derived colours (prototype 6.1), computed from the host theme.
@@ -214,13 +215,6 @@ export function buildTaskTokens(colors: PluginTheme["colors"]): TaskTokens {
   };
 }
 
-// Shadows are the one place the card darkens with plain black: a shadow is the
-// absence of light whatever the palette. Only its strength follows the theme.
-const SHADOW = {
-  light: { rest: "0px 1px 2px rgba(0, 0, 0, 0.06)", hover: "0px 2px 6px rgba(0, 0, 0, 0.14)" },
-  dark: { rest: "0px 1px 2px rgba(0, 0, 0, 0.18)", hover: "0px 2px 6px rgba(0, 0, 0, 0.38)" },
-} as const;
-
 function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: string, amber: string, green: string): CardTokens {
   const background = isDark ? colors.surface2 : colors.surface0;
   const fg = colors.foreground;
@@ -235,9 +229,9 @@ function cardTokens(colors: PluginTheme["colors"], isDark: boolean, danger: stri
     background,
     hoverBackground: mix(background, fg, 0.04),
     border: colors.border,
-    shadow: SHADOW[isDark ? "dark" : "light"].rest,
-    shadowHover: SHADOW[isDark ? "dark" : "light"].hover,
-    buttonShadowHover: SHADOW[isDark ? "dark" : "light"].hover,
+    shadow: CARD_SHADOW[isDark ? "dark" : "light"].rest,
+    shadowHover: CARD_SHADOW[isDark ? "dark" : "light"].hover,
+    buttonShadowHover: CARD_SHADOW[isDark ? "dark" : "light"].hover,
     pillBorder: mix(colors.border, fg, isDark ? 0.08 : 0.05),
     buttonBorder: mix(colors.border, fg, isDark ? 0.2 : 0.05),
     pillFill: mix(background, fg, isDark ? 0.06 : 0.035),

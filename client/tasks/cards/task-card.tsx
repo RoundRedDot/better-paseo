@@ -11,6 +11,7 @@ import { useCopy } from "../../ui/use-copy";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { duration, PREVIEW_REVEAL } from "../../ui/tokens/motion";
+import { CARD_RADIUS } from "../../ui/tokens/card";
 import type { PermissionButton, StopPhase } from "../actions";
 import { activeStopChildren } from "../actions/stop-targets";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
@@ -455,8 +456,6 @@ export const OVERLAY_ROW_Z = 2;
 /** The search summary's own top margin, above its rule (`SearchHitSummary`). */
 const SEARCH_SUMMARY_GAP = 6;
 
-/** The card's corner radius (Linear's card). */
-const CARD_RADIUS = 8;
 /**
  * The subtask mark: a small dot by the top-right corner, this wide. Its centre
  * sits on the corner's diagonal, with the fold and the context ring
