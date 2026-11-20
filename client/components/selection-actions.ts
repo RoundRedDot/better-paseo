@@ -331,6 +331,8 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
 .panel-message span:last-child { min-width: 0; }
 .panel-message[data-tone="error"] { color: var(--bc-bar-danger); }
 .panel-body {
+  position: relative;
+  z-index: 1;
   color: var(--bc-bar-text);
   font-size: 13px;
   line-height: 19px;
@@ -339,9 +341,15 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
   overflow: auto;
   height: var(--bc-panel-height, auto);
   overscroll-behavior: contain;
-  padding-right: 16px;
+  margin-right: -8px;
+  padding-right: 10px;
+  scrollbar-width: auto;
+  scrollbar-color: auto;
   max-height: var(--bc-panel-max, ${PANEL_BODY_MAX}px);
 }
+.panel-body::-webkit-scrollbar { width: 4px; height: 4px; }
+.panel-body::-webkit-scrollbar-track { background: transparent; }
+.panel-body::-webkit-scrollbar-thumb { border-radius: 2px; background: color-mix(in srgb, var(--bc-bar-subtle) 40%, transparent); }
 .panel-actions { display: flex; justify-content: flex-end; gap: ${FLOAT.inset}px; }
 .panel-actions .btn { position: relative; width: 28px; height: 28px; padding: 0; justify-content: center; }
 .panel-actions .btn span { display: none; }
