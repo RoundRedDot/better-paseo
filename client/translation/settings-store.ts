@@ -157,6 +157,7 @@ export function resetTranslationSettingsStoreForTests(): void {
   hostCopies.clear();
   reader = null;
   latestRead = 0;
+  latestChange = 0;
   unconfirmed = false;
   readFailed = false;
   confirmedRevision = null;
@@ -176,12 +177,15 @@ export function resetTranslationSettingsStoreForTests(): void {
 // record. Until it answers the store is loading (error if it fails); host
 // reports wait for it and are shown only when they agree with it.
 
-// `read` is the latest read when the hook last reported: the host had
+// `change` is the latest change when the hook last reported: the host had
 // answered by then, so a different revision then is an older copy.
-type HostCopy = { revision: string | null; read: number; reload: () => Promise<void> };
+type HostCopy = { revision: string | null; change: number; reload: () => Promise<void> };
 const hostCopies = new Set<HostCopy>();
 let reader: (() => Promise<unknown>) | null = null;
 let latestRead = 0;
+// Counts the changes this client heard of (push, snapshot, host change, hook);
+// the retries of one change's read keep its count.
+let latestChange = 0;
 // The latest read has not answered a record yet (or failed).
 let unconfirmed = false;
 let readFailed = false;
@@ -212,6 +216,8 @@ function readRecord(retry = 0): void {
   const read = reader;
   if (!read) return;
   const id = ++latestRead;
+  if (retry === 0) latestChange++;
+  const change = latestChange;
   unconfirmed = true;
   readFailed = false;
   if (retryTimer) clearTimeout(retryTimer);
@@ -228,12 +234,12 @@ function readRecord(retry = 0): void {
       unconfirmed = false;
       confirmedRevision = record.revision;
       reportTranslationSettings(record);
-      // A host copy reported since this read began is older: read it again,
+      // A host copy reported since this change was heard of is older: read it again,
       // so the settings page shows and saves against the record. A copy not
       // reported since is still being read and reports to `hostReported`.
       // One query, so one reload is enough.
       for (const copy of hostCopies) {
-        if (copy.read !== id || copy.revision === null || copy.revision === record.revision) continue;
+        if (copy.change !== change || copy.revision === null || copy.revision === record.revision) continue;
         copy.reload().catch(() => {
           // The hook reports the host's own error; the record stands.
         });
@@ -267,6 +273,8 @@ export function noteTranslationSettingsChanged(read: () => Promise<unknown>): vo
 export function forgetTranslationSettingsReader(read: () => Promise<unknown>): void {
   if (reader !== read) return;
   reader = null;
+  // A read still in flight is no longer the latest: it neither reports nor retries.
+  latestRead++;
   if (retryTimer) clearTimeout(retryTimer);
   retryTimer = null;
 }
@@ -299,7 +307,7 @@ export function useTranslationSettingsReport(state: SettingsState<typeof TIMELIN
   const copy = useRef<HostCopy | null>(null);
   // Declared before the report below, so the copy is registered when it runs.
   useEffect(() => {
-    const entry: HostCopy = { revision: null, read: 0, reload: () => latest.current.reload() };
+    const entry: HostCopy = { revision: null, change: 0, reload: () => latest.current.reload() };
     copy.current = entry;
     hostCopies.add(entry);
     return () => {
@@ -321,7 +329,7 @@ export function useTranslationSettingsReport(state: SettingsState<typeof TIMELIN
     const entry = copy.current;
     if (entry) entry.revision = "revision" in remote ? remote.revision : null;
     hostReported(remote);
-    if (entry) entry.read = latestRead;
+    if (entry) entry.change = latestChange;
     // `remote` is rebuilt every render; its identity is its status and revision.
   }, [remote.status, revision, error]);
 }

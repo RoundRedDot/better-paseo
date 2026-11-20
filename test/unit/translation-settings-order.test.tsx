@@ -213,12 +213,16 @@ async function setup() {
     expect(shownSinceWrite().length).toBeGreaterThan(0);
     expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision });
   };
+  /** The plugin unloads: its watcher stops. */
+  const unload = () => {
+    stopWatch();
+  };
   const cleanup = () => {
     stopSpy();
     stopWatch();
     client.clear();
   };
-  return { store, client, key, write, deliver, mount, unmount, hostCopy, shown, hostRead, confirmRead, shownSinceWrite, failNextConfirm, stopFailingConfirms, failNextHostRead, writeOffline, reconnect, advance, act, settledOn, cleanup };
+  return { store, client, key, write, deliver, mount, unmount, hostCopy, shown, hostRead, confirmRead, shownSinceWrite, failNextConfirm, stopFailingConfirms, failNextHostRead, writeOffline, reconnect, advance, act, settledOn, unload, cleanup };
 }
 
 let cleanups: (() => void)[] = [];
@@ -466,5 +470,43 @@ describe("translation settings follow the daemon across event orderings", () => 
     const reads = h.confirmRead.mock.calls.length;
     await h.advance(60_000);
     expect(h.confirmRead.mock.calls.length).toBe(reads);
+  });
+
+  it("reloads a host copy reported during a failed read once a retry reads the record", async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    const row = await h.mount();
+    await h.deliver();
+    await h.unmount(row);
+    // t2 is written while unmounted; a hook mounts on the host's retained t1
+    // while the read is in flight, and that read fails.
+    h.failNextConfirm();
+    await h.write(record("t2"));
+    const again = await h.mount();
+    expect(h.hostCopy()).toBe("t1");
+    await h.deliver();
+    expect(h.shown()).toMatchObject({ status: "error" });
+    // The timed retry reads t2: the host's t1 copy is read again too.
+    await h.advance(60_000);
+    await h.deliver();
+    h.settledOn("t2");
+    expect(h.hostCopy()).toBe("t2");
+    await h.unmount(again);
+  });
+
+  it.each([false, true])("does not report a read that answers after the plugin unloads (fails=%s)", async (fails) => {
+    vi.useFakeTimers();
+    const h = await harness();
+    const row = await h.mount();
+    await h.deliver();
+    if (fails) h.failNextConfirm();
+    await h.write(record("t2"));
+    // The host's refetch is in flight too; only the plugin's read matters here.
+    h.unload();
+    await h.deliver();
+    expect(h.shown().status).toBe("loading");
+    expect(h.shownSinceWrite()).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+    await h.unmount(row);
   });
 });
