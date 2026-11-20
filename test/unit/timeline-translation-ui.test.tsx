@@ -296,6 +296,17 @@ describe("timeline translation agent configuration", () => {
     expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "medium" } });
     retireNew();
   });
+
+  it("does not restart a failed feed when retry notification removes its last reader", async () => {
+    agentApi.list.mockRejectedValueOnce(new Error("offline"));
+    const config = createTranslationAgentConfigStore(agentApi.api);
+    const retire = config.subscribe("agent-1", () => {
+      if (config.read("agent-1").status === "loading") retire();
+    });
+    await vi.waitFor(() => expect(config.read("agent-1").status).toBe("error"));
+    config.retry("agent-1");
+    expect(agentApi.list).toHaveBeenCalledOnce();
+  });
 });
 
 

@@ -143,20 +143,21 @@ beforeEach(() => {
   body = new ElementMock();
   vi.stubGlobal("window", Object.assign(page, {
     setTimeout, clearTimeout,
+    getComputedStyle: () => ({ overflowX: "visible", overflowY: "visible" }),
     getSelection: () => {
       const current = selected;
       return current && {
         isCollapsed: false, toString: () => current.text, rangeCount: 1,
         anchorNode: current.node, focusNode: current.focus ?? current.node,
         getRangeAt: () => ({ commonAncestorContainer: current.node, startContainer: current.node,
-          getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }],
+          getClientRects: () => [{ left: 120, right: 220, top: 200, bottom: 220, width: 100, height: 20 }],
           cloneRange: () => {
             let part = current.rangeText ?? current.text;
             const beyond = () => { part = current.outsideText ?? ""; };
             const inside = () => { part = current.rangeText ?? current.text; };
             return { commonAncestorContainer: current.node,
               setStartBefore: inside, setEndAfter: inside, setStartAfter: beyond, setEndBefore: beyond, toString: () => part,
-              getClientRects: () => [{ left: 120, top: 200, bottom: 220, width: 100, height: 20 }] };
+              getClientRects: () => [{ left: 120, right: 220, top: 200, bottom: 220, width: 100, height: 20 }] };
           } }),
       };
     },
@@ -431,8 +432,8 @@ describe("selection bar Translate", () => {
     call.mockImplementationOnce(() => new Promise((resolve) => { firstToken = resolve; }))
       .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     page.innerWidth = 300;
-    page.innerHeight = 200;
     select("  the selected words  ", surface({ agentId: "agent-1", kind: "reasoning", streaming: false }));
+    page.innerHeight = 200;
     button("Translate")!.click();
     await flush();
     expect(call).toHaveBeenCalledOnce();
@@ -505,6 +506,8 @@ describe("selection bar Translate", () => {
     doc.dispatchEvent(Object.assign(new Event("keydown"), { key: "Escape" }));
     expect(() => seedMarkBitmaps({ "lobe:codex": "data:image/png;base64,AA==" })).not.toThrow();
     expect(panel().querySelector(".panel-body")?.textContent).toBe("译文");
+    expect(button("Copy translation")).toBeDefined();
+    expect(button("Copy original")).toBeUndefined();
     vi.advanceTimersByTime(200);
     expect(display()).toBe("none");
   });

@@ -285,33 +285,43 @@ describe("timeline translation settings", () => {
 
   it("keeps the web language menu on its control while the page scrolls", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    const listeners = new Map<string, () => void>();
+    const listeners = new Map<string, (event: Event) => void>();
     vi.stubGlobal("window", {
       innerWidth: 1024, innerHeight: 768,
-      addEventListener: (type: string, listener: () => void) => { listeners.set(type, listener); },
+      addEventListener: (type: string, listener: (event: Event) => void) => { listeners.set(type, listener); },
       removeEventListener: (type: string) => { listeners.delete(type); },
     });
     try {
       let rect = { top: 100, bottom: 136, right: 600, width: 200, left: 400, height: 36 };
+      class BrowserNode extends EventTarget {}
+      vi.stubGlobal("Node", BrowserNode);
+      const menuChild = new BrowserNode();
+      const measure = vi.fn(() => rect);
       mocks.settingsState = makeReadySettings({ enabled: true });
       await act(async () => {
         renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }), {
-          createNodeMock: () => ({ getBoundingClientRect: () => rect, contains: () => false }),
+          createNodeMock: () => ({ getBoundingClientRect: measure, contains: (node: unknown) => node === menuChild }),
         });
       });
       const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Target language");
       await act(async () => { trigger.props.onPress(); });
-      const menuTop = () => renderer!.root.find((n) => String(n.type) === "View" && n.findAll((c) => (c.type as unknown) === "TextInput").length > 0 &&
-        JSON.stringify(n.props.style).includes("fixed")).props.style.flat().find((part: { top?: number }) => part && "top" in part)?.top;
-      expect(menuTop()).toBe(142);
+      const menuPlacement = () => renderer!.root.find((n) => String(n.type) === "View" && n.findAll((c) => (c.type as unknown) === "TextInput").length > 0 &&
+        JSON.stringify(n.props.style).includes("fixed")).props.style.flat().find((part: { top?: number }) => part && "top" in part);
+      const initialPlacement = menuPlacement();
+      expect(initialPlacement).toMatchObject({ top: 142, bottom: "auto", right: "auto", margin: 0 });
+      measure.mockClear();
+      await act(async () => { listeners.get("scroll")!({ target: menuChild } as unknown as Event); });
+      expect(measure).not.toHaveBeenCalled();
+      await act(async () => { listeners.get("scroll")!(new Event("scroll")); });
+      expect(menuPlacement()).toBe(initialPlacement);
       rect = { ...rect, top: 40, bottom: 76 };
-      await act(async () => { listeners.get("scroll")!(); });
-      expect(menuTop()).toBe(82);
+      await act(async () => { listeners.get("scroll")!(new Event("scroll")); });
+      expect(menuPlacement().top).toBe(82);
       // Near the window's bottom it opens upward. `top: auto` releases a popover's
       // UA `inset: 0`, which otherwise pins it to the top (checked in Chromium).
       rect = { ...rect, top: 600, bottom: 636 };
-      await act(async () => { listeners.get("scroll")!(); });
-      expect(menuTop()).toBe("auto");
+      await act(async () => { listeners.get("scroll")!(new Event("scroll")); });
+      expect(menuPlacement()).toMatchObject({ top: "auto", right: "auto", bottom: 174 });
       await act(async () => renderer!.unmount());
       renderer = undefined;
       expect(listeners.has("scroll")).toBe(false);
@@ -387,7 +397,7 @@ describe("timeline translation settings", () => {
   it("keeps the current provider when its new model catalog fails to load", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
     mocks.modelsRpc.mockImplementation(async ({ provider }: { provider: string }) => provider === "codex"
-      ? { providers: ["claude", "codex"], providerLabels: { codex: "Codex" }, models: [], error: "Catalog unavailable" }
+      ? { providers: ["claude", "codex", "cursor"], providerLabels: { codex: "Codex", cursor: "Cursor" }, models: [], error: "Catalog unavailable" }
       : { providers: ["claude", "codex"], providerLabels: { codex: "Codex" }, models: [], error: null });
     await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
     const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
@@ -396,6 +406,9 @@ describe("timeline translation settings", () => {
     await act(async () => { option.props.onPress(); });
     expect(mocks.saveSpy).not.toHaveBeenCalled();
     expect(textValues(renderer!.root)).toContain("Catalog unavailable");
+    await act(async () => { trigger.props.onPress(); });
+    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" &&
+      n.props.accessibilityLabel?.startsWith("Cursor")).length).toBeGreaterThan(0);
   });
 
   it("reads a provider's catalog again on the next visit after it failed", async () => {
@@ -435,6 +448,32 @@ describe("timeline translation settings", () => {
     const radio = (label: string) => renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === label).length;
     expect(radio("Claude Opus 4.1")).toBeGreaterThan(0);
     expect(radio("Old Model")).toBe(0);
+  });
+
+  it.each([false, true])("ignores a provider selection overtaken by a catalog read (unmounted=%s)", async (unmount) => {
+    const cached = makeReadySettings({ enabled: true, customModel: true, provider: "claude" });
+    mocks.settingsState = cached;
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    let finish!: (value: unknown) => void;
+    mocks.modelsRpc.mockReset().mockResolvedValueOnce(good)
+      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
+      .mockResolvedValue(good);
+    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook() });
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    const provider = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    await act(async () => { provider.props.onPress(); });
+    await act(async () => { renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex")[0]!.props.onPress(); });
+    if (unmount) {
+      await act(async () => renderer!.unmount());
+      renderer = undefined;
+    } else {
+      // The settings query can change the current provider independently of this page.
+      mocks.settingsState = { ...makeReadySettings({ enabled: true, customModel: true, provider: "cursor" }), revision: "rev-2" };
+      await act(async () => { renderer!.update(page()); });
+      expect(mocks.modelsRpc).toHaveBeenLastCalledWith({ provider: "cursor" });
+    }
+    await act(async () => { finish(good); });
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
   });
 
   it("shows only the latest catalog read's error and loading state", async () => {

@@ -156,7 +156,10 @@ export function resetTranslationSettingsStoreForTests(): void {
   translationSettingsSync.resetForTests();
   mountedReports = 0;
   hostCopyStale = false;
-  refreshing = false;
+  pendingRevision = undefined;
+  activeReload = null;
+  reloadCompleted = false;
+  failedRevision = undefined;
 }
 
 // The host keeps its copy of the record after the last `useSettings` for it
@@ -166,8 +169,12 @@ export function resetTranslationSettingsStoreForTests(): void {
 // preferences do, `preference-sync-slot.tsx`).
 let mountedReports = 0;
 let hostCopyStale = false;
-let refreshing = false;
-/** Counts finished reads, so each one renders its hooks again and they report the answer. */
+// A push has no revision. Keep the last reported revision until the host
+// delivers a new one or a reload confirms the record at the current revision.
+let pendingRevision: string | null | undefined;
+let activeReload: object | null = null;
+let reloadCompleted = false;
+let failedRevision: string | null | undefined;
 let refreshes = 0;
 const refreshListeners = new Set<() => void>();
 function subscribeRefresh(listener: () => void) {
@@ -177,10 +184,22 @@ function subscribeRefresh(listener: () => void) {
   };
 }
 const readRefreshes = () => refreshes;
+function notifyRefresh() {
+  refreshes++;
+  for (const listener of refreshListeners) listener();
+}
 
 /** The daemon changed the record (`plugin_settings_changed`). */
 export function noteTranslationSettingsChanged(): void {
-  // A mounted hook's own query reads the change.
+  if (pendingRevision === undefined) pendingRevision = translationSettingsSync.snapshot().revision;
+  if (activeReload || reloadCompleted) {
+    // This push can replace the host's refetch. Only the new read may report.
+    activeReload = null;
+    reloadCompleted = false;
+    hostCopyStale = true;
+    notifyRefresh();
+  }
+  // While mounted, the host query already listens for the push.
   if (mountedReports > 0) return;
   hostCopyStale = true;
   // The values held here are out of date: nothing starts or reuses a
@@ -193,26 +212,46 @@ export function noteTranslationSettingsChanged(): void {
  * the leading row's settings slot and the settings page both call it.
  */
 export function useTranslationSettingsReport(state: SettingsState<typeof TIMELINE_TRANSLATION_SETTINGS.schema>): void {
-  const reload = useRef(state.reload);
-  reload.current = state.reload;
+  const latest = useRef(state);
+  latest.current = state;
   const refreshed = useSyncExternalStore(subscribeRefresh, readRefreshes, readRefreshes);
-  // Declared before the report below, so a stale cached record is never reported.
   useEffect(() => {
     mountedReports++;
-    if (hostCopyStale) {
-      hostCopyStale = false;
-      refreshing = true;
-      const done = () => {
-        refreshing = false;
-        refreshes++;
-        for (const listener of refreshListeners) listener();
-      };
-      void Promise.resolve().then(() => reload.current()).then(done, done);
-    }
     return () => {
-      mountedReports--;
+      if (--mountedReports !== 0 || pendingRevision === undefined) return;
+      hostCopyStale = true;
+      activeReload = null;
+      reloadCompleted = false;
+      translationSettingsSync.report({ status: "loading" });
     };
   }, []);
+  // Start before the report effect so a new observer can't publish its cached copy.
+  useEffect(() => {
+    if (!hostCopyStale) return;
+    hostCopyStale = false;
+    failedRevision = undefined;
+    const read = {};
+    activeReload = read;
+    const revision = "revision" in latest.current ? latest.current.revision : null;
+    void Promise.resolve().then(() => {
+      if (activeReload === read) return latest.current.reload();
+    }).then(
+      () => {
+        if (activeReload !== read) return;
+        activeReload = null;
+        // The host reload returns void, including on query failure. Render
+        // again to observe its current ready, invalid or error result.
+        reloadCompleted = true;
+        notifyRefresh();
+      },
+      (error: unknown) => {
+        if (activeReload !== read) return;
+        activeReload = null;
+        failedRevision = revision;
+        reportTranslationSettings({ status: "error", error: error instanceof Error ? error.message : String(error) });
+      },
+    );
+  }, [refreshed]);
   const remote: RemoteTranslationSettings =
     state.status === "ready"
       ? { status: "ready", values: state.values, revision: state.revision }
@@ -224,8 +263,13 @@ export function useTranslationSettingsReport(state: SettingsState<typeof TIMELIN
   const revision = "revision" in remote ? remote.revision : "";
   const error = "error" in remote ? remote.error : "";
   useEffect(() => {
-    // A hook mounted in this commit may have started a read.
-    if (refreshing) return;
+    if (hostCopyStale || activeReload) return;
+    if (remote.status === "ready" || remote.status === "invalid") {
+      if (remote.revision === failedRevision) return;
+      if (reloadCompleted || remote.revision !== pendingRevision) pendingRevision = undefined;
+    }
+    reloadCompleted = false;
+    failedRevision = undefined;
     reportTranslationSettings(remote);
     // `remote` is rebuilt every render; its identity is its status and revision.
   }, [remote.status, revision, error, refreshed]);

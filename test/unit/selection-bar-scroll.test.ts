@@ -41,6 +41,7 @@ class ElementMock extends EventTarget {
     return false;
   }
   box = { left: 0, top: 0, right: 1024, bottom: 768 };
+  overflow = "visible";
   getBoundingClientRect() { return this.box; }
   closest(selector: string) { return selector === "[data-bcselection]" ? this : null; }
 }
@@ -56,7 +57,11 @@ let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 let page: EventTarget;
 let doc: EventTarget;
 let body: ElementMock;
-let selection: { isCollapsed: boolean; toString(): string };
+let selection: {
+  isCollapsed: boolean;
+  toString(): string;
+  getRangeAt(): { commonAncestorContainer: ElementMock; getClientRects(): (typeof line)[] };
+};
 /** The selected text's line, as the browser reports it; a scroll moves it. */
 let line: { left: number; right: number; top: number; bottom: number; width: number; height: number };
 /** The chat's scroller, holding the selected text. */
@@ -99,6 +104,7 @@ beforeEach(() => {
   doc = new EventTarget();
   body = new ElementMock();
   scroller = new ElementMock();
+  scroller.overflow = "auto";
   scroller.box = { left: 0, top: 60, right: 1024, bottom: 700 };
   const text = scroller.appendChild(new ElementMock());
   line = { left: 120, right: 220, top: 200, bottom: 220, width: 100, height: 20 };
@@ -114,6 +120,7 @@ beforeEach(() => {
   });
   vi.stubGlobal("window", Object.assign(page, {
     setTimeout, clearTimeout, innerWidth: 1024, innerHeight: 768, getSelection: () => selection,
+    getComputedStyle: (element: ElementMock) => ({ overflowX: element.overflow, overflowY: element.overflow }),
   }));
   vi.stubGlobal("document", Object.assign(doc, { body, createElement: () => new ElementMock() }));
   act(() => { renderer = TestRenderer.create(React.createElement(Actions)); });
@@ -264,6 +271,62 @@ describe("selection bar scroll dismissal", () => {
     expect(display()).toBe("none");
     scroll(true, "page", -205);
     expect(display()).toBe("block");
+  });
+
+  it("keeps the chat clip when a second pane scrolls in the same batch", () => {
+    line = { ...line, top: 35, bottom: 55 };
+    const chatScroll = new Event("scroll");
+    const otherScroll = new Event("scroll");
+    Object.defineProperty(chatScroll, "target", { value: scroller });
+    Object.defineProperty(otherScroll, "target", { value: new ElementMock() });
+    captureScroll(chatScroll);
+    captureScroll(otherScroll);
+    vi.advanceTimersByTime(100);
+    expect(display()).toBe("none");
+  });
+
+  it("keeps an outer clip when an inner container scrolls", () => {
+    const outer = new ElementMock();
+    outer.overflow = "hidden";
+    outer.box = { left: 0, right: 1024, top: 240, bottom: 700 };
+    outer.appendChild(scroller);
+    const scrollEvent = new Event("scroll");
+    Object.defineProperty(scrollEvent, "target", { value: outer });
+    captureScroll(scrollEvent);
+    vi.advanceTimersByTime(100);
+    expect(display()).toBe("none");
+    scroll(true, "page", 10);
+    expect(display()).toBe("none");
+    outer.box.top = 160;
+    scroll(true, "page", 10);
+    expect(display()).toBe("block");
+  });
+
+  it("clips an open popover to its own pane and ignores its original parent's clip", () => {
+    const parent = new ElementMock();
+    parent.overflow = "hidden";
+    parent.box.bottom = 100;
+    const popover = Object.assign(new ElementMock(), {
+      showPopover() {},
+      matches: (selector: string) => selector === ":popover-open",
+    });
+    parent.appendChild(popover);
+    popover.appendChild(scroller);
+    select();
+    vi.advanceTimersByTime(100);
+    expect(display()).toBe("block");
+    scroll(true, "page", 170);
+    expect(display()).toBe("none");
+  });
+
+  it("skips a collapsed range fragment at a selected line boundary", () => {
+    const range = selection.getRangeAt();
+    const empty = { left: 0, right: 0, top: 0, bottom: 0, width: 0, height: 0 };
+    selection = { ...selection, getRangeAt: () => ({ ...range, getClientRects: () => [empty, line] }) };
+    select();
+    vi.advanceTimersByTime(100);
+    expect(display()).toBe("block");
+    expect(top()).toBe(200 - 30 - 8);
   });
 
   it("keeps a bar put away by a press elsewhere away while the page scrolls", () => {

@@ -337,14 +337,113 @@ describe("preferences read while the plugin loads", () => {
     expect(JSON.parse((call.mock.calls[1] as unknown as [{ configSignature: string }])[0].configSignature)).toMatchObject({ targetCode: "ja" });
     during.dispose();
 
-    // While a row is mounted its own query reads changes.
+    // The leader can leave before the host's read reports. Its replacement
+    // must not reuse t2 while the missed change is still being read.
     plugin.push("timeline-translation");
     await renderer.act(async () => row.unmount());
     await renderer.act(async () => { row = renderer.create(React.createElement(Row)); });
-    await flush();
-    expect(reload).toHaveBeenCalledTimes(1);
+    expect(reload).toHaveBeenCalledTimes(2);
+    expect(store.getTranslationSettingsState().status).toBe("loading");
+    host.settings = { ...first, revision: "t3" };
+    await renderer.act(async () => settle());
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t3" });
     await renderer.act(async () => row.unmount());
     cleanup();
+  });
+
+  it("does not reopen cached translation settings after an older read or a failed reload", async () => {
+    (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
+    const { React, renderer } = await load();
+    const store = await import("../../client/translation/settings-store");
+    const reads: { resolve(): void; reject(error: Error): void }[] = [];
+    const reload = vi.fn(() => new Promise<void>((resolve, reject) => { reads.push({ resolve, reject }); }));
+    const cached = {
+      status: "ready" as const, revision: "t1", values: store.DEFAULT_TIMELINE_TRANSLATION_SETTINGS,
+      saving: false, saveError: null, save: vi.fn(), reset: vi.fn(), reload,
+    };
+    let current = cached;
+    const Report = () => { store.useTranslationSettingsReport(current); return null; };
+    const mount = async () => {
+      let row!: ReactTestRenderer;
+      await renderer.act(async () => { row = renderer.create(React.createElement(Report)); });
+      return row;
+    };
+    const initial = await mount();
+    await renderer.act(async () => initial.unmount());
+    store.noteTranslationSettingsChanged();
+    const first = await mount();
+    await renderer.act(async () => first.unmount());
+    const second = await mount();
+    expect(reload).toHaveBeenCalledTimes(2);
+    await renderer.act(async () => store.noteTranslationSettingsChanged());
+    expect(reload).toHaveBeenCalledTimes(3);
+    await renderer.act(async () => reads[0]!.resolve());
+    await renderer.act(async () => reads[1]!.reject(new Error("superseded")));
+    expect(store.getTranslationSettingsState().status).toBe("loading");
+    await renderer.act(async () => reads[2]!.reject(new Error("settings offline")));
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "error", error: "settings offline" });
+    await renderer.act(async () => second.unmount());
+    const third = await mount();
+    current = { ...cached, revision: "t2" };
+    await renderer.act(async () => reads[3]!.resolve());
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t2" });
+    await renderer.act(async () => third.unmount());
+  });
+
+  it("observes a refetch error even though the host reload fulfills", async () => {
+    const { React, renderer } = await load();
+    const { QueryClient, QueryClientProvider, useQuery } = await import("@tanstack/react-query");
+    const store = await import("../../client/translation/settings-store");
+    const client = new QueryClient();
+    const key = ["translation-settings"];
+    const cached = { status: "ready" as const, revision: "t1", values: store.DEFAULT_TIMELINE_TRANSLATION_SETTINGS };
+    client.setQueryData(key, cached);
+    const read = vi.fn<() => Promise<typeof cached>>();
+    const actions = { saving: false, saveError: null, save: vi.fn(), reset: vi.fn() };
+    const reloadFulfilled = vi.fn();
+    function Report() {
+      const query = useQuery({ queryKey: key, queryFn: read, retry: false, refetchOnMount: false, gcTime: Infinity });
+      const reload = async () => { await query.refetch(); reloadFulfilled(); };
+      const result = query.isError ? { status: "error" as const, error: query.error.message } :
+        query.isPending ? { status: "loading" as const } : query.data;
+      store.useTranslationSettingsReport({ ...actions, reload, ...result });
+      return null;
+    }
+    const mount = async () => {
+      let row!: ReactTestRenderer;
+      await renderer.act(async () => {
+        row = renderer.create(React.createElement(QueryClientProvider, { client }, React.createElement(Report)));
+      });
+      return row;
+    };
+    const initial = await mount();
+    expect(read).not.toHaveBeenCalled();
+    // The host invalidates its shared query on a push while an observer is active.
+    const current = { ...cached, revision: "t2" };
+    read.mockResolvedValueOnce(current);
+    await renderer.act(async () => {
+      store.noteTranslationSettingsChanged();
+      await client.invalidateQueries({ queryKey: key });
+    });
+    await renderer.act(async () => {
+      await vi.waitFor(() => expect(store.getTranslationSettingsState()).toMatchObject({ revision: "t2" }));
+    });
+    await renderer.act(async () => initial.unmount());
+    const confirmed = await mount();
+    expect(read).toHaveBeenCalledOnce();
+    expect(reloadFulfilled).not.toHaveBeenCalled();
+    await renderer.act(async () => confirmed.unmount());
+    store.noteTranslationSettingsChanged();
+    read.mockRejectedValueOnce(new Error("query failed"));
+    const failed = await mount();
+    expect(reloadFulfilled).toHaveBeenCalledOnce();
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "error", error: "query failed", revision: null });
+    await renderer.act(async () => failed.unmount());
+    read.mockResolvedValueOnce(current);
+    const recovered = await mount();
+    expect(store.getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "t2" });
+    await renderer.act(async () => recovered.unmount());
+    client.clear();
   });
 
   it("reads a change the host had not answered when the last settings hook unmounts", async () => {

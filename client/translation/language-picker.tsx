@@ -299,7 +299,15 @@ export function SearchableLanguageSelect({
       if (!anchor || typeof anchor.getBoundingClientRect !== "function") return;
       const vw = typeof window !== "undefined" ? window.innerWidth : 1024;
       const vh = typeof window !== "undefined" ? window.innerHeight : 768;
-      setPlacement(placeLanguageMenu(anchor.getBoundingClientRect(), { width: vw, height: vh }));
+      const next = placeLanguageMenu(anchor.getBoundingClientRect(), { width: vw, height: vh });
+      setPlacement((previous) =>
+        previous && previous.top === next.top && previous.bottom === next.bottom &&
+        previous.left === next.left && previous.width === next.width && previous.listMaxHeight === next.listMaxHeight
+          ? previous : next);
+    };
+    const onScroll = (event: Event) => {
+      if (event.target instanceof Node && menuEl?.contains(event.target)) return;
+      updatePosition();
     };
 
     updatePosition();
@@ -319,7 +327,7 @@ export function SearchableLanguageSelect({
       window.addEventListener("mousedown", onPointerDown, true);
       window.addEventListener("resize", updatePosition);
       // The settings page scrolls under the fixed menu: follow the control.
-      window.addEventListener("scroll", updatePosition, true);
+      window.addEventListener("scroll", onScroll, true);
     }
 
     return () => {
@@ -327,7 +335,7 @@ export function SearchableLanguageSelect({
         window.removeEventListener("keydown", onKeyDown);
         window.removeEventListener("mousedown", onPointerDown, true);
         window.removeEventListener("resize", updatePosition);
-        window.removeEventListener("scroll", updatePosition, true);
+        window.removeEventListener("scroll", onScroll, true);
       }
       try {
         menuEl?.hidePopover?.();
@@ -384,9 +392,12 @@ export function SearchableLanguageSelect({
             {
               backgroundColor: tokens.v2.surface0,
               borderColor: tokens.v2.border,
-              // `top: auto` too: a popover's UA `inset: 0` would otherwise pin it to the window's top.
-              ...(placement?.bottom !== undefined ? { top: "auto", bottom: placement.bottom } : { top: placement?.top ?? 36 }),
+              // Reset the popover UA inset and centered margins.
+              top: placement?.bottom !== undefined ? "auto" : (placement?.top ?? 36),
+              bottom: placement?.bottom ?? "auto",
               left: placement?.left ?? 0,
+              right: "auto",
+              margin: 0,
               width: placement?.width ?? 300,
               boxShadow: tokens.isDark ? "0px 8px 32px rgba(0,0,0,0.5)" : "0px 8px 32px rgba(0,0,0,0.12)",
             } as never,

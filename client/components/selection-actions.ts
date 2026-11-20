@@ -123,8 +123,7 @@ interface Snapshot {
   text: string;
   isCode: boolean;
   canAddToChat: boolean;
-  rect: DOMRect;
-  /** Every line box of the selection, `rect` first. */
+  /** Nonempty line boxes of the selection, in range order. */
   rects: readonly DOMRect[];
   /** The element the selection sits in, to find its own chat's composer. */
   element: Element | null;
@@ -185,14 +184,14 @@ function readSelection(): Snapshot | null {
   }
 
   const lines = range.getClientRects();
-  const rect = lines.length > 0 ? lines[0] : range.getBoundingClientRect();
-  if (!rect || (rect.width === 0 && rect.height === 0)) return null;
-  const rects = lines.length > 0 ? Array.from(lines) : [rect];
+  const rects = (lines.length > 0 ? Array.from(lines) : [range.getBoundingClientRect()])
+    .filter((rect) => rect.width > 0 && rect.height > 0);
+  if (rects.length === 0) return null;
 
   const element = elementOf(anchor && focus ? range.commonAncestorContainer : anchor ? selection.anchorNode : selection.focusNode);
   const isCode = Boolean(element?.closest(CODE_SELECTOR));
   const canAddToChat = !surface.closest("[data-bcnocomposer]");
-  return { text, isCode, canAddToChat, rect, rects, element, surface, scope: scopeOf(surface) };
+  return { text, isCode, canAddToChat, rects, element, surface, scope: scopeOf(surface) };
 }
 
 /** Markdown the composer can carry: a fence for code, a blockquote for prose. */
@@ -712,11 +711,14 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     if (!view) return;
     const language = readLanguage();
     headingText.textContent = toolbarLabel("Translate", language);
-    const toggleLabel = showingOriginal ? "Show translation" : "Show original";
-    toggleButton.hidden = view.status !== "done";
+    // A mark can redraw the panel during its fade, after the selection is gone.
+    const source = standalone ? original : actions.snapshot()?.text;
+    const originalVisible = showingOriginal && view.status === "done" && source !== undefined;
+    const toggleLabel = originalVisible ? "Show translation" : "Show original";
+    toggleButton.hidden = view.status !== "done" || source === undefined;
     toggleButton.setAttribute("aria-label", toggleLabel);
     toggleButton.title = toolbarLabel(toggleLabel, language);
-    paint(toggleButton, toggleLabel, showingOriginal ? "translate" : "original");
+    paint(toggleButton, toggleLabel, originalVisible ? "translate" : "original");
     const lang = resolveLanguage(language ?? "system");
     const head = element("div", "panel-head");
     head.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.translate}</svg>`;
@@ -744,9 +746,7 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     }
     panel.appendChild(head);
 
-    // While the bar fades out its selection may be gone already; the translation stays then.
-    const source = standalone ? original : actions.snapshot()?.text;
-    const text = showingOriginal && view.status === "done" && source !== undefined ? source : selectionViewText(view);
+    const text = originalVisible ? source : selectionViewText(view);
     const message = text ? null : selectionViewMessage(view);
     if (message) {
       const line = element("div", "panel-message");
@@ -768,11 +768,12 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     if (done !== null || selectionViewRetryable(view)) {
       const buttons = element("div", "panel-actions");
       if (done !== null) {
-        makeButton(buttons, showingOriginal ? "Copy original" : "Copy translation", "copy", (button) => {
+        const copyLabel = originalVisible ? "Copy original" : "Copy translation";
+        makeButton(buttons, copyLabel, "copy", (button) => {
           void copyText(text!);
           paint(button, "Copied", "check");
           window.clearTimeout(copiedTimer);
-          copiedTimer = window.setTimeout(() => paint(button, showingOriginal ? "Copy original" : "Copy translation", "copy"), COPIED_MS);
+          copiedTimer = window.setTimeout(() => paint(button, copyLabel, "copy"), COPIED_MS);
         });
       }
       if (selectionViewRetryable(view)) {
@@ -1011,15 +1012,33 @@ function translationOffered(): boolean {
   return !(settings.status === "ready" && !settings.values.enabled);
 }
 
-/**
- * Where the bar anchors inside `pane`, a scrolled element holding the
- * selection: its first line box still showing there, or null when none does.
- */
-function visibleRect(snapshot: Snapshot, pane: Element | null): DOMRect | null {
-  if (!pane) return snapshot.rect;
-  const box = pane.getBoundingClientRect();
+/** The first line visible through the viewport and all its overflow clips. */
+function visibleRect(snapshot: Snapshot): DOMRect | null {
+  let left = 0;
+  let top = 0;
+  let right = window.innerWidth;
+  let bottom = window.innerHeight;
+  for (let element: Element | null = snapshot.element ?? snapshot.surface;
+    element && element !== document.body && element !== document.documentElement;
+    element = element.parentElement) {
+    const style = window.getComputedStyle(element);
+    if (style.overflowX !== "visible" || style.overflowY !== "visible") {
+      const box = element.getBoundingClientRect();
+      if (style.overflowX !== "visible") {
+        left = Math.max(left, box.left);
+        right = Math.min(right, box.right);
+      }
+      if (style.overflowY !== "visible") {
+        top = Math.max(top, box.top);
+        bottom = Math.min(bottom, box.bottom);
+      }
+    }
+    // Preview and details popovers escape the original ancestor's clip.
+    if (typeof (element as HTMLElement).showPopover === "function" && element.matches(":popover-open")) break;
+  }
+  if (left >= right || top >= bottom) return null;
   return snapshot.rects.find((rect) =>
-    rect.bottom > box.top && rect.top < box.bottom && rect.right > box.left && rect.left < box.right) ?? null;
+    rect.bottom > top && rect.top < bottom && rect.right > left && rect.left < right) ?? null;
 }
 
 function startController(): Controller {
@@ -1035,13 +1054,6 @@ function startController(): Controller {
    * content inside (a double click, a selection drag) is not scrolling it.
    */
   let pressed: EventTarget | null = null;
-  /** The element a page-driven scroll moved, to hide the bar once its selection leaves it. */
-  let scrolled: Element | null = null;
-  /**
-   * The last scrolled element that holds the selection: what shows of it is
-   * judged there, also when another pane scrolls next.
-   */
-  let pane: Element | null = null;
   /** The selection Translate was pressed for, and its job. */
   let translation: { snapshot: Snapshot; job: SelectionTranslation; release(): void } | null = null;
 
@@ -1107,8 +1119,6 @@ function startController(): Controller {
 
   const sync = () => {
     pending = 0;
-    const clip = scrolled;
-    scrolled = null;
     const snapshot = dismissed ? null : readSelection();
     if (!snapshot) {
       if (translation) return;
@@ -1123,9 +1133,7 @@ function startController(): Controller {
       return;
     }
     // A reply following its output can carry the selection out of its pane.
-    if (clip?.contains(snapshot.surface)) pane = clip;
-    else if (pane && !pane.contains(snapshot.surface)) pane = null;
-    const anchor = visibleRect(snapshot, pane);
+    const anchor = visibleRect(snapshot);
     if (!anchor) {
       hide();
       return;
@@ -1192,8 +1200,6 @@ function startController(): Controller {
     }
     // The page scrolled by itself: a reply following its output, a list
     // keeping its place. The highlight stays, so the bar follows it.
-    const target = event.target as Element | null;
-    scrolled = typeof target?.getBoundingClientRect === "function" ? target : null;
     schedule();
   };
   const onResize = () => {

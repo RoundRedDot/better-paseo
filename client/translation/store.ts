@@ -365,11 +365,12 @@ export function createTranslationAgentConfigStore(paseo: Pick<PaseoApi, "agents"
       if (!entry || entry.snapshot.status !== "error") return;
       if (feedStatus === "error") {
         stop?.();
+        stop = undefined;
         for (const each of agents.values()) {
           each.version += 1;
           publish(each, AGENT_CONFIG_LOADING);
         }
-        stop = watch();
+        if (agents.size > 0) stop ??= watch();
         return;
       }
       if (feedStatus === "ready") void refresh(agentId, entry);

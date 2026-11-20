@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { View } from "react-native";
 import { useRpc, useSettings } from "@getpaseo/plugin/client";
 import {
@@ -260,6 +260,11 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   }));
   const [switchingProvider, setSwitchingProvider] = useState(false);
   const [promptOpen, setPromptOpen] = useState(false);
+  const mounted = useRef(false);
+  useLayoutEffect(() => {
+    mounted.current = true;
+    return () => { mounted.current = false; };
+  }, []);
 
   // Only the latest read, also across page mounts, writes the cache and shows
   // its loading state and error: an earlier one may answer last.
@@ -268,25 +273,21 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     setCatalog((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetchModels({ provider });
-      if (read === latestCatalogRead) {
-        const targetProvider = provider || res.providers[0] || "";
-        const nextModelsByProvider = { ...catalogCache.modelsByProvider };
-        // A failed read is not an empty catalog: the next visit reads it again.
-        if (targetProvider && !res.error) nextModelsByProvider[targetProvider] = res.models;
-        catalogCache = {
-          providers: res.providers,
-          providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
-          modelsByProvider: nextModelsByProvider,
-        };
-        setCatalog({
-          ...catalogCache,
-          loading: false,
-          error: res.error,
-        });
-      }
-      return res.error ? null : res.models;
+      if (!mounted.current || read !== latestCatalogRead) return null;
+      const targetProvider = provider || res.providers[0] || "";
+      const nextModelsByProvider = { ...catalogCache.modelsByProvider };
+      // The provider snapshot succeeds independently of the model lookup.
+      // A model error must not be cached as an empty catalog.
+      if (targetProvider && !res.error) nextModelsByProvider[targetProvider] = res.models;
+      catalogCache = {
+        providers: res.providers,
+        providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
+        modelsByProvider: nextModelsByProvider,
+      };
+      setCatalog({ ...catalogCache, loading: false, error: res.error });
+      return res.error ? null : { read, models: res.models };
     } catch (error) {
-      if (read === latestCatalogRead) {
+      if (mounted.current && read === latestCatalogRead) {
         setCatalog((prev) => ({
           ...prev,
           loading: false,
@@ -318,12 +319,12 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     if (provider === settings.provider || switchingProvider) return;
     setSwitchingProvider(true);
     try {
-      const models = await loadModels(provider);
-      if (models === null) return;
-      const firstModel = models[0];
+      const catalogRead = await loadModels(provider);
+      if (!catalogRead || !mounted.current || catalogRead.read !== latestCatalogRead) return;
+      const firstModel = catalogRead.models[0];
       await savePatch({ provider, ...modelSelection(firstModel, settings.thinkingOptionId) });
     } finally {
-      setSwitchingProvider(false);
+      if (mounted.current) setSwitchingProvider(false);
     }
   };
 
