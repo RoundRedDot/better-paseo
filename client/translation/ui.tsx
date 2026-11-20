@@ -85,17 +85,19 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, shee
   return (
     <View testID="selection-translation-panel" style={styles.panel}>
       <View testID="translation-header" style={styles.header}>
-        <Icon icon={TRANSLATE_ICON} size={13} color={tokens.foregroundMuted} />
-        <Text testID="translation-language" selectable={false} numberOfLines={1}
-          style={[styles.title, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-          {selectionViewTitle(view, lang)}
-        </Text>
-        {view.modelInfo ? <View style={styles.model}>
-          <ProviderLogo provider={view.modelInfo.provider} size={14} neutralColor={tokens.foregroundMuted} />
-          <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
-            {view.modelInfo.model}
+        <View style={styles.headerInfo}>
+          <Icon icon={TRANSLATE_ICON} size={12} color={muted} />
+          <Text testID="translation-language" selectable={false} numberOfLines={1}
+            style={[styles.title, { color: muted, fontFamily: tokens.fontUi }]}>
+            {selectionViewTitle(view, lang)}
           </Text>
-        </View> : <View style={{ flex: 1 }} />}
+          {view.modelInfo ? <View style={styles.model}>
+            <ProviderLogo provider={view.modelInfo.provider} size={12} neutralColor={muted} />
+            <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: muted, fontFamily: tokens.fontUi }]}>
+              {view.modelInfo.model}
+            </Text>
+          </View> : <View style={{ flex: 1 }} />}
+        </View>
         <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
           <TooltipAlignContext.Provider value="end">
             <ToolbarItem label="Translation settings" onPress={() => {
@@ -152,8 +154,9 @@ const TRANSLATION_TOOLBAR_METRICS = { button: 28, icon: 16 };
 const styles = StyleSheet.create({
   panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
   header: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 },
+  headerInfo: { height: 24, flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
   divider: { height: 0.5, marginHorizontal: -12 },
-  title: { flexShrink: 1, fontSize: 12, lineHeight: 16, fontWeight: "500", includeFontPadding: false, textAlignVertical: "center" },
+  title: { flexShrink: 1, fontSize: 11, lineHeight: 14, fontWeight: "500", includeFontPadding: false, textAlignVertical: "center" },
   model: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 },
   messageRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   message: { flexShrink: 1, fontSize: 12.5, lineHeight: 18 },

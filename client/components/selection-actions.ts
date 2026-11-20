@@ -287,18 +287,20 @@ const BAR_CSS = `
 .panel-head {
   display: flex;
   align-items: center;
-  gap: 6px;
+  gap: 5px;
   min-width: 0;
-  color: var(--bc-bar-icon);
+  color: var(--bc-bar-subtle);
   font-weight: 500;
-  font-size: 11.5px;
+  min-height: 20px;
+  font-size: 11px;
+  line-height: 14px;
 }
 .panel-head svg {
-  width: 13px;
-  height: 13px;
+  width: 11px;
+  height: 11px;
   flex: 0 0 auto;
   fill: none;
-  color: var(--bc-bar-icon);
+  color: inherit;
   stroke: currentColor;
   stroke-width: 1.75;
   stroke-linecap: round;
@@ -306,8 +308,8 @@ const BAR_CSS = `
 }
 .panel-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .row .panel-settings { margin-left: auto; padding: 0; width: 28px; height: 28px; justify-content: center; }
-.panel-model { display: flex; align-items: center; gap: 6px; min-width: 0; color: var(--bc-bar-icon); }
-.panel-model img, .panel-model .model-mark { width: 14px; height: 14px; flex: 0 0 auto; }
+.panel-model { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.panel-model img, .panel-model .model-mark { width: 11px; height: 11px; flex: 0 0 auto; }
 .panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-grid { display: grid; grid-template-columns: repeat(2, ${10 / 3}px); grid-template-rows: repeat(3, ${10 / 3}px); gap: 2px; width: ${26 / 3}px; height: 14px; flex: 0 0 auto; }
 .activity-dot { width: ${10 / 3}px; height: ${10 / 3}px; border-radius: 50%; background: var(--bc-bar-text); animation-duration: 950ms; animation-timing-function: steps(1, end); animation-iteration-count: infinite; animation-delay: var(--bc-loader-phase); }
@@ -578,7 +580,7 @@ function createBar(actions: BarActions): Bar {
       if (uri) {
         if (id && MONO_MARKS.has(id)) {
           const mark = element("div", "model-mark");
-          mark.style.backgroundColor = "var(--bc-bar-icon)";
+          mark.style.backgroundColor = "var(--bc-bar-subtle)";
           mark.style.mask = `url("${uri}") center / contain no-repeat`;
           model.appendChild(mark);
         } else {
@@ -682,6 +684,7 @@ function createBar(actions: BarActions): Bar {
       host.style.setProperty("--bc-bar-shadow", floatShadow(tokens));
       host.style.setProperty("--bc-bar-text", tokens.foreground);
       host.style.setProperty("--bc-bar-icon", tokens.foregroundMuted);
+      host.style.setProperty("--bc-bar-subtle", tokens.foregroundSubtle);
       host.style.setProperty("--bc-bar-done", tokens.success);
       host.style.setProperty("--bc-bar-hover", floatHover(tokens));
       host.style.setProperty("--bc-bar-pressed", floatPressed(tokens));
