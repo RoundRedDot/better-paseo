@@ -519,7 +519,8 @@ describe("timeline translation settings", () => {
     ))!;
     for (const label of ["Target language", "Provider", "Model", "Thinking level"]) {
       const frame = buttonFrame(label);
-      expect(frame.width).toBeGreaterThanOrEqual(168);
+      if (label === "Target language") expect(frame.width).toBeGreaterThanOrEqual(168);
+      if (label === "Provider") expect(frame.width).toBeLessThan(168);
       expect(frame.left + frame.width, label).toBeLessThanOrEqual(width - 16);
     }
     const target = root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Target language");

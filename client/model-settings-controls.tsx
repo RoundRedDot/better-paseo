@@ -37,11 +37,11 @@ export function ModelSettingsControls({ look, language, provider, model, thinkin
   const refreshSize = look.compact ? 44 : 32;
   const menu = (label: string, value: string, selected: MenuChoice | null, choices: MenuChoice[], onChange: (value: string) => void, unavailable = false) =>
     <ChoiceMenuSelect label={label} value={value} selected={selected} choices={choices} onChange={onChange} look={look}
-      disabled={blocked || unavailable} minWidth={168}
+      disabled={blocked || unavailable}
     />;
   return <>
     <SettingRow title={words.provider} look={look} wrapControl disabled={disabled} control={menu(words.provider, provider, providerChoices.find((item) => item.value === provider) ?? { value: "", name: words.choose, logo: null }, providerChoices, onProvider)} />
-    <SettingRow title={words.model} look={look} wrapControl disabled={disabled} control={<View style={{ flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm, maxWidth: "100%" }}>
+    <SettingRow title={words.model} look={look} wrapControl disabled={disabled} control={<View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: space.sm, maxWidth: "100%" }}>
       <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onRefresh} style={{ width: refreshSize, height: refreshSize, alignItems: "center", justifyContent: "center", opacity: blocked ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable>
       {menu(words.model, model, modelChoices.find((item) => item.value === model) ?? { value: "", name: words.choose, logo: null }, modelChoices, (next) => { if (next !== model) onModel(next); }, !provider)}
     </View>} />
