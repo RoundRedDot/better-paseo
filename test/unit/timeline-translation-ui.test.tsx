@@ -592,9 +592,11 @@ describe("timeline translation", () => {
   const alignment = () => {
     const frames = measureHostTree(renderer!.root, { width: 640 });
     const slot = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "reply-translation-slot");
+    const button = renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate");
     const root = markdownRoots()[0]!;
     const text = firstTextBlock(root)!;
     const slotFrame = frames.get(slot)!;
+    const buttonFrame = frames.get(button)!;
     const textFrame = frames.get(text)!;
     const rootFrame = frames.get(root)!;
     const style = StyleSheet.flatten(text.props.style);
@@ -610,7 +612,7 @@ describe("timeline translation", () => {
     }
     return {
       first: textContent(text),
-      offset: slotFrame.top + slotFrame.height / 2 - (textFrame.top + padding + line / 2),
+      offset: buttonFrame.top + buttonFrame.height / 2 - (textFrame.top + padding + line / 2),
       slotHeight: slotFrame.height,
       gutter: slotFrame.left - (rootFrame.left + rootFrame.width),
     };
@@ -762,7 +764,7 @@ describe("timeline translation", () => {
       act(() => button().props.onHoverIn());
       act(() => { vi.advanceTimersByTime(400); });
       expect(collectTexts(renderer!.root)).toContain(label);
-      expect(StyleSheet.flatten(button().props.style).borderRadius).toBe(6);
+      expect(StyleSheet.flatten(button().props.style)).toMatchObject({ width: 24, height: 24, borderRadius: 6 });
       expect(StyleSheet.flatten(button().props.style).backgroundColor).toBeDefined();
       act(() => button().props.onHoverOut());
       vi.useRealTimers();
