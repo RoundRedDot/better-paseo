@@ -20,7 +20,10 @@ vi.mock("react-native", async () => {
     </rn.ScrollView>,
   };
 });
-vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => vi.fn(), usePaseo: () => ({}) }));
+vi.mock("@getpaseo/plugin/client", () => {
+  const paseo = {};
+  return { useRpc: () => vi.fn(), usePaseo: () => paseo };
+});
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("react-native");
   return { Icon: () => null, ScrollView: (props: React.ComponentProps<typeof rn.ScrollView>) => <rn.ScrollView {...props} />, copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) };
@@ -96,6 +99,9 @@ describe("details columns", () => {
     expect(translateFill.props.style).toEqual(copyFill.props.style);
     expect(translateFill.findByType(Icon).props.size).toBe(copyFill.findByType(Icon).props.size);
     expect(translate.props.style).toEqual(copy.props.style);
+    await act(async () => translate.props.onPress({ stopPropagation() {} }));
+    expect(host(translateFill, "detail-message-translate-spinner")).toBeDefined();
+    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status")).toHaveLength(0);
   });
 
   it("scopes first, human and reply text to the real session, keeping previews unscoped", async () => {

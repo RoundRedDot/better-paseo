@@ -8,15 +8,15 @@ import { ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { useEnhancerPreferences } from "../preferences";
-import { selectionViewMessage, selectionViewRetryable, createSelectionTranslation, type SelectionTranslationView } from "./selection";
+import { selectionViewLoading, selectionViewMessage, selectionViewRetryable, createSelectionTranslation, type SelectionTranslationView } from "./selection";
 import { useTranslationSettingsState } from "./settings-store";
 import { translationAgentConfigStoreFor, useTranslateCaller, type TranslationSourceKind } from "./store";
 import { TRANSLATE_ICON } from "./ui";
 import { useHover } from "../ui/use-hover";
 import { hoverFill } from "../tasks/hover-fill";
 import { iconHoverSize } from "../ui/icon-hover-size";
-import { SyncedLoader } from "../ui/synced-loader";
 import { tipProps } from "../tasks/cards/card-hints";
+import { SpinnerRing } from "../tasks/cards/status-icon";
 
 export type InlineTranslationState = { view: SelectionTranslationView | null; active: boolean; toggle(): void };
 
@@ -60,29 +60,31 @@ export function InlineTranslateButton({ state, theme, testID, base, timeline = f
   // While the translation is shown, the button restores the original, and its
   // glyph says so; otherwise it translates (or retries) with the translate mark.
   const showingTranslation = state.active && state.view?.status === "done";
+  const loading = state.active && selectionViewLoading(state.view);
   const label = showingTranslation ? (resolveLanguage(preferences.language ?? "system") === "zh" ? "显示原文" : "Show original") : state.active && state.view && selectionViewRetryable(state.view) ? toolbarLabel("Retry", preferences.language) : toolbarLabel("Translate", preferences.language);
+  const icon = loading
+    ? <SpinnerRing size={14} color={tokens.foregroundMuted} testID={`${testID}-spinner`} />
+    : showingTranslation
+      ? <Icon name="Undo2" size={14} color={tokens.foregroundMuted} />
+      : <Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} />;
   if (timeline) return <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}><TooltipSideContext.Provider value="auto"><ToolbarItem testID={testID} label={label} tokens={tokens} align="end"
     buttonStyle={{ width: 24, height: 24, borderRadius: radiusV2.block }}
     onPress={(event) => { event.stopPropagation(); state.toggle(); }}>
-    <View pointerEvents="none" testID={`${testID}-fill`}>{showingTranslation
-      ? <Icon name="Undo2" size={14} color={tokens.foregroundMuted} />
-      : <Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} />}</View>
+    <View pointerEvents="none" testID={`${testID}-fill`}>{icon}</View>
   </ToolbarItem></TooltipSideContext.Provider></View>;
   return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} hitSlop={4} {...tipProps(label)} {...hoverProps}
     onPress={(event) => { event.stopPropagation(); state.toggle(); }}
     style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
-    {({ pressed }) => <View pointerEvents="none" testID={`${testID}-fill`} style={{ width: iconHoverSize(14), height: iconHoverSize(14), borderRadius: iconHoverSize(14) / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}>{showingTranslation
-      ? <Icon name="Undo2" size={14} color={tokens.foregroundMuted} />
-      : <Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} />}</View>}
+    {({ pressed }) => <View pointerEvents="none" testID={`${testID}-fill`} style={{ width: iconHoverSize(14), height: iconHoverSize(14), borderRadius: iconHoverSize(14) / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}>{icon}</View>}
   </Pressable>;
 }
 
-export function InlineTranslationNotice({ state, theme, showLoader = true }: { state: InlineTranslationState; theme: PluginTheme; showLoader?: boolean }) {
+export function InlineTranslationNotice({ state, theme }: { state: InlineTranslationState; theme: PluginTheme }) {
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences);
-  if (!state.active || !state.view) return null;
+  if (!state.active || !state.view || selectionViewLoading(state.view)) return null;
   const message = selectionViewMessage(state.view);
   if (!message) return null;
-  return <View style={{ paddingHorizontal: 6, paddingTop: 4, flexDirection: "row", alignItems: "center", gap: 6 }}>{showLoader && ["running", "settings-loading", "config-loading"].includes(state.view.status) ? <SyncedLoader color={tokens.foregroundMuted} gridTestID="inline-translation-loading" /> : null}<Text testID="inline-translation-status" style={{ color: tokens.foregroundMuted, fontSize: 12 }}>{toolbarLabel(message, preferences.language)}{state.view.status === "error" ? `: ${state.view.error}` : ""}</Text></View>;
+  return <View style={{ paddingHorizontal: 6, paddingTop: 4, flexDirection: "row", alignItems: "center", gap: 6 }}><Text testID="inline-translation-status" style={{ color: tokens.foregroundMuted, fontSize: 12 }}>{toolbarLabel(message, preferences.language)}{state.view.status === "error" ? `: ${state.view.error}` : ""}</Text></View>;
 }
 

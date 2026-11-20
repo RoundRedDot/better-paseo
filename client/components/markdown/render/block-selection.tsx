@@ -8,9 +8,10 @@ import { useScrollDismiss } from "../../../ui/scroll-anchor";
 import { FLOAT, floatPressed } from "../../../ui/tokens/float";
 import { useEnhancerPreferences } from "../../../preferences";
 import { toolbarLabel } from "../../../i18n/toolbar-strings";
-import { SelectionTranslationContext, useSelectionTranslation, type SelectionTranslationScopeValue } from "../../../translation/selection";
+import { SelectionTranslationContext, selectionViewLoading, useSelectionTranslation, type SelectionTranslationScopeValue } from "../../../translation/selection";
 import { SelectionTranslationPanel, TranslationSheet, TRANSLATE_ICON } from "../../../translation/ui";
 import { useTranslationSettingsState } from "../../../translation/settings-store";
+import { SpinnerRing } from "../../../tasks/cards/status-icon";
 import { inlineText } from "./inline";
 import { localImagePath } from "./local-path";
 
@@ -166,20 +167,22 @@ function BlockTranslate({ scope, text, tokens, dismiss, copyButton, menuStyle }:
 }) {
   const { language } = useEnhancerPreferences();
   const { view, start } = useSelectionTranslation(scope, text);
+  const loading = selectionViewLoading(view);
   return <>
-    {!view ? <View testID="markdown-block-menu" style={menuStyle}>
+    {!view || loading ? <View testID="markdown-block-menu" style={menuStyle}>
       {copyButton}
       <View testID="translation-menu-separator" accessible={false} style={[styles.separator, { backgroundColor: tokens.v2.border }]} />
-      <Pressable accessibilityRole="button" accessibilityLabel="Translate selected block"
+      <Pressable accessibilityRole="button" accessibilityLabel="Translate selected block" accessibilityState={{ busy: loading }}
         style={({ pressed }) => [styles.item, pressed && { backgroundColor: floatPressed(tokens) }]}
-        onPress={start}>
-        <Icon icon={TRANSLATE_ICON} size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+        onPress={loading ? undefined : start}>
+        {loading ? <SpinnerRing size={FLOAT.iconSize} color={tokens.foregroundMuted} testID="selected-block-translate-spinner" />
+          : <Icon icon={TRANSLATE_ICON} size={FLOAT.iconSize} color={tokens.foregroundMuted} />}
         <Text selectable={false} style={[styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
           {toolbarLabel("Translate", language)}
         </Text>
       </Pressable>
     </View> : null}
-    {view ? <TranslationSheet close={dismiss}>
+    {view && !loading ? <TranslationSheet close={dismiss}>
       <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={dismiss} sheet />
     </TranslationSheet> : null}
   </>;

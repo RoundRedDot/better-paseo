@@ -425,7 +425,7 @@ function ReasoningCardContent({ segmentation: originalSegmentation, streaming, d
   const body = expanded ? (
     <FadeIn>
       <View {...surfaceProps(selectionSurface)} style={[styles.body, selectableSurface]}>
-        {inline && translation ? <InlineTranslationNotice state={inline} theme={translation.theme} showLoader={false} /> : null}
+        {inline && translation ? <InlineTranslationNotice state={inline} theme={translation.theme} /> : null}
         <View style={inline?.active && inline.view && ["running", "settings-loading", "config-loading"].includes(inline.view.status) ? { opacity: 0.55 } : undefined}>
         <ReasoningSectionsView
           segmentation={segmentation}

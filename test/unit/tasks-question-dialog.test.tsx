@@ -43,6 +43,7 @@ import { createFakePaseo } from "./helpers/fake-paseo";
 import type { TaskCard } from "../../client/tasks/model";
 import { MessageTranslateButton } from "../../client/tasks/cards/message-translation";
 import { SelectionTranslationScope } from "../../client/translation/ui";
+import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
 
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111", foregroundMuted: "#666", accent: "#36c", accentForeground: "#fff", statusWarning: "#960", statusDanger: "#c33", statusSuccess: "#393" } };
 const question = { header: "Original header", question: "Full question\nSecond line", options: [{ label: "Keep, unchanged", description: "Full explanation", preview: "Preview\nSecond line" }, { label: "Reject" }], multiSelect: false, isOther: true };
@@ -443,12 +444,15 @@ describe("agent note above the question", () => {
       const draft = { selections: { 0: [0] }, texts: { 1: "draft answer" } };
       await act(async () => store.change(draft));
       await act(async () => host("task-question-note-translate").props.onPress({ stopPropagation() {} }));
+      expect(host("task-question-note-translate-spinner")).toBeDefined();
+      await act(async () => { publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "question-note"); });
       const settings = tree!.root.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Translation settings");
       await act(async () => settings.props.onPress());
       expect(store.get()).toBeNull();
       await act(async () => store.open(current));
       expect(store.get()?.draft).toEqual(draft);
     } finally {
+      resetTranslationSettingsStoreForTests();
       vi.unstubAllGlobals();
     }
   });

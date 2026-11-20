@@ -327,7 +327,8 @@ describe.each(["web", "ios", "android"] as const)("%s whole-message translation"
 
   it("sends the entire message only when pressed", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
-    mocks.rpc.mockResolvedValue(doneState("完整译文"));
+    const pending = deferred<ReturnType<typeof doneState>>();
+    mocks.rpc.mockReturnValueOnce(pending.promise);
     const text = "First line.\n\nSecond **paragraph** with `file.ts`.";
     await act(async () => { renderer = TestRenderer.create(React.createElement(MessageTranslateButton, {
       agentId: "agent-1", kind: "user_message", text, streaming: false, theme, testID: "whole-translate",
@@ -338,6 +339,11 @@ describe.each(["web", "ios", "android"] as const)("%s whole-message translation"
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(stopPropagation).toHaveBeenCalledOnce();
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ agentId: "agent-1", sourceKind: "user_message", text });
+    const spinner = () => renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "whole-translate-spinner");
+    expect(spinner()).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => node.props.testID === "selection-translation-panel")).toHaveLength(0);
+    await act(async () => pending.resolve(doneState("完整译文")));
+    expect(spinner()).toHaveLength(0);
     if (platform !== "web") expect(JSON.stringify(renderer!.toJSON())).toContain("完整译文");
   });
 
@@ -368,12 +374,17 @@ describe.each(["web", "ios", "android"] as const)("%s thought translation", (pla
     await act(async () => { renderer = TestRenderer.create(card); });
     expect(renderer!.root.findAll((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate")).toHaveLength(0);
     await act(async () => { publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "thought-on"); });
-    mocks.rpc.mockResolvedValue(doneState("译文"));
-    const button = renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate");
-    await act(async () => button.props.onPress({ stopPropagation() {} }));
+    const pending = deferred<ReturnType<typeof doneState>>();
+    mocks.rpc.mockReturnValueOnce(pending.promise);
+    const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate");
+    await act(async () => button().props.onPress({ stopPropagation() {} }));
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ agentId: "agent-1", sourceKind: "reasoning", text });
+    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status")).toHaveLength(0);
+    expect(button().findAll((node) => String(node.type) === "View" && node.props.testID === "reasoning-translate-spinner")).toHaveLength(1);
+    await act(async () => pending.resolve(doneState("译文")));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("译文"));
+    expect(button().findAll((node) => node.props.testID === "reasoning-translate-spinner")).toHaveLength(0);
     expect(renderer!.root.findByType(DisclosureHeader).props.actionsActive).toBe(true);
     await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate").props.onPress({ stopPropagation() {} }));
     expect(renderer!.root.findByType(DisclosureHeader).props.actionsActive).toBe(false);
@@ -677,9 +688,9 @@ describe("timeline translation", () => {
       assistantProps({ text: "First line for alignment", phase: "complete" }) as never)); });
     const press = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate").props.onPress({ stopPropagation() {} });
     await act(async () => press());
-    await vi.waitFor(() => expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status").length).toBeGreaterThan(0));
-    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-loading")).toHaveLength(0);
-    // The status line above the reply moves the text and the button together.
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status")).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "reply-translate-spinner")).toHaveLength(1);
     expect(Math.abs(alignment().offset)).toBeLessThanOrEqual(0.5);
     await act(async () => pending.resolve(doneState("---\n\n# First line for alignment\n\n正文")));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("正文"));
@@ -739,8 +750,8 @@ describe("timeline translation", () => {
     };
     expect(state()).toEqual({ label: "Translate", glyph: "translate" });
     await act(async () => button().props.onPress({ stopPropagation() {} }));
-    // Still translating: the action has not changed yet.
-    expect(state()).toEqual({ label: "Translate", glyph: "translate" });
+    expect(button().props.accessibilityLabel).toBe("Translate");
+    expect(button().findAll((node) => String(node.type) === "View" && node.props.testID === "reply-translate-spinner")).toHaveLength(1);
     await act(async () => pending.resolve(doneState("译文")));
     await vi.waitFor(() => expect(state()).toEqual({ label: "Show original", glyph: "Undo2" }));
     await act(async () => button().props.onPress({ stopPropagation() {} }));
@@ -800,10 +811,11 @@ describe("timeline translation", () => {
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(JSON.stringify(renderer!.toJSON())).toContain("Waiting block");
-    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status").length).toBeGreaterThan(0);
-    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-loading")).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status")).toHaveLength(0);
+    expect(button().findAll((node) => String(node.type) === "View" && node.props.testID === "reply-translate-spinner")).toHaveLength(1);
     await act(async () => pending.resolve({ state: "error", error: "offline" } as never));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("Translation failed"));
+    expect(button().findAll((node) => node.props.testID === "reply-translate-spinner")).toHaveLength(0);
     expect(JSON.stringify(renderer!.toJSON())).toContain("Waiting block");
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("译文"));
@@ -920,24 +932,18 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     await act(async () => button("Translate selected block")[0]!.props.onPress());
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ text: "Second paragraph.", agentId: "agent-1", sourceKind: "assistant_message" });
-    expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(1);
-    expect(renderer!.root.find((node) => String(node.type) === "SheetContent").props.scrollable).toBe(true);
-    expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-menu")).toHaveLength(0);
-    expect(panelText()).toContain("Translating...");
-    const activity = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-loading");
-    expect(activity.children).toHaveLength(6);
-    const loadingHeader = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header");
-    expect(loadingHeader.findAll((node) => node.props.testID === "translation-loading")).toHaveLength(0);
+    const spinner = () => button("Translate selected block").flatMap((node) => node.findAll((child) => String(child.type) === "View" && child.props.testID === "selected-block-translate-spinner"));
+    expect(spinner()).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(0);
 
     await act(async () => firstToken.resolve({ state: "running", text: "第" }));
-    expect(panelText()).toContain("第");
-    expect(panelText()).not.toContain("Translating...");
-    expect(renderer!.root.findAll((node) => node.props.testID === "translation-loading")).toHaveLength(0);
-    expect(button("Copy translation")).toHaveLength(0);
+    expect(spinner()).toHaveLength(1);
+    expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(0);
 
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(2), { timeout: 2500 });
     await act(async () => reply.resolve(doneState("第二段。", { thinkingMode: "unsupported_off", thinkingOptionId: "low" })));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。"));
+    expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-menu")).toHaveLength(0);
     expect(button("Copy translation")).toHaveLength(1);
     const copyButton = button("Copy translation")[0]!;
     const retryButton = button("Retry")[0]!;

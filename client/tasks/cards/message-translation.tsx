@@ -7,7 +7,7 @@ import { useThemeTokens } from "../../components/theme-tokens";
 import { createMessageTranslationBar } from "../../components/selection-actions";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { useEnhancerPreferences } from "../../preferences";
-import { useSelectionTranslation } from "../../translation/selection";
+import { selectionViewLoading, useSelectionTranslation } from "../../translation/selection";
 import { openTranslationSettings, TranslationSettingsParentCloseContext } from "../../translation/navigation";
 import { useTranslationSettingsState } from "../../translation/settings-store";
 import type { TranslationSourceKind } from "../../translation/store";
@@ -16,6 +16,7 @@ import { iconHoverSize } from "../../ui/icon-hover-size";
 import { useHover } from "../../ui/use-hover";
 import { hoverFill } from "../hover-fill";
 import { tipProps } from "./card-hints";
+import { SpinnerRing } from "./status-icon";
 
 type Props = {
   agentId: string;
@@ -40,6 +41,9 @@ function MessageTranslationButton(props: Props) {
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(props.theme, preferences);
   const [text, setText] = useState<string | null>(null);
+  const { view, start } = useSelectionTranslation(props, text);
+  const loading = text !== null && (!view || selectionViewLoading(view));
+  useEffect(() => { start(); }, [start]);
   const anchor = useRef<View>(null);
   useEffect(() => () => props.onOpenChange?.(false), [props.onOpenChange]);
   const close = () => { setText(null); props.onOpenChange?.(false); };
@@ -48,26 +52,25 @@ function MessageTranslationButton(props: Props) {
   const iconSize = 14;
   const fillSize = iconHoverSize(iconSize);
   return <View ref={anchor} collapsable={false}>
-    <Pressable accessibilityRole="button" accessibilityLabel={label}
+    <Pressable accessibilityRole="button" accessibilityLabel={label} accessibilityState={{ busy: loading }}
       {...tipProps(label)} {...hoverProps} testID={props.testID} hitSlop={4}
-      onPress={(event) => { event.stopPropagation(); setText(props.text); props.onOpenChange?.(true); }}
+      onPress={(event) => {
+        event.stopPropagation();
+        if (text !== null) return;
+        setText(props.text);
+        props.onOpenChange?.(true);
+      }}
       style={{ width: props.size ?? 32, height: props.size ?? 32, alignItems: "center", justifyContent: "center" }}>
       {({ pressed }) => <View pointerEvents="none" testID={`${props.testID}-fill`} style={{ width: fillSize, height: fillSize, borderRadius: fillSize / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(props.base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}>
-        <Icon icon={TRANSLATE_ICON} size={iconSize} color={tokens.foregroundMuted} />
+        {loading ? <SpinnerRing size={iconSize} color={tokens.foregroundMuted} testID={`${props.testID}-spinner`} />
+          : <Icon icon={TRANSLATE_ICON} size={iconSize} color={tokens.foregroundMuted} />}
       </View>}
     </Pressable>
-    {text !== null ? <MessageTranslationResult {...props} text={text} anchor={anchor} close={close} /> : null}
+    {view && !loading ? Platform.OS === "web"
+      ? <WebMessageTranslation anchor={anchor} view={view} tokens={tokens} retry={start} close={close} />
+      : <TranslationSheet close={close}><SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={close} sheet /></TranslationSheet>
+      : null}
   </View>;
-}
-
-function MessageTranslationResult(props: Props & { anchor: React.RefObject<View | null>; close(): void }) {
-  const preferences = useEnhancerPreferences();
-  const tokens = useThemeTokens(props.theme, preferences);
-  const { view, start } = useSelectionTranslation({ agentId: props.agentId, kind: props.kind, streaming: props.streaming }, props.text);
-  useEffect(() => { start(); }, [start]);
-  if (!view) return null;
-  if (Platform.OS === "web") return <WebMessageTranslation anchor={props.anchor} view={view} tokens={tokens} retry={start} close={props.close} />;
-  return <TranslationSheet close={props.close}><SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={props.close} sheet /></TranslationSheet>;
 }
 
 function WebMessageTranslation(props: {

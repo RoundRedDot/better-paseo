@@ -1,4 +1,4 @@
-import { createContext, useEffect, useMemo, useState, useSyncExternalStore } from "react";
+import { createContext, useEffect, useMemo, useSyncExternalStore } from "react";
 import { Platform } from "react-native";
 import { usePaseo } from "@getpaseo/plugin/client";
 import type { PaseoApi } from "@getpaseo/client";
@@ -390,10 +390,10 @@ export function useLentTranslator(enabled: boolean): LentTranslator | undefined 
 }
 
 /** A native menu's translation for the block it selected; idle until `start()`. */
-export function useSelectionTranslation(scope: SelectionTranslationScopeValue, text: string) {
+export function useSelectionTranslation(scope: SelectionTranslationScopeValue, text: string | null) {
   const caller = useTranslateCaller();
   const paseo = usePaseo();
-  const [translation] = useState(() => createSelectionTranslation({
+  const translation = useMemo(() => text === null ? null : createSelectionTranslation({
     agentId: scope.agentId,
     kind: scope.kind,
     text,
@@ -401,16 +401,25 @@ export function useSelectionTranslation(scope: SelectionTranslationScopeValue, t
     translator: caller,
     configStore: paseo ? translationAgentConfigStoreFor(paseo) : undefined,
     host: paseo ?? undefined,
-  }));
+  }), [scope.agentId, scope.kind, text, paseo]);
   useEffect(() => {
-    translation.setStreaming(scope.streaming);
+    translation?.setStreaming(scope.streaming);
   }, [translation, scope.streaming]);
   useEffect(() => {
-    translation.setTranslator(caller);
+    translation?.setTranslator(caller);
   }, [translation, caller]);
-  useEffect(() => () => translation.dispose(), [translation]);
-  const view = useSyncExternalStore(translation.subscribe, translation.view, translation.view);
-  return useMemo(() => ({ view, start: translation.start }), [view, translation]);
+  useEffect(() => () => translation?.dispose(), [translation]);
+  const read = translation?.view ?? idleView;
+  const view = useSyncExternalStore(translation?.subscribe ?? subscribeIdle, read, read);
+  return useMemo(() => ({ view, start: translation?.start ?? startIdle }), [view, translation]);
+}
+
+const startIdle = () => {};
+const subscribeIdle = () => startIdle;
+const idleView = () => null;
+
+export function selectionViewLoading(view: SelectionTranslationView | null): boolean {
+  return view?.status === "running" || view?.status === "settings-loading" || view?.status === "config-loading";
 }
 
 /** The English line a view shows besides the translation itself; `toolbarLabel` localizes it. */

@@ -566,7 +566,7 @@ function InlineReplyBlock({ state, theme, tokens: given, compact, text, firstBlo
   // the content does not shift it, and that box spans the gutter so the slot
   // lands beside the text instead of over its last column.
   return <View onPointerEnter={hoverProps.onHoverIn} onPointerLeave={hoverProps.onHoverOut} style={{ position: "relative" }}>
-    <View style={{ paddingRight: gutter }}><InlineTranslationNotice state={state} theme={theme} showLoader={false} /></View>
+    <View style={{ paddingRight: gutter }}><InlineTranslationNotice state={state} theme={theme} /></View>
     <View style={{ position: "relative", paddingRight: gutter }}>
       <View style={loading ? { opacity: 0.55 } : undefined}>{children}</View>
       {enabled ? <View testID="reply-translation-slot" style={{ position: "absolute", right: 0, top, opacity: hovered || input.touch || state.active ? 1 : 0 }} pointerEvents={hovered || input.touch || state.active ? "auto" : "none"}>
