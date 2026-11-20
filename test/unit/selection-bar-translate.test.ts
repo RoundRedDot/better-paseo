@@ -191,8 +191,8 @@ describe("selection bar Translate", () => {
     doc.dispatchEvent(new Event("selectionchange"));
     vi.advanceTimersByTime(150);
     expect(display()).toBe("block");
-    button("Copy")!.click();
-    expect(copy).toHaveBeenCalledWith("selected text");
+    expect(button("Copy")!.hidden).toBe(true);
+    expect(button("Add to chat")!.hidden).toBe(true);
     act(() => renderer?.unmount());
     renderer = undefined;
     expect(display()).toBe("block");
@@ -280,6 +280,9 @@ describe("selection bar Translate", () => {
     expect(call).toHaveBeenCalledOnce();
     expect(call.mock.calls[0]![0]).toMatchObject({ action: "start", agentId: "agent-1", text: "the selected words", sourceKind: "reasoning" });
     expect(bar().classList.contains("translating")).toBe(true);
+    expect(button("Copy")!.hidden).toBe(true);
+    expect(button("Add to chat")!.hidden).toBe(true);
+    expect(host().all((node) => node.className === "row-separator").every((node) => node.hidden)).toBe(true);
     expect(panel().textContent).toContain("Translating...");
     const loading = panel().querySelector(".activity-grid")!;
     expect(loading.children).toHaveLength(6);
@@ -342,6 +345,8 @@ describe("selection bar Translate", () => {
     await flush();
     select("second", node);
     expect(bar().classList.contains("translating")).toBe(false);
+    expect(button("Copy")!.hidden).toBe(false);
+    expect(button("Add to chat")!.hidden).toBe(false);
     await act(async () => finish(done("第一")));
     await flush();
     expect(panel().textContent).not.toContain("第一");

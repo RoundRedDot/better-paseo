@@ -781,6 +781,10 @@ function createBar(actions: BarActions): Bar {
         // The panel fades out with the bar, then goes.
         if (view) {
           view = null;
+          copyButton.hidden = false;
+          copySeparator.hidden = false;
+          addButton.hidden = false;
+          separator.hidden = translateButton.hidden;
           settingsButton.hidden = true;
           renderPanel();
           bar.classList.remove("translating");
@@ -795,6 +799,10 @@ function createBar(actions: BarActions): Bar {
       if (next === view) return;
       view = next;
       if (!next) geometry = null;
+      copyButton.hidden = Boolean(next);
+      copySeparator.hidden = Boolean(next);
+      addButton.hidden = Boolean(next);
+      separator.hidden = Boolean(next) || translateButton.hidden;
       settingsButton.hidden = !next;
       settingsButton.title = toolbarLabel("Translation settings", readLanguage());
       window.clearTimeout(copiedTimer);
