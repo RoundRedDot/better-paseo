@@ -1138,8 +1138,12 @@ function startController(): Controller {
     if (!onBar(event.target)) gestureAt = Date.now();
   };
   const onKeyDown = (event: KeyboardEvent) => {
-    if (event.key === "Escape") hide();
-    else if (SCROLL_KEYS.has(event.key)) gestureAt = Date.now();
+    if (event.key === "Escape") {
+      // Closed until the selection changes, as after a press elsewhere: a
+      // page scroll must not bring it back.
+      dismissed = true;
+      hide();
+    } else if (SCROLL_KEYS.has(event.key)) gestureAt = Date.now();
   };
 
   const onSelectionChange = () => {

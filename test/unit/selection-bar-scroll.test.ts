@@ -168,6 +168,16 @@ describe("selection bar scroll dismissal", () => {
     on(doc, "pointerup", text);
   });
 
+  it("keeps a bar closed with Escape away while the page scrolls", () => {
+    doc.dispatchEvent(Object.assign(new Event("keydown"), { key: "Escape" }));
+    vi.advanceTimersByTime(100);
+    expect(display()).toBe("none");
+    scroll(true, "page", 10);
+    expect(display()).toBe("none");
+    select();
+    expect(display()).toBe("block");
+  });
+
   it("does not reopen from a selection update queued before the reader scrolls", () => {
     doc.dispatchEvent(new Event("selectionchange"));
     scroll(true, "wheel");
