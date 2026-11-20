@@ -25,7 +25,10 @@ const record = (revision: string, targetLanguage = LANGUAGES[revision] ?? "en"):
   values: { targetLanguage },
 });
 
-const tick = () => new Promise<void>((resolve) => setTimeout(resolve, 0));
+// With fake timers only 0 ms passes: TanStack's batched notifications run,
+// timed retries wait for `advance`.
+const tick = () =>
+  vi.isFakeTimers() ? vi.advanceTimersByTimeAsync(0).then(() => undefined) : new Promise<void>((resolve) => setTimeout(resolve, 0));
 
 async function setup() {
   (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -49,7 +52,12 @@ async function setup() {
     });
   };
   let failConfirms = 0;
-  const hostRead = vi.fn(() => daemonRead());
+  let failHostReads = 0;
+  const hostRead = vi.fn(() => {
+    const fail = failHostReads > 0;
+    if (fail) failHostReads--;
+    return daemonRead(fail);
+  });
   const confirmRead = vi.fn(() => {
     const fail = failConfirms > 0;
     if (fail) failConfirms--;
@@ -89,7 +97,8 @@ async function setup() {
   }
 
   // The plugin's watcher, on the same push the host invalidates its query for.
-  const observers = new Set<{ update(message: unknown): void }>();
+  type Observer = { snapshot(snapshot: unknown): void; update(message: unknown): void };
+  const observers = new Set<Observer>();
   const plugin = {
     rpc: vi.fn((contract: { name: string }) => {
       if (contract.name === "settings.timeline-translation.read") return confirmRead();
@@ -97,8 +106,11 @@ async function setup() {
     }),
     paseo: {
       observeEvents: () => ({
-        subscribe(observer: { update(message: unknown): void }) {
+        // The host sends the subscription's snapshot once it accepts it
+        // (`connection/owned.ts`), and again after every reconnect.
+        subscribe(observer: Observer) {
           observers.add(observer);
+          void Promise.resolve().then(() => observer.snapshot({ subscriptionId: "s1" }));
           return () => observers.delete(observer);
         },
         release: () => Promise.resolve(),
@@ -133,6 +145,29 @@ async function setup() {
     // Nothing translates under the old values while the change is read.
     expect(store.getTranslationSettingsState().status).toBe("loading");
   };
+  /** Another client writes the record while this one is offline: no push reaches it. */
+  const writeOffline = (next: Record) => {
+    current = next;
+    sinceWrite = [];
+  };
+  /**
+   * The connection comes back: every subscription is requested again and
+   * delivers a new snapshot. The host's catalog sync refreshes the catalog
+   * first, then invalidates every settings query (`catalog-sync-model.ts`).
+   */
+  const reconnect = async () => {
+    await renderer.act(async () => {
+      for (const observer of observers) observer.snapshot({ subscriptionId: "s2" });
+      await tick();
+      void client.invalidateQueries({ queryKey: ["plugin-settings"], refetchType: "all" });
+    });
+  };
+  /** Moves the fake clock (tests that call `vi.useFakeTimers`). */
+  const advance = async (ms: number) => {
+    await renderer.act(async () => {
+      await vi.advanceTimersByTimeAsync(ms);
+    });
+  };
   /** Delivers every answer in transit, in order, until no read is left. */
   const deliver = async (count = Infinity) => {
     let delivered = 0;
@@ -160,8 +195,14 @@ async function setup() {
   };
   const hostCopy = () => (client.getQueryData(key) as Record | undefined)?.revision;
   const shown = () => store.getTranslationSettingsState();
-  const failNextConfirm = () => {
-    failConfirms++;
+  const failNextConfirm = (count = 1) => {
+    failConfirms += count;
+  };
+  const stopFailingConfirms = () => {
+    failConfirms = 0;
+  };
+  const failNextHostRead = () => {
+    failHostReads++;
   };
   const act = renderer.act;
   /** The store showed only `revision` since the latest write, and shows it now. */
@@ -177,13 +218,14 @@ async function setup() {
     stopWatch();
     client.clear();
   };
-  return { store, client, key, write, deliver, mount, unmount, hostCopy, shown, hostRead, confirmRead, failNextConfirm, act, settledOn, cleanup };
+  return { store, client, key, write, deliver, mount, unmount, hostCopy, shown, hostRead, confirmRead, shownSinceWrite, failNextConfirm, stopFailingConfirms, failNextHostRead, writeOffline, reconnect, advance, act, settledOn, cleanup };
 }
 
 let cleanups: (() => void)[] = [];
 afterEach(() => {
   for (const cleanup of cleanups) cleanup();
   cleanups = [];
+  vi.useRealTimers();
 });
 async function harness() {
   const h = await setup();
@@ -309,5 +351,120 @@ describe("translation settings follow the daemon across event orderings", () => 
     await h.deliver();
     h.settledOn("t1");
     await h.unmount(again);
+  });
+
+  it("reads the record again after a reconnect whose host refetch fails", async () => {
+    const h = await harness();
+    const row = await h.mount();
+    await h.deliver();
+    // A push confirmed t1, so the store is past a confirmed revision.
+    await h.write(record("t1"));
+    await h.deliver();
+    h.settledOn("t1");
+    // Offline, another client changes the record; the host's refetch after
+    // the reconnect fails, so its error must not leave t1 showing.
+    h.writeOffline(record("t2"));
+    h.failNextHostRead();
+    await h.reconnect();
+    expect(h.shown().status).toBe("loading");
+    await h.deliver();
+    h.settledOn("t2");
+    await h.unmount(row);
+  });
+
+  it("does not show the old record after a reconnect while the read fails", async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    const row = await h.mount();
+    await h.deliver();
+    h.writeOffline(record("t2"));
+    h.failNextHostRead();
+    h.failNextConfirm();
+    await h.reconnect();
+    await h.deliver();
+    // The read is retried (here already on the host's failed refetch).
+    await h.advance(60_000);
+    await h.deliver();
+    h.settledOn("t2");
+    await h.unmount(row);
+  });
+
+  it("retries a failed read after the host already reported the change", async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    const row = await h.mount();
+    await h.deliver();
+    // The host's refetch answers t2 first; then the plugin's read fails twice.
+    // The host does not report again, and its t2 proves nothing on its own.
+    h.failNextConfirm(2);
+    await h.write(record("t2"));
+    await h.deliver();
+    expect(h.shown()).toMatchObject({ status: "error" });
+    expect(h.hostCopy()).toBe("t2");
+    const reads = h.confirmRead.mock.calls.length;
+    await h.advance(60_000);
+    await h.deliver();
+    expect(h.shown()).toMatchObject({ status: "error" });
+    expect(h.confirmRead.mock.calls.length).toBe(reads + 1);
+    await h.advance(60_000);
+    await h.deliver();
+    h.settledOn("t2");
+    expect(h.confirmRead.mock.calls.length).toBe(reads + 2);
+    await h.unmount(row);
+  });
+
+  it("stops retrying a read that keeps failing until the next change or hook", async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    const row = await h.mount();
+    await h.deliver();
+    h.failNextConfirm(1000);
+    await h.write(record("t2"));
+    await h.deliver();
+    const first = h.confirmRead.mock.calls.length;
+    for (let minute = 0; minute < 30; minute++) {
+      await h.advance(60_000);
+      await h.deliver();
+    }
+    const retried = h.confirmRead.mock.calls.length - first;
+    expect(retried).toBe(3);
+    expect(h.shown()).toMatchObject({ status: "error" });
+    expect(h.shownSinceWrite()).toEqual([]);
+    expect(vi.getTimerCount()).toBe(0);
+    // A new hook reads again, with the same bounded retries.
+    await h.unmount(row);
+    const again = await h.mount();
+    await h.deliver();
+    for (let minute = 0; minute < 30; minute++) {
+      await h.advance(60_000);
+      await h.deliver();
+    }
+    // The mount's read and its three retries.
+    expect(h.confirmRead.mock.calls.length - first).toBe(retried + 4);
+    expect(h.shown()).toMatchObject({ status: "error" });
+    // Once the daemon answers again, the next trigger recovers.
+    h.stopFailingConfirms();
+    await h.unmount(again);
+    const recovered = await h.mount();
+    await h.deliver();
+    h.settledOn("t2");
+    await h.unmount(recovered);
+  });
+
+  it("does not retry a failed read after the plugin unloads", async () => {
+    vi.useFakeTimers();
+    const h = await harness();
+    const row = await h.mount();
+    await h.deliver();
+    h.failNextConfirm();
+    await h.write(record("t2"));
+    await h.deliver();
+    expect(vi.getTimerCount()).toBe(1);
+    await h.unmount(row);
+    h.cleanup();
+    expect(vi.getTimerCount()).toBe(0);
+    const reads = h.confirmRead.mock.calls.length;
+    await h.advance(60_000);
+    expect(h.confirmRead.mock.calls.length).toBe(reads);
   });
 });

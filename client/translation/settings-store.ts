@@ -160,6 +160,8 @@ export function resetTranslationSettingsStoreForTests(): void {
   unconfirmed = false;
   readFailed = false;
   confirmedRevision = null;
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
 }
 
 // A `plugin_settings_changed` push carries no revision, and revisions are
@@ -185,6 +187,11 @@ let unconfirmed = false;
 let readFailed = false;
 // The revision the latest read answered.
 let confirmedRevision: string | null = null;
+// A failed read is retried a few times on its own: a host report with the
+// same revision proves nothing, and may not come again. After the last one
+// the store stays in error until the next push, reconnect, hook or host change.
+const RETRY_DELAYS_MS = [1_000, 5_000, 20_000];
+let retryTimer: ReturnType<typeof setTimeout> | null = null;
 
 type SettingsRecord = Extract<RemoteTranslationSettings, { revision: string }>;
 
@@ -201,15 +208,18 @@ function readResult(result: unknown): SettingsRecord | null {
 }
 
 /** Reads the record; only the latest read reports, an earlier one may answer last. */
-function readRecord(): void {
+function readRecord(retry = 0): void {
   const read = reader;
   if (!read) return;
   const id = ++latestRead;
   unconfirmed = true;
   readFailed = false;
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
   // The values held now may be out of date: no translation starts or reuses
-  // a result under them until this read answers, mounted hook or not.
-  translationSettingsSync.report({ status: "loading" });
+  // a result under them until this read answers, mounted hook or not. A
+  // retry keeps the error it retries.
+  if (retry === 0) translationSettingsSync.report({ status: "loading" });
   new Promise<unknown>((resolve) => resolve(read()))
     .then((result) => {
       if (id !== latestRead) return;
@@ -234,13 +244,31 @@ function readRecord(): void {
       if (id !== latestRead) return;
       readFailed = true;
       reportTranslationSettings({ status: "error", error: error instanceof Error ? error.message : String(error) });
+      const delay = RETRY_DELAYS_MS[retry];
+      if (delay === undefined) return;
+      retryTimer = setTimeout(() => {
+        retryTimer = null;
+        if (id === latestRead && readFailed) readRecord(retry + 1);
+      }, delay);
     });
 }
 
-/** The daemon changed the record (`plugin_settings_changed`); `read` reads it through the settings RPC. */
+/**
+ * The daemon changed the record (`plugin_settings_changed`), or the watcher's
+ * subscription (re)started and changes may have been missed; `read` reads it
+ * through the settings RPC.
+ */
 export function noteTranslationSettingsChanged(read: () => Promise<unknown>): void {
   reader = read;
   readRecord();
+}
+
+/** The watcher that passed `read` stopped (the plugin unloads): no read or retry uses it again. */
+export function forgetTranslationSettingsReader(read: () => Promise<unknown>): void {
+  if (reader !== read) return;
+  reader = null;
+  if (retryTimer) clearTimeout(retryTimer);
+  retryTimer = null;
 }
 
 function hostReported(remote: RemoteTranslationSettings): void {
