@@ -56,11 +56,16 @@ export function InlineTranslateButton({ state, theme, testID, base }: { state: I
   const tokens = useThemeTokens(theme, preferences);
   const { hovered, hoverProps } = useHover();
   if (settings.status === "ready" && !settings.values.enabled) return null;
-  const label = state.active && state.view?.status === "done" ? (resolveLanguage(preferences.language ?? "system") === "zh" ? "显示原文" : "Show original") : state.active && state.view && selectionViewRetryable(state.view) ? toolbarLabel("Retry", preferences.language) : toolbarLabel("Translate", preferences.language);
+  // While the translation is shown, the button restores the original, and its
+  // glyph says so; otherwise it translates (or retries) with the translate mark.
+  const showingTranslation = state.active && state.view?.status === "done";
+  const label = showingTranslation ? (resolveLanguage(preferences.language ?? "system") === "zh" ? "显示原文" : "Show original") : state.active && state.view && selectionViewRetryable(state.view) ? toolbarLabel("Retry", preferences.language) : toolbarLabel("Translate", preferences.language);
   return <Pressable accessibilityRole="button" accessibilityLabel={label} testID={testID} hitSlop={4} {...tipProps(label)} {...hoverProps}
     onPress={(event) => { event.stopPropagation(); state.toggle(); }}
     style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}>
-    {({ pressed }) => <View pointerEvents="none" testID={`${testID}-fill`} style={{ width: iconHoverSize(14), height: iconHoverSize(14), borderRadius: iconHoverSize(14) / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}><Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} /></View>}
+    {({ pressed }) => <View pointerEvents="none" testID={`${testID}-fill`} style={{ width: iconHoverSize(14), height: iconHoverSize(14), borderRadius: iconHoverSize(14) / 2, alignItems: "center", justifyContent: "center", backgroundColor: hoverFill(base ?? tokens.surface0, tokens.foreground, hovered, pressed, "transparent") }}>{showingTranslation
+      ? <Icon name="Undo2" size={14} color={tokens.foregroundMuted} />
+      : <Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} />}</View>}
   </Pressable>;
 }
 

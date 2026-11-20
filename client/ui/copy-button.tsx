@@ -10,7 +10,8 @@ import { iconHoverSize } from "./icon-hover-size";
 import { UI_SCALE } from "./tokens/typography";
 
 /** Visual box; `hitSlop` brings the touch target to 32 (plan §3.8, §3.11). */
-const BOX = 24;
+export const COPY_BUTTON_BOX = 24;
+const BOX = COPY_BUTTON_BOX;
 const HIT_SLOP = (32 - BOX) / 2;
 const ICON = 14;
 

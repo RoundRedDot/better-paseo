@@ -16,6 +16,7 @@ import {
   CHAR_RATIO_MONO,
   CHAR_RATIO_UI,
   TABLE_CELL_PADDING,
+  TABLE_CELL_PADDING_Y,
   TABLE_DIVIDER_WIDTH,
   type VariantMetrics,
 } from "./styles";
@@ -209,12 +210,22 @@ export function MdTable({
   );
 }
 
+/**
+ * The center of a table's header line from the table's top: the corner
+ * control's room, the frame's border and the header cell's padding.
+ */
+export function tableFirstLineCenter(cellLineHeight: number): number {
+  return CORNER_ROOM + TABLE_DIVIDER_WIDTH + TABLE_CELL_PADDING_Y + cellLineHeight / 2;
+}
+
+// Room for the corner control outside the columns: half its side, so its
+// centre sits on the table's corner.
+const CORNER_ROOM = FLOAT.control / 2;
+
 const copyStyles = StyleSheet.create({
   outer: { position: "relative" },
-  // Room for the corner control outside the columns: half its side, so its
-  // centre sits on the table's corner.
   content: {
-    paddingTop: FLOAT.control / 2,
-    paddingLeft: FLOAT.control / 2,
+    paddingTop: CORNER_ROOM,
+    paddingLeft: CORNER_ROOM,
   },
 });

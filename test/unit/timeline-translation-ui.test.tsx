@@ -4,6 +4,7 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import type { PaseoAgent, PaseoAgentListResult, PaseoApi } from "@getpaseo/client";
 import "./helpers/quiet-renderer";
+import { hostChildren, measureHostTree } from "./helpers/yoga-host-layout";
 import { DEFAULT_PREFERENCES, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import {
@@ -146,7 +147,7 @@ import { MessageTranslateButton } from "../../client/tasks/cards/message-transla
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { segmentReasoning } from "../../client/reasoning/segment";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
-import { SelectionTranslationPanel } from "../../client/translation/ui";
+import { SelectionTranslationPanel, TRANSLATE_ICON } from "../../client/translation/ui";
 import * as pluginClient from "@getpaseo/plugin/client";
 
 const HostContext = (pluginClient as unknown as { HostContext: React.Context<{ api: PaseoApi; rpc: typeof mocks.rpc } | null> }).HostContext;
@@ -566,27 +567,120 @@ const assistantProps = (data: Record<string, unknown>, platform: "web" | "ios" |
   timestamp: new Date("2026-11-19T10:00:00Z"),
 });
 
+const textContent = (node: ReactTestInstance | string): string =>
+  typeof node === "string" ? node : node.children.map(textContent).join("");
+
+/** The first laid-out text box with visible text: an inline run is part of its block's box. */
+function firstTextBlock(node: ReactTestInstance): ReactTestInstance | null {
+  for (const child of hostChildren(node)) {
+    if (String(child.type) === "Text") {
+      if (/\S/.test(textContent(child))) return child;
+      continue;
+    }
+    const found = firstTextBlock(child);
+    if (found) return found;
+  }
+  return null;
+}
+
 const markdownRoots = () => renderer!.root.findAll((node) =>
   String(node.type) === "View" && Boolean(node.props.dataSet?.bcselection));
 
 describe("timeline translation", () => {
+  // Laid out with Yoga from the rendered styles, so the button is checked
+  // against where the text actually lands, not against the offset formula.
+  const alignment = () => {
+    const frames = measureHostTree(renderer!.root, { width: 640 });
+    const slot = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "reply-translation-slot");
+    const root = markdownRoots()[0]!;
+    const text = firstTextBlock(root)!;
+    const slotFrame = frames.get(slot)!;
+    const textFrame = frames.get(text)!;
+    const rootFrame = frames.get(root)!;
+    const style = StyleSheet.flatten(text.props.style);
+    const line = Number(style.lineHeight);
+    // A table cell pads its own line box, and the mock ScrollView leaves its
+    // content container (a table's corner room) out of the Yoga tree: add the
+    // padding a native or web content container lays out above the text.
+    let padding = Number(style.paddingTop ?? style.paddingVertical ?? style.padding ?? 0);
+    for (let node = text.parent; node && node !== root; node = node.parent) {
+      if (String(node.type) !== "ScrollView") continue;
+      const content = StyleSheet.flatten(node.props.contentContainerStyle) ?? {};
+      padding += Number(content.paddingTop ?? content.paddingVertical ?? content.padding ?? 0);
+    }
+    return {
+      first: textContent(text),
+      offset: slotFrame.top + slotFrame.height / 2 - (textFrame.top + padding + line / 2),
+      slotHeight: slotFrame.height,
+      gutter: slotFrame.left - (rootFrame.left + rootFrame.width),
+    };
+  };
+
   it.each([
-    { label: "first row", data: {}, size: 15, variant: "document" as const },
-    { label: "continued block", data: { blockIndex: 1 }, size: 15, variant: "document" as const },
-    { label: "continued list at a larger font size", data: { blockIndex: 1, listContinuation: true }, size: 24, variant: "compact" as const },
-    { label: "terminal continuation", data: { blockIndex: 1 }, size: 20, variant: "terminal" as const },
-  ])("centers the translation button on the first line of a $label", async ({ data, size, variant }) => {
+    { label: "first row", text: "First line for alignment", data: {}, size: 15, variant: "document" as const },
+    { label: "reply that opens with a rule (reported 2026-11-20)", text: "---\n\nFirst line for alignment\n\nSecond paragraph", data: {}, size: 15, variant: "document" as const },
+    { label: "reply that opens with two rules", text: "---\n\n***\n\nFirst line for alignment", data: {}, size: 15, variant: "document" as const },
+    { label: "rule-led reply on Android", text: "---\n\nFirst line for alignment", data: {}, size: 17, variant: "document" as const, platform: "android" as const },
+    { label: "h1 first", text: "# First line for alignment\n\nBody", data: {}, size: 15, variant: "document" as const },
+    { label: "h2 first", text: "## First line for alignment\n\nBody", data: {}, size: 15, variant: "document" as const },
+    { label: "h3 first in compact", text: "### First line for alignment", data: {}, size: 15, variant: "compact" as const },
+    { label: "h1 first in terminal", text: "# First line for alignment", data: {}, size: 20, variant: "terminal" as const },
+    { label: "quote first", text: "> First line for alignment\n\nafter", data: {}, size: 15, variant: "document" as const },
+    { label: "quote opening with a heading", text: "> ## First line for alignment\n> body", data: {}, size: 15, variant: "document" as const },
+    { label: "list first", text: "- First line for alignment\n- second", data: {}, size: 15, variant: "document" as const },
+    { label: "continued block", text: "First line for alignment", data: { blockIndex: 1 }, size: 15, variant: "document" as const },
+    { label: "continued block that opens with a rule", text: "---\n\nFirst line for alignment", data: { blockIndex: 1 }, size: 15, variant: "document" as const },
+    { label: "continued block that opens with a heading", text: "## First line for alignment\n\nBody", data: { blockIndex: 1 }, size: 15, variant: "document" as const },
+    { label: "heading after a rule", text: "---\n\n### First line for alignment", data: {}, size: 15, variant: "document" as const },
+    { label: "continued list at a larger font size", text: "- First line for alignment", data: { blockIndex: 1, listContinuation: true }, size: 24, variant: "compact" as const },
+    { label: "terminal continuation", text: "First line for alignment", data: { blockIndex: 1 }, size: 20, variant: "terminal" as const },
+    // Framed blocks: the first line is the header row (measured -12 and -20 px in Chrome before).
+    { label: "code block with a language bar", text: "```ts\nconst first = 1;\n```\n\nafter", data: {}, size: 15, variant: "document" as const, first: "TypeScript" },
+    { label: "code block in compact", text: "```python\nprint(1)\n```", data: {}, size: 15, variant: "compact" as const, first: "Python" },
+    { label: "code block on Android", text: "```ts\nconst first = 1;\n```", data: {}, size: 17, variant: "document" as const, platform: "android" as const, first: "TypeScript" },
+    { label: "plain text fence without a header", text: "```\nfirst plain line\n```", data: {}, size: 15, variant: "document" as const, first: "first plain line" },
+    { label: "unlabelled diff fence", text: "```\n--- a/x\n+++ b/x\n@@ -1 +1 @@\n-a\n+b\n```", data: {}, size: 15, variant: "document" as const, first: "Diff" },
+    { label: "Markdown fence preview", text: "```md\n# inner\n```", data: {}, size: 15, variant: "document" as const, first: "Markdown" },
+    { label: "code block after a rule", text: "---\n\n```ts\nconst first = 1;\n```", data: {}, size: 15, variant: "document" as const, first: "TypeScript" },
+    { label: "continued code block", text: "```ts\nconst first = 1;\n```", data: { blockIndex: 1 }, size: 15, variant: "document" as const, first: "TypeScript" },
+    { label: "table", text: "| First | b |\n|---|---|\n| 1 | 2 |\n\nafter", data: {}, size: 15, variant: "document" as const, first: "First" },
+    { label: "table at a larger size in terminal", text: "| First | b |\n|---|---|\n| 1 | 2 |", data: {}, size: 22, variant: "terminal" as const, first: "First" },
+    { label: "table on Android", text: "| First | b |\n|---|---|\n| 1 | 2 |", data: {}, size: 17, variant: "document" as const, platform: "android" as const, first: "First" },
+    { label: "insight", text: "`✦ Insight ─────────────────`\n- point\n`─────────────────`", data: {}, size: 15, variant: "document" as const, first: "✦ Insight" },
+  ])("centers the translation button on the first line of a $label", async ({ text, data, size, variant, ...rest }) => {
+    const platform = "platform" in rest ? rest.platform : "web";
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+    // Code blocks ask the daemon for colours; leave that request pending.
+    mocks.rpc.mockImplementation(() => new Promise(() => {}));
     updateEnhancerPreferences({ markdownVariant: variant });
-    const props = { ...assistantProps({ text: "First line for alignment", phase: "complete", ...data }),
+    const props = { ...assistantProps({ text, phase: "complete", ...data }, platform),
       theme: { ...theme, typography: { fontSize: { content: size } } } };
     await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, props as never)); });
-    const slot = renderer!.root.find((node) => node.props.testID === "reply-translation-slot");
-    const root = markdownRoots()[0]!;
-    const text = root.find((node) => String(node.type) === "Text" && node.children.includes("First line for alignment"));
-    const top = Number(StyleSheet.flatten(slot.props.style).top);
-    const padding = Number(StyleSheet.flatten(root.props.style).paddingTop ?? 0);
-    const line = Number(StyleSheet.flatten(text.props.style).lineHeight);
-    expect(top + 16).toBe(padding + line / 2);
+    const result = alignment();
+    if ("first" in rest) expect(result.first).toBe(rest.first);
+    // A terminal heading carries its hashes, and a list item's marker shares its first line.
+    else expect(result.first).toMatch(/^(#+ )?First line for alignment$|^[•◦‣]$/);
+    expect(result.slotHeight).toBe(32);
+    expect(Math.abs(result.offset)).toBeLessThanOrEqual(0.5);
+    // The button keeps its own gutter beside the text instead of covering it.
+    expect(result.gutter).toBeGreaterThanOrEqual(0);
+  });
+
+  it("follows the translation's first line while loading and after it lands", async () => {
+    updateEnhancerPreferences({ markdownVariant: "document" });
+    const pending = deferred<ReturnType<typeof doneState>>();
+    mocks.rpc.mockReturnValueOnce(pending.promise);
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
+      assistantProps({ text: "First line for alignment", phase: "complete" }) as never)); });
+    const press = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate").props.onPress({ stopPropagation() {} });
+    await act(async () => press());
+    await vi.waitFor(() => expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-loading").length).toBeGreaterThan(0));
+    // The status line above the reply moves the text and the button together.
+    expect(Math.abs(alignment().offset)).toBeLessThanOrEqual(0.5);
+    await act(async () => pending.resolve(doneState("---\n\n# First line for alignment\n\n正文")));
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("正文"));
+    expect(alignment().first).toBe("First line for alignment");
+    expect(Math.abs(alignment().offset)).toBeLessThanOrEqual(0.5);
   });
 
   it("offers explicit translation without sending text until pressed", async () => {
@@ -625,6 +719,43 @@ describe("timeline translation", () => {
     await act(async () => buttons()[0]!.props.onPress({ stopPropagation() {} }));
     expect(JSON.stringify(renderer!.toJSON())).toContain("译文一");
     expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("shows a restore glyph, label and tip only while the translation is shown", async () => {
+    const pending = deferred<ReturnType<typeof doneState>>();
+    mocks.rpc.mockReturnValueOnce(pending.promise);
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
+      assistantProps({ text: "Glyph block", phase: "complete" }) as never)); });
+    const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate");
+    const state = () => {
+      const pressable = button();
+      const fill = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "reply-translate-fill");
+      const icon = fill.find((node) => String(node.type) === "Icon");
+      return { label: pressable.props.accessibilityLabel, tip: pressable.props.dataSet?.bctip, glyph: icon.props.name ?? (icon.props.icon === TRANSLATE_ICON ? "translate" : "other") };
+    };
+    expect(state()).toEqual({ label: "Translate", tip: "Translate", glyph: "translate" });
+    await act(async () => button().props.onPress({ stopPropagation() {} }));
+    // Still translating: the action has not changed yet.
+    expect(state()).toEqual({ label: "Translate", tip: "Translate", glyph: "translate" });
+    await act(async () => pending.resolve(doneState("译文")));
+    await vi.waitFor(() => expect(state()).toEqual({ label: "Show original", tip: "Show original", glyph: "Undo2" }));
+    await act(async () => button().props.onPress({ stopPropagation() {} }));
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Glyph block");
+    expect(state()).toEqual({ label: "Translate", tip: "Translate", glyph: "translate" });
+    await act(async () => button().props.onPress({ stopPropagation() {} }));
+    expect(state()).toEqual({ label: "Show original", tip: "Show original", glyph: "Undo2" });
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("names the restore action in Chinese too", async () => {
+    updateEnhancerPreferences({ language: "zh" });
+    mocks.rpc.mockResolvedValue(doneState("译文"));
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
+      assistantProps({ text: "Glyph block", phase: "complete" }) as never)); });
+    const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate");
+    await act(async () => button().props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(button().props.accessibilityLabel).toBe("显示原文"));
+    expect(button().props.dataSet?.bctip).toBe("显示原文");
   });
 
   it("keeps the original visible during translation and offers retry on failure", async () => {

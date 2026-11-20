@@ -223,6 +223,19 @@ function patchedFileIsCode(filename?: string): boolean {
 /** How far into a block a diff must announce itself before it reads as code. */
 const DIFF_SCAN_LINES = 8;
 
+const codeBlockMargin = (compact: boolean) => compact ? space.xs : space.sm;
+
+/**
+ * The center of a framed block's first line, from the block's top margin: its
+ * header row when it has one, or else its first line of code. Mirrors the
+ * `container`, `header` and `codeArea` styles of `SyntaxHighlightBlock`.
+ */
+export function codeBlockFirstLineCenter(code: string, language: string, compact: boolean, monoLineHeight: number): number {
+  const lines = code.trimEnd().split("\n");
+  const header = codeLanguageLabel(language === "diff" || looksLikeUnifiedDiff(lines) ? "diff" : language) !== "";
+  return codeBlockMargin(compact) + (header ? HEADER_HEIGHT / 2 : space.sm + monoLineHeight / 2);
+}
+
 /**
  * Whether a block is a unified diff whatever its label says. A tool labels a
  * patch with the file it patches often enough that the label cannot be trusted,
@@ -567,7 +580,7 @@ export function SyntaxHighlightBlock({
               backgroundColor: tokens.v2.surfaceCode,
               borderRadius: radiusV2.block,
               overflow: "hidden",
-              marginVertical: compact ? space.xs : space.sm,
+              marginVertical: codeBlockMargin(compact),
             },
         header: {
           height: HEADER_HEIGHT,
