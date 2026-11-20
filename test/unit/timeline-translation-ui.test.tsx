@@ -370,12 +370,11 @@ describe.each(["web", "ios", "android"] as const)("%s thought translation", (pla
     await act(async () => button.props.onPress({ stopPropagation() {} }));
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ agentId: "agent-1", sourceKind: "reasoning", text });
-    if (platform !== "web") expect(JSON.stringify(renderer!.toJSON())).toContain("译文");
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("译文"));
     expect(renderer!.root.findByType(DisclosureHeader).props.actionsActive).toBe(true);
-    await act(async () => platform === "web"
-      ? renderer!.root.find((node) => typeof node.type === "function" && node.type.name === "WebMessageTranslation").props.close()
-      : renderer!.root.findByType(SelectionTranslationPanel).props.onClose());
+    await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate").props.onPress({ stopPropagation() {} }));
     expect(renderer!.root.findByType(DisclosureHeader).props.actionsActive).toBe(false);
+    expect(JSON.stringify(renderer!.toJSON())).toContain("First thought");
   });
 });
 
@@ -569,8 +568,8 @@ const assistantProps = (data: Record<string, unknown>, platform: "web" | "ios" |
 const markdownRoots = () => renderer!.root.findAll((node) =>
   String(node.type) === "View" && Boolean(node.props.dataSet?.bcselection));
 
-describe("timeline rows offer translation only through selection", () => {
-  it("draws replies and thoughts without per-block translate buttons or inline results", async () => {
+describe("timeline translation", () => {
+  it("offers explicit translation without sending text until pressed", async () => {
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(React.Fragment, null,
         React.createElement(LiveAssistantRenderer, assistantProps({ text: "Hello Paseo", phase: "complete" }) as never),
@@ -581,10 +580,62 @@ describe("timeline rows offer translation only through selection", () => {
     });
     const labels = renderer!.root.findAll((node) => typeof node.props?.accessibilityLabel === "string")
       .map((node) => node.props.accessibilityLabel as string);
-    expect(labels.filter((label) => /translat/i.test(label))).toEqual([]);
+    expect(labels.filter((label) => /translat/i.test(label))).toEqual(["Translate", "Translate"]);
     expect(renderer!.root.findAll((node) => node.props?.testID === "translation-row")).toHaveLength(0);
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(agentApi.list).not.toHaveBeenCalled();
+  });
+
+  it("translates one reply block in place and toggles back without changing its neighbor", async () => {
+    mocks.rpc.mockResolvedValue(doneState("译文一"));
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+      React.createElement(LiveAssistantRenderer, assistantProps({ text: "First block", phase: "complete" }) as never),
+      React.createElement(LiveAssistantRenderer, assistantProps({ text: "Second block", phase: "complete" }) as never))); });
+    const buttons = () => renderer!.root.findAll((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate");
+    expect(buttons()).toHaveLength(2);
+    await act(async () => buttons()[0]!.props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("译文一"));
+    expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ text: "First block" });
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Second block");
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("First block");
+    expect(buttons()[0]!.props.accessibilityLabel).toBe("Show original");
+    await act(async () => buttons()[0]!.props.onPress({ stopPropagation() {} }));
+    expect(JSON.stringify(renderer!.toJSON())).toContain("First block");
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("译文一");
+    await act(async () => buttons()[0]!.props.onPress({ stopPropagation() {} }));
+    expect(JSON.stringify(renderer!.toJSON())).toContain("译文一");
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("keeps the original visible during translation and offers retry on failure", async () => {
+    const pending = deferred<ReturnType<typeof doneState>>();
+    mocks.rpc.mockReturnValueOnce(pending.promise).mockResolvedValueOnce(doneState("译文"));
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
+      assistantProps({ text: "Waiting block", phase: "complete" }) as never)); });
+    const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate");
+    await act(async () => button().props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Waiting block");
+    expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-loading").length).toBeGreaterThan(0);
+    await act(async () => pending.resolve({ state: "error", error: "offline" } as never));
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("Translation failed"));
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Waiting block");
+    await act(async () => button().props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("译文"));
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not apply an old translation after the source block changes", async () => {
+    const pending = deferred<ReturnType<typeof doneState>>();
+    mocks.rpc.mockReturnValueOnce(pending.promise);
+    const row = (text: string) => React.createElement(LiveAssistantRenderer, assistantProps({ text, phase: "complete" }) as never);
+    await act(async () => { renderer = TestRenderer.create(row("Old source")); });
+    await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate").props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    await act(async () => renderer!.update(row("New source")));
+    await act(async () => pending.resolve(doneState("Old translation")));
+    expect(JSON.stringify(renderer!.toJSON())).toContain("New source");
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("Old translation");
   });
 
   it("binds a web reply's prose element to its conversation and its own pane's host", async () => {

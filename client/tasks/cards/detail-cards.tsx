@@ -11,7 +11,7 @@ import { MarkdownView } from "../../components/markdown/markdown-view";
 import { useSelectionActions } from "../../components/selection-actions";
 import { SyncedLoader } from "../../ui/synced-loader";
 import { SelectionTranslationScope } from "../../translation/ui";
-import { MessageTranslateButton } from "./message-translation";
+import { InlineTranslation, InlineTranslateButton, InlineTranslationNotice, type InlineTranslationState } from "../../translation/inline";
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { mix, useThemeTokens } from "../../components/theme-tokens";
 import { getEnhancerPreferences, useEnhancerPreferences } from "../../preferences";
@@ -1206,7 +1206,18 @@ function DetailCopyButton(props: { label: string; tokens: TaskTokens; copied: bo
   );
 }
 
-function Section(props: Inner & { section: DetailSection; replyStreaming: boolean; waitingAfterHuman: boolean; closed: boolean; divider: boolean; onToggleSection(closed: boolean): void }) {
+type SectionProps = Inner & { section: DetailSection; replyStreaming: boolean; waitingAfterHuman: boolean; closed: boolean; divider: boolean; onToggleSection(closed: boolean): void };
+
+function Section(props: SectionProps) {
+  const read = props.section === "prompt" ? props.firstPrompt : props.section === "human" ? props.humanMessage : props.section === "message" ? props.lastMessage : null;
+  if (!props.translationAgentId || read?.prompt.state !== "ready") return <SectionContent {...props} />;
+  return <InlineTranslation agentId={props.translationAgentId} kind={props.section === "message" ? "assistant_message" : "user_message"}
+    text={read.prompt.text} streaming={props.section === "message" && props.replyStreaming}>
+    {(translation) => <SectionContent {...props} translation={translation} />}
+  </InlineTranslation>;
+}
+
+function SectionContent(props: SectionProps & { translation?: InlineTranslationState }) {
   const { card, m, tokens, section, gutter = 0 } = props;
   const words = cardStrings(props.language).details;
   const reducedMotion = useReducedMotion();
@@ -1254,9 +1265,7 @@ function Section(props: Inner & { section: DetailSection; replyStreaming: boolea
             </View>
             <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
             {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
-            {read?.prompt.state === "ready" && props.translationAgentId ? <MessageTranslateButton
-              agentId={props.translationAgentId} kind={section === "message" ? "assistant_message" : "user_message"}
-              text={read.prompt.text} streaming={section === "message" && props.replyStreaming} theme={props.theme} base={tokens.card.background} testID={`${testID}-translate`} /> : null}
+            {props.translation ? <InlineTranslateButton state={props.translation} theme={props.theme} base={tokens.card.background} testID={`${testID}-translate`} /> : null}
             {read?.prompt.state === "ready" ? (
               <DetailCopyButton label={copyLabel} tokens={tokens} copied={copied} testID={`${testID}-copy`} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} />
             ) : null}
@@ -1268,12 +1277,13 @@ function Section(props: Inner & { section: DetailSection; replyStreaming: boolea
           <SectionHeading m={m} tokens={tokens} title={title} summary={summary} summaryTip={messageTime ? formatFullStamp(new Date(at)) : undefined} trailing={heading?.check ? <Icon name="CircleCheck" size={14} color={tokens.success} /> : undefined} closed={props.closed} language={props.language} onPress={toggle} />
         )}
         <SubtaskPanel expanded={!props.closed} testID={`${testID}-panel`}>
+          {props.translation ? <InlineTranslationNotice state={props.translation} theme={props.theme} /> : null}
           {section === "prompt" ? (
-          <TimelineTextBody {...props} read={props.firstPrompt} id="detail-prompt" none={words.promptNone} error={words.promptError} copyLabel={words.copyPrompt} copyToast="Copy prompt" />
+          <TimelineTextBody {...props} translation={props.translation} read={props.firstPrompt} id="detail-prompt" none={words.promptNone} error={words.promptError} copyLabel={words.copyPrompt} copyToast="Copy prompt" />
         ) : section === "human" ? (
-          <TimelineTextBody {...props} read={props.humanMessage} id="detail-human" none={words.humanNone} error={words.humanError} copyLabel={words.copyHuman} copyToast="Copy sent message" waitingAfter={props.waitingAfterHuman} />
+          <TimelineTextBody {...props} translation={props.translation} read={props.humanMessage} id="detail-human" none={words.humanNone} error={words.humanError} copyLabel={words.copyHuman} copyToast="Copy sent message" waitingAfter={props.waitingAfterHuman} />
         ) : section === "message" ? (
-          <TimelineTextBody {...props} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" streaming={props.replyStreaming} flash />
+          <TimelineTextBody {...props} translation={props.translation} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" streaming={props.replyStreaming} flash />
           ) : section === "properties" ? (
             <Properties {...props} />
           ) : section === "subtasks" ? (
@@ -1869,6 +1879,7 @@ function TimelineTextBody(props: Inner & {
   flash?: boolean;
   streaming?: boolean;
   waitingAfter?: boolean;
+  translation?: InlineTranslationState;
 }) {
   const { tokens, id } = props;
   const words = cardStrings(props.language).details;
@@ -1925,13 +1936,13 @@ function TimelineTextBody(props: Inner & {
       </View>
     );
   }
-  const text = prompt.text;
+  const text = props.translation?.active && props.translation.view?.status === "done" ? props.translation.view.result.translation : prompt.text;
   const lines = errorLines(text);
   const long = lines.length > PROMPT_LINES || text.length > 600;
   const markdown = <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />;
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 4 }}>
-      <View>
+      <View style={props.translation?.active && props.translation.view && ["running", "settings-loading", "config-loading"].includes(props.translation.view.status) ? { opacity: 0.55 } : undefined}>
         {props.flash ? (
           <Animated.View pointerEvents="none" testID={`${id}-flash`} style={{ position: "absolute", top: 0, right: 0, bottom: 0, left: 0, borderRadius: 8, backgroundColor: props.theme.colors.accent, opacity: flashOpacity }} />
         ) : null}

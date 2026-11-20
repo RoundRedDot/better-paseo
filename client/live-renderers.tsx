@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/ui";
@@ -54,6 +54,7 @@ import { defaultToolExpanded, toolDisclosureKey } from "./tools/disclosure";
 import { PathContext, usePathContextValue } from "./ui/path-text";
 import { probeCard, textItemKey } from "./debug/perf";
 import { SelectionTranslationScope } from "./translation/ui";
+import { InlineTranslation, InlineTranslateButton, InlineTranslationNotice, type InlineTranslationState } from "./translation/inline";
 import {
   assistantPropsEqual,
   noticePropsEqual,
@@ -64,6 +65,9 @@ import {
 } from "./state/render-equality";
 import { noteTimelineRowShown } from "./state/startup-settled";
 import { useHeldRow } from "./ui/hidden-row";
+import { useHover } from "./ui/use-hover";
+import { useInputCapabilities } from "./ui/use-input-capabilities";
+import { useTranslationSettingsState } from "./translation/settings-store";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -523,12 +527,30 @@ const ASSISTANT_REVEAL = { web: false, native: true } as const;
  * file-path links still need `assistantMarkdown` off to hand the turn back.
  */
 function LiveAssistantRendererBody(props: PluginTimelineItemProps<LiveAssistantPayload>) {
-  return props.item.data.blockIndex !== undefined && props.item.data.messageText === undefined
-    ? <AssistantBlockRenderer {...props} /> : <LiveAssistantMessageRenderer {...props} />;
+  if (parseSystemEnvelope(props.item.data.text)) return <LiveAssistantMessageRenderer {...props} />;
+  return <InlineTranslation agentId={props.agentId} kind="assistant_message" text={props.item.data.text} streaming={props.item.data.phase === "streaming"}>
+    {(inline) => props.item.data.blockIndex !== undefined && props.item.data.messageText === undefined
+      ? <AssistantBlockRenderer {...props} inline={inline} /> : <LiveAssistantMessageRenderer {...props} inline={inline} />}
+  </InlineTranslation>;
+}
+
+function InlineReplyBlock({ state, theme, compact, children }: { state: InlineTranslationState; theme: PluginTheme; compact: boolean; children: ReactNode }) {
+  const { hovered, hoverProps } = useHover();
+  const input = useInputCapabilities(compact);
+  const settings = useTranslationSettingsState();
+  const enabled = settings.status !== "ready" || settings.values.enabled;
+  const loading = state.active && state.view && ["running", "settings-loading", "config-loading"].includes(state.view.status);
+  return <View onPointerEnter={hoverProps.onHoverIn} onPointerLeave={hoverProps.onHoverOut} style={{ position: "relative", paddingRight: enabled ? 32 : 0 }}>
+    <InlineTranslationNotice state={state} theme={theme} />
+    <View style={loading ? { opacity: 0.55 } : undefined}>{children}</View>
+    {enabled ? <View testID="reply-translation-slot" style={{ position: "absolute", right: 0, top: 0, opacity: hovered || input.touch || state.active ? 1 : 0 }} pointerEvents={hovered || input.touch || state.active ? "auto" : "none"}>
+      <InlineTranslateButton state={state} theme={theme} testID="reply-translate" />
+    </View> : null}
+  </View>;
 }
 
 /** Interior blocks have no message footer, tail registration or timing reads. */
-function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: PluginTimelineItemProps<LiveAssistantPayload>) {
+function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp, inline }: PluginTimelineItemProps<LiveAssistantPayload> & { inline: InlineTranslationState }) {
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences, layout.platform);
   useSelectionActions(tokens, preferences.selectionActions);
@@ -545,10 +567,10 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp }: Plu
     {probe.node}
     <PreferenceSyncSlot />
     <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={item.data.phase === "streaming"}>
-      <MarkdownView text={item.data.text} tokens={tokens} variant={preferences.markdownVariant}
+      <InlineReplyBlock state={inline} theme={theme} compact={layout.compact}><MarkdownView text={inline.active && inline.view?.status === "done" ? inline.view.result.translation : item.data.text} tokens={tokens} variant={preferences.markdownVariant}
         compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
         listContinuation={item.data.listContinuation}
-        probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} />
+        probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} /></InlineReplyBlock>
     </SelectionTranslationScope>
     <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
   </View>;
@@ -565,9 +587,11 @@ function LiveAssistantMessageRenderer({
   theme,
   layout,
   timestamp,
-}: PluginTimelineItemProps<LiveAssistantPayload>) {
+  inline,
+}: PluginTimelineItemProps<LiveAssistantPayload> & { inline?: InlineTranslationState }) {
   const messageText = item.data.messageText ?? item.data.text;
   const streaming = item.data.phase === "streaming";
+  const translated = inline?.active && inline.view?.status === "done" ? inline.view.result.translation : null;
   const probe = probeCard(
     "assistant",
     textItemKey("assistant", item.data.text),
@@ -630,8 +654,8 @@ function LiveAssistantMessageRenderer({
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
         <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={streaming}>
-          <MarkdownView
-            text={revealed}
+          {inline ? <InlineReplyBlock state={inline} theme={theme} compact={layout.compact}><MarkdownView
+            text={translated ?? revealed}
             firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
             listContinuation={item.data.listContinuation}
             tokens={tokens}
@@ -640,7 +664,7 @@ function LiveAssistantMessageRenderer({
             streaming={streaming}
             onRevealPath={handleRevealPath}
             probeId={`assistant:${timestamp.getTime()}`}
-          />
+          /></InlineReplyBlock> : null}
         </SelectionTranslationScope>
       )}
       {/* A streaming row only observes completion usage; the visible footer

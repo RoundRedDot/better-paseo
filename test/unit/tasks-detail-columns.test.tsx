@@ -39,7 +39,7 @@ import { previewSampleCards } from "../../client/tasks/sample-cards";
 import { asExitPlan } from "./helpers/plan-request";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { SelectionTranslationScope } from "../../client/translation/ui";
-import { MessageTranslateButton } from "../../client/tasks/cards/message-translation";
+import { InlineTranslation } from "../../client/translation/inline";
 import { TasksTypography, TasksTypographyScale, HOST_FONT } from "../../client/tasks/typography";
 import { variantMetrics } from "../../client/components/markdown/render/styles";
 import { measureHostTree } from "./helpers/yoga-host-layout";
@@ -116,11 +116,11 @@ describe("details columns", () => {
     ]);
     expect(scopes[0]!.props.streaming).toBe(false);
     expect(scopes[1]!.props.streaming).toBe(false);
-    const buttons = renderer!.root.findAllByType(MessageTranslateButton);
-    expect(buttons.map((node) => [node.props.testID, node.props.kind, node.props.text])).toEqual([
-      ["detail-prompt-translate", "user_message", "First"],
-      ["detail-human-translate", "user_message", "Follow-up"],
-      ["detail-message-translate", "assistant_message", "Reply"],
+    const buttons = renderer!.root.findAllByType(InlineTranslation);
+    expect(buttons.map((node) => [node.props.agentId, node.props.kind, node.props.text])).toEqual([
+      ["session-1", "user_message", "First"],
+      ["session-1", "user_message", "Follow-up"],
+      ["session-1", "assistant_message", "Reply"],
     ]);
   });
 
