@@ -1262,8 +1262,9 @@ function SectionContent(props: SectionProps & { translation?: InlineTranslationS
             <View style={{ width: 23, height: 24, paddingLeft: 5, alignItems: "flex-start", justifyContent: "center" }}>
               <Icon name={section === "message" ? "MessageSquareText" : section === "human" ? "Send" : "MessageCircle"} size={14} color={tokens.foregroundMuted} />
             </View>
-            <Text style={{ flex: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
-            {messageTime ? <Text {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{messageTime}</Text> : null}
+            <Text testID={`${testID}-heading-title`} style={{ flexShrink: 1, fontSize: F.sm, fontWeight: "600", color: tokens.foreground }} numberOfLines={1}>{title}</Text>
+            {messageTime ? <Text testID={`${testID}-heading-time`} {...tipProps(formatFullStamp(new Date(at)))} numberOfLines={1} style={{ flexShrink: 1, marginLeft: 6, fontSize: F.sm, color: tokens.foregroundMuted, fontVariant: ["tabular-nums"] }}>{`· ${messageTime}`}</Text> : null}
+            <View style={{ flex: 1 }} />
             {props.translation ? <InlineTranslateButton state={props.translation} theme={props.theme} base={tokens.card.background} testID={`${testID}-translate`} /> : null}
             {read?.prompt.state === "ready" ? (
               <DetailCopyButton label={copyLabel} tokens={tokens} copied={copied} testID={`${testID}-copy`} target={28} hitSlop={6} onPress={(event) => { event.stopPropagation(); void copy(read.prompt.state === "ready" ? read.prompt.text : "", { label: copyToast }); }} />

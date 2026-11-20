@@ -106,6 +106,27 @@ describe("details columns", () => {
     expect(renderer!.root.findAll((node) => node.props.testID === "inline-translation-status")).toHaveLength(0);
   });
 
+  it.each(["en", "zh"] as const)("places %s message times beside their titles and keeps actions at the right", async (language) => {
+    const message = { prompt: { state: "ready" as const, text: "Message", timestamp: new Date(NOW - 60_000).toISOString() }, load() {} };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} language={language} firstPrompt={message} humanMessage={{ ...message, prompt: { ...message.prompt, text: "Follow-up" } }} lastMessage={message} translationAgentId="session-1" columns={false} tabs />); });
+    for (const id of ["detail-prompt", "detail-human", "detail-message"]) {
+      const heading = host(renderer!.root, `${id}-heading`);
+      const title = host(renderer!.root, `${id}-heading-title`);
+      const time = host(renderer!.root, `${id}-heading-time`);
+      const copy = host(renderer!.root, `${id}-copy`);
+      expect(texts(time).join("")).toMatch(/^· /);
+      for (const width of [240, 320, 600]) {
+        const frames = measureHostTree(heading, { width });
+        const titleFrame = frames.get(title)!;
+        const timeFrame = frames.get(time)!;
+        const copyFrame = frames.get(copy)!;
+        expect(timeFrame.left - (titleFrame.left + titleFrame.width)).toBeCloseTo(6, 0);
+        expect(copyFrame.left).toBeGreaterThanOrEqual(timeFrame.left + timeFrame.width);
+        expect(copyFrame.left + copyFrame.width).toBeCloseTo(width - 28, 0);
+      }
+    }
+  });
+
   it("scopes first, human and reply text to the real session, keeping previews unscoped", async () => {
     const base = props(false);
     const messages = {
@@ -727,7 +748,7 @@ describe("detail message times", () => {
     return root.findAll((node) => (node.type as unknown) === "Text").map((node) => node.props.children);
   }
 
-  it.each(["web", "ios", "android"])("shows each message's local time on the right, including when folded, on %s", async (os) => {
+  it.each(["web", "ios", "android"])("shows each message's local time beside its title, including when folded, on %s", async (os) => {
     vi.stubGlobal("__rnMockOS", os);
     const first = new Date(NOW);
     first.setHours(8, 13, 7, 0);
@@ -750,7 +771,7 @@ describe("detail message times", () => {
           ["detail-prompt", words.prompt, "08:13", `${day(first)} 08:13:07`],
           ["detail-message", words.message, `${last.getMonth() + 1}/${last.getDate()} 21:47`, `${day(last)} 21:47:52`],
         ] as const) {
-          expect(labels(messageHeading(root, id))).toEqual([title, time]);
+          expect(labels(messageHeading(root, id))).toEqual([title, `· ${time}`]);
           const stamp = messageHeading(root, id).findAll((node) => (node.type as unknown) === "Text")[1]!;
           expect(stamp.props.numberOfLines).toBe(1);
           expect(stamp.props.dataSet?.bctip).toBe(os === "web" ? fullTime : undefined);
@@ -759,7 +780,7 @@ describe("detail message times", () => {
           expect(StyleSheet.flatten(stamp.props.style)).toMatchObject({ flexShrink: 1, fontVariant: ["tabular-nums"] });
           await act(async () => heading(root, id).props.onPress());
           expect(heading(root, id).props.accessibilityState.expanded).toBe(false);
-          expect(labels(messageHeading(root, id))).toEqual([title, time]);
+          expect(labels(messageHeading(root, id))).toEqual([title, `· ${time}`]);
           const foldedStamp = messageHeading(root, id).findAll((node) => (node.type as unknown) === "Text")[1]!;
           expect(foldedStamp.props.dataSet?.bctip).toBe(os === "web" ? fullTime : undefined);
           expect(heading(root, id).props.dataSet?.bctip).toBe(os === "web" ? words.expand(title) : undefined);
