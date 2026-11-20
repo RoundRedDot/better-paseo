@@ -686,7 +686,8 @@ function createBar(actions: BarActions, standalone = false): Bar {
     }
     panel.appendChild(head);
 
-    const message = selectionViewMessage(view);
+    const text = selectionViewText(view);
+    const message = text ? null : selectionViewMessage(view);
     if (message) {
       const line = element("div", "panel-message");
       if (view.status === "running" || view.status === "config-loading" || view.status === "settings-loading") {
@@ -701,7 +702,6 @@ function createBar(actions: BarActions, standalone = false): Bar {
       if (view.status === "error") line.dataset.tone = "error";
       panel.appendChild(line);
     }
-    const text = selectionViewText(view);
     if (text) panel.appendChild(element("div", "panel-body", text));
 
     const done = view.status === "done" ? view.result.translation : null;

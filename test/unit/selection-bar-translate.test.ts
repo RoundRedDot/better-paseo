@@ -354,8 +354,10 @@ describe("selection bar Translate", () => {
   });
 
   it("translates exactly the selection into a text-only panel bounded to the viewport", async () => {
+    let firstToken!: (value: unknown) => void;
     let finish!: (value: unknown) => void;
-    call.mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    call.mockImplementationOnce(() => new Promise((resolve) => { firstToken = resolve; }))
+      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
     page.innerWidth = 300;
     page.innerHeight = 200;
     select("  the selected words  ", surface({ agentId: "agent-1", kind: "reasoning", streaming: false }));
@@ -381,7 +383,14 @@ describe("selection bar Translate", () => {
     expect(panel().textContent).toContain("gpt-5");
     expect(panel().textContent).not.toContain("Codex");
 
+    await act(async () => firstToken({ state: "running", text: "第" }));
+    await flush();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("第");
+    expect(panel().querySelector(".panel-message")).toBeNull();
+    expect(button("Copy translation")).toBeUndefined();
+
     const markup = '<img src=x onerror="alert(1)">';
+    await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(2), { timeout: 2500 });
     await act(async () => finish({ ...done(markup), thinkingMode: "unsupported_off", thinkingOptionId: "low" }));
     await flush();
     const text = panel().querySelector(".panel-body")!;

@@ -3,6 +3,7 @@ import { StyleSheet } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import type { PaseoAgent, PaseoAgentListResult, PaseoApi } from "@getpaseo/client";
+import type { TranslationJobState } from "../../shared/timeline-translation";
 import "./helpers/quiet-renderer";
 import { hostChildren, measureHostTree } from "./helpers/yoga-host-layout";
 import { DEFAULT_PREFERENCES, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
@@ -903,8 +904,9 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
   });
 
   it("translates exactly the selected block in a popup and closes with the selection", async () => {
-    const reply = deferred<ReturnType<typeof doneState>>();
-    mocks.rpc.mockImplementationOnce(() => reply.promise);
+    const firstToken = deferred<TranslationJobState>();
+    const reply = deferred<TranslationJobState>();
+    mocks.rpc.mockReturnValueOnce(firstToken.promise).mockReturnValueOnce(reply.promise);
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
         assistantProps({ text: "First paragraph.\n\nSecond **paragraph**.", phase: "complete" }, platform) as never));
@@ -927,6 +929,13 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     const loadingHeader = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header");
     expect(loadingHeader.findAll((node) => node.props.testID === "translation-loading")).toHaveLength(0);
 
+    await act(async () => firstToken.resolve({ state: "running", text: "第" }));
+    expect(panelText()).toContain("第");
+    expect(panelText()).not.toContain("Translating...");
+    expect(renderer!.root.findAll((node) => node.props.testID === "translation-loading")).toHaveLength(0);
+    expect(button("Copy translation")).toHaveLength(0);
+
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(2), { timeout: 2500 });
     await act(async () => reply.resolve(doneState("第二段。", { thinkingMode: "unsupported_off", thinkingOptionId: "low" })));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。"));
     expect(button("Copy translation")).toHaveLength(1);
@@ -993,7 +1002,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     select(1);
     await act(async () => button("Translate selected block")[0]!.props.onPress());
     expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。");
-    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(mocks.rpc.mock.calls.map(([request]) => request.action)).toEqual(["start", "status"]);
   });
 
   it("opens translation settings and dismisses the selection", async () => {

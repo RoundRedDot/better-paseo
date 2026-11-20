@@ -78,8 +78,8 @@ export function SelectionTranslationPanel({ view, tokens, onRetry, onClose, shee
   const closeParent = useContext(TranslationSettingsParentCloseContext);
   const lang = resolveLanguage(language ?? "system");
   const window = useWindowDimensions();
-  const message = selectionViewMessage(view);
   const text = selectionViewText(view);
+  const message = text ? null : selectionViewMessage(view);
   const danger = tokens.danger ?? tokens.foreground;
   const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
   const running = view.status === "running" || view.status === "config-loading" || view.status === "settings-loading";
