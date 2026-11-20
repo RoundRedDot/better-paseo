@@ -147,7 +147,6 @@ import { segmentReasoning } from "../../client/reasoning/segment";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
 import { SelectionTranslationPanel } from "../../client/translation/ui";
 import * as pluginClient from "@getpaseo/plugin/client";
-import { AnchoredToolbarDetails } from "../../client/ui/toolbar-button";
 
 const HostContext = (pluginClient as unknown as { HostContext: React.Context<{ api: PaseoApi; rpc: typeof mocks.rpc } | null> }).HostContext;
 
@@ -336,8 +335,7 @@ describe.each(["web", "ios", "android"] as const)("%s whole-message translation"
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(stopPropagation).toHaveBeenCalledOnce();
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ agentId: "agent-1", sourceKind: "user_message", text });
-    expect(JSON.stringify(renderer!.toJSON())).toContain("完整译文");
-    if (platform === "web") expect(renderer!.root.findByType(AnchoredToolbarDetails).props.movable).toBe(true);
+    if (platform !== "web") expect(JSON.stringify(renderer!.toJSON())).toContain("完整译文");
   });
 
   it("keeps the pressed text while a reply streams and waits for completion", async () => {
@@ -372,9 +370,11 @@ describe.each(["web", "ios", "android"] as const)("%s thought translation", (pla
     await act(async () => button.props.onPress({ stopPropagation() {} }));
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
     expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ agentId: "agent-1", sourceKind: "reasoning", text });
-    expect(JSON.stringify(renderer!.toJSON())).toContain("译文");
+    if (platform !== "web") expect(JSON.stringify(renderer!.toJSON())).toContain("译文");
     expect(renderer!.root.findByType(DisclosureHeader).props.actionsActive).toBe(true);
-    await act(async () => renderer!.root.findByType(SelectionTranslationPanel).props.onClose());
+    await act(async () => platform === "web"
+      ? renderer!.root.find((node) => typeof node.type === "function" && node.type.name === "WebMessageTranslation").props.close()
+      : renderer!.root.findByType(SelectionTranslationPanel).props.onClose());
     expect(renderer!.root.findByType(DisclosureHeader).props.actionsActive).toBe(false);
   });
 });
@@ -392,10 +392,10 @@ it("uses each message's own host for whole-message translation", async () => {
   await act(async () => press("first-translation"));
   await vi.waitFor(() => expect(firstRpc).toHaveBeenCalledOnce());
   expect(secondRpc).not.toHaveBeenCalled();
-  await act(async () => renderer!.root.find((node) => String(node.type) === "Modal").props.onRequestClose());
+  await act(async () => renderer!.root.find((node) => typeof node.type === "function" && node.type.name === "WebMessageTranslation").props.close());
   await act(async () => press("second-translation"));
   await vi.waitFor(() => expect(secondRpc).toHaveBeenCalledOnce());
-  expect(JSON.stringify(renderer!.toJSON())).toContain("second");
+  expect(renderer!.root.find((node) => typeof node.type === "function" && node.type.name === "WebMessageTranslation").props.view.result.translation).toBe("second");
 });
 
 function selection(text: string, overrides: Partial<Parameters<typeof createSelectionTranslation>[0]> = {}) {

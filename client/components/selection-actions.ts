@@ -275,6 +275,7 @@ const BAR_CSS = `
   gap: ${FLOAT.inset}px;
 }
 .row-separator { width: 0.5px; height: 16px; flex: 0 0 auto; background-color: var(--bc-bar-border); }
+.bar.standalone .selection-action { display: none; }
 .drag-handle { display: none; flex: 1 1 auto; min-width: 24px; align-self: stretch; cursor: move; }
 .bar.translating .drag-handle { display: block; }
 .resize-handle { display: none; position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; }
@@ -424,7 +425,7 @@ function readLanguage() {
   return getEnhancerPreferences().language;
 }
 
-function createBar(actions: BarActions): Bar {
+function createBar(actions: BarActions, standalone = false): Bar {
   const host = document.createElement("div");
   host.setAttribute("data-bcselectionbar", "");
   // Host-app rules can match a bare `div`, so the placement properties are set
@@ -460,6 +461,7 @@ function createBar(actions: BarActions): Bar {
 
   const bar = document.createElement("div");
   bar.className = "bar";
+  if (standalone) bar.classList.add("standalone");
   shadow.appendChild(bar);
   const row = document.createElement("div");
   row.className = "row";
@@ -530,9 +532,11 @@ function createBar(actions: BarActions): Bar {
     void copyText(snapshot.text);
     flash(button, "Copied");
   });
+  copyButton.classList.add("selection-action");
 
   const copySeparator = document.createElement("div");
   copySeparator.className = "row-separator";
+  copySeparator.classList.add("selection-action");
   copySeparator.setAttribute("aria-hidden", "true");
   row.appendChild(copySeparator);
 
@@ -548,13 +552,16 @@ function createBar(actions: BarActions): Bar {
     void copyText(snapshot.text);
     flash(button, "Copied instead");
   });
+  addButton.classList.add("selection-action");
 
   const separator = document.createElement("div");
   separator.className = "row-separator";
+  separator.classList.add("selection-action");
   separator.setAttribute("aria-hidden", "true");
   separator.hidden = true;
   row.appendChild(separator);
   const translateButton = makeButton(row, "Translate", "translate", () => actions.translate());
+  translateButton.classList.add("selection-action");
   translateButton.hidden = true;
   const dragHandle = document.createElement("div");
   dragHandle.className = "drag-handle";
@@ -828,6 +835,47 @@ function createBar(actions: BarActions): Bar {
       unsubscribeMarks();
       bar.removeEventListener("mousedown", holdSelection);
       host.remove();
+    },
+  };
+}
+
+/** Opens the same web translation surface for a whole-message action. */
+export function createMessageTranslationBar(anchor: HTMLElement, tokens: ExtendedThemeTokens, actions: {
+  close(): void;
+  retry(): void;
+  settings(): void;
+}) {
+  const bar = createBar({
+    done: actions.close,
+    translate() {},
+    retry: actions.retry,
+    settings: actions.settings,
+    snapshot: () => null,
+  }, true);
+  bar.setTheme(tokens);
+  const onPointerDown = (event: Event) => {
+    const target = event.target;
+    if (target instanceof Node && (bar.host.contains(target) || anchor.contains(target))) return;
+    actions.close();
+  };
+  const onKeyDown = (event: KeyboardEvent) => { if (event.key === "Escape") actions.close(); };
+  const onResize = () => bar.reposition();
+  document.addEventListener("pointerdown", onPointerDown, true);
+  document.addEventListener("keydown", onKeyDown, true);
+  window.addEventListener("resize", onResize);
+  let shown = false;
+  return {
+    setView(view: SelectionTranslationView) {
+      bar.setPanel(view);
+      bar.show(anchor.getBoundingClientRect());
+      if (!shown) { bar.pin(); shown = true; }
+    },
+    setTheme: bar.setTheme,
+    dispose() {
+      document.removeEventListener("pointerdown", onPointerDown, true);
+      document.removeEventListener("keydown", onKeyDown, true);
+      window.removeEventListener("resize", onResize);
+      bar.dispose();
     },
   };
 }

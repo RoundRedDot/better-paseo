@@ -8,7 +8,7 @@ vi.mock("@getpaseo/plugin/client", () => ({ usePaseo: () => null, useRpc: () => 
 
 await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
-const { useSelectionActions } = await import("../../client/components/selection-actions");
+const { useSelectionActions, createMessageTranslationBar } = await import("../../client/components/selection-actions");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { resetEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 const {
@@ -169,6 +169,43 @@ afterEach(() => {
 });
 
 describe("selection bar Translate", () => {
+  it("uses the same movable panel for whole messages and cleans it up", () => {
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    const anchor = Object.assign(new ElementMock(), {
+      getBoundingClientRect: () => ({ left: 120, top: 200, bottom: 220, width: 100, height: 20 }),
+    });
+    body.appendChild(anchor);
+    const close = vi.fn();
+    const retry = vi.fn();
+    const settings = vi.fn();
+    const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close, retry, settings });
+    popup.setView({ status: "done", result: done("完整译文") as never, disableThinking: false });
+    expect(bar().classList.contains("standalone")).toBe(true);
+    expect(panel().textContent).toContain("完整译文");
+    button("Retry")!.click();
+    button("Copy translation")!.click();
+    expect(retry).toHaveBeenCalledOnce();
+    expect(copy).toHaveBeenCalledWith("完整译文");
+    const pointer = (type: string, x: number, y: number) => Object.assign(new Event(type, { cancelable: true }), { button: 0, clientX: x, clientY: y });
+    const left = parseFloat(host().style.getPropertyValue("left"));
+    host().all((node) => node.className === "drag-handle")[0]!.dispatchEvent(pointer("pointerdown", 100, 100));
+    page.dispatchEvent(pointer("pointermove", 160, 140));
+    page.dispatchEvent(pointer("pointerup", 160, 140));
+    host().all((node) => node.className === "resize-handle")[0]!.dispatchEvent(pointer("pointerdown", 100, 100));
+    page.dispatchEvent(pointer("pointermove", 200, 170));
+    page.dispatchEvent(pointer("pointerup", 200, 170));
+    popup.setView({ status: "running", targetCode: "zh-CN", text: "新译文" });
+    expect(parseFloat(host().style.getPropertyValue("left"))).toBe(left + 60);
+    expect(bar().style.getPropertyValue("--bc-panel-width")).toBe("360px");
+    expect(panel().textContent).toContain("新译文");
+    button("Translation settings")!.click();
+    expect(settings).toHaveBeenCalledOnce();
+    doc.dispatchEvent(Object.assign(new Event("keydown"), { key: "Escape" }));
+    expect(close).toHaveBeenCalledOnce();
+    popup.dispose();
+    expect(body.children.some((child) => child.getAttribute("data-bcselectionbar") !== null)).toBe(false);
+  });
   it("keeps the translation visible when the page scrolls", async () => {
     call.mockResolvedValue(done("译文"));
     select("selected text", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));

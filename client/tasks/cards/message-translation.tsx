@@ -1,15 +1,17 @@
-import React, { useEffect, useRef, useState } from "react";
-import { Platform, Pressable, View, useWindowDimensions } from "react-native";
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
+import { usePaseo } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { useThemeTokens } from "../../components/theme-tokens";
+import { createMessageTranslationBar } from "../../components/selection-actions";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { useEnhancerPreferences } from "../../preferences";
 import { useSelectionTranslation } from "../../translation/selection";
+import { openTranslationSettings, TranslationSettingsParentCloseContext } from "../../translation/navigation";
 import { useTranslationSettingsState } from "../../translation/settings-store";
 import type { TranslationSourceKind } from "../../translation/store";
 import { SelectionTranslationPanel, TranslationSheet, TRANSLATE_ICON } from "../../translation/ui";
-import { AnchoredToolbarDetails } from "../../ui/toolbar-button";
 import { iconHoverSize } from "../../ui/icon-hover-size";
 import { useHover } from "../../ui/use-hover";
 import { hoverFill } from "../hover-fill";
@@ -62,12 +64,42 @@ function MessageTranslationResult(props: Props & { anchor: React.RefObject<View 
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(props.theme, preferences);
   const { view, start } = useSelectionTranslation({ agentId: props.agentId, kind: props.kind, streaming: props.streaming }, props.text);
-  const window = useWindowDimensions();
   useEffect(() => { start(); }, [start]);
   if (!view) return null;
-  const panel = <SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={props.close} sheet={Platform.OS !== "web"} />;
-  const width = Math.min(420, window.width - 16);
-  return Platform.OS === "web"
-    ? <AnchoredToolbarDetails anchor={props.anchor} close={props.close} tokens={tokens} width={width} movable>{panel}</AnchoredToolbarDetails>
-    : <TranslationSheet close={props.close}>{panel}</TranslationSheet>;
+  if (Platform.OS === "web") return <WebMessageTranslation anchor={props.anchor} view={view} tokens={tokens} retry={start} close={props.close} />;
+  return <TranslationSheet close={props.close}><SelectionTranslationPanel view={view} tokens={tokens} onRetry={start} onClose={props.close} sheet /></TranslationSheet>;
+}
+
+function WebMessageTranslation(props: {
+  anchor: React.RefObject<View | null>;
+  view: NonNullable<ReturnType<typeof useSelectionTranslation>["view"]>;
+  tokens: ReturnType<typeof useThemeTokens>;
+  retry(): void;
+  close(): void;
+}) {
+  const paseo = usePaseo();
+  const closeParent = useContext(TranslationSettingsParentCloseContext);
+  const current = useRef(props);
+  current.current = props;
+  const popup = useRef<ReturnType<typeof createMessageTranslationBar> | null>(null);
+  useEffect(() => {
+    const anchor = props.anchor.current as unknown as HTMLElement | null;
+    if (!anchor || typeof document === "undefined") return;
+    const bar = createMessageTranslationBar(anchor, current.current.tokens, {
+      close: () => current.current.close(),
+      retry: () => current.current.retry(),
+      settings: () => {
+        current.current.close();
+        if (!closeParent) { openTranslationSettings(paseo); return; }
+        closeParent();
+        requestAnimationFrame(() => openTranslationSettings(paseo));
+      },
+    });
+    popup.current = bar;
+    bar.setView(current.current.view);
+    return () => { popup.current = null; bar.dispose(); };
+  }, [props.anchor, paseo, closeParent]);
+  useEffect(() => { popup.current?.setView(props.view); }, [props.view]);
+  useEffect(() => { popup.current?.setTheme(props.tokens); }, [props.tokens]);
+  return null;
 }
