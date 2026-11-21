@@ -1273,6 +1273,32 @@ describe("inline translation limitations", () => {
     expect(collectTexts(renderer!.root)).not.toContain(LIMIT);
   });
 
+  it("shows the host's limitations in a thought's hover preview while it shows the translation", async () => {
+    // Regression: the preview rendered the translated thought with no limitations.
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    mocks.rpc.mockResolvedValueOnce(limited());
+    const text = "First thought.\n\nSecond **paragraph**.";
+    await act(async () => { renderer = TestRenderer.create(React.createElement(ReasoningCard, {
+      segmentation: segmentReasoning(text), streaming: false, durationMs: null, expanded: false,
+      onToggle: vi.fn(), tokens: makeTokens(), storeKey: "translation-thought-preview", copyText: text,
+      translation: { agentId: "agent-1", theme },
+    })); });
+    await act(async () => renderer!.root.findByType(DisclosureHeader).findAll((node) => typeof node.props.onHoverIn === "function")[0]!.props.onHoverIn());
+    const translate = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate");
+    await act(async () => translate().props.onPress({ stopPropagation() {} }));
+    const preview = () => {
+      const content = renderer!.root.findByType(DisclosureHeader).props.previewContent as () => React.ReactElement;
+      let shown!: ReturnType<typeof TestRenderer.create>;
+      act(() => { shown = TestRenderer.create(content()); });
+      const texts = collectTexts(shown.root);
+      act(() => shown.unmount());
+      return texts;
+    };
+    await vi.waitFor(() => expect(preview()).toContain(LIMIT));
+    await act(async () => translate().props.onPress({ stopPropagation() {} }));
+    expect(preview()).not.toContain(LIMIT);
+  });
+
   it("shows the host's limitations with a thought translated in place", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
     mocks.hover = false;

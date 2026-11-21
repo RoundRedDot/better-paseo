@@ -32,6 +32,8 @@ import {
 import { plainInline, reasoningHeaderText } from "../reasoning/preview";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { useEnhancerPreferences } from "../preferences";
+import { resolveLanguage } from "../i18n/settings-strings";
+import { selectionViewLimitations } from "../translation/view-text";
 import { fitsRow } from "../tools/detail";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
 import { TYPE, blockProseBase } from "../ui/tokens/typography";
@@ -337,6 +339,7 @@ function ReasoningCardContent({ segmentation: originalSegmentation, streaming, d
   const segmentation = useMemo(() => translated === null ? originalSegmentation : segmentReasoning(translated), [originalSegmentation, translated]);
   const label = reasoningHeaderText(segmentation, streaming, durationMs);
   const { language } = useEnhancerPreferences();
+  const previewLimitations = selectionViewLimitations(translated === null ? null : inline?.view ?? null, resolveLanguage(language ?? "system"));
   // A finished one-sentence thought is all on the row already: nothing to open.
   const budget = compact ? DISCLOSURE_HEADER.targetBudget.compact : DISCLOSURE_HEADER.targetBudget.desktop;
   const inert =
@@ -417,6 +420,10 @@ function ReasoningCardContent({ segmentation: originalSegmentation, streaming, d
           </HoverPreviewHeader>
           <HoverPreviewBody streaming={streaming}>
             <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet streaming={streaming} size={blockProseBase(tokens.typography)} />
+            {/* The preview shows the translation when it is on, so it carries its limitations too. */}
+            {previewLimitations.length > 0 ? <View testID="reasoning-preview-limitations" style={styles.previewLimitations}>
+              {previewLimitations.map((line) => <Text key={line} style={[styles.previewLimitation, { color: tokens.foregroundMuted }]}>{line}</Text>)}
+            </View> : null}
           </HoverPreviewBody>
         </>
       )}
@@ -513,6 +520,8 @@ export function ReasoningTrace({
 }
 
 const styles = StyleSheet.create({
+  previewLimitations: { gap: 2, paddingTop: space.sm },
+  previewLimitation: { fontSize: 12 },
   previewActions: { flexDirection: "row", justifyContent: "flex-end" },
   // The live preview takes the row's free width and ends in an ellipsis.
   preview: {
