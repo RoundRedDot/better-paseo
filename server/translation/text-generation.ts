@@ -86,6 +86,12 @@ export const NOT_SENT = "The text was not sent.";
 export const REACHED_HOST_ONLY = "The text reached the plugin on your Paseo host but was not sent to the model.";
 export const MAY_HAVE_REACHED_MODEL = "The text may have reached the model service.";
 
+/** The host SDK's code for a host that does not know the provider list request. */
+const PROVIDER_TEXT_LIST_UNSUPPORTED = "PROVIDER_TEXT_LIST_UNSUPPORTED";
+
+export const PROVIDER_LIST_FAILED =
+  "Paseo could not read this host's providers for translation with no tools. Refresh to try again.";
+
 function checkFailed(providers: readonly string[]): string {
   return `Paseo could not check ${providers.join(", ")} for translation with no tools. The list may be incomplete; refresh to try again.`;
 }
@@ -164,9 +170,12 @@ export async function readTranslationModelCatalog(paseo: PaseoApi, provider: str
   let enabled: ProviderTextListEntry[];
   try {
     enabled = (await api.listTextProviders()).providers;
-  } catch {
-    // The SDK refuses before sending when the host does not know the list request; nothing was sent.
-    return { ...none, error: HOST_UNSUPPORTED, reason: "host_unsupported" };
+  } catch (error) {
+    // Only the SDK's own code says the host lacks the request; a lost connection or a timeout is
+    // a read that can be retried. Either way nothing was sent.
+    if ((error as { code?: unknown } | null)?.code === PROVIDER_TEXT_LIST_UNSUPPORTED)
+      return { ...none, error: HOST_UNSUPPORTED, reason: "host_unsupported" };
+    return { ...none, error: PROVIDER_LIST_FAILED, reason: "check_failed" };
   }
   // Each provider is checked on its own: one failed check neither hides the others nor reads as
   // "no provider qualifies".

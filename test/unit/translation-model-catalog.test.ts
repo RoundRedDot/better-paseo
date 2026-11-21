@@ -47,13 +47,28 @@ describe("translation model catalog", () => {
   it("offers nothing when the SDK refuses the list for a host that does not know it", async () => {
     // Regression: the rejection surfaced as a failed settings read instead of an unsupported host.
     const getTextCapability = vi.fn();
+    const refused = Object.assign(new Error("Update the host to list one-shot text generation providers."), { code: "PROVIDER_TEXT_LIST_UNSUPPORTED" });
     const paseo = { providers: { snapshot, getTextCapability, generateText: vi.fn(),
-      listTextProviders: async () => { throw new Error("Update the host to list one-shot text generation providers."); } } } as unknown as PaseoApi;
+      listTextProviders: async () => { throw refused; } } } as unknown as PaseoApi;
     expect(await catalogHandler()({ provider: "" }, { paseo })).toMatchObject({
       providers: [], reason: "host_unsupported",
       error: "Translation needs a Paseo version that can generate text with no tools, and this Paseo does not provide it.",
     });
     expect(getTextCapability).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["a lost connection", Object.assign(new Error("Daemon connection lost"), { code: "DAEMON_CONNECTION_LOST" })],
+    ["a timeout", Object.assign(new Error("Daemon request timed out"), { code: "DAEMON_REQUEST_TIMEOUT" })],
+    // The message alone says nothing: only the code marks an unsupported host.
+    ["an uncoded error that reads like an unsupported host", new Error("Update the host to list one-shot text generation providers.")],
+  ])("says the provider list could not be read, not that the host is unsupported, on %s", async (_name, error) => {
+    const paseo = { providers: { snapshot, getTextCapability: vi.fn(), generateText: vi.fn(),
+      listTextProviders: async () => { throw error; } } } as unknown as PaseoApi;
+    expect(await catalogHandler()({ provider: "" }, { paseo })).toMatchObject({
+      providers: [], reason: "check_failed",
+      error: "Paseo could not read this host's providers for translation with no tools. Refresh to try again.",
+    });
   });
 
   it("lists only providers the host supports, with the models it can use", async () => {
