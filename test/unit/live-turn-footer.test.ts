@@ -1,4 +1,5 @@
 import React from "react";
+import { passingTranslationCheck } from "./helpers/passing-translation-check";
 import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
@@ -21,7 +22,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
     () => selector(runtime.agent),
   ),
   usePaseo: () => runtime.api,
-  useRpc: (rpc: unknown) => rpc === translateTimelineItemRpc ? runtime.translate : () => Promise.resolve(null),
+  useRpc: (rpc: unknown) => rpc === translateTimelineItemRpc ? passingTranslationCheck(runtime.translate) : () => Promise.resolve(null),
   useWorkspace: () => null,
   useSettings: () => ({ data: undefined, status: "loading" }),
 }));

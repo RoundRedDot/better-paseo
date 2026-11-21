@@ -370,7 +370,8 @@ function viewOf(
   const provider = settings.customModel ? settings.provider : agentConfig?.provider;
   const model = settings.customModel ? settings.model : agentConfig?.model;
   const modelInfo = provider && model ? { provider, model } : undefined;
-  if (!entry || entry.state.state === "idle") return { status: "running", targetCode, modelInfo };
+  // `ready` only answers `check`; an entry waiting on it is still running.
+  if (!entry || entry.state.state === "idle" || entry.state.state === "ready") return { status: "running", targetCode, modelInfo };
   switch (entry.state.state) {
     case "running": return { status: "running", text: entry.state.text || undefined, targetCode, modelInfo };
     case "done": return { status: "done", result: entry.state, disableThinking: settings.disableThinking, modelInfo: { provider: entry.state.provider, model: entry.state.model } };

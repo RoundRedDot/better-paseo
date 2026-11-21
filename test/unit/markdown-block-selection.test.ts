@@ -1,4 +1,5 @@
 import React from "react";
+import { passingTranslationCheck } from "./helpers/passing-translation-check";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const copy = vi.hoisted(() => vi.fn(async (_text: string, _options?: object) => true));
@@ -16,7 +17,7 @@ const translate = vi.hoisted(() => vi.fn());
 vi.mock("@getpaseo/plugin/client", () => ({
   useSettings: () => ({ data: undefined }),
   usePaseo: () => null,
-  useRpc: (definition?: { name?: string }) => definition?.name === "translation.translate" ? translate
+  useRpc: (definition?: { name?: string }) => definition?.name === "translation.translate" ? passingTranslationCheck(translate)
     : async () => ({ dataUri: null, mime: null, width: null, height: null, bytes: null, error: "File not found" }),
 }));
 await import("./helpers/quiet-renderer");

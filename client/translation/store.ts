@@ -35,6 +35,9 @@ export interface TranslationRequestInput {
 type CallTranslate = (input: TranslateTimelineItemInput) => Promise<TranslationJobState>;
 type WatchHelper = (helperId: string, onChunk: () => void) => () => void;
 
+/** The text never left this device. */
+const TEXT_NOT_SENT = "The text was not sent.";
+
 const POLL_MS = 1000;
 const MAX_ENTRIES = 500;
 
@@ -175,6 +178,30 @@ export function createTranslationStore() {
         };
 
         try {
+          // Ask the host, without the text, whether this translation can run. Only a `ready`
+          // answer lets the text leave this device; the server checks again on `start`.
+          let checked: TranslationJobState;
+          try {
+            checked = await call({
+              action: "check",
+              agentId: input.agentId,
+              interfaceLanguage: input.interfaceLanguage,
+              configSignature: configSig,
+            });
+          } catch {
+            checked = { state: "error", error: `Could not reach the plugin on your Paseo host. ${TEXT_NOT_SENT}` };
+          }
+          if (!isLatestJob(seed)) return;
+          if (checked.state !== "ready") {
+            const current = entries.get(seed.sourceKey);
+            if (current) {
+              setEntry({
+                ...current,
+                state: checked.state === "error" ? checked : { state: "error", error: `The plugin did not confirm the translation. ${TEXT_NOT_SENT}` },
+              });
+            }
+            return;
+          }
           let result = await call({
             action: "start",
             agentId: input.agentId,

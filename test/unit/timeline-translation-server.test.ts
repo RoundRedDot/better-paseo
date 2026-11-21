@@ -7,6 +7,7 @@ import {
   translateTimelineItemRpc,
   translationConfigSignature,
   type ConversationAgentModelConfig,
+  type TranslateTimelineItemInput,
   type TimelineTranslationSettings,
 } from "../../shared/timeline-translation";
 import {
@@ -227,8 +228,10 @@ describe("timeline translation server service", () => {
     const store = createTranslationStore();
     const sourceKey = "source-agent-1:assistant:message-1";
     const text = "Original text";
-    const call = vi.fn(async (input: Parameters<typeof translator.request>[0]) => {
-      const started = translator.request(translateTimelineItemRpc.input.parse(input), paseo);
+    const call = vi.fn(async (input: TranslateTimelineItemInput) => {
+      const parsed = translateTimelineItemRpc.input.parse(input);
+      if (parsed.action === "check") return translator.check(parsed, paseo);
+      const started = translator.request(parsed, paseo);
       return waitForJob(translator, paseo, handleOf(started));
     });
     const readCurrent = () => store.readValid(sourceKey, text, settings, "en", currentConfig);
@@ -246,7 +249,7 @@ describe("timeline translation server service", () => {
 
     currentConfig = clickConfig;
     expect(readCurrent()?.state).toEqual({
-      state: "error", error: "Translation configuration changed. Please retry.",
+      state: "error", error: "Translation configuration changed. Please retry. The text was not sent.",
     });
     expect(captured.generateInputs).toHaveLength(0);
   });
@@ -267,7 +270,7 @@ describe("timeline translation server service", () => {
       configSignature,
     }, paseo);
     expect(await waitForJob(translator, paseo, handleOf(started))).toEqual({
-      state: "error", error: "Translation configuration changed. Please retry.",
+      state: "error", error: "Translation configuration changed. Please retry. The text reached the plugin on your Paseo host but was not sent to the model.",
     });
     expect(captured.generateInputs).toHaveLength(0);
   });
@@ -359,7 +362,7 @@ describe("timeline translation server service", () => {
     startJob(env, "job-inherit");
     expect(await waitForJob(env.translator, env.paseo, "job-inherit")).toEqual({
       state: "error",
-      error: "mock/mock-model has no thinking option \"default\". Nothing was sent.",
+      error: "mock/mock-model has no thinking option \"default\". The text reached the plugin on your Paseo host but was not sent to the model.",
     });
     expect(env.captured.generateInputs[0]!.thinkingOptionId).toBe("default");
   });
@@ -445,7 +448,7 @@ describe("translation without a verified tool-free route", () => {
     const env = createMockEnv({ noTextApi: true });
     expect(await settle(env, "no-api")).toEqual({
       state: "error",
-      error: "Translation needs a Paseo version that can generate text with no tools. This Paseo does not provide it, so nothing was sent.",
+      error: "Translation needs a Paseo version that can generate text with no tools, and this Paseo does not provide it. The text reached the plugin on your Paseo host but was not sent to the model.",
     });
     expect(env.captured.helperOrWorkspaceCreates).toBe(0);
     expect(env.captured.generateInputs).toHaveLength(0);
@@ -456,13 +459,13 @@ describe("translation without a verified tool-free route", () => {
     (env.paseo.providers as unknown as { getTextCapability: () => Promise<never> }).getTextCapability = async () => {
       throw new Error("Update the host to use one-shot text generation.");
     };
-    expect(await settle(env, "no-feature")).toMatchObject({ state: "error", error: expect.stringContaining("nothing was sent") });
+    expect(await settle(env, "no-feature")).toMatchObject({ state: "error", error: expect.stringContaining("was not sent to the model") });
     expect(env.captured.generateInputs).toHaveLength(0);
   });
 
   it.each([
-    ["isolation_unverified", "Paseo cannot run opencode for translation without loading your OpenCode plugins, MCP servers or other extensions, so nothing was sent."],
-    ["unsupported", "opencode cannot translate with no tools on this Paseo, so nothing was sent."],
+    ["isolation_unverified", "Paseo cannot run opencode for translation without loading your OpenCode plugins, MCP servers or other extensions. The text reached the plugin on your Paseo host but was not sent to the model."],
+    ["unsupported", "opencode cannot translate with no tools on this Paseo. The text reached the plugin on your Paseo host but was not sent to the model."],
   ])("refuses a provider whose capability is %s, without switching provider", async (code, error) => {
     const env = createMockEnv({ capability: { supported: false, code } });
     expect(await settle(env, `cap-${code}`)).toEqual({ state: "error", error });
@@ -486,7 +489,7 @@ describe("translation without a verified tool-free route", () => {
     const env = createMockEnv({ settings: { customModel: true, provider: "opencode", model: "projonly/proj-model" } });
     expect(await settle(env, "project-only")).toMatchObject({
       state: "error",
-      error: expect.stringContaining("project's OpenCode configuration cannot be used), so nothing was sent."),
+      error: expect.stringContaining("project's OpenCode configuration cannot be used). The text reached the plugin on your Paseo host but was not sent to the model."),
     });
     expect(env.captured.generateInputs).toHaveLength(0);
   });
@@ -499,8 +502,8 @@ describe("translation without a verified tool-free route", () => {
   });
 
   it.each([
-    ["no", "OpenCode could not be started", "OpenCode could not be started. Nothing was sent."],
-    ["possibly", "OpenCode returned HTTP 503", "OpenCode returned HTTP 503. The text may have reached the provider."],
+    ["no", "OpenCode could not be started", "OpenCode could not be started. The text reached the plugin on your Paseo host but was not sent to the model."],
+    ["possibly", "OpenCode returned HTTP 503", "OpenCode returned HTTP 503. The text may have reached the model service."],
   ] as const)("says whether the text was sent when generation fails (promptSent %s)", async (promptSent, message, error) => {
     const env = createMockEnv({ answer: { status: "error", code: "generation_failed", message, promptSent } });
     expect(await settle(env, `fail-${promptSent}`)).toEqual({ state: "error", error });
@@ -510,7 +513,7 @@ describe("translation without a verified tool-free route", () => {
     const env = createMockEnv({ answer: { status: "ok", text: "   " } });
     expect(await settle(env, "empty")).toEqual({
       state: "error",
-      error: "The model returned an empty translation. The text may have reached the provider.",
+      error: "The model returned an empty translation. The text may have reached the model service.",
     });
   });
 
@@ -529,7 +532,7 @@ describe("translation without a verified tool-free route", () => {
     env.translator.request({ action: "cancel", handle: handles.get("job-cancel")! }, env.paseo);
     expect(await waitForJob(env.translator, env.paseo, "job-cancel")).toEqual({
       state: "error",
-      error: "One-shot text generation was cancelled. The text may have reached the provider.",
+      error: "One-shot text generation was cancelled. The text may have reached the model service.",
     });
     expect(observed?.aborted).toBe(true);
   });
@@ -545,7 +548,7 @@ describe("translation without a verified tool-free route", () => {
     });
     expect(await settle(env, "stale-thinking")).toEqual({
       state: "error",
-      error: 'The saved thinking option "max" is no longer offered by mock/mock-model. Choose another in translation settings; nothing was sent.',
+      error: 'The saved thinking option "max" is no longer offered by mock/mock-model. Choose another in translation settings. The text reached the plugin on your Paseo host but was not sent to the model.',
     });
     expect(env.captured.generateInputs).toHaveLength(0);
   });
@@ -570,5 +573,43 @@ describe("translation without a verified tool-free route", () => {
     expect(env.translator.request({ action: "cancel", handle: "caller-a" }, env.paseo)).toEqual({ state: "idle" });
     expect(observed?.aborted).toBe(false);
     expect(env.translator.request({ action: "status", handle: handleOf(first) }, env.paseo)).toMatchObject({ state: "running" });
+  });
+
+  it("check runs every refusal without the text, and says the text was not sent", async () => {
+    const env = createMockEnv({ capability: { supported: false, code: "isolation_unverified" } });
+    expect(await env.translator.check({ agentId: "source-agent-1", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo)).toEqual({
+      state: "error",
+      error: "Paseo cannot run opencode for translation without loading your OpenCode plugins, MCP servers or other extensions. The text was not sent.",
+    });
+    expect(env.captured.generateInputs).toHaveLength(0);
+    const ready = createMockEnv();
+    expect(await ready.translator.check({ agentId: "source-agent-1", interfaceLanguage: "en", configSignature: ready.configSignature }, ready.paseo)).toEqual({ state: "ready" });
+    expect(ready.captured.generateInputs).toHaveLength(0);
+  });
+
+  it("the client's first request carries no text, and a refused check sends none", async () => {
+    // Regression: the first plugin RPC was `start` with the full text, refused only afterwards.
+    const env = createMockEnv({ capability: { supported: false, code: "unsupported" } });
+    const store = createTranslationStore();
+    const sent: Array<Record<string, unknown>> = [];
+    const call = vi.fn(async (input: TranslateTimelineItemInput) => {
+      sent.push({ ...input });
+      const parsed = translateTimelineItemRpc.input.parse(input);
+      if (parsed.action === "check") return env.translator.check(parsed, env.paseo);
+      return env.translator.request(parsed, env.paseo);
+    });
+    const sourceKey = "source-agent-1:assistant:message-1";
+    store.startTranslation({
+      sourceKey, text: "SYNTHETIC-PRIVATE source text", settings: env.settings, agentId: "source-agent-1",
+      sourceKind: "assistant_message", interfaceLanguage: "en", agentConfig: { provider: "opencode", model: "mock/mock-model" },
+    }, call);
+    await vi.waitFor(() => expect(store.readValid(sourceKey, "SYNTHETIC-PRIVATE source text", env.settings, "en", { provider: "opencode", model: "mock/mock-model" })?.state.state).toBe("error"));
+    expect(sent).toHaveLength(1);
+    expect(sent[0]).toMatchObject({ action: "check" });
+    expect(sent[0]).not.toHaveProperty("text");
+    expect(JSON.stringify(sent)).not.toContain("SYNTHETIC-PRIVATE");
+    expect(store.readValid(sourceKey, "SYNTHETIC-PRIVATE source text", env.settings, "en", { provider: "opencode", model: "mock/mock-model" })?.state).toEqual({
+      state: "error", error: "opencode cannot translate with no tools on this Paseo. The text was not sent.",
+    });
   });
 });

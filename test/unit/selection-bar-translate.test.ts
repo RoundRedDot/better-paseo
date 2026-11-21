@@ -1,4 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import { passingTranslationCheck } from "./helpers/passing-translation-check";
 import React from "react";
 
 const copy = vi.hoisted(() => vi.fn(async () => true));
@@ -102,7 +103,7 @@ const hosts = new Map<typeof call, object>();
 /** One API object per translator: each stands for a host. */
 const lent = (fn: typeof call) => {
   if (!hosts.has(fn)) hosts.set(fn, {});
-  return { translator: { call: fn, watch: () => () => {} }, paseo: hosts.get(fn) as never };
+  return { translator: { call: passingTranslationCheck(fn), watch: () => () => {} }, paseo: hosts.get(fn) as never };
 };
 
 /** A scoped Markdown root as `MarkdownView` binds it, translator included (`via`, null for none). */

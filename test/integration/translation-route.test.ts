@@ -45,8 +45,13 @@ export default function contribute(server: PluginServerContext) {
       settings: { id: "timeline-translation", read: async () => ({ status: "ready", values, revision: "it" }) } as never,
       timeoutMs: 30_000,
     });
-    const started = translator.request({ action: "start", agentId, text, sourceKind: "assistant_message", interfaceLanguage: "en",
-      configSignature: translationConfigSignature(values, "en", { provider, model }) }, paseo);
+    const providers = paseo.providers as unknown as { generateText?: unknown };
+    const hostHasTextApi = typeof providers.generateText === "function";
+    const configSignature = translationConfigSignature(values, "en", { provider, model });
+    // As the client does: check without the text first, and send it only when the check passes.
+    const checked = await translator.check({ agentId, interfaceLanguage: "en", configSignature }, paseo);
+    if (checked.state !== "ready") return { state: checked, started: false, hostHasTextApi };
+    const started = translator.request({ action: "start", agentId, text, sourceKind: "assistant_message", interfaceLanguage: "en", configSignature }, paseo);
     const handle = started.state === "running" ? started.handle ?? "" : "";
     const deadline = Date.now() + 60_000;
     let state = translator.request({ action: "status", handle }, paseo);
@@ -54,8 +59,7 @@ export default function contribute(server: PluginServerContext) {
       await new Promise((resolve) => setTimeout(resolve, 100));
       state = translator.request({ action: "status", handle }, paseo);
     }
-    const providers = paseo.providers as unknown as { generateText?: unknown };
-    return { state, hostHasTextApi: typeof providers.generateText === "function" };
+    return { state, started: true, hostHasTextApi };
   });
   return typeof stop === "function" ? stop : () => undefined;
 }
@@ -143,10 +147,12 @@ describe.skipIf(!paseoBin())("translation on a private daemon", () => {
     const workspacesBefore = (await listAllWorkspaces(connection.api)).length;
     const answer = await connection.daemon.invokePluginRpc(ROUTE, "probe.translate", {
       agentId: source.id, provider: PROVIDER, model: "lanes", text: "translation-test-echo SYNTHETIC",
-    }) as { state: { state: string; error?: string }; hostHasTextApi: boolean };
+    }) as { state: { state: string; error?: string }; started: boolean; hostHasTextApi: boolean };
     const expected = answer.hostHasTextApi
-      ? `${PROVIDER} cannot translate with no tools on this Paseo, so nothing was sent.`
-      : "Translation needs a Paseo version that can generate text with no tools. This Paseo does not provide it, so nothing was sent.";
+      ? `${PROVIDER} cannot translate with no tools on this Paseo. The text was not sent.`
+      : "Translation needs a Paseo version that can generate text with no tools, and this Paseo does not provide it. The text was not sent.";
+    // Refused at the check: the text never reached the plugin.
+    expect(answer.started).toBe(false);
     if (expectTextApi) expect(answer.hostHasTextApi).toBe(expectTextApi === "1");
     expect(answer.state).toEqual({ state: "error", error: expected });
     // No helper agent and no helper workspace appeared.
@@ -165,11 +171,12 @@ describe.skipIf(!paseoBin())("translation on a private daemon", () => {
     const before = (await listAllAgents(connection.api, { includeArchived: true, includeBackground: true })).length;
     const answer = await connection.daemon.invokePluginRpc(ROUTE, "probe.translate", {
       agentId: source.id, provider: "opencode", model: "mock/mock-model", text: "SYNTHETIC-OPENCODE",
-    }) as { state: { state: string; error?: string }; hostHasTextApi: boolean };
+    }) as { state: { state: string; error?: string }; started: boolean; hostHasTextApi: boolean };
     expect(answer.hostHasTextApi).toBe(true);
+    expect(answer.started).toBe(false);
     expect(answer.state).toEqual({
       state: "error",
-      error: "Paseo cannot run opencode for translation without loading your OpenCode plugins, MCP servers or other extensions, so nothing was sent.",
+      error: "Paseo cannot run opencode for translation without loading your OpenCode plugins, MCP servers or other extensions. The text was not sent.",
     });
     expect((await listAllAgents(connection.api, { includeArchived: true, includeBackground: true })).length).toBe(before);
   }, 240_000);

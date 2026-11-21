@@ -131,6 +131,8 @@ export type TranslationThinkingMode = z.output<typeof translationThinkingModeSch
 
 export const translationJobStateSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("idle") }),
+  /** The reply to `check`: every check passed, so the client may send the text. */
+  z.object({ state: z.literal("ready") }),
   z.object({
     state: z.literal("running"),
     text: z.string().optional(),
@@ -165,6 +167,13 @@ export const translateTimelineItemRpc = defineRpc({
       agentId: z.string().min(1),
       text: z.string().trim().min(1).max(200_000),
       sourceKind: z.enum(["assistant_message", "user_message", "reasoning", "tool_output"]),
+      interfaceLanguage: z.enum(["en", "zh"]).default("en"),
+      configSignature: z.string().min(1),
+    }),
+    // Every check `start` runs, without the text: the client sends the text only after this passes.
+    z.object({
+      action: z.literal("check"),
+      agentId: z.string().min(1),
       interfaceLanguage: z.enum(["en", "zh"]).default("en"),
       configSignature: z.string().min(1),
     }),

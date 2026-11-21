@@ -1,4 +1,5 @@
 import React from "react";
+import { passingTranslationCheck } from "./helpers/passing-translation-check";
 import TestRenderer, { act, type ReactTestRenderer } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
@@ -18,7 +19,7 @@ vi.mock("react-native", async () => {
 vi.mock("@getpaseo/plugin/client", () => ({
   useSettings: () => ({ status: "loading" }),
   usePaseo: () => undefined,
-  useRpc: () => translateRpc,
+  useRpc: () => passingTranslationCheck(translateRpc),
 }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");

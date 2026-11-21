@@ -4,6 +4,9 @@ import type { PaseoAgentRefetchResult, PaseoAgentTimelineEvent, PaseoApi } from 
 import {
   generationFailure,
   HOST_UNSUPPORTED,
+  MAY_HAVE_REACHED_MODEL,
+  NOT_SENT,
+  REACHED_HOST_ONLY,
   providerTextApi,
   readTranslationModelCatalog,
   requireReadyProvider,
@@ -39,6 +42,7 @@ const TRANSLATION_TIMEOUT_MS = 90_000;
 const MAX_JOBS = 200;
 
 type TranslationStartInput = Extract<TranslateTimelineItemInput, { action: "start" }>;
+type TranslationCheckInput = Pick<TranslationStartInput, "agentId" | "interfaceLanguage" | "configSignature">;
 
 interface Dependencies {
   settings: PluginSettings<typeof timelineTranslationSettingsSchema>;
@@ -74,7 +78,7 @@ export function buildTranslationPrompt(
 
 function savedThinkingUnavailable(option: string, model: string): TranslationRefusal {
   return new TranslationRefusal(
-    `The saved thinking option "${option}" is no longer offered by ${model}. Choose another in translation settings; nothing was sent.`,
+    `The saved thinking option "${option}" is no longer offered by ${model}. Choose another in translation settings.`,
   );
 }
 
@@ -140,48 +144,75 @@ export function createTimelineTranslator(deps: Dependencies) {
     }
   }
 
+  /**
+   * Everything translation needs except the text: the same checks run for `check`, before the
+   * client sends any text, and again for `start`.
+   */
+  async function prepare(input: TranslationCheckInput, paseo: PaseoApi) {
+    const settings = await deps.settings.read();
+    if (settings.status !== "ready") throw new TranslationRefusal("Translation settings are invalid.");
+    const config = settings.values;
+    if (!config.enabled) throw new TranslationRefusal("Timeline translation is disabled in settings.");
+    if (config.customModel && (!config.provider || !config.model)) {
+      throw new TranslationRefusal("Choose a translation provider and model in settings first.");
+    }
+
+    const source = paseo.agents.ref(input.agentId);
+    const original = await source.refresh();
+    if (!original) throw new TranslationRefusal("The original agent no longer exists.");
+    // The client caches this job under the configuration it saw when starting it.
+    if (input.configSignature !== translationConfigSignature(config, input.interfaceLanguage, original.agent)) {
+      throw new TranslationRefusal("Translation configuration changed. Please retry.");
+    }
+
+    const provider = config.customModel ? config.provider : original.agent.provider;
+    const model = config.customModel ? config.model : original.agent.model;
+    const api = providerTextApi(paseo);
+    if (!api) throw new TranslationRefusal(HOST_UNSUPPORTED);
+    const providers = await paseo.providers.snapshot();
+    requireReadyProvider(providers.entries, provider);
+    if (!model) {
+      throw new TranslationRefusal("The current conversation has no model configured for translation.");
+    }
+    const capability = await requireTextCapability(api, provider);
+    const offered = capability.models.find((entry) => entry.id === model);
+    if (!offered) {
+      throw new TranslationRefusal(
+        `The model "${model}" is not available for translation with no tools on "${provider}" (models defined only in a project's OpenCode configuration cannot be used).`,
+      );
+    }
+    const { thinkingOptionId, thinkingMode } = resolveThinkingForTranslation(config, offered, original);
+    const target = resolveTranslationTarget(config.targetLanguage, input.interfaceLanguage);
+    return { config, api, provider, model, capability, thinkingOptionId, thinkingMode, target };
+  }
+
+  /** Runs every check without the text; a refusal here means the text never left the client. */
+  async function check(input: TranslationCheckInput, paseo: PaseoApi): Promise<TranslationJobState> {
+    try {
+      await prepare(input, paseo);
+      return { state: "ready" };
+    } catch (error) {
+      const reason = error instanceof Error ? error.message : String(error);
+      return { state: "error", error: `${reason} ${NOT_SENT}` };
+    }
+  }
+
   async function translate(
     input: TranslationStartInput,
     paseo: PaseoApi,
     stream: (update: { text?: string }) => void,
     signal: AbortSignal,
   ): Promise<Extract<TranslationJobState, { state: "done" }>> {
-    const settings = await deps.settings.read();
-    if (settings.status !== "ready") throw new Error("Translation settings are invalid.");
-    const config = settings.values;
-    if (!config.enabled) throw new Error("Timeline translation is disabled in settings.");
-    if (config.customModel && (!config.provider || !config.model)) {
-      throw new Error("Choose a translation provider and model in settings first.");
+    let prepared: Awaited<ReturnType<typeof prepare>>;
+    try {
+      prepared = await prepare(input, paseo);
+      if (signal.aborted) throw new TranslationRefusal("Translation was cancelled.");
+    } catch (error) {
+      // The text is here, on the Paseo host, but went no further.
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`${reason} ${REACHED_HOST_ONLY}`);
     }
-
-    const source = paseo.agents.ref(input.agentId);
-    const original = await source.refresh();
-    if (!original) throw new Error("The original agent no longer exists.");
-    // The client caches this job under the configuration it saw when starting it.
-    if (input.configSignature !== translationConfigSignature(config, input.interfaceLanguage, original.agent)) {
-      throw new Error("Translation configuration changed. Please retry.");
-    }
-
-    const provider = config.customModel ? config.provider : original.agent.provider;
-    const model = config.customModel ? config.model : original.agent.model;
-    // Nothing leaves the plugin until the host shows this provider runs the one-shot route.
-    const api = providerTextApi(paseo);
-    if (!api) throw new TranslationRefusal(HOST_UNSUPPORTED);
-    const providers = await paseo.providers.snapshot();
-    requireReadyProvider(providers.entries, provider);
-    if (!model) {
-      throw new TranslationRefusal("The current conversation has no model configured for translation, so nothing was sent.");
-    }
-    const capability = await requireTextCapability(api, provider);
-    const offered = capability.models.find((entry) => entry.id === model);
-    if (!offered) {
-      throw new TranslationRefusal(
-        `The model "${model}" is not available for translation with no tools on "${provider}" (models defined only in a project's OpenCode configuration cannot be used), so nothing was sent.`,
-      );
-    }
-    const { thinkingOptionId, thinkingMode } = resolveThinkingForTranslation(config, offered, original);
-    const target = resolveTranslationTarget(config.targetLanguage, input.interfaceLanguage);
-    if (signal.aborted) throw new TranslationRefusal("Translation was cancelled, so nothing was sent.");
+    const { config, api, provider, model, capability, thinkingOptionId, thinkingMode, target } = prepared;
 
     const fullPrompt = `${SYSTEM_PROMPT}\n\n${buildTranslationPrompt(
       config.prompt,
@@ -199,7 +230,7 @@ export function createTimelineTranslator(deps: Dependencies) {
     });
     if (answer.result.status === "error") throw generationFailure(answer.result.error);
     const translation = answer.result.text.trim();
-    if (!translation) throw new Error("The model returned an empty translation. The text may have reached the provider.");
+    if (!translation) throw new Error(`The model returned an empty translation. ${MAY_HAVE_REACHED_MODEL}`);
     stream({ text: translation });
 
     return {
@@ -249,7 +280,9 @@ export function createTimelineTranslator(deps: Dependencies) {
   }
 
   return {
-    request(input: TranslateTimelineItemInput, paseo: PaseoApi): TranslationJobState {
+    /** Every check `start` runs, without the text. */
+    check,
+    request(input: Exclude<TranslateTimelineItemInput, { action: "check" }>, paseo: PaseoApi): TranslationJobState {
       if (input.action === "status") {
         return jobs.get(input.handle) ?? { state: "idle" };
       }
@@ -263,7 +296,8 @@ export function registerTimelineTranslation(server: PluginServerContext) {
   const settings = server.registerSettings(TIMELINE_TRANSLATION_SETTINGS);
   const translator = createTimelineTranslator({ settings });
 
-  server.handle(translateTimelineItemRpc, (input, { paseo }) => translator.request(input, paseo));
+  server.handle(translateTimelineItemRpc, (input, { paseo }) =>
+    input.action === "check" ? translator.check(input, paseo) : translator.request(input, paseo));
 
   server.handle(translationModelsRpc, ({ provider }, { paseo }) => readTranslationModelCatalog(paseo, provider));
 

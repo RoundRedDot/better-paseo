@@ -34,7 +34,7 @@ describe("translation model catalog", () => {
     const result = await catalogHandler()({ provider: "deepseek" }, { paseo });
     expect(result).toEqual({
       providers: [], providerLabels: {}, models: [], uncheckedProviders: [], reason: "host_unsupported", limitations: [],
-      error: "Translation needs a Paseo version that can generate text with no tools. This Paseo does not provide it, so nothing was sent.",
+      error: "Translation needs a Paseo version that can generate text with no tools, and this Paseo does not provide it.",
     });
     expect(listModels).not.toHaveBeenCalled();
   });

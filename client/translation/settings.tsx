@@ -215,7 +215,7 @@ const STRINGS = {
       },
       {
         label: "Privacy",
-        text: "Translate sends the selected text or reply, the target language and the translation prompt to the provider's model in one request that Paseo runs with no tools, helper agent or session. When Paseo cannot confirm the provider runs that way, nothing is sent and an error is shown. The provider handles the text like any other prompt, which can mean sending it to its service.",
+        text: "Translate first asks your Paseo host, without the text, whether the provider and model can translate in one request with no tools, helper agent or session. If not, the text is not sent and an error says why. Otherwise the selected text or reply, the target language and the translation prompt go to the Better Paseo plugin on that host, which sends them to the provider's model in that one request. If the host refuses after receiving the text, the text reached the plugin but not the model. The provider handles the text like any other prompt, which can mean sending it to its service.",
       },
       {
         label: "Session cache",
@@ -258,7 +258,7 @@ const STRINGS = {
       },
       {
         label: "隐私保护",
-        text: "点击「翻译」时，Paseo 以一次不带任何工具、辅助 Agent 或会话的请求，把选中的文本或整条回复、目标语言与翻译 Prompt 发给 Provider 的模型。Paseo 无法确认 Provider 能这样运行时，不发送任何内容并显示错误。Provider 会像处理其他 Prompt 一样处理这些文本，可能会发往其服务端。",
+        text: "点击「翻译」时，先在不附带文本的情况下询问 Paseo 宿主：该 Provider 与模型能否以一次不带工具、辅助 Agent 或会话的请求完成翻译。不能时不发送文本，并显示原因。能时，选中的文本或整条回复、目标语言与翻译 Prompt 会发给该宿主上的 Better Paseo 插件，由它在这一次请求中发给 Provider 的模型。若宿主在收到文本后才拒绝，文本到达了插件，但没有发给模型。Provider 会像处理其他 Prompt 一样处理这些文本，可能会发往其服务端。",
       },
       {
         label: "会话缓存",

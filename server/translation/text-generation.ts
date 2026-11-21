@@ -69,13 +69,18 @@ export function providerTextApi(paseo: PaseoApi): ProviderTextApi | null {
 }
 
 export const HOST_UNSUPPORTED =
-  "Translation needs a Paseo version that can generate text with no tools. This Paseo does not provide it, so nothing was sent.";
+  "Translation needs a Paseo version that can generate text with no tools, and this Paseo does not provide it.";
+
+/** Where the text got: said once, by the step that knows. */
+export const NOT_SENT = "The text was not sent.";
+export const REACHED_HOST_ONLY = "The text reached the plugin on your Paseo host but was not sent to the model.";
+export const MAY_HAVE_REACHED_MODEL = "The text may have reached the model service.";
 
 function checkFailed(providers: readonly string[]): string {
   return `Paseo could not check ${providers.join(", ")} for translation with no tools. The list may be incomplete; refresh to try again.`;
 }
 
-/** A refusal before anything was sent: the message says so. */
+/** A refusal before the text was sent to the model; the caller says where the text got. */
 export class TranslationRefusal extends Error {
   constructor(message: string) {
     super(message);
@@ -86,15 +91,15 @@ export class TranslationRefusal extends Error {
 function refusalReason(provider: string, error: ProviderTextError | null): string {
   switch (error?.code) {
     case "isolation_unverified":
-      return `Paseo cannot run ${provider} for translation without loading your OpenCode plugins, MCP servers or other extensions`;
+      return `Paseo cannot run ${provider} for translation without loading your OpenCode plugins, MCP servers or other extensions.`;
     case "unsupported":
-      return `${provider} cannot translate with no tools on this Paseo`;
+      return `${provider} cannot translate with no tools on this Paseo.`;
     case "version_unsupported":
-      return `${provider} runs a version Paseo has not validated for translation with no tools`;
+      return `${provider} runs a version Paseo has not validated for translation with no tools.`;
     case "provider_unavailable":
-      return `${provider} is unavailable on this Paseo`;
+      return `${provider} is unavailable on this Paseo.`;
     default:
-      return `${provider} cannot translate with no tools right now${error?.message ? ` (${error.message})` : ""}`;
+      return `${provider} cannot translate with no tools right now${error?.message ? ` (${error.message})` : ""}.`;
   }
 }
 
@@ -107,14 +112,15 @@ export async function requireTextCapability(api: ProviderTextApi, provider: stri
     // The SDK rejects only when the host lacks the feature or the connection; nothing was sent.
     throw new TranslationRefusal(HOST_UNSUPPORTED);
   }
-  if (!capability.supported) throw new TranslationRefusal(`${refusalReason(provider, capability.error)}, so nothing was sent.`);
+  if (!capability.supported) throw new TranslationRefusal(refusalReason(provider, capability.error));
   return capability;
 }
 
 /** Describes a failed generation by whether the text may have left the host. */
 export function generationFailure(error: ProviderTextError): Error {
-  if (error.promptSent === "no") return new TranslationRefusal(`${error.message}. Nothing was sent.`);
-  return new Error(`${error.message}. The text may have reached the provider.`);
+  // The host held the text but did not send it on.
+  if (error.promptSent === "no") return new Error(`${error.message}. ${REACHED_HOST_ONLY}`);
+  return new Error(`${error.message}. ${MAY_HAVE_REACHED_MODEL}`);
 }
 
 interface SnapshotEntry {
@@ -127,9 +133,9 @@ interface SnapshotEntry {
 /** The provider's ready snapshot entry, or a refusal naming why it cannot be used. */
 export function requireReadyProvider(entries: readonly SnapshotEntry[], provider: string): void {
   const entry = entries.find((candidate) => candidate.provider === provider);
-  if (!entry) throw new TranslationRefusal(`Translation provider "${provider}" is not configured on this Paseo, so nothing was sent.`);
-  if (!entry.enabled) throw new TranslationRefusal(`Translation provider "${provider}" is disabled, so nothing was sent.`);
-  if (entry.status !== "ready") throw new TranslationRefusal(`Translation provider "${provider}" is not ready (${entry.status ?? "unknown"}), so nothing was sent.`);
+  if (!entry) throw new TranslationRefusal(`Translation provider "${provider}" is not configured on this Paseo.`);
+  if (!entry.enabled) throw new TranslationRefusal(`Translation provider "${provider}" is disabled.`);
+  if (entry.status !== "ready") throw new TranslationRefusal(`Translation provider "${provider}" is not ready (${entry.status ?? "unknown"}).`);
 }
 
 /**
@@ -167,7 +173,7 @@ export async function readTranslationModelCatalog(paseo: PaseoApi, provider: str
     if (unchecked.includes(provider))
       return { providers, providerLabels, models: [], ...partial, limitations: [], error: checkFailed([provider]), reason: "check_failed" };
     const refused = capabilities.find((capability) => capability.provider === provider);
-    return { providers, providerLabels, models: [], ...partial, limitations: [], reason: null, error: `${refusalReason(provider, refused?.error ?? null)}. Choose another provider.` };
+    return { providers, providerLabels, models: [], ...partial, limitations: [], reason: null, error: `${refusalReason(provider, refused?.error ?? null)} Choose another provider.` };
   }
   return {
     providers,

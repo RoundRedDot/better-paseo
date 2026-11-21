@@ -1,4 +1,5 @@
 import React from "react";
+import { passingTranslationCheck } from "./helpers/passing-translation-check";
 import { StyleSheet } from "react-native";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
@@ -102,9 +103,12 @@ vi.mock("@getpaseo/plugin/client", async () => {
     HostContext,
     useAgent: () => undefined,
     usePaseo: () => ReactModule.useContext(HostContext)?.api ?? mocks.api,
-    useRpc: () => ReactModule.useContext(HostContext)?.rpc ?? mocks.rpc,
+    // The host passes every `check`, so each test drives `start` and `status` as before.
+    useRpc: () => passingTranslationCheck(ReactModule.useContext(HostContext)?.rpc ?? mocks.rpc),
   };
 });
+
+
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const ReactModule = await import("react");
   return {
@@ -351,7 +355,7 @@ function doneState(translation: string, extra: Record<string, unknown> = {}) {
   };
 }
 
-const translator = () => ({ call: mocks.rpc as never, watch: () => () => {} });
+const translator = () => ({ call: passingTranslationCheck(mocks.rpc) as never, watch: () => () => {} });
 
 describe.each(["web", "ios", "android"] as const)("%s whole-message translation", (platform) => {
   it("hides the action when translation is disabled", async () => {

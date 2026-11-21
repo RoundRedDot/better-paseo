@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { passingTranslationCheck } from "./helpers/passing-translation-check";
 import type { ReactTestRenderer } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
@@ -322,7 +323,7 @@ describe("preferences read while the plugin loads", () => {
     const { createSelectionTranslation } = await import("../../client/translation/selection");
     const call = vi.fn(async () => ({ state: "done", translation: "Hello", targetLanguageCode: "en", provider: "codex", model: "gpt-5", thinkingMode: "custom", thinkingOptionId: null }));
     const select = () => createSelectionTranslation({ agentId: "agent-1", kind: "assistant_message", text: "你好", streaming: false,
-      translator: { call: call as never, watch: () => () => {} }, configStore: undefined, interfaceLanguage: () => "en" });
+      translator: { call: passingTranslationCheck(call) as never, watch: () => () => {} }, configStore: undefined, interfaceLanguage: () => "en" });
     const earlier = select();
     earlier.start();
     await flush();
