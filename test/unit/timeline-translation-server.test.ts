@@ -382,6 +382,16 @@ describe("timeline translation server service", () => {
     expect(env.captured.prompts[0]).toContain("Target language: Simplified Chinese / 简体中文 (zh-CN)\nSource kind:");
   });
 
+  it.each([[[{ id: "low", label: "Low" }]], [[]]])("refuses the conversation's thinking option the model does not offer (options %j) before any text is sent", async (thinkingOptions) => {
+    // Regression: with no options at all the option was silently dropped, while with other
+    // options it was refused; both now refuse at the check.
+    const env = createMockEnv({ settings: { disableThinking: false }, agentThinkingId: "high", thinkingOptions });
+    expect(await env.translator.check({ agentId: "source-agent-1", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo)).toMatchObject({
+      state: "error", error: expect.stringContaining('thinking option "high" is not offered by mock/mock-model'),
+    });
+    expect(env.captured.generateInputs).toHaveLength(0);
+  });
+
   it("refuses the conversation's thinking option before sending when the model does not offer it", async () => {
     // Regression: the option went to the host, which refused it after the text had left the client.
     const env = createMockEnv({
@@ -447,7 +457,7 @@ describe("timeline translation server service", () => {
       [true, [], "high", undefined, "none"],
       [false, noOff, "high", "high", "inherited"],
       [false, noOff, null, undefined, "inherited"],
-      [false, [], "high", undefined, "none"],
+      [false, [], null, undefined, "none"],
     ];
     it.each(inherited)("conversation option, disableThinking=%s, options %j, conversation %j → %s", async (disableThinking, thinkingOptions, agentThinkingId, sent, mode) => {
       const env = createMockEnv({ settings: { disableThinking }, thinkingOptions, agentThinkingId });

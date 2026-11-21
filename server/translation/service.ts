@@ -109,6 +109,17 @@ function resolveThinkingForTranslation(
     }
     return { thinkingOptionId: undefined, thinkingMode: "none" };
   }
+  // The conversation's own option is used only when the model offers it for translation, also when
+  // it offers none. Otherwise this refuses here, before the text is sent, rather than after the
+  // host does or by silently dropping it.
+  const inherited = config.customModel
+    ? undefined
+    : (original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId ?? undefined);
+  if (inherited && !model.thinkingOptionIds.includes(inherited)) {
+    throw new TranslationRefusal(
+      `The conversation's thinking option "${inherited}" is not offered by ${model.id} for translation. Turn on disabling thinking or choose a translation model in translation settings.`,
+    );
+  }
   if (capability.status === "none") {
     return { thinkingOptionId: undefined, thinkingMode: "none" };
   }
@@ -118,14 +129,6 @@ function resolveThinkingForTranslation(
       thinkingOptionId: valid,
       thinkingMode: valid && isRealThinkingOffId(valid) ? "disabled" : "custom",
     };
-  }
-  // The conversation's own option, when the model offers it for translation. Otherwise this
-  // refuses here, before the text is sent, rather than after the host does.
-  const inherited = original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId ?? undefined;
-  if (inherited && !model.thinkingOptionIds.includes(inherited)) {
-    throw new TranslationRefusal(
-      `The conversation's thinking option "${inherited}" is not offered by ${model.id} for translation. Turn on disabling thinking or choose a translation model in translation settings.`,
-    );
   }
   return {
     thinkingOptionId: inherited || undefined,
