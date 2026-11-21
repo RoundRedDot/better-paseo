@@ -23,7 +23,7 @@ export function DiffPreview({ text, filename, style, tokens, numbered = true, ru
   const lines = useMemo(() => text.replace(/\n+$/, "").split("\n"), [text]);
   const rows = useMemo(() => diffRows(lines), [lines]);
   const diffBodyCode = useMemo(() => filename ? strippedDiffCode(lines) : undefined, [lines, filename]);
-  const highlighted = useHighlightedLines({ code: text, language: "diff", filename, diffBodyCode, dark: tokens.isDark, enabled: !running });
+  const highlighted = useHighlightedLines({ code: text, language: "diff", filename, diffBodyCode, dark: tokens.isDark, syntaxTheme: tokens.syntaxTheme, enabled: !running });
   const backgrounds = useMemo(() => rows.map((row) => row.kind === "add" ? tokens.syntax.diffAddBg
     : row.kind === "remove" ? tokens.syntax.diffRemoveBg : undefined), [rows, tokens]);
   const renderLine = useCallback((line: string, index: number) => renderDiffLine(
