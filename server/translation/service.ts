@@ -222,14 +222,22 @@ export function createTimelineTranslator(deps: Dependencies) {
       input.sourceKind,
       input.text,
     )}`;
-    const answer = await api.generateText({
-      provider,
-      model,
-      ...(thinkingOptionId ? { thinkingOptionId } : {}),
-      prompt: fullPrompt,
-      timeoutMs: deps.timeoutMs ?? TRANSLATION_TIMEOUT_MS,
-      signal,
-    });
+    let answer: Awaited<ReturnType<typeof api.generateText>>;
+    try {
+      answer = await api.generateText({
+        provider,
+        model,
+        ...(thinkingOptionId ? { thinkingOptionId } : {}),
+        prompt: fullPrompt,
+        timeoutMs: deps.timeoutMs ?? TRANSLATION_TIMEOUT_MS,
+        signal,
+      });
+    } catch (error) {
+      // The SDK rejects only before it sends (no feature, unidentified host, not connected); once
+      // sent, every failure comes back as an error result with its own `promptSent`.
+      const reason = error instanceof Error ? error.message : String(error);
+      throw new Error(`${reason} ${REACHED_HOST_ONLY}`);
+    }
     if (answer.result.status === "error") throw generationFailure(answer.result.error);
     const translation = answer.result.text.trim();
     if (!translation) throw new Error(`The model returned an empty translation. ${MAY_HAVE_REACHED_MODEL}`);

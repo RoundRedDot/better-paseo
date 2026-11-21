@@ -532,6 +532,17 @@ describe("translation without a verified tool-free route", () => {
     expect(await settle(env, `fail-${promptSent}`)).toEqual({ state: "error", error });
   });
 
+  it("says the text stayed on the host when the host's SDK rejects generation", async () => {
+    // Regression: the rejection surfaced as a bare error with no word on where the text got. The
+    // SDK rejects only before sending: the host lacks the feature, has not identified itself, or
+    // is not connected.
+    const env = createMockEnv({ answer: async () => { throw new Error("Not connected to the daemon."); } });
+    expect(await settle(env, "rejected")).toEqual({
+      state: "error",
+      error: "Not connected to the daemon. The text reached the plugin on your Paseo host but was not sent to the model.",
+    });
+  });
+
   it("treats an empty answer as a failure, not a translation", async () => {
     const env = createMockEnv({ answer: { status: "ok", text: "   " } });
     expect(await settle(env, "empty")).toEqual({
