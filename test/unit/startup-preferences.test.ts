@@ -105,14 +105,15 @@ describe("preferences read while the plugin loads", () => {
 
   it("reprojects interactive replies when handoff changes", async () => {
     const { contribute, preferences } = await load();
-    let answer!: (value: unknown) => void;
-    const plugin = fakeClient(() => new Promise((resolve) => { answer = resolve; }));
+    // Handoff is on by default; this record turns it off, then the test turns it back on.
+    const plugin = fakeClient(() => Promise.resolve({ status: "ready", revision: "r0", values: { liveUiReplies: false } }));
     const cleanup = contribute(plugin.client as never);
+    await flush();
     const ui = { item: { type: "assistant_message", text: "```ui\nCard()" }, phase: "streaming" };
     const other = { item: { type: "assistant_message", text: "```ui.json\n{}\n```" }, phase: "complete" };
     const first = plugin.active("omp-enhanced-assistant")[0]!;
     expect(first.transform(ui)).toBeDefined();
-    answer({ status: "ready", revision: "r1", values: { liveUiReplies: true } });
+    preferences.updateEnhancerPreferences({ liveUiReplies: true });
     await flush();
     const second = plugin.active("omp-enhanced-assistant")[0]!;
     expect(first.removed).toBe(true);
