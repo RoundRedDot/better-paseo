@@ -45,14 +45,14 @@ export default function contribute(server: PluginServerContext) {
       settings: { id: "timeline-translation", read: async () => ({ status: "ready", values, revision: "it" }) } as never,
       timeoutMs: 30_000,
     });
-    const jobId = "probe-" + Date.now();
-    translator.request({ action: "start", jobId, agentId, text, sourceKind: "assistant_message", interfaceLanguage: "en",
+    const started = translator.request({ action: "start", agentId, text, sourceKind: "assistant_message", interfaceLanguage: "en",
       configSignature: translationConfigSignature(values, "en", { provider, model }) }, paseo);
+    const handle = started.state === "running" ? started.handle ?? "" : "";
     const deadline = Date.now() + 60_000;
-    let state = translator.request({ action: "status", jobId }, paseo);
+    let state = translator.request({ action: "status", handle }, paseo);
     while (state.state === "running" && Date.now() < deadline) {
       await new Promise((resolve) => setTimeout(resolve, 100));
-      state = translator.request({ action: "status", jobId }, paseo);
+      state = translator.request({ action: "status", handle }, paseo);
     }
     const providers = paseo.providers as unknown as { generateText?: unknown };
     return { state, hostHasTextApi: typeof providers.generateText === "function" };

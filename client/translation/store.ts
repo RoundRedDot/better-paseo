@@ -177,7 +177,6 @@ export function createTranslationStore() {
         try {
           let result = await call({
             action: "start",
-            jobId,
             agentId: input.agentId,
             text: input.text,
             sourceKind: input.sourceKind,
@@ -187,8 +186,10 @@ export function createTranslationStore() {
           let failures = 0;
 
           // A newer job replaced this one: stop it on the server, which cancels the host request.
+          // The server's handle for this job; status and cancel need it.
+          const handle = result.state === "running" ? result.handle : undefined;
           const abandon = () => {
-            void call({ action: "cancel", jobId }).catch(() => undefined);
+            if (handle) void call({ action: "cancel", handle }).catch(() => undefined);
           };
           while (result.state === "running") {
             if (!isLatestJob(seed)) return abandon();
@@ -208,7 +209,8 @@ export function createTranslationStore() {
             await pause();
             if (!isLatestJob(seed)) return abandon();
             try {
-              result = await call({ action: "status", jobId });
+              if (!handle) throw new Error("The translation task has no handle.");
+              result = await call({ action: "status", handle });
               failures = 0;
             } catch (error) {
               failures += 1;

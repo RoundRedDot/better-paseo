@@ -169,23 +169,34 @@ function createMockEnv(options?: {
   return { translator, paseo: paseo as unknown as PaseoApi, captured, settings: parsed, configSignature };
 }
 
+/** Test labels for started jobs, mapped to the handles the server returned. */
+const handles = new Map<string, string>();
+
+function handleOf(state: { state: string; handle?: string }): string {
+  if (state.state !== "running" || !state.handle) throw new Error("start returned no handle");
+  return state.handle;
+}
+
 async function waitForJob(
   translator: ReturnType<typeof createTimelineTranslator>,
   paseo: PaseoApi,
-  jobId: string,
+  labelOrHandle: string,
 ) {
+  const handle = handles.get(labelOrHandle) ?? labelOrHandle;
   for (let i = 0; i < 100; i += 1) {
-    const state = await translator.request({ action: "status", jobId }, paseo);
+    const state = await translator.request({ action: "status", handle }, paseo);
     if (state.state !== "running") return state;
     await new Promise((resolve) => setTimeout(resolve, 10));
   }
   throw new Error("Timed out waiting for job");
 }
 
-function startJob(env: ReturnType<typeof createMockEnv>, jobId: string, text = "Hello", sourceKind: "assistant_message" | "user_message" | "reasoning" | "tool_output" = "assistant_message") {
-  return env.translator.request({
-    action: "start", jobId, agentId: "source-agent-1", text, sourceKind, interfaceLanguage: "en", configSignature: env.configSignature,
+function startJob(env: ReturnType<typeof createMockEnv>, label: string, text = "Hello", sourceKind: "assistant_message" | "user_message" | "reasoning" | "tool_output" = "assistant_message") {
+  const state = env.translator.request({
+    action: "start", agentId: "source-agent-1", text, sourceKind, interfaceLanguage: "en", configSignature: env.configSignature,
   }, env.paseo);
+  handles.set(label, handleOf(state));
+  return state;
 }
 
 describe("timeline translation server service", () => {
@@ -217,8 +228,8 @@ describe("timeline translation server service", () => {
     const sourceKey = "source-agent-1:assistant:message-1";
     const text = "Original text";
     const call = vi.fn(async (input: Parameters<typeof translator.request>[0]) => {
-      translator.request(translateTimelineItemRpc.input.parse(input), paseo);
-      return waitForJob(translator, paseo, input.jobId);
+      const started = translator.request(translateTimelineItemRpc.input.parse(input), paseo);
+      return waitForJob(translator, paseo, handleOf(started));
     });
     const readCurrent = () => store.readValid(sourceKey, text, settings, "en", currentConfig);
 
@@ -247,16 +258,15 @@ describe("timeline translation server service", () => {
       "en",
       { provider: "claude", model: "claude-sonnet-4-5" },
     );
-    translator.request({
+    const started = translator.request({
       action: "start",
-      jobId: "job-stale-prompt",
       agentId: "source-agent-1",
       text: "Original text",
       sourceKind: "assistant_message",
       interfaceLanguage: "en",
       configSignature,
     }, paseo);
-    expect(await waitForJob(translator, paseo, "job-stale-prompt")).toEqual({
+    expect(await waitForJob(translator, paseo, handleOf(started))).toEqual({
       state: "error", error: "Translation configuration changed. Please retry.",
     });
     expect(captured.generateInputs).toHaveLength(0);
@@ -266,6 +276,8 @@ describe("timeline translation server service", () => {
     const env = createMockEnv();
     const start = startJob(env, "job-privacy", "Hello **world**\n\n`npm test`");
     expect(start.state).toBe("running");
+    // The start reply carries an unguessable handle and nothing the caller chose.
+    expect(start).toEqual({ state: "running", handle: expect.stringMatching(/^[0-9a-f-]{36}$/) });
     expect(await waitForJob(env.translator, env.paseo, "job-privacy")).toEqual({
       state: "done",
       translation: "你好世界",
@@ -514,7 +526,7 @@ describe("translation without a verified tool-free route", () => {
     });
     startJob(env, "job-cancel");
     await vi.waitFor(() => expect(observed).toBeDefined());
-    env.translator.request({ action: "cancel", jobId: "job-cancel" }, env.paseo);
+    env.translator.request({ action: "cancel", handle: handles.get("job-cancel")! }, env.paseo);
     expect(await waitForJob(env.translator, env.paseo, "job-cancel")).toEqual({
       state: "error",
       error: "One-shot text generation was cancelled. The text may have reached the provider.",
@@ -536,5 +548,27 @@ describe("translation without a verified tool-free route", () => {
       error: 'The saved thinking option "max" is no longer offered by mock/mock-model. Choose another in translation settings; nothing was sent.',
     });
     expect(env.captured.generateInputs).toHaveLength(0);
+  });
+
+  it("gives every start its own unguessable handle, and nothing else reads or cancels the job", async () => {
+    // Regression: jobs were keyed by the caller's jobId, shared and cancellable by anyone who knew it.
+    let observed: AbortSignal | undefined;
+    const env = createMockEnv({
+      answer: (input) => new Promise((resolve) => {
+        observed = input.signal;
+        input.signal?.addEventListener("abort", () =>
+          resolve({ status: "error", code: "cancelled", message: "cancelled", promptSent: "possibly" }),
+        );
+      }),
+    });
+    const first = startJob(env, "caller-a");
+    const second = startJob(env, "caller-b");
+    expect(handleOf(first)).not.toBe(handleOf(second));
+    await vi.waitFor(() => expect(observed).toBeDefined());
+    // Another caller cannot reach the job without its handle.
+    expect(env.translator.request({ action: "status", handle: "caller-a" }, env.paseo)).toEqual({ state: "idle" });
+    expect(env.translator.request({ action: "cancel", handle: "caller-a" }, env.paseo)).toEqual({ state: "idle" });
+    expect(observed?.aborted).toBe(false);
+    expect(env.translator.request({ action: "status", handle: handleOf(first) }, env.paseo)).toMatchObject({ state: "running" });
   });
 });

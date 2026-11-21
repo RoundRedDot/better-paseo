@@ -131,7 +131,17 @@ export type TranslationThinkingMode = z.output<typeof translationThinkingModeSch
 
 export const translationJobStateSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("idle") }),
-  z.object({ state: z.literal("running"), text: z.string().optional(), helperId: z.string().optional() }),
+  z.object({
+    state: z.literal("running"),
+    text: z.string().optional(),
+    helperId: z.string().optional(),
+    /**
+     * The job's unguessable handle, returned by `start`; `status` and `cancel` need it. The plugin
+     * serves every RPC caller from one process and learns nothing about who calls, so the handle
+     * is the only thing that keeps one caller from reading or cancelling another's job.
+     */
+    handle: z.string().optional(),
+  }),
   z.object({
     state: z.literal("done"),
     translation: z.string(),
@@ -152,7 +162,6 @@ export const translateTimelineItemRpc = defineRpc({
   input: z.discriminatedUnion("action", [
     z.object({
       action: z.literal("start"),
-      jobId: z.string().min(1),
       agentId: z.string().min(1),
       text: z.string().trim().min(1).max(200_000),
       sourceKind: z.enum(["assistant_message", "user_message", "reasoning", "tool_output"]),
@@ -161,12 +170,12 @@ export const translateTimelineItemRpc = defineRpc({
     }),
     z.object({
       action: z.literal("status"),
-      jobId: z.string().min(1),
+      handle: z.string().min(1),
     }),
     // Aborts a running job. Text already sent may still have reached the provider.
     z.object({
       action: z.literal("cancel"),
-      jobId: z.string().min(1),
+      handle: z.string().min(1),
     }),
   ]),
   output: translationJobStateSchema,

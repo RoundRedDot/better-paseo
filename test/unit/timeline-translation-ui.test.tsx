@@ -972,7 +972,7 @@ describe("timeline translation", () => {
     ]);
     const bound = () => elements.map((element) => selectionScopeForElement(element)).filter(Boolean);
     expect(bound().map((scope) => scope!.lent!.paseo)).toEqual([agentApi.api, otherHost.api]);
-    await bound()[1]!.lent!.translator.call({ action: "status", jobId: "x" });
+    await bound()[1]!.lent!.translator.call({ action: "status", handle: "x" });
     expect(otherRpc).toHaveBeenCalledOnce();
     expect(mocks.rpc).not.toHaveBeenCalled();
     expect(bound().every((scope) => scope!.streaming)).toBe(true);
@@ -1053,7 +1053,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(spinner()).toHaveLength(1);
     expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(0);
 
-    await act(async () => firstToken.resolve({ state: "running", text: "第" }));
+    await act(async () => firstToken.resolve({ state: "running", text: "第", handle: "job-handle-1" }));
     expect(spinner()).toHaveLength(1);
     expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(0);
 

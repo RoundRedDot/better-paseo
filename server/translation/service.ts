@@ -1,3 +1,4 @@
+import { randomUUID } from "node:crypto";
 import type { PluginServerContext, PluginSettings } from "@getpaseo/plugin/server";
 import type { PaseoAgentRefetchResult, PaseoAgentTimelineEvent, PaseoApi } from "../paseo-types";
 import {
@@ -217,43 +218,42 @@ export function createTimelineTranslator(deps: Dependencies) {
     input: TranslationStartInput,
     paseo: PaseoApi,
   ): TranslationJobState {
-    const { jobId } = input;
-    const known = jobs.get(jobId);
-    if (known?.state === "running") return known;
+    // Jobs are keyed by an unguessable handle, never by anything a caller chooses.
+    const handle = randomUUID();
     pruneJobs();
-    const pending: TranslationJobState = { state: "running" };
-    jobs.set(jobId, pending);
+    const pending: TranslationJobState = { state: "running", handle };
+    jobs.set(handle, pending);
     const controller = new AbortController();
-    controllers.set(jobId, controller);
+    controllers.set(handle, controller);
     let latest: TranslationJobState = pending;
     const stream = (update: { text?: string }) => {
-      if (jobs.get(jobId) !== latest) return;
+      if (jobs.get(handle) !== latest) return;
       latest = { ...latest, ...update } as TranslationJobState;
-      jobs.set(jobId, latest);
+      jobs.set(handle, latest);
     };
     void translate(input, paseo, stream, controller.signal).then(
-      (result) => { jobs.set(jobId, result); },
+      (result) => { jobs.set(handle, result); },
       (error: unknown) => {
-        jobs.set(jobId, { state: "error", error: error instanceof Error ? error.message : String(error) });
+        jobs.set(handle, { state: "error", error: error instanceof Error ? error.message : String(error) });
       },
     ).finally(() => {
-      if (controllers.get(jobId) === controller) controllers.delete(jobId);
+      if (controllers.get(handle) === controller) controllers.delete(handle);
     });
     return pending;
   }
 
   /** Aborts a running job; the host is told to cancel if the text was already sent. */
-  function cancel(jobId: string): TranslationJobState {
-    controllers.get(jobId)?.abort();
-    return jobs.get(jobId) ?? { state: "idle" };
+  function cancel(handle: string): TranslationJobState {
+    controllers.get(handle)?.abort();
+    return jobs.get(handle) ?? { state: "idle" };
   }
 
   return {
     request(input: TranslateTimelineItemInput, paseo: PaseoApi): TranslationJobState {
       if (input.action === "status") {
-        return jobs.get(input.jobId) ?? { state: "idle" };
+        return jobs.get(input.handle) ?? { state: "idle" };
       }
-      if (input.action === "cancel") return cancel(input.jobId);
+      if (input.action === "cancel") return cancel(input.handle);
       return start(input, paseo);
     },
   };

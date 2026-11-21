@@ -456,7 +456,7 @@ describe("selection bar Translate", () => {
     expect(panel().textContent).toContain("gpt-5");
     expect(panel().textContent).not.toContain("Codex");
 
-    await act(async () => firstToken({ state: "running", text: "第" }));
+    await act(async () => firstToken({ state: "running", text: "第", handle: "job-handle-1" }));
     await flush();
     expect(panel().querySelector(".panel-body")?.textContent).toBe("第");
     expect(panel().querySelector(".panel-message")).toBeNull();
