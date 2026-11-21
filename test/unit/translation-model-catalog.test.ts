@@ -81,7 +81,7 @@ describe("translation model catalog", () => {
     });
   });
 
-  it.each(["timeout", "generation_failed", "provider_unavailable", "some_future_code"])(
+  it.each(["timeout", "generation_failed", "provider_unavailable", "route_unverified", "some_future_code"])(
     "counts a check the host answered as failed (%s) as unchecked, not as no provider",
     async (code) => {
       // Regression: the host reports a capability timeout or internal error as a normal

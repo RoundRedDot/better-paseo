@@ -103,12 +103,14 @@ function refusalReason(provider: string, error: ProviderTextError | null): strin
   }
 }
 
-/** Codes that say the provider cannot do this here, as opposed to a check that could not finish. */
+/**
+ * Codes that say the provider cannot do this here, as opposed to a check that could not finish.
+ * `route_unverified` is not one: the host also uses it for a runtime that was not ready in time.
+ */
 const DEFINITE_REFUSAL_CODES: ReadonlySet<string> = new Set([
   "unsupported",
   "isolation_unverified",
   "version_unsupported",
-  "route_unverified",
   "remote_server_refused",
 ]);
 
