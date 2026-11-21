@@ -573,7 +573,7 @@ describe("translation without a verified tool-free route", () => {
     const env = createMockEnv({ settings: { customModel: true, provider: "opencode", model: "projonly/proj-model" } });
     expect(await settle(env, "project-only")).toMatchObject({
       state: "error",
-      error: expect.stringContaining("project's OpenCode configuration cannot be used). The text reached the plugin on your Paseo host but was not sent to the model."),
+      error: expect.stringContaining("offers for translation with no tools on this Paseo. The text reached the plugin on your Paseo host but was not sent to the model."),
     });
     expect(env.captured.generateInputs).toHaveLength(0);
   });

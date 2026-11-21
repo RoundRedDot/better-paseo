@@ -182,7 +182,7 @@ export function createTimelineTranslator(deps: Dependencies) {
     const offered = capability.models.find((entry) => entry.id === model);
     if (!offered) {
       throw new TranslationRefusal(
-        `The model "${model}" is not available for translation with no tools on "${provider}" (models defined only in a project's OpenCode configuration cannot be used).`,
+        `The model "${model}" is not one "${provider}" offers for translation with no tools on this Paseo.`,
       );
     }
     const { thinkingOptionId, thinkingMode } = resolveThinkingForTranslation(config, offered, original);

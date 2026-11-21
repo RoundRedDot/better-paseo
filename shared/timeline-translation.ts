@@ -231,6 +231,14 @@ const LIMITATION_TEXT: Record<string, { en: string; zh: string }> = {
     en: "The text goes to the provider runtime on your Paseo host and from there to its model service.",
     zh: "文本会发送到 Paseo 宿主上的 Provider 运行时，再由它发往模型服务。",
   },
+  prompt_sent_to_configured_gateway: {
+    en: "The text goes from your Paseo host to the gateway this provider is configured for.",
+    zh: "文本会从 Paseo 宿主发送到该 Provider 配置的网关。",
+  },
+  credential_read_from_host_keychain: {
+    en: "Your Paseo host reads the gateway key from its Keychain for this request.",
+    zh: "Paseo 宿主会为这次请求从其钥匙串读取网关密钥。",
+  },
 };
 
 /** A host limitation in words; one Paseo does not know yet is shown by its identifier. */

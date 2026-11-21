@@ -99,6 +99,15 @@ describe("translation model catalog", () => {
     },
   );
 
+  it("explains a provider whose gateway is not the one its credential allows", async () => {
+    const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+      getTextCapability: async (provider: string) => capability(provider, provider === "opencode", "remote_server_refused") } } as unknown as PaseoApi;
+    expect(await catalogHandler()({ provider: "deepseek" }, { paseo })).toMatchObject({
+      providers: ["opencode"], uncheckedProviders: [],
+      error: "deepseek is set to send text somewhere its translation credential does not allow, so Paseo will not send it. Choose another provider.",
+    });
+  });
+
   it("says the list could not be checked when every check fails, instead of no provider", async () => {
     const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
       getTextCapability: async () => { throw new Error("connection lost"); } } } as unknown as PaseoApi;

@@ -94,6 +94,8 @@ function refusalReason(provider: string, error: ProviderTextError | null): strin
       return `Paseo cannot run ${provider} for translation without loading your OpenCode plugins, MCP servers or other extensions.`;
     case "unsupported":
       return `${provider} cannot translate with no tools on this Paseo.`;
+    case "remote_server_refused":
+      return `${provider} is set to send text somewhere its translation credential does not allow, so Paseo will not send it.`;
     case "version_unsupported":
       return `${provider} runs a version Paseo has not validated for translation with no tools.`;
     case "provider_unavailable":

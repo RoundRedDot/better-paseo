@@ -5,6 +5,7 @@ import "./helpers/quiet-renderer";
 import { measureHostTree } from "./helpers/yoga-host-layout";
 import {
   DEFAULT_TRANSLATION_PROMPT,
+  describeTranslationLimitation,
   TRANSLATION_PROMPT_MAX_LENGTH,
   timelineTranslationSettingsSchema,
   type TimelineTranslationSettings,
@@ -433,6 +434,13 @@ describe("timeline translation settings", () => {
     await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
     expect(textValues(renderer!.root)).toContain("Paseo could not check OpenCode for translation with no tools, so the list may be incomplete. Refresh to try again.");
     expect(textValues(renderer!.root)).not.toContain("No provider on this Paseo can translate with no tools, so there is nothing to choose and nothing is sent. The saved choice is kept.");
+  });
+
+  it.each(["en", "zh"] as const)("describes the gateway route's limitations in words (%s)", (lang) => {
+    expect(describeTranslationLimitation("prompt_sent_to_configured_gateway", lang)).toBe(lang === "zh"
+      ? "文本会从 Paseo 宿主发送到该 Provider 配置的网关。"
+      : "The text goes from your Paseo host to the gateway this provider is configured for.");
+    expect(describeTranslationLimitation("credential_read_from_host_keychain", lang)).not.toBe("credential_read_from_host_keychain");
   });
 
   it("shows the host's limitations for the chosen provider before anything is sent", async () => {
