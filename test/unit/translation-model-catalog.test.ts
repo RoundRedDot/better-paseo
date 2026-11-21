@@ -13,11 +13,11 @@ function catalogHandler() {
   return handlers.get(translationModelsRpc.name)!;
 }
 
-const entries = [
-  { provider: "opencode", label: "OpenCode", enabled: true },
-  { provider: "deepseek", label: "DeepSeek", enabled: true },
-  { provider: "disabled", enabled: false },
-];
+/** What the host lists: enabled providers with a route. Disabled ones are not listed. */
+const listed = { serverId: "srv-1", providers: [{ provider: "opencode", label: "OpenCode" }, { provider: "deepseek", label: "DeepSeek" }] };
+const listTextProviders = async () => listed;
+/** Translation must never read the provider snapshot: on a cold catalog it warms every provider. */
+const snapshot = () => { throw new Error("Translation must not read providers.snapshot()"); };
 
 function capability(provider: string, supported: boolean, code = "unsupported") {
   return {
@@ -30,7 +30,7 @@ function capability(provider: string, supported: boolean, code = "unsupported") 
 describe("translation model catalog", () => {
   it("offers nothing on a host without one-shot text generation, and never reads models another way", async () => {
     const listModels = vi.fn();
-    const paseo = { providers: { snapshot: async () => ({ entries }), listModels } } as unknown as PaseoApi;
+    const paseo = { providers: { snapshot, listTextProviders, listModels } } as unknown as PaseoApi;
     const result = await catalogHandler()({ provider: "deepseek" }, { paseo });
     expect(result).toEqual({
       providers: [], providerLabels: {}, models: [], uncheckedProviders: [], reason: "host_unsupported", limitations: [],
@@ -39,9 +39,14 @@ describe("translation model catalog", () => {
     expect(listModels).not.toHaveBeenCalled();
   });
 
+  it("offers nothing on a host whose text API predates the provider list that warms nothing", async () => {
+    const paseo = { providers: { snapshot, getTextCapability: vi.fn(), generateText: vi.fn() } } as unknown as PaseoApi;
+    expect(await catalogHandler()({ provider: "" }, { paseo })).toMatchObject({ providers: [], reason: "host_unsupported" });
+  });
+
   it("lists only providers the host supports, with the models it can use", async () => {
     const getTextCapability = vi.fn(async (provider: string) => capability(provider, provider === "opencode"));
-    const paseo = { providers: { snapshot: async () => ({ entries }), getTextCapability, generateText: vi.fn() } } as unknown as PaseoApi;
+    const paseo = { providers: { snapshot, listTextProviders, getTextCapability, generateText: vi.fn() } } as unknown as PaseoApi;
     const result = await catalogHandler()({ provider: "opencode" }, { paseo });
     expect(result).toEqual({
       providers: ["opencode"],
@@ -49,12 +54,12 @@ describe("translation model catalog", () => {
       models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [{ id: "off", label: "off" }, { id: "high", label: "high" }], defaultThinkingOptionId: null }],
       error: null, reason: null, uncheckedProviders: [], limitations: ["provider_runtime_builtin_hooks_unobserved"],
     });
-    // Disabled providers are not probed.
+    // Only listed providers are probed.
     expect(getTextCapability.mock.calls.map(([provider]) => provider)).toEqual(["opencode", "deepseek"]);
   });
 
   it("explains a saved provider the host refuses", async () => {
-    const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+    const paseo = { providers: { snapshot, listTextProviders, generateText: vi.fn(),
       getTextCapability: async (provider: string) => capability(provider, provider === "opencode") } } as unknown as PaseoApi;
     expect(await catalogHandler()({ provider: "deepseek" }, { paseo })).toMatchObject({
       providers: ["opencode"], models: [], error: "deepseek cannot translate with no tools on this Paseo. Choose another provider.",
@@ -62,7 +67,7 @@ describe("translation model catalog", () => {
   });
 
   it("reports a complete answer with no qualifying provider as no error", async () => {
-    const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+    const paseo = { providers: { snapshot, listTextProviders, generateText: vi.fn(),
       getTextCapability: async (provider: string) => capability(provider, false, provider === "opencode" ? "isolation_unverified" : "unsupported") } } as unknown as PaseoApi;
     expect(await catalogHandler()({ provider: "" }, { paseo })).toEqual({
       providers: [], providerLabels: {}, models: [], error: null, reason: null, uncheckedProviders: [], limitations: [],
@@ -71,7 +76,7 @@ describe("translation model catalog", () => {
 
   it("keeps the providers that answered when another check fails, and names the failed one", async () => {
     // Regression: one failed check discarded every result and read as "no provider".
-    const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+    const paseo = { providers: { snapshot, listTextProviders, generateText: vi.fn(),
       getTextCapability: async (provider: string) => {
         if (provider === "deepseek") throw new Error("connection lost");
         return capability(provider, true);
@@ -86,12 +91,12 @@ describe("translation model catalog", () => {
     async (code) => {
       // Regression: the host reports a capability timeout or internal error as a normal
       // {supported:false,error} answer, which read as "checked, not supported".
-      const partial = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+      const partial = { providers: { snapshot, listTextProviders, generateText: vi.fn(),
         getTextCapability: async (provider: string) => provider === "deepseek" ? capability(provider, false, code) : capability(provider, true) } } as unknown as PaseoApi;
       expect(await catalogHandler()({ provider: "opencode" }, { paseo: partial })).toMatchObject({
         providers: ["opencode"], models: [{ id: "mock/mock-model" }], error: null, reason: null, uncheckedProviders: ["deepseek"],
       });
-      const none = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+      const none = { providers: { snapshot, listTextProviders, generateText: vi.fn(),
         getTextCapability: async (provider: string) => capability(provider, false, code) } } as unknown as PaseoApi;
       expect(await catalogHandler()({ provider: "" }, { paseo: none })).toMatchObject({
         providers: [], reason: "check_failed", uncheckedProviders: ["opencode", "deepseek"],
@@ -100,7 +105,7 @@ describe("translation model catalog", () => {
   );
 
   it("explains a provider whose gateway is not the one its credential allows", async () => {
-    const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+    const paseo = { providers: { snapshot, listTextProviders, generateText: vi.fn(),
       getTextCapability: async (provider: string) => capability(provider, provider === "opencode", "remote_server_refused") } } as unknown as PaseoApi;
     expect(await catalogHandler()({ provider: "deepseek" }, { paseo })).toMatchObject({
       providers: ["opencode"], uncheckedProviders: [],
@@ -109,7 +114,7 @@ describe("translation model catalog", () => {
   });
 
   it("says the list could not be checked when every check fails, instead of no provider", async () => {
-    const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+    const paseo = { providers: { snapshot, listTextProviders, generateText: vi.fn(),
       getTextCapability: async () => { throw new Error("connection lost"); } } } as unknown as PaseoApi;
     expect(await catalogHandler()({ provider: "" }, { paseo })).toMatchObject({
       providers: [], reason: "check_failed", uncheckedProviders: ["opencode", "deepseek"],

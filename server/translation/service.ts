@@ -9,7 +9,6 @@ import {
   REACHED_HOST_ONLY,
   providerTextApi,
   readTranslationModelCatalog,
-  requireReadyProvider,
   requireTextCapability,
   TranslationRefusal,
   type ProviderTextModel,
@@ -173,8 +172,8 @@ export function createTimelineTranslator(deps: Dependencies) {
     const model = config.customModel ? config.model : original.agent.model;
     const api = providerTextApi(paseo);
     if (!api) throw new TranslationRefusal(HOST_UNSUPPORTED);
-    const providers = await paseo.providers.snapshot();
-    requireReadyProvider(providers.entries, provider);
+    // Only the chosen provider's capability, never `providers.snapshot()`, which warms every
+    // provider. The capability says when the provider is disabled, missing or not ready.
     if (!model) {
       throw new TranslationRefusal("The current conversation has no model configured for translation.");
     }

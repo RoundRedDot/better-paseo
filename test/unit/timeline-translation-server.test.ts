@@ -73,9 +73,16 @@ function createMockEnv(options?: {
   const thinkingIds = (options?.thinkingOptions ?? [{ id: "off", label: "Off" }, { id: "high", label: "High" }]).map((option) => option.id);
 
   const textApi = {
+    async listTextProviders() {
+      const entries = options?.providerEntries ?? [{ provider, enabled: true, status: "ready" }];
+      return { serverId: "srv-1", providers: entries.filter((entry) => entry.enabled).map((entry) => ({ provider: entry.provider, label: entry.provider })) };
+    },
     async getTextCapability(requested: string) {
       captured.capabilityReads.push(requested);
-      const capability = options?.capability ?? { supported: true };
+      const entries = options?.providerEntries ?? [{ provider, enabled: true, status: "ready" }];
+      // As the host answers for a provider that is missing or disabled.
+      const known = entries.find((entry) => entry.provider === requested && entry.enabled);
+      const capability = known ? options?.capability ?? { supported: true } : { supported: false, code: "provider_unavailable", message: `Provider "${requested}" is not available on this host` };
       return {
         provider: requested,
         serverId: "srv-1",
@@ -141,8 +148,8 @@ function createMockEnv(options?: {
       },
     },
     providers: {
-      async snapshot() {
-        return { entries: options?.providerEntries ?? [{ provider, enabled: true, status: "ready" }] };
+      snapshot() {
+        throw new Error("Translation must not read providers.snapshot(): on a cold catalog it warms every provider");
       },
       async listModels() {
         throw new Error("Translation reads models from the host's text capability, not listModels");
@@ -559,13 +566,15 @@ describe("translation without a verified tool-free route", () => {
   });
 
   it.each([
-    ["missing", [], "is not configured on this Paseo"],
-    ["disabled", [{ provider: "opencode", enabled: false, status: "ready" }], "is disabled"],
-    ["not ready", [{ provider: "opencode", enabled: true, status: "loading" }], "is not ready (loading)"],
-  ])("refuses a provider that is %s", async (_name, providerEntries, message) => {
+    ["missing", []],
+    ["disabled", [{ provider: "opencode", enabled: false, status: "ready" }]],
+  ])("refuses a provider that is %s, from its capability alone", async (_name, providerEntries) => {
+    // Regression: the check read providers.snapshot(), which warms every provider.
     const env = createMockEnv({ providerEntries });
-    expect(await settle(env, "provider-state")).toMatchObject({ state: "error", error: expect.stringContaining(message) });
-    expect(env.captured.capabilityReads).toEqual([]);
+    expect(await env.translator.check({ agentId: "source-agent-1", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo)).toEqual({
+      state: "error", error: "opencode is unavailable on this Paseo. The text was not sent.",
+    });
+    expect(env.captured.capabilityReads).toEqual(["opencode"]);
     expect(env.captured.generateInputs).toHaveLength(0);
   });
 
@@ -727,11 +736,11 @@ describe("translation without a verified tool-free route", () => {
       return store.readValid(sourceKey, text, env.settings, "en", agentConfig)!.state;
     }
 
-    it("a lost start reply says the text may have reached the model", async () => {
-      // Regression: it showed only the transport error, as if nothing had been sent.
+    it("a lost start reply cannot say whether the host received the text, and says it may have reached the model", async () => {
+      // Regression: it claimed the text had been sent, though the start may never have arrived.
       expect(await run({ start: async () => { throw new Error("socket closed"); } })).toEqual({
         state: "error",
-        error: "Lost contact with the plugin after the text was sent (socket closed). The text may have reached the model service.",
+        error: "Paseo could not confirm whether your Paseo host received the text (socket closed). The text may have reached the model service.",
       });
     });
 
@@ -741,7 +750,7 @@ describe("translation without a verified tool-free route", () => {
         status: async () => { throw new Error("timed out"); },
       })).toEqual({
         state: "error",
-        error: "Lost contact with the plugin after the text was sent (timed out). The text may have reached the model service.",
+        error: "Lost contact with the plugin after your Paseo host received the text (timed out). The text may have reached the model service.",
       });
     }, 15_000);
 
@@ -752,7 +761,7 @@ describe("translation without a verified tool-free route", () => {
         status: async () => ({ state: "idle" }),
       })).toEqual({
         state: "error",
-        error: "The translation task was lost after the text was sent. The text may have reached the model service.",
+        error: "The translation task was lost after your Paseo host received the text. The text may have reached the model service.",
       });
     });
 

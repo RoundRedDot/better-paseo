@@ -48,12 +48,20 @@ export interface ProviderTextGenerateInput {
   signal?: AbortSignal;
 }
 
+export interface ProviderTextListEntry {
+  provider: string;
+  label: string;
+}
+
 export interface ProviderTextApi {
+  /** The providers with a route, from the host's registry: nothing is checked or warmed. */
+  listTextProviders(): Promise<{ serverId: string | null; providers: ProviderTextListEntry[] }>;
   getTextCapability(provider: string): Promise<ProviderTextCapability>;
   generateText(input: ProviderTextGenerateInput): Promise<{ serverId: string | null; result: ProviderTextResult }>;
 }
 
 interface MaybeProviderTextActions {
+  listTextProviders?: unknown;
   getTextCapability?: unknown;
   generateText?: unknown;
 }
@@ -61,8 +69,10 @@ interface MaybeProviderTextActions {
 /** The host's one-shot text API, or null on hosts that do not provide it. */
 export function providerTextApi(paseo: PaseoApi): ProviderTextApi | null {
   const providers = paseo.providers as PaseoApi["providers"] & MaybeProviderTextActions;
-  if (typeof providers.getTextCapability !== "function" || typeof providers.generateText !== "function") return null;
+  // `listTextProviders` came last: a host without it predates the provider list that warms nothing.
+  if (typeof providers.listTextProviders !== "function" || typeof providers.getTextCapability !== "function" || typeof providers.generateText !== "function") return null;
   return {
+    listTextProviders: () => (providers.listTextProviders as ProviderTextApi["listTextProviders"]).call(providers),
     getTextCapability: (provider) => (providers.getTextCapability as ProviderTextApi["getTextCapability"]).call(providers, provider),
     generateText: (input) => (providers.generateText as ProviderTextApi["generateText"]).call(providers, input),
   };
@@ -140,21 +150,6 @@ export function generationFailure(error: ProviderTextError): Error {
   return new Error(`${error.message}. ${MAY_HAVE_REACHED_MODEL}`);
 }
 
-interface SnapshotEntry {
-  provider: string;
-  label?: string;
-  enabled?: boolean;
-  status?: string;
-}
-
-/** The provider's ready snapshot entry, or a refusal naming why it cannot be used. */
-export function requireReadyProvider(entries: readonly SnapshotEntry[], provider: string): void {
-  const entry = entries.find((candidate) => candidate.provider === provider);
-  if (!entry) throw new TranslationRefusal(`Translation provider "${provider}" is not configured on this Paseo.`);
-  if (!entry.enabled) throw new TranslationRefusal(`Translation provider "${provider}" is disabled.`);
-  if (entry.status !== "ready") throw new TranslationRefusal(`Translation provider "${provider}" is not ready (${entry.status ?? "unknown"}).`);
-}
-
 /**
  * The translation settings' provider and model lists: enabled providers that
  * report one-shot text generation on this host, with the models it can use.
@@ -164,8 +159,9 @@ export async function readTranslationModelCatalog(paseo: PaseoApi, provider: str
   const none = { providers: [], providerLabels: {}, models: [], reason: null, uncheckedProviders: [], limitations: [] };
   const api = providerTextApi(paseo);
   if (!api) return { ...none, error: HOST_UNSUPPORTED, reason: "host_unsupported" };
-  const snapshot = await paseo.providers.snapshot();
-  const enabled = (snapshot.entries as readonly SnapshotEntry[]).filter((entry) => entry.enabled);
+  // Never `providers.snapshot()`: on a cold catalog it warms every enabled provider, which can
+  // start an unrelated OpenCode runtime with the user's plugins and MCP servers.
+  const enabled = (await api.listTextProviders()).providers;
   // Each provider is checked on its own: one failed check neither hides the others nor reads as
   // "no provider qualifies".
   const settled = await Promise.allSettled(enabled.map((entry) => api.getTextCapability(entry.provider)));
