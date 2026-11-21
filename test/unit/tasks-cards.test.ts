@@ -4887,6 +4887,18 @@ describe("overlays in the board's menu chrome", () => {
     expect(onArchive).toHaveBeenLastCalledWith(card.id, "tree");
   });
 
+  it.each([LIGHT, DARK])("uses the archive action color for both menu icons", async (theme) => {
+    const card = { ...sample("sample-done"), children: sample("sample-running").children };
+    const tree = await render(cardElement(card, { theme, onArchive: vi.fn() }));
+    await act(async () => byLabel(tree.root, "归档选项").props.onPress());
+    const menu = hostByTestId(tree.root, "task-card-archive-split-menu");
+    const icons = menu.findAll((node) => (node.type as unknown) === "Icon");
+    expect(icons.map((icon) => [icon.props.name, icon.props.color])).toEqual([
+      ["Archive", taskTokens(theme).card.archiveText],
+      ["Network", taskTokens(theme).card.archiveText],
+    ]);
+  });
+
   it("opens the phone's stop menu in a native modal", async () => {
     const tree = await render(cardElement(sample("sample-running"), { compact: true, onStop: () => {} }));
     await act(async () => byLabel(tree.root, "停止选项").props.onPress());

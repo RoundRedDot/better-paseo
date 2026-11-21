@@ -2580,7 +2580,7 @@ function ArchiveSplitControl(props: ArchiveSplitControlProps) {
         {
           key: "only",
           label: strings.archiveOnly,
-          icon: "Archive",
+          leading: <Icon name="Archive" size={MENU.icon} color={tokens.card.archiveText} />,
           onSelect: () => props.onPick("self"),
         },
         {
