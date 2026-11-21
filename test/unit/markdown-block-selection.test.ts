@@ -66,6 +66,16 @@ afterEach(() => {
   vi.useRealTimers(); vi.unstubAllGlobals(); vi.restoreAllMocks();
 });
 
+describe("web Markdown block boundaries", () => {
+  it("marks separate paragraphs without adding layout boxes", () => {
+    os.__rnMockOS = "web";
+    render("First paragraph.\n\nSecond paragraph.");
+    const blocks = renderer!.root.findAll((node) => node.type === "span" && node.props["data-bcblock"] === "");
+    expect(blocks).toHaveLength(2);
+    expect(blocks.map((node) => node.props.style.display)).toEqual(["contents", "contents"]);
+  });
+});
+
 describe("iOS single Markdown block selection", () => {
   it("keeps a small unordered marker within the existing list column", () => {
     render("- 第一项内容换行时与正文对齐\n- Second item");

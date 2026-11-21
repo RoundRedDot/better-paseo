@@ -1,4 +1,5 @@
 import React, { memo, useEffect, useRef } from "react";
+import { Platform } from "react-native";
 import { perfCount, perfOn } from "../../../debug/perf";
 import type { Token } from "../../../vendor/marked";
 import { lexBlock } from "../lex";
@@ -42,6 +43,9 @@ function MdBlockBody({ raw, open, first, context, id }: MdBlockProps) {
   const drawn = useRef<{ context: RenderContext; nodes: NodeReuse["next"] } | null>(null);
   const reuse = nextReuse(drawn, context, open && !hasReferences(tokens, raw));
   const nodes = renderBlocks(tokens, context, id, { first, open, reuse });
+  if (Platform.OS === "web") {
+    return <span data-bcblock="" style={{ display: "contents" }}>{nodes}</span>;
+  }
   return context.blockSelection !== false && blockSelectionPlatform() && selectableBlock(tokens)
     ? <BlockSelection source={raw} blocks={tokens} tokens={context.tokens}>{nodes}</BlockSelection>
     : <>{nodes}</>;

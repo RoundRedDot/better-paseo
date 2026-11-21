@@ -80,6 +80,7 @@ export const selectionCodeText = { dataSet: { bccode: true, pmono: "" } } as unk
 export const selectionWithoutComposer = { dataSet: { bcnocomposer: "" } } as unknown as ViewProps;
 
 const SURFACE_SELECTOR = "[data-bcselection]";
+const BLOCK_SELECTOR = "[data-bcblock]";
 /** The bar's host, for layers that must treat a press on it as their own. */
 export const SELECTION_BAR_SELECTOR = "[data-bcselectionbar]";
 const CODE_SELECTOR = "[data-bccode]";
@@ -121,6 +122,7 @@ type IconName = keyof typeof ICONS;
 
 interface SelectionBlock {
   element: Element;
+  scopeElement: Element;
   text: string;
   scope: SelectionTranslationScopeValue;
 }
@@ -178,9 +180,10 @@ function crossSurfaceBlocks(range: Range, selectedText: string): SelectionBlock[
         const scope = marked && selectionScopeForElement(marked);
         const first = blocks[0];
         if (!marked || !scope || (first && (scope.agentId !== first.scope.agentId || scope.lent?.paseo !== first.scope.lent?.paseo))) return null;
+        const element = parent.closest(BLOCK_SELECTOR) ?? marked;
         let block = blocks.at(-1);
-        if (!block || block.element !== marked) {
-          block = { element: marked, text: "", raw: "", scope };
+        if (!block || block.element !== element || block.scopeElement !== marked) {
+          block = { element, scopeElement: marked, text: "", raw: "", scope };
           blocks.push(block);
         }
         block.raw += node.textContent!.slice(start, end);
@@ -222,8 +225,12 @@ function readSelection(): Snapshot | null {
   if (!anchor && !focus) return null;
   const text = selection.toString().trim();
   if (!text) return null;
-  const blocks = anchor && focus && anchor !== focus ? crossSurfaceBlocks(range, text) : null;
-  if (anchor && focus && anchor !== focus && !blocks) return null;
+  const spansSurfaces = anchor && focus && anchor !== focus;
+  const anchorBlock = elementOf(selection.anchorNode)?.closest(BLOCK_SELECTOR);
+  const focusBlock = elementOf(selection.focusNode)?.closest(BLOCK_SELECTOR);
+  const spansBlocks = anchor && focus && anchorBlock && focusBlock && anchorBlock !== focusBlock && scopeOf(anchor) && scopeOf(focus);
+  const blocks = spansSurfaces || spansBlocks ? crossSurfaceBlocks(range, text) : null;
+  if ((spansSurfaces || spansBlocks) && !blocks) return null;
   const crossScope = blocks ? { ...blocks[0]!.scope, streaming: blocks.some((block) => block.scope.streaming) } : null;
   const surface = (elementOf(range.startContainer)?.closest(SURFACE_SELECTOR) ?? anchor ?? focus)!;
   if (!anchor || !focus) {
@@ -1190,7 +1197,7 @@ function createBlockTranslation(blocks: SelectionBlock[]): SelectionTranslation 
       jobs.forEach((job) => job.setStreaming(streaming.some(Boolean)));
     },
     updateScope(element, scope) {
-      blocks.forEach((block, index) => { if (block.element === element) streaming[index] = scope.streaming; });
+      blocks.forEach((block, index) => { if (block.scopeElement === element) streaming[index] = scope.streaming; });
       jobs.forEach((job) => job.setStreaming(streaming.some(Boolean)));
     },
     view,

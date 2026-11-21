@@ -190,6 +190,39 @@ afterEach(() => {
 });
 
 describe("selection bar Translate", () => {
+  it("keeps the copy bar for unscoped paragraphs within one surface", () => {
+    const root = surface(null);
+    const first = new ElementMock(); first.dataset.bcblock = ""; root.appendChild(first);
+    const second = new ElementMock(); second.dataset.bcblock = ""; root.appendChild(second);
+    const firstText = new ElementMock(); firstText.nodeType = 3; firstText.textContent = "First"; first.appendChild(firstText);
+    const secondText = new ElementMock(); secondText.nodeType = 3; secondText.textContent = "Second"; second.appendChild(secondText);
+    selected = { text: "First\nSecond", node: firstText, focus: secondText, textNodes: [firstText, secondText] };
+    doc.dispatchEvent(new Event("selectionchange"));
+    vi.advanceTimersByTime(0);
+    expect(display()).toBe("block");
+    expect(button("Copy")).toBeDefined();
+    expect(button("Translate")!.hidden).toBe(true);
+  });
+  it.each([false, true])("preserves paragraph boundaries within one message (reverse: %s)", async (reverse) => {
+    call.mockResolvedValueOnce(done("第一段")).mockResolvedValueOnce(done("第二段"));
+    const root = surface({ agentId: "agent-1", kind: "assistant_message", streaming: false });
+    const first = new ElementMock(); first.dataset.bcblock = ""; root.appendChild(first);
+    const second = new ElementMock(); second.dataset.bcblock = ""; root.appendChild(second);
+    const firstText = new ElementMock(); firstText.nodeType = 3; firstText.textContent = "prefix First"; first.appendChild(firstText);
+    const secondText = new ElementMock(); secondText.nodeType = 3; secondText.textContent = "Second suffix"; second.appendChild(secondText);
+    selected = { text: "First\nSecond", node: reverse ? secondText : firstText,
+      focus: reverse ? firstText : secondText, textNodes: [firstText, secondText], startOffset: 7, endOffset: 6 };
+    doc.dispatchEvent(new Event("selectionchange"));
+    vi.advanceTimersByTime(0);
+    button("Translate")!.click();
+    await flush();
+    expect(call.mock.calls.map((args) => args[0].text)).toEqual(["First", "Second"]);
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("第一段\n\n第二段");
+    button("Copy translation")!.click();
+    expect(copy).toHaveBeenCalledWith("第一段\n\n第二段");
+    button("Show original")!.click();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("First\n\nSecond");
+  });
   it.each([false, true])("translates a cross-block selection in either direction (reverse: %s)", async (reverse) => {
     call.mockResolvedValueOnce(done("第一段")).mockResolvedValueOnce(done("第二段"));
     const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
