@@ -1,0 +1,8 @@
+{
+  "name": "bp-translation-route",
+  "version": "0.1.0",
+  "private": true,
+  "description": "TEST ONLY Paseo plugin manifest: translation-route.test.ts assembles the plugin from these files and Better Paseo's real translation sources",
+  "license": "MIT",
+  "type": "module"
+}

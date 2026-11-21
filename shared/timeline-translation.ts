@@ -161,6 +161,11 @@ export const translateTimelineItemRpc = defineRpc({
       action: z.literal("status"),
       jobId: z.string().min(1),
     }),
+    // Aborts a running job. Text already sent may still have reached the provider.
+    z.object({
+      action: z.literal("cancel"),
+      jobId: z.string().min(1),
+    }),
   ]),
   output: translationJobStateSchema,
 });

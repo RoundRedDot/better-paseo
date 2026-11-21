@@ -186,8 +186,12 @@ export function createTranslationStore() {
           });
           let failures = 0;
 
+          // A newer job replaced this one: stop it on the server, which cancels the host request.
+          const abandon = () => {
+            void call({ action: "cancel", jobId }).catch(() => undefined);
+          };
           while (result.state === "running") {
-            if (!isLatestJob(seed)) return;
+            if (!isLatestJob(seed)) return abandon();
             const current = entries.get(seed.sourceKey);
             if (current && (current.state.state !== "running" || current.state.text !== result.text)) {
               setEntry({ ...current, state: result });
@@ -202,7 +206,7 @@ export function createTranslationStore() {
               }
             }
             await pause();
-            if (!isLatestJob(seed)) return;
+            if (!isLatestJob(seed)) return abandon();
             try {
               result = await call({ action: "status", jobId });
               failures = 0;

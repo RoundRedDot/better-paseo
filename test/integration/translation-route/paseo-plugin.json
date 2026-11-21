@@ -1,0 +1,6 @@
+{
+  "id": "bp-translation-route",
+  "requirements": {
+    "paseo": ">=0.14.0"
+  }
+}

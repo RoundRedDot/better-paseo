@@ -11,6 +11,7 @@ import {
   type ThinkingOptionInfo,
 } from "../../shared/timeline-translation";
 import { ModelSettingsControls } from "../model-settings-controls";
+import { providerBrand } from "../components/provider-logo";
 import { modelSelection } from "../../shared/model-catalog";
 import { radiusV2, space } from "../components/theme-tokens";
 import { resolveLanguage } from "../i18n/settings-strings";
@@ -41,6 +42,8 @@ export interface TranslationCatalogState {
   providers: string[];
   providerLabels: Record<string, string>;
   modelsByProvider: Record<string, TranslationModelEntry[]>;
+  /** A catalog read has answered: an empty provider list is the host's answer, not a pending one. */
+  loaded: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -49,10 +52,12 @@ let catalogCache: {
   providers: string[];
   providerLabels: Record<string, string>;
   modelsByProvider: Record<string, TranslationModelEntry[]>;
+  loaded: boolean;
 } = {
   providers: [],
   providerLabels: {},
   modelsByProvider: {},
+  loaded: false,
 };
 
 /** The latest catalog read of any settings page: only it writes the cache and the shown state. */
@@ -64,6 +69,7 @@ export function resetTranslationSettingsCatalogForTests(): void {
     providers: [],
     providerLabels: {},
     modelsByProvider: {},
+    loaded: false,
   };
 }
 
@@ -167,7 +173,9 @@ const STRINGS = {
     targetPlaceholder: "Search language or code...",
     targetEmpty: "No matching language",
     customModelTitle: "Choose provider and model",
-    customModelDescription: "Off uses the current conversation's provider and model.",
+    customModelDescription: "Off uses the current conversation's provider and model. Either way, translation runs only on a provider that Paseo can run in one request with no tools; the list shows only those.",
+    noToolFreeProviders: "No provider on this Paseo can translate with no tools, so there is nothing to choose and nothing is sent. The saved choice is kept.",
+    savedProviderNotToolFree: (name: string) => `The saved provider ${name} cannot translate with no tools on this Paseo. It stays saved; choose another provider from the list.`,
     disableThinkingTitle: "Disable thinking when supported",
     disableThinkingDescription: "Applies only when the model exposes a genuine off, none, or disabled option.",
     promptTitle: "Translation prompt",
@@ -189,7 +197,7 @@ const STRINGS = {
       },
       {
         label: "Privacy",
-        text: "Translate sends the selected text or whole content, target language, and translation prompt to the provider through a helper agent. The helper uses the provider’s configured tool permissions; the instruction not to use tools is not a sandbox.",
+        text: "Translate sends the selected text or reply, the target language and the translation prompt to the provider's model in one request that Paseo runs with no tools, helper agent or session. When Paseo cannot confirm the provider runs that way, nothing is sent and an error is shown. The provider handles the text like any other prompt, which can mean sending it to its service.",
       },
       {
         label: "Session cache",
@@ -206,7 +214,9 @@ const STRINGS = {
     targetPlaceholder: "搜索语言名称或代码...",
     targetEmpty: "没有匹配的语言",
     customModelTitle: "指定 Provider 与模型",
-    customModelDescription: "关闭时复用当前会话正在使用的 Provider 与模型。",
+    customModelDescription: "关闭时复用当前会话正在使用的 Provider 与模型。两种方式都只在 Paseo 能以单次、无工具请求运行的 Provider 上翻译，列表只显示这些 Provider。",
+    noToolFreeProviders: "当前没有能以无工具方式翻译的 Provider，所以没有可选项，也不会发送任何内容。已保存的选择保持不变。",
+    savedProviderNotToolFree: (name: string) => `已保存的 Provider「${name}」在当前 Paseo 上不能以无工具方式翻译，保存值保持不变。请从列表中选择其他 Provider。`,
     disableThinkingTitle: "支持时关闭思考",
     disableThinkingDescription: "仅在模型明确支持 off / none / disabled 选项时生效，不静默降档。",
     promptTitle: "翻译 Prompt",
@@ -228,7 +238,7 @@ const STRINGS = {
       },
       {
         label: "隐私保护",
-        text: "点击「翻译」会通过辅助 Agent 将选中的文本或整段内容、目标语言和翻译提示词发送给 Provider。辅助 Agent 使用该 Provider 配置的工具权限，提示词中的禁用工具要求不能替代隔离。",
+        text: "点击「翻译」时，Paseo 以一次不带任何工具、辅助 Agent 或会话的请求，把选中的文本或整条回复、目标语言与翻译 Prompt 发给 Provider 的模型。Paseo 无法确认 Provider 能这样运行时，不发送任何内容并显示错误。Provider 会像处理其他 Prompt 一样处理这些文本，可能会发往其服务端。",
       },
       {
         label: "会话缓存",
@@ -282,6 +292,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         providers: res.providers,
         providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
         modelsByProvider: nextModelsByProvider,
+        loaded: true,
       };
       setCatalog({ ...catalogCache, loading: false, error: res.error });
       return res.error ? null : { read, models: res.models };
@@ -329,8 +340,15 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     }
   };
 
+  // The list holds only providers this host runs with no tools; a saved one outside it stays saved.
+  const answered = catalog.loaded && !catalog.loading;
+  const catalogNotice = answered && catalog.providers.length === 0 ? t.noToolFreeProviders
+    : answered && settings.provider && !catalog.providers.includes(settings.provider)
+      ? t.savedProviderNotToolFree(catalog.providerLabels[settings.provider] || providerBrand(settings.provider).displayName)
+      : catalog.error;
   const activeProvider = settings.provider || catalog.providers[0] || "";
-  const models = catalog.modelsByProvider[activeProvider] ?? [];
+  // A provider the host no longer lists offers none of its cached models; the saved model only names the control.
+  const models = catalog.providers.includes(activeProvider) ? catalog.modelsByProvider[activeProvider] ?? [] : [];
   const selectedModel = models.find((m) => m.id === settings.model);
   const thinkingStatus = describeThinkingStatus(settings, selectedModel, catalog.loading, lang);
 
@@ -400,11 +418,11 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
       {settings.customModel ? <>
         <ModelSettingsControls look={look} language={lang} provider={settings.provider} model={settings.model} thinkingOptionId={settings.thinkingOptionId}
           disableThinking={settings.disableThinking} disabledThinkingLabel={t.disableThinkingTitle} disabled={controlsDisabled || switchingProvider} loading={catalog.loading}
-          providers={catalog.providers} providerLabels={catalog.providerLabels} models={models}
+          providers={catalog.providers} providerLabels={catalog.providerLabels} models={models} offerSavedChoices={false}
           onProvider={(provider) => void selectProvider(provider)}
           onModel={(model) => void savePatch(modelSelection(models.find((entry) => entry.id === model), settings.thinkingOptionId))}
           onThinking={(thinkingOptionId) => void savePatch({ thinkingOptionId })} onRefresh={() => void loadModels(settings.provider)} />
-        {catalog.error ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={catalog.error} tone="danger" alert /></View> : null}
+        {catalogNotice ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={catalogNotice} tone="danger" alert /></View> : null}
       </> : null}
 
       <SettingRow
