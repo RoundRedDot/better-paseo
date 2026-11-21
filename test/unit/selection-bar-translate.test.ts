@@ -644,7 +644,7 @@ describe("selection bar Translate", () => {
     button("Translate")!.click();
     await flush();
     // The start failed after the text was sent, so the error says it may have reached the model.
-    expect(panel().textContent).toContain("Translation failed: Lost contact with the plugin after the text was sent (quota). The text may have reached the model service.");
+    expect(panel().textContent).toContain("Translation failed: Paseo could not confirm whether your Paseo host received the text (quota). The text may have reached the model service.");
     button("Retry")!.click();
     await flush();
     expect(panel().textContent).toContain("好");

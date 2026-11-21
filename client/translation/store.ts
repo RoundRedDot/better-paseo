@@ -180,6 +180,7 @@ export function createTranslationStore() {
         };
 
         let submitted = false;
+        let acknowledged = false;
         try {
           // Ask the host, without the text, whether this translation can run. Only a `ready`
           // answer lets the text leave this device; the server checks again on `start`.
@@ -215,6 +216,8 @@ export function createTranslationStore() {
             interfaceLanguage: input.interfaceLanguage,
             configSignature: configSig,
           });
+          // The host answered the start, so it has the text.
+          acknowledged = true;
           let failures = 0;
 
           // A newer job replaced this one: stop it on the server, which cancels the host request.
@@ -259,7 +262,7 @@ export function createTranslationStore() {
             // the text, so the model may have received it.
             setEntry({
               ...current,
-              state: { state: "error", error: `The translation task was lost after the text was sent. ${MAY_HAVE_REACHED_MODEL}` },
+              state: { state: "error", error: `The translation task was lost after your Paseo host received the text. ${MAY_HAVE_REACHED_MODEL}` },
             });
           } else {
             setEntry({ ...current, state: result });
@@ -275,7 +278,12 @@ export function createTranslationStore() {
               state: "error",
               // A start whose answer was lost, or a job whose status stopped arriving, may still
               // have reached the model.
-              error: submitted ? `Lost contact with the plugin after the text was sent (${reason}). ${MAY_HAVE_REACHED_MODEL}` : reason,
+              error: acknowledged
+                ? `Lost contact with the plugin after your Paseo host received the text (${reason}). ${MAY_HAVE_REACHED_MODEL}`
+                : submitted
+                  // The start never answered: it may not have arrived, or it may have and run.
+                  ? `Paseo could not confirm whether your Paseo host received the text (${reason}). ${MAY_HAVE_REACHED_MODEL}`
+                  : reason,
             },
           });
         } finally {
