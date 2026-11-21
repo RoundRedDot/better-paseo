@@ -593,14 +593,14 @@ describe("translation without a verified tool-free route", () => {
     expect(await settle(env, `fail-${promptSent}`)).toEqual({ state: "error", error });
   });
 
-  it("says the text stayed on the host when the host's SDK rejects generation", async () => {
-    // Regression: the rejection surfaced as a bare error with no word on where the text got. The
-    // SDK rejects only before sending: the host lacks the feature, has not identified itself, or
-    // is not connected.
-    const env = createMockEnv({ answer: async () => { throw new Error("Not connected to the daemon."); } });
+  it("says the text may have reached the model when the host's SDK rejects generation", async () => {
+    // Regression: a rejection was promised to mean nothing was sent, but an earlier host build
+    // with the same feature flag also rejected after sending (a cancel or a lost answer), and the
+    // plugin cannot tell the builds apart.
+    const env = createMockEnv({ answer: async () => { throw new Error("One-shot text generation was answered by a different host."); } });
     expect(await settle(env, "rejected")).toEqual({
       state: "error",
-      error: "Not connected to the daemon. The text reached the plugin on your Paseo host but was not sent to the model.",
+      error: "One-shot text generation was answered by a different host. The text may have reached the model service.",
     });
   });
 

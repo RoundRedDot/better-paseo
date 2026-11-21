@@ -235,10 +235,11 @@ export function createTimelineTranslator(deps: Dependencies) {
         signal,
       });
     } catch (error) {
-      // The SDK rejects only before it sends (no feature, unidentified host, not connected); once
-      // sent, every failure comes back as an error result with its own `promptSent`.
+      // The plugin cannot tell which host build answered: one SDK rejects only before sending,
+      // but an earlier one also rejected after sending (a cancel, a lost answer). An unexplained
+      // rejection therefore says the text may have reached the model.
       const reason = error instanceof Error ? error.message : String(error);
-      throw new Error(`${reason} ${REACHED_HOST_ONLY}`);
+      throw new Error(`${reason} ${MAY_HAVE_REACHED_MODEL}`);
     }
     if (answer.result.status === "error") throw generationFailure(answer.result.error);
     const translation = answer.result.text.trim();
