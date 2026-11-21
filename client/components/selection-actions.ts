@@ -23,7 +23,7 @@ import {
   type SelectionTranslationScopeValue,
   type SelectionTranslationView,
 } from "../translation/selection";
-import { selectionViewTitle } from "../translation/view-text";
+import { selectionViewLimitations, selectionViewTitle } from "../translation/view-text";
 import { openTranslationSettings } from "../translation/navigation";
 import { markId, normalizeProvider } from "./provider-logo";
 import { MONO_MARKS, readMark, requestMark, subscribeMarks } from "./marks";
@@ -366,6 +366,7 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
 .panel-message { display: flex; align-items: center; gap: 6px; color: var(--bc-bar-icon); white-space: pre-wrap; overflow-wrap: anywhere; }
 .panel-message span:last-child { min-width: 0; }
 .panel-message[data-tone="error"] { color: var(--bc-bar-danger); }
+.panel-limitations { display: flex; flex-direction: column; gap: 2px; color: var(--bc-bar-icon); font-size: 12px; overflow-wrap: anywhere; }
 .panel-body {
   position: relative;
   z-index: 1;
@@ -763,6 +764,13 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
       panel.appendChild(line);
     }
     if (text) panel.appendChild(element("div", "panel-body", text));
+    // The host's limitations go with the translation, never with the original.
+    const limitations = originalVisible ? [] : selectionViewLimitations(view, lang);
+    if (limitations.length > 0) {
+      const notes = element("div", "panel-limitations");
+      for (const line of limitations) notes.appendChild(element("div", "panel-limitation", line));
+      panel.appendChild(notes);
+    }
 
     const done = view.status === "done" ? view.result.translation : null;
     if (done !== null || selectionViewRetryable(view)) {

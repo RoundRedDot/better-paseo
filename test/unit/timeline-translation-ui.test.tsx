@@ -1254,3 +1254,36 @@ describe("translation panel limitations", () => {
     expect(collectTexts(renderer!.root)).toContain("The text goes to the provider runtime on your Paseo host and from there to its model service.");
   });
 });
+
+describe("inline translation limitations", () => {
+  const LIMIT = "The text goes to the provider runtime on your Paseo host and from there to its model service.";
+  const limited = () => doneState("译文", { limitations: ["prompt_sent_to_provider_runtime_and_model_provider"] });
+
+  // Regression: the reply, thought and task-detail paths show `result.translation` in place and
+  // never showed the host's limitations, which only the shared popover did.
+  it("shows the host's limitations with a reply translated in place, and hides them with the original", async () => {
+    mocks.rpc.mockResolvedValueOnce(limited());
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
+      assistantProps({ text: "Hello Paseo", phase: "complete" }) as never)); });
+    const press = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reply-translate").props.onPress({ stopPropagation() {} });
+    await act(async () => press());
+    await vi.waitFor(() => expect(collectTexts(renderer!.root)).toContain("译文"));
+    expect(collectTexts(renderer!.root)).toContain(LIMIT);
+    await act(async () => press());
+    expect(collectTexts(renderer!.root)).not.toContain(LIMIT);
+  });
+
+  it("shows the host's limitations with a thought translated in place", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "ios";
+    mocks.hover = false;
+    mocks.rpc.mockResolvedValueOnce(limited());
+    const text = "First thought.\n\nSecond **paragraph**.";
+    await act(async () => { renderer = TestRenderer.create(React.createElement(ReasoningCard, {
+      segmentation: segmentReasoning(text), streaming: false, durationMs: null, expanded: true,
+      onToggle: vi.fn(), tokens: makeTokens(), storeKey: "translation-thought-limits", copyText: text,
+      translation: { agentId: "agent-1", theme },
+    })); });
+    await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate").props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(collectTexts(renderer!.root)).toContain(LIMIT));
+  });
+});

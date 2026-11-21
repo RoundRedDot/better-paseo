@@ -21,8 +21,7 @@ import {
   useLentTranslator,
   type SelectionTranslationView,
 } from "./selection";
-import { selectionViewTitle } from "./view-text";
-import { describeTranslationLimitation } from "../../shared/timeline-translation";
+import { selectionViewLimitations, selectionViewTitle } from "./view-text";
 
 export { selectionViewTitle } from "./view-text";
 
@@ -90,8 +89,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
   const danger = tokens.danger ?? tokens.foreground;
   const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
   const running = view.status === "running" || view.status === "config-loading" || view.status === "settings-loading";
-  // Optional on the wire: a result from before the host reported limitations has none.
-  const limitations: readonly string[] = view.status === "done" ? view.result.limitations ?? [] : [];
+  const limitations = selectionViewLimitations(view, lang);
   return (
     <View testID="selection-translation-panel" style={[styles.panel, resized && { flex: 1, minHeight: 0 }]}>
       <View testID="translation-header" style={styles.header}>
@@ -146,9 +144,9 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
       ) : null}
       {view.status === "done" && !showingOriginal && limitations.length > 0 ? (
         <View testID="translation-limitations" style={styles.limitations}>
-          {limitations.map((id) => (
-            <Text key={id} selectable={false} style={[styles.limitation, { color: muted, fontFamily: tokens.fontUi }]}>
-              {describeTranslationLimitation(id, lang)}
+          {limitations.map((line) => (
+            <Text key={line} selectable={false} style={[styles.limitation, { color: muted, fontFamily: tokens.fontUi }]}>
+              {line}
             </Text>
           ))}
         </View>

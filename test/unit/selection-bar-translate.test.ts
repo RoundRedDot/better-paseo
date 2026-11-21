@@ -513,6 +513,21 @@ describe("selection bar Translate", () => {
     expect(display()).toBe("none");
   });
 
+  it("shows the host's limitations with a finished translation, and hides them with the original", async () => {
+    // Regression: the DOM selection panel draws its own body and never showed the limitations
+    // the React popover shows.
+    call.mockResolvedValue({ ...done("译文"), limitations: ["prompt_sent_to_provider_runtime_and_model_provider"] });
+    select("the selected words", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
+    button("Translate")!.click();
+    await flush();
+    const limits = () => panel().querySelector(".panel-limitations")?.textContent ?? "";
+    expect(limits()).toBe("The text goes to the provider runtime on your Paseo host and from there to its model service.");
+    button("Show original")!.click();
+    expect(panel().querySelector(".panel-limitations")).toBeNull();
+    button("Show translation")!.click();
+    expect(limits()).toContain("provider runtime");
+  });
+
   it("opens settings on the selected host", async () => {
     const open = vi.fn();
     const release = registerTranslationSettingsOpener(lent(call).paseo, open);

@@ -12,6 +12,7 @@ import { selectionViewLoading, selectionViewMessage, selectionViewRetryable, cre
 import { useTranslationSettingsState } from "./settings-store";
 import { translationAgentConfigStoreFor, useTranslateCaller, type TranslationSourceKind } from "./store";
 import { SHOW_ORIGINAL_ICON, TRANSLATE_ICON } from "./ui";
+import { selectionViewLimitations } from "./view-text";
 import { useHover } from "../ui/use-hover";
 import { hoverFill } from "../tasks/hover-fill";
 import { tipProps } from "../tasks/cards/card-hints";
@@ -82,6 +83,11 @@ export function InlineTranslationNotice({ state, theme }: { state: InlineTransla
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences);
   if (!state.active || !state.view || selectionViewLoading(state.view)) return null;
+  // A translation shown in place carries the host's limitations, as the popover does.
+  const limitations = selectionViewLimitations(state.view, resolveLanguage(preferences.language ?? "system"));
+  if (limitations.length > 0) return <View testID="inline-translation-limitations" style={{ paddingHorizontal: 6, paddingTop: 4, gap: 2 }}>
+    {limitations.map((line) => <Text key={line} style={{ color: tokens.foregroundMuted, fontSize: 12 }}>{line}</Text>)}
+  </View>;
   const message = selectionViewMessage(state.view);
   if (!message) return null;
   return <View style={{ paddingHorizontal: 6, paddingTop: 4, flexDirection: "row", alignItems: "center", gap: 6 }}><Text testID="inline-translation-status" style={{ color: tokens.foregroundMuted, fontSize: 12 }}>{toolbarLabel(message, preferences.language)}{state.view.status === "error" ? `: ${state.view.error}` : ""}</Text></View>;
