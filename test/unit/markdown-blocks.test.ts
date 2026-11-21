@@ -97,4 +97,13 @@ describe("splitBlocks", () => {
     // A `$$` inside prose does not swallow what follows.
     expect(splitBlocks("echo `$$` pid\n\nnext")).toEqual(["echo `$$` pid\n\n", "next"]);
   });
+
+  it("keeps bracket display math together and ordinary escaped brackets in prose", async () => {
+    const block = "\\[\na\n\nb\n\\]\n\n";
+    const text = `x\n\n${block}y`;
+    expect(splitBlocks(text)).toEqual(["x\n\n", block, "y"]);
+    expect(splitBlocks("x\n\n\\[\na\n\nb")).toEqual(["x\n\n", "\\[\na\n\nb"]);
+    expect(splitBlocks("x\n\\[literal bracket\n\ny")).toEqual(["x\n\\[literal bracket\n\n", "y"]);
+    expect(await firstMismatch(text)).toBeNull();
+  });
 });

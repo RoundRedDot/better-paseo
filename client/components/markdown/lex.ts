@@ -11,9 +11,8 @@ import { perfCount, perfOn } from "../../debug/perf";
 import { insightStart, insightTokenizer } from "./insight";
 
 /**
- * `$$ … $$` on its own lines: TeX shown as source (plan D6, no KaTeX). An
- * unclosed run takes the rest of the input, like an unclosed fence, so a
- * formula that is still streaming is a math block from its first character.
+ * Display math stays together while streaming, including before the closing
+ * delimiter has arrived.
  */
 export interface MathToken {
   type: "math";
@@ -24,14 +23,16 @@ export interface MathToken {
 
 const MATH_CLOSED_RE = /^ {0,3}\$\$([\s\S]*?)\$\$[ \t]*(?:\n+|$)/;
 const MATH_OPEN_RE = /^ {0,3}\$\$([\s\S]*)$/;
-const MATH_START_RE = /(?:^|\n) {0,3}\$\$/;
+const BRACKET_MATH_CLOSED_RE = /^ {0,3}\\\[((?:[ \t]*\n[\s\S]*?|[^\n]*?))\\\][ \t]*(?:\n+|$)/;
+const BRACKET_MATH_OPEN_RE = /^ {0,3}\\\[[ \t]*(?:\n([\s\S]*)|$)/;
+const MATH_START_RE = /(?:^|\n) {0,3}(?:\$\$|\\\[(?=[ \t]*(?:\n|$)|[^\n]*\\\][ \t]*(?:\n|$)))/;
 
 function mathTokenizer(src: string): MathToken | undefined {
-  const closed = MATH_CLOSED_RE.exec(src);
+  const closed = MATH_CLOSED_RE.exec(src) ?? BRACKET_MATH_CLOSED_RE.exec(src);
   if (closed !== null) {
     return { type: "math", raw: closed[0], text: (closed[1] ?? "").trim(), closed: true };
   }
-  const open = MATH_OPEN_RE.exec(src);
+  const open = MATH_OPEN_RE.exec(src) ?? BRACKET_MATH_OPEN_RE.exec(src);
   if (open !== null) {
     return { type: "math", raw: open[0], text: (open[1] ?? "").trim(), closed: false };
   }

@@ -7,24 +7,32 @@
   "license": "MIT",
   "packageManager": "npm@11.16.0",
   "scripts": {
+    "pretypecheck": "npm run prepare:math",
+    "pretest": "npm run prepare:math",
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:integration": "vitest run -c vitest.integration.config.ts",
     "check:hermes": "node scripts/check-hermes.mjs && node scripts/check-hermes.mjs --built",
-    "build:client": "node scripts/build-client.mjs"
+    "build:client": "node scripts/build-client.mjs",
+    "prepare:math": "node server/math/prepare-wasm.mjs && node server/math/prepare-engine.mjs"
   },
   "dependencies": {
+    "@mathjax/mathjax-newcm-font": "4.1.3",
+    "@mathjax/src": "4.1.3",
+    "@resvg/resvg-wasm": "2.6.2",
     "@shikijs/core": "^4.0.2",
     "@shikijs/engine-javascript": "^4.0.2",
     "@shikijs/langs": "^4.0.2",
     "@shikijs/themes": "^4.0.2",
     "esbuild": "^0.28.2",
+    "fontkit": "2.0.4",
     "remend": "1.4.0"
   },
   "devDependencies": {
     "@getpaseo/client": "0.16.0",
     "@getpaseo/plugin": "0.16.0",
     "@tanstack/react-query": "^5.90.11",
+    "@types/fontkit": "2.0.9",
     "@types/node": "^22.15.3",
     "@types/react": "~19.2.0",
     "@types/react-test-renderer": "19.1.0",
@@ -35,5 +43,8 @@
     "vitest": "^3.2.7",
     "yoga-layout": "3.2.1",
     "zod": "^4.4.3"
+  },
+  "overrides": {
+    "@xmldom/xmldom": "0.9.12"
   }
 }

@@ -21,6 +21,7 @@ export interface RenderContext {
    */
   plainProse?: boolean;
   blockSelection?: boolean;
+  displayMath?: boolean;
   /** Press on a path in the prose; absent: `PathText` falls back to its context. */
   onRevealPath?: (path: string) => void;
 }
