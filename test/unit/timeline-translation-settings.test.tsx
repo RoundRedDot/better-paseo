@@ -435,6 +435,17 @@ describe("timeline translation settings", () => {
     expect(textValues(renderer!.root)).not.toContain("No provider on this Paseo can translate with no tools, so there is nothing to choose and nothing is sent. The saved choice is kept.");
   });
 
+  it("shows the host's limitations for the chosen provider before anything is sent", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "mock/mock-model" });
+    mocks.modelsRpc.mockResolvedValue({ providers: ["opencode"], providerLabels: { opencode: "OpenCode" },
+      models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [], defaultThinkingOptionId: null }],
+      error: null, reason: null, uncheckedProviders: [], limitations: ["provider_runtime_builtin_hooks_unobserved", "future_unknown_limitation"] });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    expect(textValues(renderer!.root)).toContain("Paseo could not confirm how the provider runtime's built-in model hooks handle this request.");
+    // One Paseo does not know is still shown.
+    expect(textValues(renderer!.root)).toContain("future_unknown_limitation");
+  });
+
   it("keeps the providers that answered and names the ones that could not be checked", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "" });
     mocks.modelsRpc.mockResolvedValue({ providers: ["claude"], providerLabels: { claude: "Claude" }, models: [], error: null, reason: null, uncheckedProviders: ["opencode"] });

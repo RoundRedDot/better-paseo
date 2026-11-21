@@ -138,7 +138,7 @@ export function requireReadyProvider(entries: readonly SnapshotEntry[], provider
  * Title generation keeps reading `readModelCatalog`.
  */
 export async function readTranslationModelCatalog(paseo: PaseoApi, provider: string): Promise<TranslationCatalog> {
-  const none = { providers: [], providerLabels: {}, models: [], reason: null, uncheckedProviders: [] };
+  const none = { providers: [], providerLabels: {}, models: [], reason: null, uncheckedProviders: [], limitations: [] };
   const api = providerTextApi(paseo);
   if (!api) return { ...none, error: HOST_UNSUPPORTED, reason: "host_unsupported" };
   const snapshot = await paseo.providers.snapshot();
@@ -165,9 +165,9 @@ export async function readTranslationModelCatalog(paseo: PaseoApi, provider: str
   const selected = supported.find((capability) => capability.provider === provider);
   if (provider && !selected) {
     if (unchecked.includes(provider))
-      return { providers, providerLabels, models: [], ...partial, error: checkFailed([provider]), reason: "check_failed" };
+      return { providers, providerLabels, models: [], ...partial, limitations: [], error: checkFailed([provider]), reason: "check_failed" };
     const refused = capabilities.find((capability) => capability.provider === provider);
-    return { providers, providerLabels, models: [], ...partial, reason: null, error: `${refusalReason(provider, refused?.error ?? null)}. Choose another provider.` };
+    return { providers, providerLabels, models: [], ...partial, limitations: [], reason: null, error: `${refusalReason(provider, refused?.error ?? null)}. Choose another provider.` };
   }
   return {
     providers,
@@ -180,6 +180,7 @@ export async function readTranslationModelCatalog(paseo: PaseoApi, provider: str
     })),
     error: null,
     reason: null,
+    limitations: selected?.limitations ?? [],
     ...partial,
   };
 }

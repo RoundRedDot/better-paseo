@@ -140,6 +140,8 @@ export const translationJobStateSchema = z.discriminatedUnion("state", [
     model: z.string(),
     thinkingMode: translationThinkingModeSchema,
     thinkingOptionId: z.string().nullable(),
+    /** What the host could not rule out for this route; shown with the translation. */
+    limitations: z.array(z.string()).optional(),
   }),
   z.object({ state: z.literal("error"), error: z.string() }),
 ]);
@@ -180,7 +182,25 @@ export type TranslateTimelineItemInput = z.output<typeof translateTimelineItemRp
 export const translationCatalogSchema = modelCatalogSchema.extend({
   reason: z.enum(["host_unsupported", "check_failed"]).nullable().default(null),
   uncheckedProviders: z.array(z.string()).default([]),
+  /** The selected provider's limitations, as the host reports them. */
+  limitations: z.array(z.string()).default([]),
 });
+
+const LIMITATION_TEXT: Record<string, { en: string; zh: string }> = {
+  provider_runtime_builtin_hooks_unobserved: {
+    en: "Paseo could not confirm how the provider runtime's built-in model hooks handle this request.",
+    zh: "Paseo 无法确认 Provider 运行时内建的模型钩子如何处理此请求。",
+  },
+  prompt_sent_to_provider_runtime_and_model_provider: {
+    en: "The text goes to the provider runtime on your Paseo host and from there to its model service.",
+    zh: "文本会发送到 Paseo 宿主上的 Provider 运行时，再由它发往模型服务。",
+  },
+};
+
+/** A host limitation in words; one Paseo does not know yet is shown by its identifier. */
+export function describeTranslationLimitation(id: string, language: "en" | "zh"): string {
+  return LIMITATION_TEXT[id]?.[language] ?? id;
+}
 export type TranslationCatalog = z.output<typeof translationCatalogSchema>;
 
 export const translationModelsRpc = defineRpc({

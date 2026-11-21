@@ -23,7 +23,7 @@ function capability(provider: string, supported: boolean, code = "unsupported") 
   return {
     provider, serverId: "srv-1", supported, runtimeVersion: supported ? "2.2.6" : null,
     models: supported ? [{ id: "mock/mock-model", label: "Mock", thinkingOptionIds: ["off", "high"] }] : [],
-    limitations: [], error: supported ? null : { code, message: "refused", promptSent: "no" },
+    limitations: supported ? ["provider_runtime_builtin_hooks_unobserved"] : [], error: supported ? null : { code, message: "refused", promptSent: "no" },
   };
 }
 
@@ -33,7 +33,7 @@ describe("translation model catalog", () => {
     const paseo = { providers: { snapshot: async () => ({ entries }), listModels } } as unknown as PaseoApi;
     const result = await catalogHandler()({ provider: "deepseek" }, { paseo });
     expect(result).toEqual({
-      providers: [], providerLabels: {}, models: [], uncheckedProviders: [], reason: "host_unsupported",
+      providers: [], providerLabels: {}, models: [], uncheckedProviders: [], reason: "host_unsupported", limitations: [],
       error: "Translation needs a Paseo version that can generate text with no tools. This Paseo does not provide it, so nothing was sent.",
     });
     expect(listModels).not.toHaveBeenCalled();
@@ -47,7 +47,7 @@ describe("translation model catalog", () => {
       providers: ["opencode"],
       providerLabels: { opencode: "OpenCode" },
       models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [{ id: "off", label: "off" }, { id: "high", label: "high" }], defaultThinkingOptionId: null }],
-      error: null, reason: null, uncheckedProviders: [],
+      error: null, reason: null, uncheckedProviders: [], limitations: ["provider_runtime_builtin_hooks_unobserved"],
     });
     // Disabled providers are not probed.
     expect(getTextCapability.mock.calls.map(([provider]) => provider)).toEqual(["opencode", "deepseek"]);
@@ -65,7 +65,7 @@ describe("translation model catalog", () => {
     const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
       getTextCapability: async (provider: string) => capability(provider, false, provider === "opencode" ? "isolation_unverified" : "unsupported") } } as unknown as PaseoApi;
     expect(await catalogHandler()({ provider: "" }, { paseo })).toEqual({
-      providers: [], providerLabels: {}, models: [], error: null, reason: null, uncheckedProviders: [],
+      providers: [], providerLabels: {}, models: [], error: null, reason: null, uncheckedProviders: [], limitations: [],
     });
   });
 

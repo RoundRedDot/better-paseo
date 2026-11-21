@@ -1229,3 +1229,23 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(renderer!.root.findAllByProps({ testID: "translation-menu-separator" })).toHaveLength(0);
   });
 });
+
+describe("translation panel limitations", () => {
+  it("shows the host's limitations with a finished translation", async () => {
+    const view = {
+      status: "done",
+      disableThinking: true,
+      modelInfo: { provider: "opencode", model: "mock/mock-model" },
+      result: {
+        state: "done", translation: "你好", targetLanguageCode: "zh-CN", provider: "opencode", model: "mock/mock-model",
+        thinkingMode: "none", thinkingOptionId: null, limitations: ["prompt_sent_to_provider_runtime_and_model_provider"],
+      },
+    } as const;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(SelectionTranslationPanel, {
+        view: view as never, original: "Hello", tokens: makeTokens(), onRetry: () => {}, onClose: () => {},
+      }));
+    });
+    expect(collectTexts(renderer!.root)).toContain("The text goes to the provider runtime on your Paseo host and from there to its model service.");
+  });
+});

@@ -22,6 +22,7 @@ import {
   type SelectionTranslationView,
 } from "./selection";
 import { selectionViewTitle } from "./view-text";
+import { describeTranslationLimitation } from "../../shared/timeline-translation";
 
 export { selectionViewTitle } from "./view-text";
 
@@ -89,6 +90,8 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
   const danger = tokens.danger ?? tokens.foreground;
   const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
   const running = view.status === "running" || view.status === "config-loading" || view.status === "settings-loading";
+  // Optional on the wire: a result from before the host reported limitations has none.
+  const limitations: readonly string[] = view.status === "done" ? view.result.limitations ?? [] : [];
   return (
     <View testID="selection-translation-panel" style={[styles.panel, resized && { flex: 1, minHeight: 0 }]}>
       <View testID="translation-header" style={styles.header}>
@@ -141,7 +144,16 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
           </SelectionTranslationContext.Provider>
         </ScrollView>
       ) : null}
-      {view.status === "done" || selectionViewRetryable(view) ? (
+      {view.status === "done" && !showingOriginal && limitations.length > 0 ? (
+        <View testID="translation-limitations" style={styles.limitations}>
+          {limitations.map((id) => (
+            <Text key={id} selectable={false} style={[styles.limitation, { color: muted, fontFamily: tokens.fontUi }]}>
+              {describeTranslationLimitation(id, lang)}
+            </Text>
+          ))}
+        </View>
+      ) : null}
+            {view.status === "done" || selectionViewRetryable(view) ? (
         <View style={styles.actions}>
           <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
             <TooltipSideContext.Provider value="above"><TooltipAlignContext.Provider value="end">
@@ -171,4 +183,6 @@ const styles = StyleSheet.create({
   messageRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   message: { flexShrink: 1, fontSize: 12.5, lineHeight: 18 },
   actions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
+  limitations: { gap: 2 },
+  limitation: { fontSize: 11, lineHeight: 15 },
 });

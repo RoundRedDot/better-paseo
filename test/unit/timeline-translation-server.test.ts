@@ -86,7 +86,7 @@ function createMockEnv(options?: {
               ...(requested === "alt" ? [{ id: "alt/alt-model", label: "Alt Model", thinkingOptionIds: ["low", "high"] }] : []),
             ]
           : [],
-        limitations: capability.supported ? ["provider_runtime_builtin_hooks_unobserved"] : [],
+        limitations: capability.supported ? ["provider_runtime_builtin_hooks_unobserved", "prompt_sent_to_provider_runtime_and_model_provider"] : [],
         error: capability.supported ? null : { code: capability.code ?? "unsupported", message: capability.message ?? "refused", promptSent: "no" },
       };
     },
@@ -274,6 +274,7 @@ describe("timeline translation server service", () => {
       model: "mock/mock-model",
       thinkingMode: "disabled",
       thinkingOptionId: "off",
+      limitations: ["provider_runtime_builtin_hooks_unobserved", "prompt_sent_to_provider_runtime_and_model_provider"],
     });
     expect(env.captured.touchedSourceTimeline).toBe(false);
     expect(env.captured.helperOrWorkspaceCreates).toBe(0);
@@ -519,5 +520,21 @@ describe("translation without a verified tool-free route", () => {
       error: "One-shot text generation was cancelled. The text may have reached the provider.",
     });
     expect(observed?.aborted).toBe(true);
+  });
+
+  it.each([
+    ["with thinking on", { disableThinking: false }],
+    ["with disable-thinking but no off option", { disableThinking: true }],
+  ])("refuses a saved thinking option the model no longer offers (%s), instead of using its default", async (_name, extra) => {
+    // Regression: the saved option was dropped and the model's default used without saying so.
+    const env = createMockEnv({
+      settings: { customModel: true, provider: "opencode", model: "mock/mock-model", thinkingOptionId: "max", ...extra },
+      thinkingOptions: [{ id: "low", label: "Low" }, { id: "high", label: "High" }],
+    });
+    expect(await settle(env, "stale-thinking")).toEqual({
+      state: "error",
+      error: 'The saved thinking option "max" is no longer offered by mock/mock-model. Choose another in translation settings; nothing was sent.',
+    });
+    expect(env.captured.generateInputs).toHaveLength(0);
   });
 });

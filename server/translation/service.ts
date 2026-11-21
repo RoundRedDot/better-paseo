@@ -71,6 +71,12 @@ export function buildTranslationPrompt(
   return `${prompt}\n\nTarget language: ${targetPrompt}\nSource kind: ${kindLabel}\n\nText to translate:\n${text}`;
 }
 
+function savedThinkingUnavailable(option: string, model: string): TranslationRefusal {
+  return new TranslationRefusal(
+    `The saved thinking option "${option}" is no longer offered by ${model}. Choose another in translation settings; nothing was sent.`,
+  );
+}
+
 function resolveThinkingForTranslation(
   config: TimelineTranslationSettings,
   model: ProviderTextModel,
@@ -87,6 +93,9 @@ function resolveThinkingForTranslation(
       const candidate = config.customModel
         ? config.thinkingOptionId
         : (original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId ?? "");
+      if (config.customModel && candidate && !capability.options.some((option) => option.id === candidate)) {
+        throw savedThinkingUnavailable(candidate, model.id);
+      }
       const valid = candidate && capability.options.some((option) => option.id === candidate)
         ? candidate
         : undefined;
@@ -98,9 +107,11 @@ function resolveThinkingForTranslation(
     return { thinkingOptionId: undefined, thinkingMode: "none" };
   }
   if (config.customModel) {
-    const valid = config.thinkingOptionId && capability.options.some((option) => option.id === config.thinkingOptionId)
-      ? config.thinkingOptionId
-      : undefined;
+    // A saved choice the model no longer offers is not replaced by its default.
+    if (config.thinkingOptionId && !capability.options.some((option) => option.id === config.thinkingOptionId)) {
+      throw savedThinkingUnavailable(config.thinkingOptionId, model.id);
+    }
+    const valid = config.thinkingOptionId || undefined;
     return {
       thinkingOptionId: valid,
       thinkingMode: valid && isRealThinkingOffId(valid) ? "disabled" : "custom",
@@ -198,6 +209,7 @@ export function createTimelineTranslator(deps: Dependencies) {
       model,
       thinkingMode,
       thinkingOptionId: thinkingOptionId ?? null,
+      limitations: capability.limitations,
     };
   }
 

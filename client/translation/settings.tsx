@@ -9,6 +9,7 @@ import {
   translationModelsRpc,
   type TimelineTranslationSettings,
   type ThinkingOptionInfo,
+  describeTranslationLimitation,
 } from "../../shared/timeline-translation";
 import { ModelSettingsControls } from "../model-settings-controls";
 import { providerBrand } from "../components/provider-logo";
@@ -48,6 +49,8 @@ export interface TranslationCatalogState {
   reason: "host_unsupported" | "check_failed" | null;
   /** Providers whose check failed; the list may be missing them. */
   uncheckedProviders: string[];
+  /** The selected provider's host limitations. */
+  limitations: string[];
   loading: boolean;
   error: string | null;
 }
@@ -59,6 +62,7 @@ let catalogCache: {
   loaded: boolean;
   reason: TranslationCatalogState["reason"];
   uncheckedProviders: string[];
+  limitations: string[];
 } = {
   providers: [],
   providerLabels: {},
@@ -66,6 +70,7 @@ let catalogCache: {
   loaded: false,
   reason: null,
   uncheckedProviders: [],
+  limitations: [],
 };
 
 /** The latest catalog read of any settings page: only it writes the cache and the shown state. */
@@ -80,6 +85,7 @@ export function resetTranslationSettingsCatalogForTests(): void {
     loaded: false,
     reason: null,
     uncheckedProviders: [],
+    limitations: [],
   };
 }
 
@@ -309,6 +315,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         loaded: true,
         reason: res.reason ?? null,
         uncheckedProviders: res.uncheckedProviders ?? [],
+        limitations: res.limitations ?? [],
       };
       setCatalog({ ...catalogCache, loading: false, error: res.error });
       return res.error ? null : { read, models: res.models };
@@ -448,6 +455,12 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
           onThinking={(thinkingOptionId) => void savePatch({ thinkingOptionId })} onRefresh={() => void loadModels(settings.provider)} />
         {catalogNotice ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={catalogNotice} tone="danger" alert /></View> : null}
         {partialNotice ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={partialNotice} tone="danger" alert /></View> : null}
+        {/* What the host could not rule out for the chosen provider, shown before anything is sent. */}
+        {!catalogNotice && catalog.providers.includes(settings.provider) && catalog.limitations.length > 0
+          ? <View testID="translation-limitations" style={{ paddingHorizontal: space.lg, paddingBottom: space.sm, gap: space.xs }}>
+              {catalog.limitations.map((id) => <RowNotice key={id} look={look} text={describeTranslationLimitation(id, lang)} tone="warning" />)}
+            </View>
+          : null}
       </> : null}
 
       <SettingRow
