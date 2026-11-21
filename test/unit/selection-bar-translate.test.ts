@@ -94,7 +94,7 @@ let body: ElementMock;
  * `rangeText` what `Range.toString()` returns for the part inside the surface
  * (no breaks, as in Chromium); `outsideText` the selected text beyond it.
  */
-let selected: { text: string; node: ElementMock; focus?: ElementMock; rangeText?: string; outsideText?: string } | null;
+let selected: { text: string; node: ElementMock; focus?: ElementMock; rangeText?: string; outsideText?: string; textNodes?: ElementMock[] } | null;
 const call = vi.fn();
 
 type Scope = { agentId: string; kind: "assistant_message" | "user_message" | "reasoning" | "tool_output"; streaming: boolean };
@@ -138,18 +138,21 @@ beforeEach(() => {
   vi.stubGlobal("IS_REACT_ACT_ENVIRONMENT", true);
   vi.stubGlobal("__rnMockOS", "web");
   vi.stubGlobal("Node", ElementMock);
+  vi.stubGlobal("NodeFilter", { SHOW_TEXT: 4 });
   page = Object.assign(new EventTarget(), { innerWidth: 1024, innerHeight: 768 });
   doc = new EventTarget();
   body = new ElementMock();
   vi.stubGlobal("window", Object.assign(page, {
     setTimeout, clearTimeout,
-    getComputedStyle: () => ({ overflowX: "visible", overflowY: "visible" }),
+    getComputedStyle: (node: ElementMock) => ({ overflowX: "visible", overflowY: "visible", userSelect: node.dataset.unselectable ? "none" : "text" }),
     getSelection: () => {
       const current = selected;
       return current && {
         isCollapsed: false, toString: () => current.text, rangeCount: 1,
         anchorNode: current.node, focusNode: current.focus ?? current.node,
-        getRangeAt: () => ({ commonAncestorContainer: current.node, startContainer: current.node,
+        getRangeAt: () => ({ commonAncestorContainer: current.textNodes ? body : current.node, startContainer: current.textNodes?.[0] ?? current.node,
+          startOffset: 0, endContainer: current.textNodes?.at(-1), endOffset: current.textNodes?.at(-1)?.textContent.length,
+          intersectsNode: () => true,
           getClientRects: () => [{ left: 120, right: 220, top: 200, bottom: 220, width: 100, height: 20 }],
           cloneRange: () => {
             let part = current.rangeText ?? current.text;
@@ -162,7 +165,11 @@ beforeEach(() => {
       };
     },
   }));
-  vi.stubGlobal("document", Object.assign(doc, { body, createElement: () => new ElementMock() }));
+  vi.stubGlobal("document", Object.assign(doc, { body, createElement: () => new ElementMock(), createTreeWalker: () => {
+    const nodes = selected?.textNodes ?? [];
+    let index = 0;
+    return { nextNode: () => nodes[index++] ?? null };
+  } }));
   resetEnhancerPreferences();
   updateEnhancerPreferences({ language: "en" });
   resetTranslationSettingsStoreForTests();
@@ -183,6 +190,72 @@ afterEach(() => {
 });
 
 describe("selection bar Translate", () => {
+  it.each([false, true])("translates a cross-block selection in either direction (reverse: %s)", async (reverse) => {
+    call.mockResolvedValue(done("译文"));
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope);
+    const second = surface(scope);
+    const firstText = new ElementMock(); firstText.nodeType = 3; firstText.textContent = "First"; first.appendChild(firstText);
+    const secondText = new ElementMock(); secondText.nodeType = 3; secondText.textContent = "Second"; second.appendChild(secondText);
+    selected = { text: "First\n\nSecond", node: reverse ? secondText : firstText,
+      focus: reverse ? firstText : secondText, textNodes: [firstText, secondText] };
+    doc.dispatchEvent(new Event("selectionchange"));
+    vi.advanceTimersByTime(0);
+    expect(display()).toBe("block");
+    button("Translate")!.click();
+    await flush();
+    expect(call.mock.calls[0]![0]).toMatchObject({ text: "First\n\nSecond" });
+  });
+
+  it("rejects a cross-block selection containing host text", () => {
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope); const second = surface(scope);
+    const text = (parent: ElementMock) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = "text"; parent.appendChild(node); return node; };
+    const firstText = text(first); const outside = text(body); const secondText = text(second);
+    selected = { text: "text text text", node: firstText, focus: secondText, textNodes: [firstText, outside, secondText] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    expect(display()).toBe("none");
+  });
+
+  it("ignores unselectable interface text between selected prose and code", async () => {
+    call.mockResolvedValue(done("译文"));
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope); const second = surface({ ...scope, kind: "tool_output" });
+    second.parentElement!.dataset.bccode = "";
+    const text = (parent: ElementMock) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = "text"; parent.appendChild(node); return node; };
+    const a = text(first); const chrome = new ElementMock(); chrome.dataset.unselectable = "1"; body.appendChild(chrome);
+    const ignored = text(chrome); const b = text(second);
+    selected = { text: "text\ntext", node: a, focus: b, textNodes: [a, ignored, b] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    button("Translate")!.click(); await flush();
+    expect(call.mock.calls[0]![0]).toMatchObject({ text: "text\ntext", sourceKind: "assistant_message" });
+  });
+
+  it.each(["conversation", "host"])("rejects selections across a different %s", (difference) => {
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope);
+    const second = surface({ ...scope, agentId: difference === "conversation" ? "agent-2" : scope.agentId }, difference === "host" ? vi.fn() : call);
+    const text = (parent: ElementMock) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = "text"; parent.appendChild(node); return node; };
+    const a = text(first); const b = text(second);
+    selected = { text: "text text", node: a, focus: b, textNodes: [a, b] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    expect(display()).toBe("none");
+  });
+
+  it("waits until every selected block has finished streaming", async () => {
+    call.mockResolvedValue(done("译文"));
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: true };
+    const first = surface(scope); const second = surface(scope);
+    const text = (parent: ElementMock) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = "text"; parent.appendChild(node); return node; };
+    const a = text(first); const b = text(second);
+    selected = { text: "text text", node: a, focus: b, textNodes: [a, b] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    button("Translate")!.click(); await flush();
+    bindSelectionScopeElement(first.parentElement!, { ...scope, streaming: false, lent: lent(call) });
+    await flush(); expect(call).not.toHaveBeenCalled();
+    bindSelectionScopeElement(second.parentElement!, { ...scope, streaming: false, lent: lent(call) });
+    await flush(); expect(call).toHaveBeenCalledOnce();
+  });
   it("offers copy and translate in a details sidebar and restores Add to chat in the conversation", () => {
     const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
     const sidebar = new ElementMock();

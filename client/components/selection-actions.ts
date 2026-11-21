@@ -127,8 +127,10 @@ interface Snapshot {
   rects: readonly DOMRect[];
   /** The element the selection sits in, to find its own chat's composer. */
   element: Element | null;
-  /** The plugin surface holding both ends of the selection. */
+  /** The plugin surface at the start of the selection. */
   surface: Element;
+  /** Last surface distinguishes equal text selected across different blocks. */
+  endSurface: Element;
   /** The reply or thought it belongs to; null where Translate is not offered. */
   scope: SelectionTranslationScopeValue | null;
 }
@@ -141,8 +143,8 @@ function scopeOf(surface: Element): SelectionTranslationScopeValue | null {
 
 /** The same text in the same surface of the same conversation. */
 function sameSelection(a: Snapshot, b: Snapshot): boolean {
-  return a.text === b.text && a.surface === b.surface &&
-    a.scope?.agentId === b.scope?.agentId && a.scope?.kind === b.scope?.kind;
+  return a.text === b.text && a.surface === b.surface && a.endSurface === b.endSurface &&
+    a.scope?.agentId === b.scope?.agentId && a.scope?.kind === b.scope?.kind && a.scope?.lent?.paseo === b.scope?.lent?.paseo;
 }
 
 function elementOf(node: Node | null): HTMLElement | null {
@@ -150,10 +152,34 @@ function elementOf(node: Node | null): HTMLElement | null {
   return node.nodeType === Node.ELEMENT_NODE ? (node as HTMLElement) : node.parentElement;
 }
 
+/** Every selected text node must belong to the same host and conversation. */
+function crossSurfaceScope(range: Range): SelectionTranslationScopeValue | null {
+  const root = range.commonAncestorContainer;
+  const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+  let node: Node | null = root.nodeType === Node.TEXT_NODE ? root : walker.nextNode();
+  const scopes: SelectionTranslationScopeValue[] = [];
+  while (node) {
+    if (range.intersectsNode(node)) {
+      const start = node === range.startContainer ? range.startOffset : 0;
+      const end = node === range.endContainer ? range.endOffset : node.textContent!.length;
+      const parent = elementOf(node);
+      if (node.textContent!.slice(start, end).trim() && parent && window.getComputedStyle(parent).userSelect !== "none") {
+        const surface = parent.closest(SURFACE_SELECTOR);
+        const next = surface && scopeOf(surface);
+        const first = scopes[0];
+        if (!next || (first && (next.agentId !== first.agentId || next.lent?.paseo !== first.lent?.paseo))) return null;
+        scopes.push(next);
+      }
+    }
+    node = walker.nextNode();
+  }
+  return scopes.length ? { ...scopes[0]!, streaming: scopes.some((scope) => scope.streaming) } : null;
+}
+
 /**
  * The live selection, or null when it is empty, collapsed, or outside every
- * plugin surface. Both ends must belong to one surface, except for an empty
- * boundary beyond it. A drag into host text is not a callout selection.
+ * plugin surface. Cross-surface selections must contain only text bound to the
+ * same conversation and host. A drag into host text is not a callout selection.
  */
 function readSelection(): Snapshot | null {
   const selection = window.getSelection();
@@ -161,10 +187,11 @@ function readSelection(): Snapshot | null {
 
   const anchor = elementOf(selection.anchorNode)?.closest(SURFACE_SELECTOR);
   const focus = elementOf(selection.focusNode)?.closest(SURFACE_SELECTOR);
-  if ((!anchor && !focus) || (anchor && focus && anchor !== focus)) return null;
-  const surface = (anchor ?? focus)!;
-
   let range = selection.getRangeAt(0);
+  if (!anchor && !focus) return null;
+  const crossScope = anchor && focus && anchor !== focus ? crossSurfaceScope(range) : null;
+  if (anchor && focus && anchor !== focus && !crossScope) return null;
+  const surface = (elementOf(range.startContainer)?.closest(SURFACE_SELECTOR) ?? anchor ?? focus)!;
   const text = selection.toString().trim();
   if (!text) return null;
   if (!anchor || !focus) {
@@ -188,10 +215,12 @@ function readSelection(): Snapshot | null {
     .filter((rect) => rect.width > 0 && rect.height > 0);
   if (rects.length === 0) return null;
 
-  const element = elementOf(anchor && focus ? range.commonAncestorContainer : anchor ? selection.anchorNode : selection.focusNode);
-  const isCode = Boolean(element?.closest(CODE_SELECTOR));
+  const element = elementOf(crossScope ? range.startContainer : anchor && focus ? range.commonAncestorContainer : anchor ? selection.anchorNode : selection.focusNode);
+  const codeElement = crossScope ? elementOf(range.commonAncestorContainer) : element;
+  const isCode = Boolean(codeElement?.closest(CODE_SELECTOR));
   const canAddToChat = !surface.closest("[data-bcnocomposer]");
-  return { text, isCode, canAddToChat, rects, element, surface, scope: scopeOf(surface) };
+  const endSurface = elementOf(range.endContainer)?.closest(SURFACE_SELECTOR) ?? surface;
+  return { text, isCode, canAddToChat, rects, element, surface, endSurface, scope: crossScope ?? scopeOf(surface) };
 }
 
 /** Markdown the composer can carry: a fence for code, a blockquote for prose. */
@@ -1214,8 +1243,13 @@ function startController(): Controller {
   // The translated reply settling rebinds its element, with no selection event.
   // A cleared binding (the first half of a rebind, or an unmount) changes nothing.
   const stopScopeWatch = watchSelectionScopeElements((element, scope) => {
-    if (!translation || !scope || translation.snapshot.surface.closest(SCOPE_SELECTOR) !== element) return;
-    translation.job.setStreaming(scope.streaming);
+    if (!translation || !scope) return;
+    const current = readSelection();
+    if (current && sameSelection(translation.snapshot, current) && current.scope) {
+      translation.job.setStreaming(current.scope.streaming);
+    } else if (translation.snapshot.surface.closest(SCOPE_SELECTOR) === element) {
+      translation.job.setStreaming(scope.streaming);
+    }
   });
 
   document.addEventListener("selectionchange", onSelectionChange);
