@@ -542,6 +542,28 @@ describe("timeline translation settings", () => {
     }
   });
 
+  it("lets a saved thinking option the model no longer offers be cleared, even when it offers none", async () => {
+    // Regression: with no options left, the menu was disabled and read "Not supported", so the
+    // saved choice that translation refuses could not be removed.
+    const onThinking = vi.fn();
+    const noop = () => {};
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(ModelSettingsControls, {
+        look: makeLook(), language: "en", provider: "opencode", model: "mock/mock-model", thinkingOptionId: "high", disableThinking: false,
+        disabledThinkingLabel: "", disabled: false, loading: false, providers: ["opencode"], providerLabels: {},
+        models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [], defaultThinkingOptionId: null }],
+        onProvider: noop, onModel: noop, onThinking, onRefresh: noop,
+      }));
+    });
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Thinking level");
+    expect(trigger.props.disabled).toBe(false);
+    expect(textValues(renderer!.root)).toContain("high");
+    await act(async () => { trigger.props.onPress(); });
+    const reset = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Model default");
+    await act(async () => { reset.props.onPress(); });
+    expect(onThinking).toHaveBeenCalledWith("");
+  });
+
   it("reads a provider's catalog again on the next visit after it failed", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
     const good = await mocks.modelsRpc({ provider: "claude" });

@@ -345,6 +345,29 @@ describe("timeline translation server service", () => {
     expect(env.captured.generateInputs[0]).not.toHaveProperty("thinkingOptionId");
   });
 
+  it("refuses a saved thinking option once the model offers none, before any text is sent", async () => {
+    // Regression: a model with no thinking options returned "none" before the saved choice was
+    // checked, so the text went out with the model's default thinking.
+    const env = createMockEnv({
+      settings: { customModel: true, provider: "opencode", model: "mock/mock-model", disableThinking: false, thinkingOptionId: "high" },
+      thinkingOptions: [],
+    });
+    expect(await env.translator.check({ agentId: "source-agent-1", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo)).toEqual({
+      state: "error",
+      error: 'The saved thinking option "high" is no longer offered by mock/mock-model. Choose another in translation settings. The text was not sent.',
+    });
+    startJob(env, "job-stale-thinking");
+    expect(await waitForJob(env.translator, env.paseo, "job-stale-thinking")).toMatchObject({ state: "error" });
+    expect(env.captured.generateInputs).toHaveLength(0);
+
+    const cleared = createMockEnv({
+      settings: { customModel: true, provider: "opencode", model: "mock/mock-model", disableThinking: false, thinkingOptionId: "" },
+      thinkingOptions: [],
+    });
+    startJob(cleared, "job-cleared-thinking");
+    expect(await waitForJob(cleared.translator, cleared.paseo, "job-cleared-thinking")).toMatchObject({ state: "done", thinkingMode: "none", thinkingOptionId: null });
+  });
+
   it("names the target language once in the prompt it sends", async () => {
     const env = createMockEnv();
     startJob(env, "job-prompt");

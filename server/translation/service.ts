@@ -109,6 +109,8 @@ function resolveThinkingForTranslation(
     return { thinkingOptionId: undefined, thinkingMode: "none" };
   }
   if (capability.status === "none") {
+    // A saved choice is checked even when the model offers no options at all.
+    if (config.customModel && config.thinkingOptionId) throw savedThinkingUnavailable(config.thinkingOptionId, model.id);
     return { thinkingOptionId: undefined, thinkingMode: "none" };
   }
   if (config.customModel) {

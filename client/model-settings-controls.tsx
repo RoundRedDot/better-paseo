@@ -39,9 +39,13 @@ export function ModelSettingsControls({ look, language, provider, model, thinkin
   const modelDefault = `${words.modelDefault}${selectedModel?.defaultThinkingOptionId ? ` · ${selectedModel.defaultThinkingOptionId}` : ""}`;
   const thinkingChoices: MenuChoice[] = [{ value: "", name: modelDefault, logo: null }, ...options.map((item) => ({ value: item.id, name: item.label, logo: null }))];
   const chosenThinking = thinkingChoices.find((item) => item.value === thinkingOptionId);
-  const thinkingLabel = disableThinking ? disabledThinkingLabel
-    : selectedModel && !options.length ? words.unsupported
-      : chosenThinking?.name ?? (thinkingOptionId || words.choose);
+  // A saved option the model no longer offers stays visible and can be cleared, even when the
+  // model offers none: translation refuses it rather than using the model default.
+  const staleThinking = Boolean(selectedModel && thinkingOptionId && !chosenThinking);
+  const thinkingLabel = staleThinking ? thinkingOptionId
+    : disableThinking ? disabledThinkingLabel
+      : selectedModel && !options.length ? words.unsupported
+        : chosenThinking?.name ?? (thinkingOptionId || words.choose);
   const blocked = disabled || loading;
   const refreshSize = look.compact ? 44 : 32;
   const menu = (label: string, value: string, selected: MenuChoice | null, choices: MenuChoice[], onChange: (value: string) => void, unavailable = false) =>
@@ -54,6 +58,6 @@ export function ModelSettingsControls({ look, language, provider, model, thinkin
       <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onRefresh} style={{ width: refreshSize, height: refreshSize, alignItems: "center", justifyContent: "center", opacity: blocked ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable>
       {menu(words.model, model, shownModel, modelChoices, (next) => { if (next !== model) onModel(next); }, !provider)}
     </View>} />
-    <SettingRow title={words.thinking} look={look} wrapControl disabled={disabled} control={menu(words.thinking, thinkingOptionId, { value: thinkingOptionId, name: thinkingLabel, logo: null }, thinkingChoices, onThinking, disableThinking || !options.length)} />
+    <SettingRow title={words.thinking} look={look} wrapControl disabled={disabled} control={menu(words.thinking, thinkingOptionId, { value: thinkingOptionId, name: thinkingLabel, logo: null }, thinkingChoices, onThinking, !staleThinking && (disableThinking || !options.length))} />
   </>;
 }
