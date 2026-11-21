@@ -119,6 +119,12 @@ const ICONS = {
 } as const;
 type IconName = keyof typeof ICONS;
 
+interface SelectionBlock {
+  element: Element;
+  text: string;
+  scope: SelectionTranslationScopeValue;
+}
+
 interface Snapshot {
   text: string;
   isCode: boolean;
@@ -133,6 +139,7 @@ interface Snapshot {
   endSurface: Element;
   /** The reply or thought it belongs to; null where Translate is not offered. */
   scope: SelectionTranslationScopeValue | null;
+  blocks: SelectionBlock[] | null;
 }
 
 /** The scope bound to the Markdown root holding the surface; attributes alone never route a request. */
@@ -144,7 +151,9 @@ function scopeOf(surface: Element): SelectionTranslationScopeValue | null {
 /** The same text in the same surface of the same conversation. */
 function sameSelection(a: Snapshot, b: Snapshot): boolean {
   return a.text === b.text && a.surface === b.surface && a.endSurface === b.endSurface &&
-    a.scope?.agentId === b.scope?.agentId && a.scope?.kind === b.scope?.kind && a.scope?.lent?.paseo === b.scope?.lent?.paseo;
+    a.scope?.agentId === b.scope?.agentId && a.scope?.kind === b.scope?.kind && a.scope?.lent?.paseo === b.scope?.lent?.paseo &&
+    (a.blocks === null && b.blocks === null || !!a.blocks && !!b.blocks && a.blocks.length === b.blocks.length &&
+      a.blocks.every((block, index) => block.element === b.blocks![index]!.element && block.text === b.blocks![index]!.text && block.scope.kind === b.blocks![index]!.scope.kind));
 }
 
 function elementOf(node: Node | null): HTMLElement | null {
@@ -153,11 +162,11 @@ function elementOf(node: Node | null): HTMLElement | null {
 }
 
 /** Every selected text node must belong to the same host and conversation. */
-function crossSurfaceScope(range: Range): SelectionTranslationScopeValue | null {
+function crossSurfaceBlocks(range: Range, selectedText: string): SelectionBlock[] | null {
   const root = range.commonAncestorContainer;
   const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
   let node: Node | null = root.nodeType === Node.TEXT_NODE ? root : walker.nextNode();
-  const scopes: SelectionTranslationScopeValue[] = [];
+  const blocks: Array<SelectionBlock & { raw: string }> = [];
   while (node) {
     if (range.intersectsNode(node)) {
       const start = node === range.startContainer ? range.startOffset : 0;
@@ -165,15 +174,37 @@ function crossSurfaceScope(range: Range): SelectionTranslationScopeValue | null 
       const parent = elementOf(node);
       if (node.textContent!.slice(start, end).trim() && parent && window.getComputedStyle(parent).userSelect !== "none") {
         const surface = parent.closest(SURFACE_SELECTOR);
-        const next = surface && scopeOf(surface);
-        const first = scopes[0];
-        if (!next || (first && (next.agentId !== first.agentId || next.lent?.paseo !== first.lent?.paseo))) return null;
-        scopes.push(next);
+        const marked = surface?.closest(SCOPE_SELECTOR);
+        const scope = marked && selectionScopeForElement(marked);
+        const first = blocks[0];
+        if (!marked || !scope || (first && (scope.agentId !== first.scope.agentId || scope.lent?.paseo !== first.scope.lent?.paseo))) return null;
+        let block = blocks.at(-1);
+        if (!block || block.element !== marked) {
+          block = { element: marked, text: "", raw: "", scope };
+          blocks.push(block);
+        }
+        block.raw += node.textContent!.slice(start, end);
       }
     }
     node = walker.nextNode();
   }
-  return scopes.length ? { ...scopes[0]!, streaming: scopes.some((scope) => scope.streaming) } : null;
+  let position = 0;
+  for (const block of blocks) {
+    let first = -1;
+    let last = -1;
+    for (const char of block.raw) {
+      if (/\s/u.test(char)) continue;
+      while (position < selectedText.length && /\s/u.test(selectedText[position]!)) position += 1;
+      if (!selectedText.startsWith(char, position)) return null;
+      if (first < 0) first = position;
+      position += char.length;
+      last = position;
+    }
+    if (first < 0) return null;
+    block.text = selectedText.slice(first, last);
+  }
+  if (selectedText.slice(position).trim()) return null;
+  return blocks.length ? blocks : null;
 }
 
 /**
@@ -189,11 +220,12 @@ function readSelection(): Snapshot | null {
   const focus = elementOf(selection.focusNode)?.closest(SURFACE_SELECTOR);
   let range = selection.getRangeAt(0);
   if (!anchor && !focus) return null;
-  const crossScope = anchor && focus && anchor !== focus ? crossSurfaceScope(range) : null;
-  if (anchor && focus && anchor !== focus && !crossScope) return null;
-  const surface = (elementOf(range.startContainer)?.closest(SURFACE_SELECTOR) ?? anchor ?? focus)!;
   const text = selection.toString().trim();
   if (!text) return null;
+  const blocks = anchor && focus && anchor !== focus ? crossSurfaceBlocks(range, text) : null;
+  if (anchor && focus && anchor !== focus && !blocks) return null;
+  const crossScope = blocks ? { ...blocks[0]!.scope, streaming: blocks.some((block) => block.scope.streaming) } : null;
+  const surface = (elementOf(range.startContainer)?.closest(SURFACE_SELECTOR) ?? anchor ?? focus)!;
   if (!anchor || !focus) {
     // A browser's whole-line selection can end at the next element's start.
     // Accept that boundary only when no text outside the surface was selected.
@@ -220,7 +252,7 @@ function readSelection(): Snapshot | null {
   const isCode = Boolean(codeElement?.closest(CODE_SELECTOR));
   const canAddToChat = !surface.closest("[data-bcnocomposer]");
   const endSurface = elementOf(range.endContainer)?.closest(SURFACE_SELECTOR) ?? surface;
-  return { text, isCode, canAddToChat, rects, element, surface, endSurface, scope: crossScope ?? scopeOf(surface) };
+  return { text, isCode, canAddToChat, rects, element, surface, endSurface, scope: crossScope ?? scopeOf(surface), blocks };
 }
 
 /** Markdown the composer can carry: a fence for code, a blockquote for prose. */
@@ -741,7 +773,9 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     const language = readLanguage();
     headingText.textContent = toolbarLabel("Translate", language);
     // A mark can redraw the panel during its fade, after the selection is gone.
-    const source = standalone ? original : actions.snapshot()?.text;
+    const snapshot = actions.snapshot();
+    const source = standalone ? original : snapshot?.blocks && snapshot.blocks.length > 1
+      ? snapshot.blocks.map((block) => block.text).join("\n\n") : snapshot?.text;
     const originalVisible = showingOriginal && view.status === "done" && source !== undefined;
     const toggleLabel = originalVisible ? "Show translation" : "Show original";
     toggleButton.hidden = view.status !== "done" || source === undefined;
@@ -775,8 +809,9 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     }
     panel.appendChild(head);
 
-    const text = originalVisible ? source : selectionViewText(view);
-    const message = text ? null : selectionViewMessage(view);
+    const text = originalVisible ? source : selectionViewText(view) ?? (view as SelectionTranslationView & { partialText?: string }).partialText ?? null;
+    const message = text && view.status !== "error" && view.status !== "stale" && view.status !== "config-error" ? null : selectionViewMessage(view);
+    if (text) panel.appendChild(element("div", "panel-body", text));
     if (message) {
       const line = element("div", "panel-message");
       if (view.status === "running" || view.status === "config-loading" || view.status === "settings-loading") {
@@ -791,7 +826,6 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
       if (view.status === "error") line.dataset.tone = "error";
       panel.appendChild(line);
     }
-    if (text) panel.appendChild(element("div", "panel-body", text));
 
     const done = view.status === "done" ? view.result.translation : null;
     if (done !== null || selectionViewRetryable(view)) {
@@ -1074,6 +1108,102 @@ function visibleRect(snapshot: Snapshot): DOMRect | null {
     rect.bottom > top && rect.top < bottom && rect.right > left && rect.left < right) ?? null;
 }
 
+function createBlockTranslation(blocks: SelectionBlock[]): SelectionTranslation & {
+  updateBlocks(blocks: SelectionBlock[]): void;
+  updateScope(element: object, scope: SelectionTranslationScopeValue): void;
+} {
+  const streaming = blocks.map((block) => block.scope.streaming);
+  const jobs = blocks.map((block, index) => createSelectionTranslation({
+    agentId: block.scope.agentId,
+    kind: block.scope.kind,
+    text: block.text,
+    streaming: streaming.some(Boolean),
+    translator: block.scope.lent?.translator,
+    configStore: block.scope.lent ? translationAgentConfigStoreFor(block.scope.lent.paseo) : undefined,
+    host: block.scope.lent?.paseo,
+    blockIndex: index,
+  }));
+  const listeners = new Set<() => void>();
+  const started = new Set<number>();
+  const pendingRetry = new Set<number>();
+  let active = false;
+  let scheduled = false;
+  let retryingStale = false;
+  const notify = () => {
+    for (const listener of listeners) listener();
+    if (!active || scheduled) return;
+    scheduled = true;
+    queueMicrotask(() => {
+      scheduled = false;
+      if (!active) return;
+      const next = jobs.findIndex((job, index) => pendingRetry.has(index) || job.view()?.status !== "done");
+      if (next < 0) { retryingStale = false; return; }
+      if (!started.has(next) || pendingRetry.has(next) || (retryingStale && jobs[next]!.view()?.status === "stale")) {
+        started.add(next);
+        pendingRetry.delete(next);
+        jobs[next]!.start();
+        for (const listener of listeners) listener();
+      }
+    });
+  };
+  const releases = jobs.map((job) => job.subscribe(notify));
+  const view = (): SelectionTranslationView | null => {
+    const completed: string[] = [];
+    let lastDone: Extract<SelectionTranslationView, { status: "done" }> | null = null;
+    for (let index = 0; index < jobs.length; index += 1) {
+      const current = pendingRetry.has(index) ? null : jobs[index]!.view();
+      if (!current) return lastDone ? { status: "running", text: completed.join("\n\n"), targetCode: lastDone.result.targetLanguageCode, modelInfo: lastDone.modelInfo } : null;
+      if (current.status === "done") {
+        completed.push(current.result.translation);
+        lastDone = current;
+        continue;
+      }
+      if (current.status === "running") {
+        return { ...current, text: [...completed, ...(current.text ? [current.text] : [])].join("\n\n") || undefined };
+      }
+      const withPartial = { ...current, partialText: completed.join("\n\n") };
+      return completed.length ? withPartial : current;
+    }
+    const last = jobs.at(-1)!.view();
+    if (!last || last.status !== "done") return null;
+    return { ...last, result: { ...last.result, translation: completed.join("\n\n") } };
+  };
+  return {
+    sourceKey: jobs.map((job) => job.sourceKey).join("|"),
+    start() {
+      active = true;
+      let index = jobs.findIndex((job) => job.view()?.status !== "done");
+      if (index < 0) {
+        jobs.forEach((_, index) => pendingRetry.add(index));
+        index = 0;
+      }
+      retryingStale = jobs[index]!.view()?.status === "stale";
+      started.add(index);
+      pendingRetry.delete(index);
+      jobs[index]!.start();
+      notify();
+    },
+    setStreaming(streaming) { for (const job of jobs) job.setStreaming(streaming); },
+    setTranslator(translator) { for (const job of jobs) job.setTranslator(translator); },
+    updateBlocks(next) {
+      next.forEach((block, index) => { streaming[index] = block.scope.streaming; });
+      jobs.forEach((job) => job.setStreaming(streaming.some(Boolean)));
+    },
+    updateScope(element, scope) {
+      blocks.forEach((block, index) => { if (block.element === element) streaming[index] = scope.streaming; });
+      jobs.forEach((job) => job.setStreaming(streaming.some(Boolean)));
+    },
+    view,
+    subscribe(listener) { listeners.add(listener); return () => listeners.delete(listener); },
+    dispose() {
+      active = false;
+      releases.forEach((release) => release());
+      jobs.forEach((job) => job.dispose());
+      listeners.clear();
+    },
+  };
+}
+
 function startController(): Controller {
   // Set after an action or the reader's own scroll, until the selection
   // changes: keep the highlight without letting a queued update bring the bar
@@ -1088,7 +1218,8 @@ function startController(): Controller {
    */
   let pressed: EventTarget | null = null;
   /** The selection Translate was pressed for, and its job. */
-  let translation: { snapshot: Snapshot; job: SelectionTranslation; release(): void } | null = null;
+  let translation: { snapshot: Snapshot; job: SelectionTranslation; release(): void;
+    blocks?: ReturnType<typeof createBlockTranslation> } | null = null;
 
   const endTranslation = (clearPanel: boolean) => {
     if (!translation) return;
@@ -1111,7 +1242,8 @@ function startController(): Controller {
     if (translation && sameSelection(translation.snapshot, snapshot)) return;
     endTranslation(true);
     const { agentId, kind, streaming, lent } = snapshot.scope;
-    const job = createSelectionTranslation({
+    const blocks = snapshot.blocks && snapshot.blocks.length > 1 ? createBlockTranslation(snapshot.blocks) : undefined;
+    const job = blocks ?? createSelectionTranslation({
       agentId,
       kind,
       text: snapshot.text,
@@ -1123,7 +1255,7 @@ function startController(): Controller {
     const release = job.subscribe(() => {
       if (translation?.job === job) bar.setPanel(job.view());
     });
-    translation = { snapshot, job, release };
+    translation = { snapshot, job, release, blocks };
     job.start();
     bar.setPanel(job.view());
     bar.pin();
@@ -1162,7 +1294,8 @@ function startController(): Controller {
     // into the session cache under its own key.
     if (translation && !sameSelection(translation.snapshot, snapshot)) endTranslation(true);
     if (translation && snapshot.scope) {
-      translation.job.setStreaming(snapshot.scope.streaming);
+      if (translation.blocks && snapshot.blocks) translation.blocks.updateBlocks(snapshot.blocks);
+      else translation.job.setStreaming(snapshot.scope.streaming);
       return;
     }
     // A reply following its output can carry the selection out of its pane.
@@ -1245,7 +1378,9 @@ function startController(): Controller {
   const stopScopeWatch = watchSelectionScopeElements((element, scope) => {
     if (!translation || !scope) return;
     const current = readSelection();
-    if (current && sameSelection(translation.snapshot, current) && current.scope) {
+    if (translation.blocks) {
+      translation.blocks.updateScope(element, scope);
+    } else if (current && sameSelection(translation.snapshot, current) && current.scope) {
       translation.job.setStreaming(current.scope.streaming);
     } else if (translation.snapshot.surface.closest(SCOPE_SELECTOR) === element) {
       translation.job.setStreaming(scope.streaming);

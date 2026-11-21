@@ -157,6 +157,8 @@ export interface SelectionTranslationOptions {
   configStore: TranslationAgentConfigStore | undefined;
   /** The host the text came from (its `PaseoApi`); part of the cache key. */
   host?: object;
+  /** Distinguishes repeated text in separate blocks of the same selection. */
+  blockIndex?: number;
   settings?: Pick<typeof translationSettingsSync, "snapshot" | "subscribe">;
   interfaceLanguage?: () => "en" | "zh";
 }
@@ -218,7 +220,8 @@ function sameView(a: SelectionTranslationView | null, b: SelectionTranslationVie
 export function createSelectionTranslation(options: SelectionTranslationOptions): SelectionTranslation {
   const settingsSource = options.settings ?? translationSettingsSync;
   const interfaceLanguage = options.interfaceLanguage ?? currentInterfaceLanguage;
-  const sourceKey = selectionSourceKey(options.host, options.agentId, options.kind, options.text);
+  const sourceKey = selectionSourceKey(options.host, options.agentId, options.kind, options.text) +
+    (options.blockIndex === undefined ? "" : `:block:${options.blockIndex}`);
   const listeners = new Set<() => void>();
   let streaming = options.streaming;
   let translator = options.translator;

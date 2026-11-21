@@ -94,7 +94,7 @@ let body: ElementMock;
  * `rangeText` what `Range.toString()` returns for the part inside the surface
  * (no breaks, as in Chromium); `outsideText` the selected text beyond it.
  */
-let selected: { text: string; node: ElementMock; focus?: ElementMock; rangeText?: string; outsideText?: string; textNodes?: ElementMock[] } | null;
+let selected: { text: string; node: ElementMock; focus?: ElementMock; rangeText?: string; outsideText?: string; textNodes?: ElementMock[]; startOffset?: number; endOffset?: number } | null;
 const call = vi.fn();
 
 type Scope = { agentId: string; kind: "assistant_message" | "user_message" | "reasoning" | "tool_output"; streaming: boolean };
@@ -151,7 +151,7 @@ beforeEach(() => {
         isCollapsed: false, toString: () => current.text, rangeCount: 1,
         anchorNode: current.node, focusNode: current.focus ?? current.node,
         getRangeAt: () => ({ commonAncestorContainer: current.textNodes ? body : current.node, startContainer: current.textNodes?.[0] ?? current.node,
-          startOffset: 0, endContainer: current.textNodes?.at(-1), endOffset: current.textNodes?.at(-1)?.textContent.length,
+          startOffset: current.startOffset ?? 0, endContainer: current.textNodes?.at(-1), endOffset: current.endOffset ?? current.textNodes?.at(-1)?.textContent.length,
           intersectsNode: () => true,
           getClientRects: () => [{ left: 120, right: 220, top: 200, bottom: 220, width: 100, height: 20 }],
           cloneRange: () => {
@@ -191,20 +191,27 @@ afterEach(() => {
 
 describe("selection bar Translate", () => {
   it.each([false, true])("translates a cross-block selection in either direction (reverse: %s)", async (reverse) => {
-    call.mockResolvedValue(done("译文"));
+    call.mockResolvedValueOnce(done("第一段")).mockResolvedValueOnce(done("第二段"));
     const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
     const first = surface(scope);
     const second = surface(scope);
-    const firstText = new ElementMock(); firstText.nodeType = 3; firstText.textContent = "First"; first.appendChild(firstText);
-    const secondText = new ElementMock(); secondText.nodeType = 3; secondText.textContent = "Second"; second.appendChild(secondText);
+    const firstText = new ElementMock(); firstText.nodeType = 3; firstText.textContent = "prefix First"; first.appendChild(firstText);
+    const secondText = new ElementMock(); secondText.nodeType = 3; secondText.textContent = "Second suffix"; second.appendChild(secondText);
     selected = { text: "First\n\nSecond", node: reverse ? secondText : firstText,
-      focus: reverse ? firstText : secondText, textNodes: [firstText, secondText] };
+      focus: reverse ? firstText : secondText, textNodes: [firstText, secondText], startOffset: 7, endOffset: 6 };
     doc.dispatchEvent(new Event("selectionchange"));
     vi.advanceTimersByTime(0);
     expect(display()).toBe("block");
     button("Translate")!.click();
     await flush();
-    expect(call.mock.calls[0]![0]).toMatchObject({ text: "First\n\nSecond" });
+    expect(call.mock.calls.map((args) => args[0].text)).toEqual(["First", "Second"]);
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("第一段\n\n第二段");
+    button("Copy translation")!.click();
+    expect(copy).toHaveBeenCalledWith("第一段\n\n第二段");
+    button("Show original")!.click();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("First\n\nSecond");
+    button("Copy original")!.click();
+    expect(copy).toHaveBeenCalledWith("First\n\nSecond");
   });
 
   it("rejects a cross-block selection containing host text", () => {
@@ -217,8 +224,20 @@ describe("selection bar Translate", () => {
     expect(display()).toBe("none");
   });
 
+  it("preserves browser-rendered spaces and line breaks inside each block", async () => {
+    call.mockResolvedValueOnce(done("一")).mockResolvedValueOnce(done("二"));
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope); const second = surface(scope);
+    const text = (parent: ElementMock, value: string) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = value; parent.appendChild(node); return node; };
+    const a = text(first, "Hi  🌍"); const b = text(second, "line one\nline two");
+    selected = { text: "Hi 🌍\n\nline one\nline two", node: a, focus: b, textNodes: [a, b] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    button("Translate")!.click(); await flush();
+    expect(call.mock.calls.map((args) => args[0].text)).toEqual(["Hi 🌍", "line one\nline two"]);
+  });
+
   it("ignores unselectable interface text between selected prose and code", async () => {
-    call.mockResolvedValue(done("译文"));
+    call.mockResolvedValueOnce(done("正文")).mockResolvedValueOnce(done("代码"));
     const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
     const first = surface(scope); const second = surface({ ...scope, kind: "tool_output" });
     second.parentElement!.dataset.bccode = "";
@@ -228,7 +247,10 @@ describe("selection bar Translate", () => {
     selected = { text: "text\ntext", node: a, focus: b, textNodes: [a, ignored, b] };
     doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
     button("Translate")!.click(); await flush();
-    expect(call.mock.calls[0]![0]).toMatchObject({ text: "text\ntext", sourceKind: "assistant_message" });
+    expect(call.mock.calls.map((args) => ({ text: args[0].text, sourceKind: args[0].sourceKind }))).toEqual([
+      { text: "text", sourceKind: "assistant_message" }, { text: "text", sourceKind: "tool_output" },
+    ]);
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("正文\n\n代码");
   });
 
   it.each(["conversation", "host"])("rejects selections across a different %s", (difference) => {
@@ -254,7 +276,88 @@ describe("selection bar Translate", () => {
     bindSelectionScopeElement(first.parentElement!, { ...scope, streaming: false, lent: lent(call) });
     await flush(); expect(call).not.toHaveBeenCalled();
     bindSelectionScopeElement(second.parentElement!, { ...scope, streaming: false, lent: lent(call) });
-    await flush(); expect(call).toHaveBeenCalledOnce();
+    await flush(); expect(call).toHaveBeenCalledTimes(2);
+  });
+
+  it("retains completed blocks and retries only the failed block", async () => {
+    call.mockResolvedValueOnce(done("第一段")).mockRejectedValueOnce(new Error("quota")).mockResolvedValueOnce(done("第二段"));
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope); const second = surface(scope);
+    const text = (parent: ElementMock, value: string) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = value; parent.appendChild(node); return node; };
+    const a = text(first, "First"); const b = text(second, "Second");
+    selected = { text: "First\n\nSecond", node: a, focus: b, textNodes: [a, b] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    button("Translate")!.click(); await flush();
+    expect(panel().textContent).toContain("第一段");
+    expect(panel().textContent).toContain("quota");
+    button("Retry")!.click(); await flush();
+    expect(call.mock.calls.map((args) => args[0].text)).toEqual(["First", "Second", "Second"]);
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("第一段\n\n第二段");
+  });
+
+  it("retries all blocks when a completed translation is retried", async () => {
+    call.mockResolvedValueOnce(done("一")).mockResolvedValueOnce(done("二"))
+      .mockResolvedValueOnce(done("壱")).mockResolvedValueOnce(done("弐"));
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope); const second = surface(scope);
+    const text = (parent: ElementMock, value: string) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = value; parent.appendChild(node); return node; };
+    const a = text(first, "First"); const b = text(second, "Second");
+    selected = { text: "First\n\nSecond", node: a, focus: b, textNodes: [a, b] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    button("Translate")!.click(); await flush();
+    button("Retry")!.click(); await flush();
+    expect(call.mock.calls.map((args) => args[0].text)).toEqual(["First", "Second", "First", "Second"]);
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("壱\n\n弐");
+  });
+
+  it("keeps identical blocks separate while retrying", async () => {
+    call.mockResolvedValueOnce(done("一")).mockResolvedValueOnce(done("二"))
+      .mockResolvedValueOnce(done("壱")).mockResolvedValueOnce(done("弐"));
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope); const second = surface(scope);
+    const text = (parent: ElementMock) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = "Same"; parent.appendChild(node); return node; };
+    const a = text(first); const b = text(second);
+    selected = { text: "Same\n\nSame", node: a, focus: b, textNodes: [a, b] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    button("Translate")!.click(); await flush();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("一\n\n二");
+    button("Retry")!.click(); await flush();
+    expect(call).toHaveBeenCalledTimes(4);
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("壱\n\n弐");
+  });
+
+  it("shows completed blocks before the next block finishes", async () => {
+    let finish!: (value: unknown) => void;
+    call.mockResolvedValueOnce(done("第一段")).mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope); const second = surface(scope);
+    const text = (parent: ElementMock, value: string) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = value; parent.appendChild(node); return node; };
+    const a = text(first, "First"); const b = text(second, "Second");
+    selected = { text: "First\n\nSecond", node: a, focus: b, textNodes: [a, b] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    button("Translate")!.click(); await flush();
+    expect(call.mock.calls.map((args) => args[0].text)).toEqual(["First", "Second"]);
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("第一段");
+    await act(async () => finish(done("第二段"))); await flush();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("第一段\n\n第二段");
+  });
+
+  it("retries every stale block only after the reader asks", async () => {
+    call.mockResolvedValueOnce(done("一")).mockResolvedValueOnce(done("二"))
+      .mockResolvedValueOnce(done("壱")).mockResolvedValueOnce(done("弐"));
+    const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
+    const first = surface(scope); const second = surface(scope);
+    const text = (parent: ElementMock, value: string) => { const node = new ElementMock(); node.nodeType = 3; node.textContent = value; parent.appendChild(node); return node; };
+    const a = text(first, "First"); const b = text(second, "Second");
+    selected = { text: "First\n\nSecond", node: a, focus: b, textNodes: [a, b] };
+    doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
+    button("Translate")!.click(); await flush();
+    expect(call).toHaveBeenCalledTimes(2);
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "codex", model: "gpt-5", targetLanguage: "ja" }, "changed");
+    await flush(); expect(call).toHaveBeenCalledTimes(2);
+    button("Retry")!.click(); await flush();
+    expect(call.mock.calls.map((args) => args[0].text)).toEqual(["First", "Second", "First", "Second"]);
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("壱\n\n弐");
   });
   it("offers copy and translate in a details sidebar and restores Add to chat in the conversation", () => {
     const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
