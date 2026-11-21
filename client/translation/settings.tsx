@@ -10,6 +10,7 @@ import {
   type TimelineTranslationSettings,
   type ThinkingOptionInfo,
   describeTranslationLimitation,
+  savedThinkingStale,
 } from "../../shared/timeline-translation";
 import { ModelSettingsControls } from "../model-settings-controls";
 import { providerBrand } from "../components/provider-logo";
@@ -381,6 +382,13 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   // A provider the host no longer lists offers none of its cached models; the saved model only names the control.
   const models = catalog.providers.includes(activeProvider) ? catalog.modelsByProvider[activeProvider] ?? [] : [];
   const selectedModel = models.find((m) => m.id === settings.model);
+  // The same rule translation applies before sending: a stale saved level it would use.
+  const staleThinking = Boolean(selectedModel) && savedThinkingStale({
+    customModel: settings.customModel,
+    disableThinking: settings.disableThinking,
+    thinkingOptionId: settings.thinkingOptionId,
+    offeredIds: selectedModel?.thinkingOptions.map((option) => option.id) ?? [],
+  });
   const thinkingStatus = describeThinkingStatus(settings, selectedModel, catalog.loading, lang);
 
   const writeDisabled = state.status !== "ready" || state.saving;
@@ -450,6 +458,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         <ModelSettingsControls look={look} language={lang} provider={settings.provider} model={settings.model} thinkingOptionId={settings.thinkingOptionId}
           disableThinking={settings.disableThinking} disabledThinkingLabel={t.disableThinkingTitle} disabled={controlsDisabled || switchingProvider} loading={catalog.loading}
           providers={catalog.providers} providerLabels={catalog.providerLabels} models={models} offerSavedChoices={false}
+          staleThinking={staleThinking}
           onProvider={(provider) => void selectProvider(provider)}
           onModel={(model) => void savePatch(modelSelection(models.find((entry) => entry.id === model), settings.thinkingOptionId))}
           onThinking={(thinkingOptionId) => void savePatch({ thinkingOptionId })} onRefresh={() => void loadModels(settings.provider)} />

@@ -8,8 +8,8 @@ import { ChoiceMenuSelect, type MenuChoice } from "./settings-choice-menu";
 import { SettingRow, type PageLook } from "./settings-controls";
 
 const WORDS = {
-  en: { provider: "Provider", model: "Model", thinking: "Thinking level", choose: "Choose…", modelDefault: "Model default", unsupported: "Not supported", refresh: "Refresh models", notRecommended: "Not recommended" },
-  zh: { provider: "Provider", model: "模型", thinking: "思考等级", choose: "请选择…", modelDefault: "模型默认", unsupported: "不支持", refresh: "刷新模型", notRecommended: "不推荐使用" },
+  en: { provider: "Provider", model: "Model", thinking: "Thinking level", choose: "Choose…", modelDefault: "Model default", unsupported: "Not supported", refresh: "Refresh models", notRecommended: "Not recommended", clearStale: "Clear saved level" },
+  zh: { provider: "Provider", model: "模型", thinking: "思考等级", choose: "请选择…", modelDefault: "模型默认", unsupported: "不支持", refresh: "刷新模型", notRecommended: "不推荐使用", clearStale: "清除已保存的等级" },
 };
 
 /**
@@ -17,11 +17,17 @@ const WORDS = {
  * catalog does not list. Off, a saved value still names its control but is
  * not a choice: the lists hold only what the catalog offers.
  */
-export function ModelSettingsControls({ look, language, provider, model, thinkingOptionId, disableThinking, disabledThinkingLabel, disabled, loading, providers, providerLabels, models, offerSavedChoices = true, onProvider, onModel, onThinking, onRefresh }: {
+export function ModelSettingsControls({ look, language, provider, model, thinkingOptionId, disableThinking, disabledThinkingLabel, disabled, loading, providers, providerLabels, models, offerSavedChoices = true, staleThinking = false, onProvider, onModel, onThinking, onRefresh }: {
   look: PageLook; language: "en" | "zh"; provider: string; model: string; thinkingOptionId: string;
   disableThinking: boolean; disabledThinkingLabel: string; disabled: boolean; loading: boolean;
   providers: string[]; providerLabels: Record<string, string>; models: ModelCatalog["models"];
   offerSavedChoices?: boolean;
+  /**
+   * The caller's verdict that the saved thinking option would be used but is no longer offered
+   * (translation: `savedThinkingStale`). It stays visible and can be cleared. Callers that pick
+   * the level themselves (title generation's automatic mode) leave this off.
+   */
+  staleThinking?: boolean;
   onProvider(value: string): void; onModel(value: string): void; onThinking(value: string): void; onRefresh(): void;
 }) {
   const words = WORDS[language];
@@ -39,9 +45,9 @@ export function ModelSettingsControls({ look, language, provider, model, thinkin
   const modelDefault = `${words.modelDefault}${selectedModel?.defaultThinkingOptionId ? ` · ${selectedModel.defaultThinkingOptionId}` : ""}`;
   const thinkingChoices: MenuChoice[] = [{ value: "", name: modelDefault, logo: null }, ...options.map((item) => ({ value: item.id, name: item.label, logo: null }))];
   const chosenThinking = thinkingChoices.find((item) => item.value === thinkingOptionId);
-  // A saved option the model no longer offers stays visible and can be cleared, even when the
-  // model offers none: translation refuses it rather than using the model default.
-  const staleThinking = Boolean(selectedModel && thinkingOptionId && !chosenThinking);
+  // Otherwise closed, the menu opens with only the way out: clearing the stale level.
+  const thinkingClosed = disableThinking || !options.length;
+  const staleChoices: MenuChoice[] = thinkingClosed ? [{ value: "", name: words.clearStale, logo: null }] : thinkingChoices;
   const thinkingLabel = staleThinking ? thinkingOptionId
     : disableThinking ? disabledThinkingLabel
       : selectedModel && !options.length ? words.unsupported
@@ -58,6 +64,6 @@ export function ModelSettingsControls({ look, language, provider, model, thinkin
       <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onRefresh} style={{ width: refreshSize, height: refreshSize, alignItems: "center", justifyContent: "center", opacity: blocked ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable>
       {menu(words.model, model, shownModel, modelChoices, (next) => { if (next !== model) onModel(next); }, !provider)}
     </View>} />
-    <SettingRow title={words.thinking} look={look} wrapControl disabled={disabled} control={menu(words.thinking, thinkingOptionId, { value: thinkingOptionId, name: thinkingLabel, logo: null }, thinkingChoices, onThinking, !staleThinking && (disableThinking || !options.length))} />
+    <SettingRow title={words.thinking} look={look} wrapControl disabled={disabled} control={menu(words.thinking, thinkingOptionId, { value: thinkingOptionId, name: thinkingLabel, logo: null }, staleThinking ? staleChoices : thinkingChoices, onThinking, !staleThinking && thinkingClosed)} />
   </>;
 }

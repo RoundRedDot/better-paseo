@@ -70,6 +70,24 @@ export function resolveThinkingCapability(
   return { status: "unsupported_off", options: list };
 }
 
+/**
+ * Whether translation would use the saved thinking option although the model no longer offers
+ * it. Translation refuses such a choice instead of falling back to the model default, and the
+ * settings let the user clear it. With an off option, "disable thinking" sends that option and
+ * never reads the saved one, so a stale saved option does not matter there.
+ */
+export function savedThinkingStale(input: {
+  customModel: boolean;
+  disableThinking: boolean;
+  thinkingOptionId: string;
+  offeredIds: readonly string[];
+}): boolean {
+  if (!input.customModel || !input.thinkingOptionId) return false;
+  if (input.offeredIds.includes(input.thinkingOptionId)) return false;
+  const capability = resolveThinkingCapability(input.offeredIds.map((id) => ({ id, label: id })));
+  return !(input.disableThinking && capability.status === "supported");
+}
+
 export const timelineTranslationSettingsSchema = z.object({
   enabled: z.boolean().catch(false),
   customModel: z.boolean().catch(false),

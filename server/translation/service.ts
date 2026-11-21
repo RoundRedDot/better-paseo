@@ -17,6 +17,7 @@ import {
 import {
   isRealThinkingOffId,
   resolveThinkingCapability,
+  savedThinkingStale,
   TIMELINE_TRANSLATION_SETTINGS,
   timelineTranslationSettingsSchema,
   translateTimelineItemRpc,
@@ -87,7 +88,10 @@ function resolveThinkingForTranslation(
   model: ProviderTextModel,
   original: PaseoAgentRefetchResult,
 ): { thinkingOptionId: string | undefined; thinkingMode: TranslationThinkingMode } {
-  // The host passes a thinking option on verbatim and refuses one the model does not offer.
+  // One rule for every mode: a saved option that would be used must still be offered.
+  if (savedThinkingStale({ ...config, offeredIds: model.thinkingOptionIds })) {
+    throw savedThinkingUnavailable(config.thinkingOptionId, model.id);
+  }
   const capability = resolveThinkingCapability(model.thinkingOptionIds.map((id) => ({ id, label: id })));
   if (config.disableThinking) {
     if (capability.status === "supported") {
@@ -98,9 +102,7 @@ function resolveThinkingForTranslation(
       const candidate = config.customModel
         ? config.thinkingOptionId
         : (original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId ?? "");
-      if (config.customModel && candidate && !capability.options.some((option) => option.id === candidate)) {
-        throw savedThinkingUnavailable(candidate, model.id);
-      }
+      // The conversation's own option is used only when the model offers it.
       const valid = candidate && capability.options.some((option) => option.id === candidate)
         ? candidate
         : undefined;
@@ -109,23 +111,23 @@ function resolveThinkingForTranslation(
     return { thinkingOptionId: undefined, thinkingMode: "none" };
   }
   if (capability.status === "none") {
-    // A saved choice is checked even when the model offers no options at all.
-    if (config.customModel && config.thinkingOptionId) throw savedThinkingUnavailable(config.thinkingOptionId, model.id);
     return { thinkingOptionId: undefined, thinkingMode: "none" };
   }
   if (config.customModel) {
-    // A saved choice the model no longer offers is not replaced by its default.
-    if (config.thinkingOptionId && !capability.options.some((option) => option.id === config.thinkingOptionId)) {
-      throw savedThinkingUnavailable(config.thinkingOptionId, model.id);
-    }
     const valid = config.thinkingOptionId || undefined;
     return {
       thinkingOptionId: valid,
       thinkingMode: valid && isRealThinkingOffId(valid) ? "disabled" : "custom",
     };
   }
-  // The conversation's own option, passed on as is; the host refuses it if the model lacks it.
+  // The conversation's own option, when the model offers it for translation. Otherwise this
+  // refuses here, before the text is sent, rather than after the host does.
   const inherited = original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId ?? undefined;
+  if (inherited && !model.thinkingOptionIds.includes(inherited)) {
+    throw new TranslationRefusal(
+      `The conversation's thinking option "${inherited}" is not offered by ${model.id} for translation. Turn on disabling thinking or choose a translation model in translation settings.`,
+    );
+  }
   return {
     thinkingOptionId: inherited || undefined,
     thinkingMode: inherited && isRealThinkingOffId(inherited) ? "disabled" : "inherited",

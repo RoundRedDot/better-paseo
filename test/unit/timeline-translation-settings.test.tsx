@@ -542,26 +542,56 @@ describe("timeline translation settings", () => {
     }
   });
 
-  it("lets a saved thinking option the model no longer offers be cleared, even when it offers none", async () => {
-    // Regression: with no options left, the menu was disabled and read "Not supported", so the
-    // saved choice that translation refuses could not be removed.
-    const onThinking = vi.fn();
+  describe("a saved thinking level the model no longer offers", () => {
     const noop = () => {};
-    await act(async () => {
-      renderer = TestRenderer.create(React.createElement(ModelSettingsControls, {
-        look: makeLook(), language: "en", provider: "opencode", model: "mock/mock-model", thinkingOptionId: "high", disableThinking: false,
-        disabledThinkingLabel: "", disabled: false, loading: false, providers: ["opencode"], providerLabels: {},
-        models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [], defaultThinkingOptionId: null }],
-        onProvider: noop, onModel: noop, onThinking, onRefresh: noop,
-      }));
+    const radios = () => renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel);
+    const thinkingTrigger = () => renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Thinking level");
+    function controls(props: { disableThinking: boolean; thinkingOptions: Array<{ id: string; label: string }>; staleThinking?: boolean; disabledThinkingLabel?: string; onThinking?: (value: string) => void }) {
+      return React.createElement(ModelSettingsControls, {
+        look: makeLook(), language: "en", provider: "opencode", model: "mock/mock-model", thinkingOptionId: "high",
+        disableThinking: props.disableThinking, disabledThinkingLabel: props.disabledThinkingLabel ?? "Disabled", disabled: false, loading: false,
+        providers: ["opencode"], providerLabels: {},
+        models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: props.thinkingOptions, defaultThinkingOptionId: null }],
+        staleThinking: props.staleThinking, onProvider: noop, onModel: noop, onThinking: props.onThinking ?? noop, onRefresh: noop,
+      });
+    }
+
+    it.each([false, true])("can only be cleared when the caller marks it stale (disableThinking=%s, no options)", async (disableThinking) => {
+      // Regression: with no options, or with thinking disabled, the menu stayed closed and the
+      // saved level translation refuses could not be removed.
+      const onThinking = vi.fn();
+      await act(async () => { renderer = TestRenderer.create(controls({ disableThinking, thinkingOptions: [], staleThinking: true, onThinking })); });
+      expect(thinkingTrigger().props.disabled).toBe(false);
+      expect(textValues(renderer!.root)).toContain("high");
+      await act(async () => { thinkingTrigger().props.onPress(); });
+      expect([...new Set(radios())]).toEqual(["Clear saved level"]);
+      const clear = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Clear saved level");
+      await act(async () => { clear.props.onPress(); });
+      expect(onThinking).toHaveBeenCalledWith("");
     });
-    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Thinking level");
-    expect(trigger.props.disabled).toBe(false);
-    expect(textValues(renderer!.root)).toContain("high");
-    await act(async () => { trigger.props.onPress(); });
-    const reset = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Model default");
-    await act(async () => { reset.props.onPress(); });
-    expect(onThinking).toHaveBeenCalledWith("");
+
+    it("keeps title generation's automatic level closed and labelled automatic", async () => {
+      // Regression: the shared control reopened the whole menu in automatic mode, where the
+      // title service picks the level itself and a chosen one would not apply.
+      await act(async () => { renderer = TestRenderer.create(controls({ disableThinking: true, thinkingOptions: [{ id: "low", label: "Low" }], disabledThinkingLabel: "Automatic" })); });
+      expect(thinkingTrigger().props.disabled).toBe(true);
+      expect(textValues(renderer!.root)).toContain("Automatic");
+      expect(textValues(renderer!.root)).not.toContain("high");
+    });
+
+    it.each([
+      { name: "is offered by nothing and would be used", disableThinking: true, thinkingOptions: [], stale: true },
+      { name: "would be used without an off option", disableThinking: true, thinkingOptions: [{ id: "low", label: "Low" }], stale: true },
+      { name: "is never read because thinking is disabled with an off option", disableThinking: true, thinkingOptions: [{ id: "off", label: "Off" }], stale: false },
+      { name: "would be used as the custom level", disableThinking: false, thinkingOptions: [{ id: "low", label: "Low" }], stale: true },
+    ])("is offered for clearing in translation settings only when it $name", async ({ disableThinking, thinkingOptions, stale }) => {
+      mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "mock/mock-model", thinkingOptionId: "high", disableThinking });
+      mocks.modelsRpc.mockReset().mockResolvedValue({ providers: ["opencode"], providerLabels: {}, models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions, defaultThinkingOptionId: null }],
+        error: null, reason: null, uncheckedProviders: [], limitations: [] });
+      await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+      expect(textValues(renderer!.root).includes("high")).toBe(stale);
+      expect(thinkingTrigger().props.disabled).toBe(!stale && disableThinking);
+    });
   });
 
   it("reads a provider's catalog again on the next visit after it failed", async () => {

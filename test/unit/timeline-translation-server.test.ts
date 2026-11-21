@@ -375,19 +375,80 @@ describe("timeline translation server service", () => {
     expect(env.captured.prompts[0]).toContain("Target language: Simplified Chinese / 简体中文 (zh-CN)\nSource kind:");
   });
 
-  it("passes the conversation's own thinking option on verbatim and reports the host refusing it", async () => {
+  it("refuses the conversation's thinking option before sending when the model does not offer it", async () => {
+    // Regression: the option went to the host, which refused it after the text had left the client.
     const env = createMockEnv({
       settings: { disableThinking: false },
       agentThinkingId: "default",
       thinkingOptions: [{ id: "low", label: "Low" }, { id: "high", label: "High" }],
-      answer: { status: "error", code: "thinking_option_unavailable", message: "mock/mock-model has no thinking option \"default\"", promptSent: "no" },
+    });
+    expect(await env.translator.check({ agentId: "source-agent-1", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo)).toEqual({
+      state: "error",
+      error: 'The conversation\'s thinking option "default" is not offered by mock/mock-model for translation. Turn on disabling thinking or choose a translation model in translation settings. The text was not sent.',
     });
     startJob(env, "job-inherit");
-    expect(await waitForJob(env.translator, env.paseo, "job-inherit")).toEqual({
-      state: "error",
-      error: "mock/mock-model has no thinking option \"default\". The text reached the plugin on your Paseo host but was not sent to the model.",
+    expect(await waitForJob(env.translator, env.paseo, "job-inherit")).toMatchObject({ state: "error" });
+    expect(env.captured.generateInputs).toHaveLength(0);
+  });
+
+  describe("thinking: every setting, model capability and saved state", () => {
+    const off = [{ id: "off", label: "Off" }, { id: "high", label: "High" }];
+    const noOff = [{ id: "low", label: "Low" }, { id: "high", label: "High" }];
+    const REFUSE = "refuse";
+    // [disableThinking, model options, saved option, expected thinking sent or REFUSE, mode]
+    const custom: Array<[boolean, Array<{ id: string; label: string }>, string, string | undefined, string]> = [
+      [true, off, "", "off", "disabled"],
+      [true, off, "high", "off", "disabled"],
+      [true, off, "max", "off", "disabled"],
+      [true, noOff, "", undefined, "unsupported_off"],
+      [true, noOff, "high", "high", "unsupported_off"],
+      [true, noOff, "max", REFUSE, ""],
+      [true, [], "", undefined, "none"],
+      [true, [], "high", REFUSE, ""],
+      [false, noOff, "", undefined, "custom"],
+      [false, noOff, "high", "high", "custom"],
+      [false, noOff, "max", REFUSE, ""],
+      [false, off, "off", "off", "disabled"],
+      [false, [], "", undefined, "none"],
+      [false, [], "high", REFUSE, ""],
+    ];
+    it.each(custom)("custom model, disableThinking=%s, options %j, saved %j → %s", async (disableThinking, thinkingOptions, saved, sent, mode) => {
+      const env = createMockEnv({
+        settings: { customModel: true, provider: "opencode", model: "mock/mock-model", disableThinking, thinkingOptionId: saved },
+        thinkingOptions,
+      });
+      const checked = await env.translator.check({ agentId: "source-agent-1", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo);
+      if (sent === REFUSE) {
+        expect(checked).toEqual({
+          state: "error",
+          error: `The saved thinking option "${saved}" is no longer offered by mock/mock-model. Choose another in translation settings. The text was not sent.`,
+        });
+        return;
+      }
+      expect(checked).toEqual({ state: "ready" });
+      const label = `matrix-${disableThinking}-${thinkingOptions.length}-${saved}`;
+      startJob(env, label);
+      expect(await waitForJob(env.translator, env.paseo, label)).toMatchObject({ state: "done", thinkingMode: mode, thinkingOptionId: sent ?? null });
+      expect(env.captured.generateInputs[0]?.thinkingOptionId).toBe(sent);
     });
-    expect(env.captured.generateInputs[0]!.thinkingOptionId).toBe("default");
+
+    // The conversation's own option (no custom model).
+    const inherited: Array<[boolean, Array<{ id: string; label: string }>, string | null, string | undefined, string]> = [
+      [true, off, "high", "off", "disabled"],
+      [true, noOff, "high", "high", "unsupported_off"],
+      [true, noOff, "max", undefined, "unsupported_off"],
+      [true, [], "high", undefined, "none"],
+      [false, noOff, "high", "high", "inherited"],
+      [false, noOff, null, undefined, "inherited"],
+      [false, [], "high", undefined, "none"],
+    ];
+    it.each(inherited)("conversation option, disableThinking=%s, options %j, conversation %j → %s", async (disableThinking, thinkingOptions, agentThinkingId, sent, mode) => {
+      const env = createMockEnv({ settings: { disableThinking }, thinkingOptions, agentThinkingId });
+      const label = `inherit-${disableThinking}-${thinkingOptions.length}-${agentThinkingId}`;
+      startJob(env, label);
+      expect(await waitForJob(env.translator, env.paseo, label)).toMatchObject({ state: "done", thinkingMode: mode, thinkingOptionId: sent ?? null });
+      expect(env.captured.generateInputs[0]?.thinkingOptionId).toBe(sent);
+    });
   });
 
   it("rejects translation when disabled in settings", async () => {
