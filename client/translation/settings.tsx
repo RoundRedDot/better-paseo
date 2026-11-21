@@ -167,7 +167,7 @@ const STRINGS = {
     targetPlaceholder: "Search language or code...",
     targetEmpty: "No matching language",
     customModelTitle: "Choose provider and model",
-    customModelDescription: "Off uses the current conversation's provider and model.",
+    customModelDescription: "Off uses the current conversation's provider and model. Either way, translation runs only on a provider that Paseo can run with no tools; the list shows only those.",
     disableThinkingTitle: "Disable thinking when supported",
     disableThinkingDescription: "Applies only when the model exposes a genuine off, none, or disabled option.",
     promptTitle: "Translation prompt",
@@ -189,7 +189,7 @@ const STRINGS = {
       },
       {
         label: "Privacy",
-        text: "Only the selected text, the target language, and the translation prompt are sent.",
+        text: "Translate sends the selected text or reply, the target language, and the translation prompt to the translation provider through a helper agent that Paseo runs with no tools. When Paseo or the provider cannot confirm that, nothing is sent and an error is shown.",
       },
       {
         label: "Session cache",
@@ -206,7 +206,7 @@ const STRINGS = {
     targetPlaceholder: "搜索语言名称或代码...",
     targetEmpty: "没有匹配的语言",
     customModelTitle: "指定 Provider 与模型",
-    customModelDescription: "关闭时复用当前会话正在使用的 Provider 与模型。",
+    customModelDescription: "关闭时复用当前会话正在使用的 Provider 与模型。两种方式都只在 Paseo 能以无工具方式运行的 Provider 上翻译，列表只显示这些 Provider。",
     disableThinkingTitle: "支持时关闭思考",
     disableThinkingDescription: "仅在模型明确支持 off / none / disabled 选项时生效，不静默降档。",
     promptTitle: "翻译 Prompt",
@@ -228,7 +228,7 @@ const STRINGS = {
       },
       {
         label: "隐私保护",
-        text: "仅将选中的文本、目标语言与翻译提示词发送给翻译模型。",
+        text: "点击「翻译」时，把选中的文本或整条回复、目标语言与翻译 Prompt 发给翻译所用的 Provider，由 Paseo 以不带任何工具的辅助 agent 运行。Paseo 或 Provider 无法确认这一点时，不发送任何内容并显示错误。",
       },
       {
         label: "会话缓存",

@@ -411,6 +411,19 @@ describe("timeline translation settings", () => {
       n.props.accessibilityLabel?.startsWith("Cursor")).length).toBeGreaterThan(0);
   });
 
+  it("shows why the provider list is empty on a Paseo without tool-free agents", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "", model: "" });
+    const error = "Translation needs a Paseo version that runs helper agents with no tools. This Paseo does not report that support.";
+    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    expect(textValues(renderer!.root)).toContain(error);
+    expect(textValues(renderer!.root).some((text) => text.includes("the list shows only those"))).toBe(true);
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    await act(async () => { trigger.props.onPress(); });
+    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio")).toHaveLength(0);
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+  });
+
   it("reads a provider's catalog again on the next visit after it failed", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
     const good = await mocks.modelsRpc({ provider: "claude" });
