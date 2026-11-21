@@ -172,8 +172,19 @@ export const translateTimelineItemRpc = defineRpc({
 
 export type TranslateTimelineItemInput = z.output<typeof translateTimelineItemRpc.input>;
 
+/**
+ * The translation catalog: `reason` says why it is empty when that is not the host's complete
+ * answer, and `uncheckedProviders` lists providers whose check failed, so the list may be missing
+ * them.
+ */
+export const translationCatalogSchema = modelCatalogSchema.extend({
+  reason: z.enum(["host_unsupported", "check_failed"]).nullable().default(null),
+  uncheckedProviders: z.array(z.string()).default([]),
+});
+export type TranslationCatalog = z.output<typeof translationCatalogSchema>;
+
 export const translationModelsRpc = defineRpc({
   name: "translation.models",
   input: z.object({ provider: z.string() }),
-  output: modelCatalogSchema,
+  output: translationCatalogSchema,
 });

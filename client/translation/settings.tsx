@@ -44,6 +44,10 @@ export interface TranslationCatalogState {
   modelsByProvider: Record<string, TranslationModelEntry[]>;
   /** A catalog read has answered: an empty provider list is the host's answer, not a pending one. */
   loaded: boolean;
+  /** Why an empty list is not the host's complete answer. */
+  reason: "host_unsupported" | "check_failed" | null;
+  /** Providers whose check failed; the list may be missing them. */
+  uncheckedProviders: string[];
   loading: boolean;
   error: string | null;
 }
@@ -53,11 +57,15 @@ let catalogCache: {
   providerLabels: Record<string, string>;
   modelsByProvider: Record<string, TranslationModelEntry[]>;
   loaded: boolean;
+  reason: TranslationCatalogState["reason"];
+  uncheckedProviders: string[];
 } = {
   providers: [],
   providerLabels: {},
   modelsByProvider: {},
   loaded: false,
+  reason: null,
+  uncheckedProviders: [],
 };
 
 /** The latest catalog read of any settings page: only it writes the cache and the shown state. */
@@ -70,6 +78,8 @@ export function resetTranslationSettingsCatalogForTests(): void {
     providerLabels: {},
     modelsByProvider: {},
     loaded: false,
+    reason: null,
+    uncheckedProviders: [],
   };
 }
 
@@ -175,6 +185,8 @@ const STRINGS = {
     customModelTitle: "Choose provider and model",
     customModelDescription: "Off uses the current conversation's provider and model. Either way, translation runs only on a provider that Paseo can run in one request with no tools; the list shows only those.",
     noToolFreeProviders: "No provider on this Paseo can translate with no tools, so there is nothing to choose and nothing is sent. The saved choice is kept.",
+    hostUnsupported: "This Paseo cannot generate text with no tools, so translation is unavailable. Update Paseo. The saved choice is kept.",
+    checkFailed: (names: string) => `Paseo could not check ${names} for translation with no tools, so the list may be incomplete. Refresh to try again.`,
     savedProviderNotToolFree: (name: string) => `The saved provider ${name} cannot translate with no tools on this Paseo. It stays saved; choose another provider from the list.`,
     disableThinkingTitle: "Disable thinking when supported",
     disableThinkingDescription: "Applies only when the model exposes a genuine off, none, or disabled option.",
@@ -216,6 +228,8 @@ const STRINGS = {
     customModelTitle: "指定 Provider 与模型",
     customModelDescription: "关闭时复用当前会话正在使用的 Provider 与模型。两种方式都只在 Paseo 能以单次、无工具请求运行的 Provider 上翻译，列表只显示这些 Provider。",
     noToolFreeProviders: "当前没有能以无工具方式翻译的 Provider，所以没有可选项，也不会发送任何内容。已保存的选择保持不变。",
+    hostUnsupported: "当前 Paseo 不能以无工具方式生成文本，翻译不可用。请更新 Paseo。已保存的选择保持不变。",
+    checkFailed: (names: string) => `Paseo 未能检查 ${names} 是否支持无工具翻译，列表可能不完整。请刷新重试。`,
     savedProviderNotToolFree: (name: string) => `已保存的 Provider「${name}」在当前 Paseo 上不能以无工具方式翻译，保存值保持不变。请从列表中选择其他 Provider。`,
     disableThinkingTitle: "支持时关闭思考",
     disableThinkingDescription: "仅在模型明确支持 off / none / disabled 选项时生效，不静默降档。",
@@ -293,6 +307,8 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
         modelsByProvider: nextModelsByProvider,
         loaded: true,
+        reason: res.reason ?? null,
+        uncheckedProviders: res.uncheckedProviders ?? [],
       };
       setCatalog({ ...catalogCache, loading: false, error: res.error });
       return res.error ? null : { read, models: res.models };
@@ -342,10 +358,18 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
 
   // The list holds only providers this host runs with no tools; a saved one outside it stays saved.
   const answered = catalog.loaded && !catalog.loading;
-  const catalogNotice = answered && catalog.providers.length === 0 ? t.noToolFreeProviders
-    : answered && settings.provider && !catalog.providers.includes(settings.provider)
-      ? t.savedProviderNotToolFree(catalog.providerLabels[settings.provider] || providerBrand(settings.provider).displayName)
-      : catalog.error;
+  // A failed or refused check comes first: an empty list is the host's answer only without one.
+  const providerName = (id: string) => catalog.providerLabels[id] || providerBrand(id).displayName;
+  const catalogNotice = catalog.reason === "host_unsupported" ? t.hostUnsupported
+    : catalog.reason === "check_failed" ? t.checkFailed(catalog.uncheckedProviders.map(providerName).join(", "))
+      : answered && catalog.providers.length === 0 && !catalog.error ? t.noToolFreeProviders
+        : answered && settings.provider && !catalog.providers.includes(settings.provider)
+          ? t.savedProviderNotToolFree(providerName(settings.provider))
+          : catalog.error;
+  // Some providers could not be checked while others were: the list shown may be missing them.
+  const partialNotice = !catalog.reason && catalog.uncheckedProviders.length > 0
+    ? t.checkFailed(catalog.uncheckedProviders.map(providerName).join(", "))
+    : null;
   const activeProvider = settings.provider || catalog.providers[0] || "";
   // A provider the host no longer lists offers none of its cached models; the saved model only names the control.
   const models = catalog.providers.includes(activeProvider) ? catalog.modelsByProvider[activeProvider] ?? [] : [];
@@ -423,6 +447,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
           onModel={(model) => void savePatch(modelSelection(models.find((entry) => entry.id === model), settings.thinkingOptionId))}
           onThinking={(thinkingOptionId) => void savePatch({ thinkingOptionId })} onRefresh={() => void loadModels(settings.provider)} />
         {catalogNotice ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={catalogNotice} tone="danger" alert /></View> : null}
+        {partialNotice ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={partialNotice} tone="danger" alert /></View> : null}
       </> : null}
 
       <SettingRow

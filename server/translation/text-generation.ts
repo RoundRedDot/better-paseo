@@ -1,5 +1,5 @@
 import type { PaseoApi } from "../paseo-types";
-import type { ModelCatalog } from "../../shared/model-catalog";
+import type { TranslationCatalog } from "../../shared/timeline-translation";
 
 /**
  * Translation sends text only through the host's one-shot text generation
@@ -71,6 +71,10 @@ export function providerTextApi(paseo: PaseoApi): ProviderTextApi | null {
 export const HOST_UNSUPPORTED =
   "Translation needs a Paseo version that can generate text with no tools. This Paseo does not provide it, so nothing was sent.";
 
+function checkFailed(providers: readonly string[]): string {
+  return `Paseo could not check ${providers.join(", ")} for translation with no tools. The list may be incomplete; refresh to try again.`;
+}
+
 /** A refusal before anything was sent: the message says so. */
 export class TranslationRefusal extends Error {
   constructor(message: string) {
@@ -133,34 +137,37 @@ export function requireReadyProvider(entries: readonly SnapshotEntry[], provider
  * report one-shot text generation on this host, with the models it can use.
  * Title generation keeps reading `readModelCatalog`.
  */
-export async function readTranslationModelCatalog(paseo: PaseoApi, provider: string): Promise<ModelCatalog> {
-  const none = { providers: [], providerLabels: {}, models: [] };
+export async function readTranslationModelCatalog(paseo: PaseoApi, provider: string): Promise<TranslationCatalog> {
+  const none = { providers: [], providerLabels: {}, models: [], reason: null, uncheckedProviders: [] };
   const api = providerTextApi(paseo);
-  if (!api) return { ...none, error: HOST_UNSUPPORTED };
+  if (!api) return { ...none, error: HOST_UNSUPPORTED, reason: "host_unsupported" };
   const snapshot = await paseo.providers.snapshot();
   const enabled = (snapshot.entries as readonly SnapshotEntry[]).filter((entry) => entry.enabled);
-  let capabilities: ProviderTextCapability[];
-  try {
-    capabilities = await Promise.all(enabled.map((entry) => api.getTextCapability(entry.provider)));
-  } catch {
-    return { ...none, error: HOST_UNSUPPORTED };
-  }
+  // Each provider is checked on its own: one failed check neither hides the others nor reads as
+  // "no provider qualifies".
+  const settled = await Promise.allSettled(enabled.map((entry) => api.getTextCapability(entry.provider)));
+  const capabilities: ProviderTextCapability[] = [];
+  const unchecked: string[] = [];
+  settled.forEach((result, index) => {
+    if (result.status === "fulfilled") capabilities.push(result.value);
+    else unchecked.push(enabled[index]!.provider);
+  });
   const supported = capabilities.filter((capability) => capability.supported);
   const providers = supported.map((capability) => capability.provider);
   const providerLabels = Object.fromEntries(
     enabled.flatMap((entry) => entry.label && providers.includes(entry.provider) ? [[entry.provider, entry.label]] : []),
   );
-  if (supported.length === 0) {
-    const reasons = [...new Set(capabilities.map((capability) => capability.error?.code).filter(Boolean))];
-    const why = reasons.includes("isolation_unverified")
-      ? " Paseo cannot yet run a provider for translation without loading your OpenCode plugins and MCP servers."
-      : "";
-    return { ...none, error: `No provider on this Paseo can translate with no tools.${why}` };
-  }
+  const partial = { uncheckedProviders: unchecked };
+  if (unchecked.length > 0 && supported.length === 0)
+    return { ...none, ...partial, error: checkFailed(unchecked), reason: "check_failed" };
+  // A complete answer with no qualifying provider is not an error; the settings say so.
+  if (supported.length === 0) return { ...none, error: null };
   const selected = supported.find((capability) => capability.provider === provider);
   if (provider && !selected) {
+    if (unchecked.includes(provider))
+      return { providers, providerLabels, models: [], ...partial, error: checkFailed([provider]), reason: "check_failed" };
     const refused = capabilities.find((capability) => capability.provider === provider);
-    return { providers, providerLabels, models: [], error: `${refusalReason(provider, refused?.error ?? null)}. Choose another provider.` };
+    return { providers, providerLabels, models: [], ...partial, reason: null, error: `${refusalReason(provider, refused?.error ?? null)}. Choose another provider.` };
   }
   return {
     providers,
@@ -172,5 +179,7 @@ export async function readTranslationModelCatalog(paseo: PaseoApi, provider: str
       defaultThinkingOptionId: null,
     })),
     error: null,
+    reason: null,
+    ...partial,
   };
 }

@@ -33,7 +33,7 @@ describe("translation model catalog", () => {
     const paseo = { providers: { snapshot: async () => ({ entries }), listModels } } as unknown as PaseoApi;
     const result = await catalogHandler()({ provider: "deepseek" }, { paseo });
     expect(result).toEqual({
-      providers: [], providerLabels: {}, models: [],
+      providers: [], providerLabels: {}, models: [], uncheckedProviders: [], reason: "host_unsupported",
       error: "Translation needs a Paseo version that can generate text with no tools. This Paseo does not provide it, so nothing was sent.",
     });
     expect(listModels).not.toHaveBeenCalled();
@@ -47,7 +47,7 @@ describe("translation model catalog", () => {
       providers: ["opencode"],
       providerLabels: { opencode: "OpenCode" },
       models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [{ id: "off", label: "off" }, { id: "high", label: "high" }], defaultThinkingOptionId: null }],
-      error: null,
+      error: null, reason: null, uncheckedProviders: [],
     });
     // Disabled providers are not probed.
     expect(getTextCapability.mock.calls.map(([provider]) => provider)).toEqual(["opencode", "deepseek"]);
@@ -61,12 +61,32 @@ describe("translation model catalog", () => {
     });
   });
 
-  it("says when no provider qualifies because Paseo cannot isolate OpenCode", async () => {
+  it("reports a complete answer with no qualifying provider as no error", async () => {
     const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
       getTextCapability: async (provider: string) => capability(provider, false, provider === "opencode" ? "isolation_unverified" : "unsupported") } } as unknown as PaseoApi;
     expect(await catalogHandler()({ provider: "" }, { paseo })).toEqual({
-      providers: [], providerLabels: {}, models: [],
-      error: "No provider on this Paseo can translate with no tools. Paseo cannot yet run a provider for translation without loading your OpenCode plugins and MCP servers.",
+      providers: [], providerLabels: {}, models: [], error: null, reason: null, uncheckedProviders: [],
+    });
+  });
+
+  it("keeps the providers that answered when another check fails, and names the failed one", async () => {
+    // Regression: one failed check discarded every result and read as "no provider".
+    const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+      getTextCapability: async (provider: string) => {
+        if (provider === "deepseek") throw new Error("connection lost");
+        return capability(provider, true);
+      } } } as unknown as PaseoApi;
+    expect(await catalogHandler()({ provider: "opencode" }, { paseo })).toMatchObject({
+      providers: ["opencode"], models: [{ id: "mock/mock-model" }], error: null, reason: null, uncheckedProviders: ["deepseek"],
+    });
+  });
+
+  it("says the list could not be checked when every check fails, instead of no provider", async () => {
+    const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+      getTextCapability: async () => { throw new Error("connection lost"); } } } as unknown as PaseoApi;
+    expect(await catalogHandler()({ provider: "" }, { paseo })).toMatchObject({
+      providers: [], reason: "check_failed", uncheckedProviders: ["opencode", "deepseek"],
+      error: expect.stringContaining("could not check opencode, deepseek"),
     });
   });
 });

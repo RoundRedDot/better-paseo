@@ -414,23 +414,41 @@ describe("timeline translation settings", () => {
 
   it("shows why the provider list is empty on a Paseo without one-shot text generation", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "", model: "" });
-    const error = "Translation needs a Paseo version that runs helper agents with no tools. This Paseo does not report that support.";
-    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error });
+    const error = "Translation needs a Paseo version that can generate text with no tools. This Paseo does not provide it, so nothing was sent.";
+    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error, reason: "host_unsupported", uncheckedProviders: [] });
     await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    // The host's English reason gives way to the page's own, localized notice.
-    expect(textValues(renderer!.root)).not.toContain(error);
-    expect(textValues(renderer!.root)).toContain("No provider on this Paseo can translate with no tools, so there is nothing to choose and nothing is sent. The saved choice is kept.");
-    expect(textValues(renderer!.root).some((text) => text.includes("the list shows only those"))).toBe(true);
+    // The host's reason, localized, instead of claiming no provider qualifies.
+    expect(textValues(renderer!.root)).toContain("This Paseo cannot generate text with no tools, so translation is unavailable. Update Paseo. The saved choice is kept.");
+    expect(textValues(renderer!.root)).not.toContain("No provider on this Paseo can translate with no tools, so there is nothing to choose and nothing is sent. The saved choice is kept.");
     const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
     await act(async () => { trigger.props.onPress(); });
     expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio")).toHaveLength(0);
     expect(mocks.saveSpy).not.toHaveBeenCalled();
   });
 
+  it("says the provider check failed instead of claiming no provider qualifies", async () => {
+    // Regression: a failed check read as "no provider on this Paseo can translate".
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "", model: "" });
+    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error: "Paseo could not check opencode", reason: "check_failed", uncheckedProviders: ["opencode"] });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    expect(textValues(renderer!.root)).toContain("Paseo could not check OpenCode for translation with no tools, so the list may be incomplete. Refresh to try again.");
+    expect(textValues(renderer!.root)).not.toContain("No provider on this Paseo can translate with no tools, so there is nothing to choose and nothing is sent. The saved choice is kept.");
+  });
+
+  it("keeps the providers that answered and names the ones that could not be checked", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "" });
+    mocks.modelsRpc.mockResolvedValue({ providers: ["claude"], providerLabels: { claude: "Claude" }, models: [], error: null, reason: null, uncheckedProviders: ["opencode"] });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    expect(textValues(renderer!.root)).toContain("Paseo could not check OpenCode for translation with no tools, so the list may be incomplete. Refresh to try again.");
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    await act(async () => { trigger.props.onPress(); });
+    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel)).toContain("Claude");
+  });
+
   it.each(["en", "zh"] as const)("lists no provider and says why when this Paseo runs none with no tools, keeping the saved one (%s)", async (lang) => {
     updateEnhancerPreferences({ language: lang });
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "high" });
-    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error: "Translation needs a Paseo version that runs helper agents with no tools. This Paseo does not report that support." });
+    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error: null, reason: null, uncheckedProviders: [] });
     await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(false, lang) })); });
     const texts = () => textValues(renderer!.root);
     // The saved provider still names the control, but is not a choice.

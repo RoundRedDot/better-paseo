@@ -14,7 +14,8 @@ describe("shared model catalog", () => {
     ] }));
     const paseo = { providers: { snapshot: async () => ({ entries: [{ provider: "claude", label: "Claude", enabled: true }, { provider: "disabled", enabled: false }] }), listModels } } as unknown as PaseoApi;
     const catalog = await readModelCatalog(paseo, "claude");
-    expect(titleModelsRpc.output.parse(catalog)).toEqual(translationModelsRpc.output.parse(catalog));
+    // The translation catalog adds its own fields to the shared contract.
+    expect(translationModelsRpc.output.parse(catalog)).toMatchObject(titleModelsRpc.output.parse(catalog));
     expect(catalog.providers).toEqual(["claude"]);
     expect(catalog.models.map((model) => model.id)).toEqual(["first", "second"]);
     expect(modelSelection(catalog.models[0], "high")).toEqual({ model: "first", thinkingOptionId: "high" });
