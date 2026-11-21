@@ -7,6 +7,7 @@
  * - `ask`        request a tool permission and wait for the answer
  * - `wait`       stay running until stopped
  * - `fail`       end the turn failed
+ * - `translation-test-echo`  echo the test prompt in the reply
  *
  * Anything else (or nothing) ends the turn at once. Only type imports, so the
  * plugin installs from its directory with no build.
@@ -67,7 +68,8 @@ async function prompt(input: Extract<ProviderInput, { type: "session.prompt" }>,
       emit({ type: "session.permission_resolved", sessionId, permissionId: id });
     }
   }
-  if (!abort.signal.aborted) emit({ type: "timeline.item", sessionId, item: { type: "assistant_message", id: `${turnId}-reply`, text: failed ? "failing" : "done" } });
+  const reply = text.includes("translation-test-echo") ? text : "done";
+  if (!abort.signal.aborted) emit({ type: "timeline.item", sessionId, item: { type: "assistant_message", id: `${turnId}-reply`, text: failed ? "failing" : reply } });
   const state = abort.signal.aborted ? "canceled" : failed ? "failed" : "completed";
   emit({ type: "session.turn", sessionId, turnId, state, ...(failed ? { error: { message: failed } } : null) });
   if (session.abort === abort) session.abort = null;

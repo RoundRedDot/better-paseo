@@ -1,8 +1,0 @@
-{
-  "name": "bp-tool-free-probe",
-  "version": "0.1.0",
-  "private": true,
-  "description": "TEST ONLY Paseo plugin: attaches a logging stdio MCP server to agents opened in a directory that asks for it, for Better Paseo's tool-free translation integration tests",
-  "license": "MIT",
-  "type": "module"
-}
