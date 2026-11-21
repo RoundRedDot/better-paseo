@@ -26,12 +26,12 @@ import { timelineTranslationSettingsSchema, translationConfigSignature } from ".
 
 const probeRpc = defineRpc({
   name: "probe.translate",
-  input: z.object({ agentId: z.string(), provider: z.string(), model: z.string(), text: z.string(), cancelAfterMs: z.number().optional() }),
+  input: z.object({ agentId: z.string(), provider: z.string(), model: z.string(), text: z.string() }),
   output: z.unknown(),
 });
 
 export default function contribute(server: PluginServerContext) {
-  const stop: unknown = server.handle(probeRpc, async ({ agentId, provider, model, text, cancelAfterMs }, { paseo }) => {
+  const stop: unknown = server.handle(probeRpc, async ({ agentId, provider, model, text }, { paseo }) => {
     const values = timelineTranslationSettingsSchema.parse({ enabled: true, customModel: true, provider, model, prompt: "Translate." });
     const translator = createTimelineTranslator({
       settings: { id: "timeline-translation", read: async () => ({ status: "ready", values, revision: "it" }) } as never,
@@ -45,7 +45,6 @@ export default function contribute(server: PluginServerContext) {
     if (checked.state !== "ready") return { state: checked, started: false, hostHasTextApi };
     const started = translator.request({ action: "start", agentId, text, sourceKind: "assistant_message", interfaceLanguage: "en", configSignature }, paseo);
     const handle = started.state === "running" ? started.handle ?? "" : "";
-    if (cancelAfterMs !== undefined) setTimeout(() => translator.request({ action: "cancel", handle }, paseo), cancelAfterMs);
     const deadline = Date.now() + 60_000;
     let state = translator.request({ action: "status", handle }, paseo);
     while (state.state === "running" && Date.now() < deadline) {

@@ -3,7 +3,9 @@
  * Better Paseo's translation service runs inside the daemon (the
  * `translation-route` test plugin), so it gets the host's own `paseo` API, as
  * the installed plugin does. Translation must never create a helper agent or
- * workspace, and must refuse unless the host reports a tool-free route.
+ * workspace, and must refuse unless the host reports a tool-free route. The probe RPC carries the
+ * text, so a refusal here shows the service stops, not that the client never sent the text; that
+ * is `translation-formal-rpc.test.ts`.
  */
 import fs from "node:fs";
 import os from "node:os";
