@@ -32,10 +32,29 @@ function cliEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
-export async function paseo(args: string[], timeoutMs = 120_000): Promise<string> {
+/** The only variables a clean CLI call keeps from this process; `HOME` passes through unchanged. */
+export const CLEAN_ENV_KEYS = ["PATH", "USER", "TMPDIR", "LANG", "HOME"] as const;
+
+/**
+ * A clean CLI environment: `CLEAN_ENV_KEYS` as `source` (this process) has
+ * them, plus `extra`. Nothing else is inherited, so no provider key, token, proxy or
+ * Paseo variable reaches the CLI or the daemon it starts.
+ */
+export function cleanCliEnv(extra: Record<string, string> = {}, source: NodeJS.ProcessEnv = process.env): NodeJS.ProcessEnv {
+  const env: NodeJS.ProcessEnv = {};
+  for (const key of CLEAN_ENV_KEYS) if (source[key] !== undefined) env[key] = source[key];
+  return { ...env, ...extra };
+}
+
+/**
+ * `env` adds variables for this call only and may not replace `HOME`.
+ * `clean` starts from `cleanCliEnv` instead of this process's environment.
+ */
+export async function paseo(args: string[], timeoutMs = 120_000, env: Record<string, string> = {}, clean = false): Promise<string> {
+  if ("HOME" in env) throw new Error("A private daemon keeps the real HOME; isolate tools with their own variables");
   const bin = paseoBin();
   if (!bin) throw new Error("No Paseo CLI: install Paseo.app or set PASEO_BIN");
-  const { stdout } = await run(bin, args, { env: cliEnv(), timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 });
+  const { stdout } = await run(bin, args, { env: clean ? cleanCliEnv(env) : { ...cliEnv(), ...env }, timeout: timeoutMs, maxBuffer: 64 * 1024 * 1024 });
   return stdout;
 }
 
@@ -105,14 +124,26 @@ export async function installDirectoryPlugin(daemon: PrivateDaemon, dir: string,
   throw new Error(`provider ${providerId} never became available`);
 }
 
-export async function createPrivateDaemon(options: { home?: string; port?: number } = {}): Promise<PrivateDaemon> {
+/**
+ * `config` adds top-level keys to the new home's `config.json` (its `daemon`
+ * merges into the listen settings); `env` is passed to `daemon start`, so the
+ * daemon and its providers run with it; `cleanEnv` starts the daemon from
+ * `cleanCliEnv` plus `env` instead of this process's environment. All are
+ * opt-in: without them the daemon starts as before.
+ */
+export async function createPrivateDaemon(options: { home?: string; port?: number; config?: Record<string, unknown>; env?: Record<string, string>; cleanEnv?: boolean } = {}): Promise<PrivateDaemon> {
   const home = options.home ?? fs.mkdtempSync(path.join(os.tmpdir(), "bp-it-home-"));
   const port = options.port ?? (await freePort());
   const host = `127.0.0.1:${port}`;
   fs.mkdirSync(home, { recursive: true });
   const configPath = path.join(home, "config.json");
   if (!fs.existsSync(configPath)) {
-    fs.writeFileSync(configPath, JSON.stringify({ version: 1, daemon: { listen: host, mcp: { injectIntoAgents: false } } }, null, 2));
+    const { daemon: daemonConfig, ...rest } = options.config ?? {};
+    fs.writeFileSync(configPath, JSON.stringify({
+      version: 1,
+      ...rest,
+      daemon: { listen: host, mcp: { injectIntoAgents: false }, ...(daemonConfig as Record<string, unknown> | undefined) },
+    }, null, 2));
   }
   let running = false;
   const daemon: PrivateDaemon = {
@@ -138,12 +169,12 @@ export async function createPrivateDaemon(options: { home?: string; port?: numbe
       fs.writeFileSync(path.join(dir, `${record.id}.json`), JSON.stringify(full));
     },
     async start() {
-      await paseo(["daemon", "start", "--home", home, "--timeout", "120"], 180_000);
+      await paseo(["daemon", "start", "--home", home, "--timeout", "120"], 180_000, options.env, options.cleanEnv);
       running = true;
     },
     async stop() {
       if (!running) return;
-      await paseo(["daemon", "stop", "--home", home], 60_000).catch(() => "");
+      await paseo(["daemon", "stop", "--home", home], 60_000, {}, options.cleanEnv).catch(() => "");
       running = false;
     },
     async restart() {

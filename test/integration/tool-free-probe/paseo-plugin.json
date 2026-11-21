@@ -1,0 +1,6 @@
+{
+  "id": "bp-tool-free-probe",
+  "requirements": {
+    "paseo": ">=0.14.0"
+  }
+}
