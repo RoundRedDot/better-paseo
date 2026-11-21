@@ -23,6 +23,7 @@ describe("path press shell command", () => {
       expect(shellOpenCommand("darwin", target, entry)).toEqual({ command: "open", args: ["-R", target] });
     }
     expect(launches("/repo/bin", folder)).toBe(false);
+    expect(shellOpenCommand("darwin", "/repo/notes.md", folder, "/repo/Tool.app")).toEqual({ command: "open", args: ["-R", "/repo/notes.md"] });
   });
 
   it("keeps the file manager on Windows and the containing directory elsewhere", () => {

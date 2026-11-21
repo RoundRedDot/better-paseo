@@ -23,20 +23,22 @@ export function launches(target: string, entry: PathEntry, platform = process.pl
 /**
  * The platform shell command for a path press. macOS opens a file in its
  * default app and a folder in Finder, but only reveals anything that would
- * launch. Windows Explorer selects the file; every other platform opens the
- * containing directory, because `xdg-open` on a file launches its editor.
+ * launch, judged by the link and by its resolved `realTarget`. Windows
+ * Explorer selects the file; every other platform opens the containing
+ * directory, because `xdg-open` on a file launches its editor.
  */
 export function shellOpenCommand(
   platform: NodeJS.Platform,
   target: string,
   entry: PathEntry,
+  realTarget = target,
 ): { command: string; args: string[]; windowsVerbatimArguments?: boolean } {
   const isDirectory = entry.isDirectory();
   if (platform === "win32") {
     return { command: "explorer.exe", args: isDirectory ? [target] : [`/select,${target}`], windowsVerbatimArguments: true };
   }
   if (platform === "darwin") {
-    return { command: "open", args: launches(target, entry) ? ["-R", target] : [target] };
+    return { command: "open", args: launches(target, entry) || launches(realTarget, entry) ? ["-R", target] : [target] };
   }
   return { command: "xdg-open", args: [isDirectory ? target : dirname(target)] };
 }

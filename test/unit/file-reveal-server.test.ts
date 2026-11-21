@@ -1,4 +1,4 @@
-import { chmod, mkdtemp, rm, writeFile } from "node:fs/promises";
+import { chmod, mkdir, mkdtemp, rm, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
@@ -37,6 +37,13 @@ beforeAll(async () => {
   await writeFile(join(root, "run"), "#!/bin/sh\n");
   await writeFile(join(root, "setup.exe"), "fixture\n");
   await chmod(join(root, "run"), 0o755);
+  await mkdir(join(root, "Tool.app"));
+  await writeFile(join(root, "tool.jar"), "fixture\n");
+  await mkdir(join(root, "src"));
+  await symlink("Tool.app", join(root, "app-link.md"));
+  await symlink("tool.jar", join(root, "jar-link.md"));
+  await symlink("run", join(root, "run-link.md"));
+  await symlink("src", join(root, "src-link"));
 });
 
 afterAll(async () => {
@@ -78,6 +85,26 @@ describe("file.reveal on macOS", () => {
     await expect(reveal({ cwd: root, path: "missing.md" })).resolves.toMatchObject({ revealed: null });
     expect(spawn).toHaveBeenCalledTimes(3);
   }, 30_000);
+
+  it("reveals a link whose target would launch, whatever the link is named", async () => {
+    spawn.mockClear();
+    const reveal = await revealHandler();
+    for (const link of ["app-link.md", "jar-link.md", "run-link.md"]) {
+      await expect(reveal({ cwd: root, path: link })).resolves.toMatchObject({ error: null });
+      expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, link)], expect.anything());
+    }
+    await reveal({ cwd: root, path: "src-link" });
+    expect(spawn).toHaveBeenLastCalledWith("open", [join(root, "src-link")], expect.anything());
+    settings.app = "zed";
+    editorCommand.mockClear();
+    try {
+      await reveal({ cwd: root, path: "jar-link.md" });
+      expect(spawn).toHaveBeenLastCalledWith("open", ["-R", join(root, "jar-link.md")], expect.anything());
+      expect(editorCommand).not.toHaveBeenCalled();
+    } finally {
+      settings.app = "system";
+    }
+  });
 
   it("opens in the selected editor and reports an unavailable editor", async () => {
     spawn.mockClear();
