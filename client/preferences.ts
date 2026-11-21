@@ -148,6 +148,11 @@ export interface EnhancerPreferences {
    */
   selectionActions: boolean;
   /**
+   * iOS and Android: a table cell's text selects like prose, with a cursor and
+   * handles. The hold and double tap that select cells are off then.
+   */
+  tableTextSelection: boolean;
+  /**
    * The plugin's own markdown rendering for assistant replies. Off hands the
    * turn back to Paseo's renderer, which is the safety valve: the plugin
    * cannot import the host markdown pipeline, so its version is a reasonable
@@ -240,6 +245,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   timelineLevel: "standard",
   enhancedUserBubble: false,
   selectionActions: true,
+  tableTextSelection: false,
   assistantMarkdown: true,
   liveUiReplies: false,
   markdownVariant: "document",

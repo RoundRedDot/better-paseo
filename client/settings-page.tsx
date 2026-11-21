@@ -1209,6 +1209,21 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           stacked
           disabled={!preferences.assistantMarkdown}
         />
+        <SettingRow
+          title={t.tableTextTitle}
+          description={t.tableTextDescription}
+          control={
+            <Toggle
+              value={preferences.tableTextSelection}
+              onChange={(tableTextSelection) => updateEnhancerPreferences({ tableTextSelection })}
+              label={t.tableTextTitle}
+              look={look}
+              disabled={!preferences.assistantMarkdown}
+            />
+          }
+          look={look}
+          disabled={!preferences.assistantMarkdown}
+        />
         {native ? null : (
           <SettingRow
             title={t.selectionTitle}
