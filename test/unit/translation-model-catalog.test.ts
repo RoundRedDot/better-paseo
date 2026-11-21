@@ -81,6 +81,24 @@ describe("translation model catalog", () => {
     });
   });
 
+  it.each(["timeout", "generation_failed", "provider_unavailable", "some_future_code"])(
+    "counts a check the host answered as failed (%s) as unchecked, not as no provider",
+    async (code) => {
+      // Regression: the host reports a capability timeout or internal error as a normal
+      // {supported:false,error} answer, which read as "checked, not supported".
+      const partial = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+        getTextCapability: async (provider: string) => provider === "deepseek" ? capability(provider, false, code) : capability(provider, true) } } as unknown as PaseoApi;
+      expect(await catalogHandler()({ provider: "opencode" }, { paseo: partial })).toMatchObject({
+        providers: ["opencode"], models: [{ id: "mock/mock-model" }], error: null, reason: null, uncheckedProviders: ["deepseek"],
+      });
+      const none = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
+        getTextCapability: async (provider: string) => capability(provider, false, code) } } as unknown as PaseoApi;
+      expect(await catalogHandler()({ provider: "" }, { paseo: none })).toMatchObject({
+        providers: [], reason: "check_failed", uncheckedProviders: ["opencode", "deepseek"],
+      });
+    },
+  );
+
   it("says the list could not be checked when every check fails, instead of no provider", async () => {
     const paseo = { providers: { snapshot: async () => ({ entries }), generateText: vi.fn(),
       getTextCapability: async () => { throw new Error("connection lost"); } } } as unknown as PaseoApi;

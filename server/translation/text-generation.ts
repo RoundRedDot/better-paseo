@@ -103,6 +103,19 @@ function refusalReason(provider: string, error: ProviderTextError | null): strin
   }
 }
 
+/** Codes that say the provider cannot do this here, as opposed to a check that could not finish. */
+const DEFINITE_REFUSAL_CODES: ReadonlySet<string> = new Set([
+  "unsupported",
+  "isolation_unverified",
+  "version_unsupported",
+  "route_unverified",
+  "remote_server_refused",
+]);
+
+function isDefiniteRefusal(error: ProviderTextError | null): boolean {
+  return error !== null && DEFINITE_REFUSAL_CODES.has(error.code);
+}
+
 /** The provider's capability, or a refusal that says nothing was sent. */
 export async function requireTextCapability(api: ProviderTextApi, provider: string): Promise<ProviderTextCapability> {
   let capability: ProviderTextCapability;
@@ -155,7 +168,10 @@ export async function readTranslationModelCatalog(paseo: PaseoApi, provider: str
   const capabilities: ProviderTextCapability[] = [];
   const unchecked: string[] = [];
   settled.forEach((result, index) => {
-    if (result.status === "fulfilled") capabilities.push(result.value);
+    // The host also answers a check that timed out or failed as {supported:false}; only a
+    // definite refusal counts as checked.
+    if (result.status === "fulfilled" && (result.value.supported || isDefiniteRefusal(result.value.error)))
+      capabilities.push(result.value);
     else unchecked.push(enabled[index]!.provider);
   });
   const supported = capabilities.filter((capability) => capability.supported);
