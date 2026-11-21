@@ -951,7 +951,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
       </Section>
 
       {/* Translation also serves the Tasks board, which does not depend on the chat switch. */}
-      {!translationTarget ? <TimelineTranslationSettings look={look} /> : null}
+      {!translationTarget ? <TimelineTranslationSettings look={look} hostId={host.id} /> : null}
 
       <Section title={t.sectionAppearance} look={look}>
         <SettingRow
@@ -1373,7 +1373,7 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
         ) : null}
       </View>
 
-      {tab === "display" && translationTarget ? <TimelineTranslationSettings look={look} /> : null}
+      {tab === "display" && translationTarget ? <TimelineTranslationSettings look={look} hostId={host.id} /> : null}
       {tab === "version" ? (
         <VersionSection key={host.id} look={look} language={resolveLanguage(preferences.language)} version={version} autoUpdateCheck={preferences.autoUpdateCheck} native={native} agents={agents} host={host} knownUpdate={knownUpdate} />
       ) : tab === "tasks" ? (

@@ -617,6 +617,38 @@ describe("timeline translation settings", () => {
     expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Claude Opus 4.1").length).toBeGreaterThan(0);
   });
 
+  it("checks the host again when the page reopens, so a provider the host dropped is no longer offered", async () => {
+    // Regression: a reopened page reused the cached catalog and skipped the read.
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "mock/mock-model" });
+    const offered = { providers: ["opencode"], providerLabels: {}, models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [], defaultThinkingOptionId: null }],
+      error: null, reason: null, uncheckedProviders: [], limitations: ["prompt_sent_to_configured_gateway"] };
+    mocks.modelsRpc.mockReset().mockResolvedValueOnce(offered)
+      .mockResolvedValue({ providers: [], providerLabels: {}, models: [], error: null, reason: null, uncheckedProviders: [], limitations: [] });
+    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-a" });
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    expect(textValues(renderer!.root)).toContain("The text goes from your Paseo host to the gateway this provider is configured for.");
+    act(() => renderer!.unmount());
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    expect(mocks.modelsRpc).toHaveBeenCalledTimes(2);
+    expect(textValues(renderer!.root)).not.toContain("The text goes from your Paseo host to the gateway this provider is configured for.");
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
+    await act(async () => { trigger.props.onPress(); });
+    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Mock")).toHaveLength(0);
+  });
+
+  it("never shows one host's cached providers on another host's page", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "mock/mock-model" });
+    mocks.modelsRpc.mockReset().mockResolvedValueOnce({ providers: ["opencode"], providerLabels: { opencode: "Host A Gateway" },
+      models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [], defaultThinkingOptionId: null }], error: null, reason: null, uncheckedProviders: [], limitations: [] })
+      .mockImplementation(() => new Promise(() => {}));
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-a" })); });
+    expect(textValues(renderer!.root)).toContain("Host A Gateway");
+    act(() => renderer!.unmount());
+    // Host B's read has not answered: its page shows nothing of host A's.
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-b" })); });
+    expect(textValues(renderer!.root)).not.toContain("Host A Gateway");
+  });
+
   it("keeps the newest catalog when an earlier page's read answers after a later page's", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
     const good = await mocks.modelsRpc({ provider: "claude" });
@@ -633,7 +665,8 @@ describe("timeline translation settings", () => {
     act(() => renderer!.unmount());
     await act(async () => { answerFirst(older); });
     await act(async () => { renderer = TestRenderer.create(page()); });
-    expect(mocks.modelsRpc).toHaveBeenCalledTimes(2);
+    // Every page checks the host again when it opens.
+    expect(mocks.modelsRpc).toHaveBeenCalledTimes(3);
     const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
     await act(async () => { trigger.props.onPress(); });
     const radio = (label: string) => renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === label).length;

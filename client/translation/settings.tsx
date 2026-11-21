@@ -56,7 +56,7 @@ export interface TranslationCatalogState {
   error: string | null;
 }
 
-let catalogCache: {
+interface CatalogCache {
   providers: string[];
   providerLabels: Record<string, string>;
   modelsByProvider: Record<string, TranslationModelEntry[]>;
@@ -64,7 +64,9 @@ let catalogCache: {
   reason: TranslationCatalogState["reason"];
   uncheckedProviders: string[];
   limitations: string[];
-} = {
+}
+
+const EMPTY_CATALOG: CatalogCache = {
   providers: [],
   providerLabels: {},
   modelsByProvider: {},
@@ -74,20 +76,15 @@ let catalogCache: {
   limitations: [],
 };
 
+/** Each host's last answer, shown while its page checks again: one host's list never shows on another's. */
+const catalogCaches = new Map<string, CatalogCache>();
+
 /** The latest catalog read of any settings page: only it writes the cache and the shown state. */
 let latestCatalogRead = 0;
 
 export function resetTranslationSettingsCatalogForTests(): void {
   latestCatalogRead = 0;
-  catalogCache = {
-    providers: [],
-    providerLabels: {},
-    modelsByProvider: {},
-    loaded: false,
-    reason: null,
-    uncheckedProviders: [],
-    limitations: [],
-  };
+  catalogCaches.clear();
 }
 
 export interface ThinkingStatusDescription {
@@ -269,7 +266,7 @@ const STRINGS = {
   },
 } as const;
 
-export function TimelineTranslationSettings({ look }: { look: PageLook }) {
+export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageLook; hostId?: string }) {
   const { tokens } = look;
   const preferences = useEnhancerPreferences();
   const lang = resolveLanguage(preferences.language);
@@ -285,7 +282,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
   useTranslationSettingsReport(state);
 
   const [catalog, setCatalog] = useState<TranslationCatalogState>(() => ({
-    ...catalogCache,
+    ...(catalogCaches.get(hostId) ?? EMPTY_CATALOG),
     loading: false,
     error: null,
   }));
@@ -305,11 +302,12 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     try {
       const res = await fetchModels({ provider });
       if (!committedSettings.current || read !== latestCatalogRead) return null;
+      const catalogCache = catalogCaches.get(hostId) ?? EMPTY_CATALOG;
       const nextModelsByProvider = { ...catalogCache.modelsByProvider };
       // The provider snapshot succeeds independently of the model lookup.
       // A model error must not be cached as an empty catalog.
       if (provider && !res.error) nextModelsByProvider[provider] = res.models;
-      catalogCache = {
+      const nextCache: CatalogCache = {
         providers: res.providers,
         providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
         modelsByProvider: nextModelsByProvider,
@@ -318,7 +316,8 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         uncheckedProviders: res.uncheckedProviders ?? [],
         limitations: res.limitations ?? [],
       };
-      setCatalog({ ...catalogCache, loading: false, error: res.error });
+      catalogCaches.set(hostId, nextCache);
+      setCatalog({ ...nextCache, loading: false, error: res.error });
       return res.error ? null : { read, models: res.models };
     } catch (error) {
       if (committedSettings.current && read === latestCatalogRead) {
@@ -330,15 +329,20 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
       }
       return null;
     }
-  }, [fetchModels]);
+  }, [fetchModels, hostId]);
 
+  // Each page checks the host again once when it opens: the host may have dropped a provider or
+  // changed its models since the cached answer. Later provider changes read only what is missing.
+  const checkedOnOpen = useRef(false);
   useEffect(() => {
     if (state.status !== "ready" || !settings.customModel) return;
     const activeProvider = settings.provider;
-    if (catalogCache.providers.length === 0 || (activeProvider && !catalogCache.modelsByProvider[activeProvider])) {
+    const cached = catalogCaches.get(hostId) ?? EMPTY_CATALOG;
+    if (!checkedOnOpen.current || cached.providers.length === 0 || (activeProvider && !cached.modelsByProvider[activeProvider])) {
+      checkedOnOpen.current = true;
       void loadModels(activeProvider);
     }
-  }, [state.status, settings.customModel, settings.provider, loadModels]);
+  }, [state.status, settings.customModel, settings.provider, loadModels, hostId]);
 
   const savePatch = useCallback(async (patch: Partial<TimelineTranslationSettings>) => {
     if (state.status !== "ready") return;
