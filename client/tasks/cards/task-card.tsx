@@ -90,7 +90,7 @@ export interface CardCallbacks {
   /** Unarchive an archived task, if the daemon's CLI is reachable (as for Stop). */
   onUnarchive?(agentId: string): void;
   /** Archive a done task, as Paseo's own Archive does. */
-  onArchive?(agentId: string): void;
+  onArchive?(agentId: string, scope?: "self" | "tree"): void;
   onPermission?(card: TaskCard, button: PermissionButton): void;
   /** Request the details sheet or sidebar. */
   onDetails?(card: TaskCard): void;
@@ -641,6 +641,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A pointer's press shows at once; a finger's after a still 100 ms, and a scroll or the host's pan clears it.
   const cardPress = usePressCue(hovered);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [archiveMenuOpen, setArchiveMenuOpen] = useState(false);
   const [stopAll, setStopAll] = useState(false);
   // Standalone previews own their state; board cards and motion copies share the board's.
   const [localExpanded, setLocalExpanded] = useState(false);
@@ -746,7 +747,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   // A done task can be archived from its card, before Open tab.
   const canArchive = card.lane === "done" && !card.archived && !!props.onArchive;
   const archivePending = props.archivePending === true;
-  const showArchive = canArchive && !compact && (TOUCH || hovered || archivePending);
+  const showArchive = canArchive && !compact && (TOUCH || hovered || archivePending || archiveMenuOpen);
   const showControl = showStop || showRead || showUnread || showOpen || showUnarchive || showArchive;
   const reducedMotion = useReducedMotion();
   const controlLeaving = useLeaving(showControl && !TOUCH, reducedMotion ? 0 : STOP_EXIT_MS);
@@ -824,7 +825,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
     borderColor: issue ? "transparent" : borderColor,
     backgroundColor: issue ? "transparent" : background,
     boxShadow: issue ? "none" : shadow,
-    zIndex: menuOpen || searchOpen ? 30 : hovered || cornerOpen ? 2 : 1,
+    zIndex: menuOpen || archiveMenuOpen || searchOpen ? 30 : hovered || cornerOpen ? 2 : 1,
     // Both Tab and composite navigation use the same outline. Unlike the
     // hover shadow it changes at once, so a departing focus cannot linger.
     ...(WEB ? { outlineStyle: props.focused && !issue ? "solid" : undefined, outlineWidth: 1, outlineColor: tokens.foregroundMuted, outlineOffset: 2 } : null),
@@ -1343,7 +1344,15 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
       testID="task-card-unread"
     />
   );
-  const archiveButton = (onPhone: boolean, hug = false) => (
+  const archiveChildren = card.children.filter((child) => child.kind !== "provider");
+  const archiveButton = (onPhone: boolean, hug = false) => archiveChildren.length > 0 ? (
+    <ArchiveSplitControl tokens={tokens} strings={strings} pending={archivePending} disabled={!!taskOperationIssue(card, "archive")}
+      compact={onPhone} hug={hug} line={buttonHeight} menuOpen={archiveMenuOpen} count={archiveChildren.length} theme={theme}
+      menuLeft={canOpen} hint={hint("action-archive", () => strings.details.archive)}
+      onToggleMenu={() => setArchiveMenuOpen((open) => !open)} onCloseMenu={() => setArchiveMenuOpen(false)}
+      onPick={(scope) => { setArchiveMenuOpen(false); props.onArchive?.(card.id, scope); }}
+      closeMenuLabel={toolbarLabel("Close menu", language)} />
+  ) : (
     <CardButton
       label={strings.details.archive}
       look="archive"
@@ -2522,6 +2531,222 @@ function StopControl(props: StopControlProps) {
           <View ref={stageRef} collapsable={false} testID="task-card-stop-menu-stage" onLayout={measureMenu} style={{ flex: 1 }}>
             <Pressable accessibilityLabel={props.closeMenuLabel} testID="task-card-stop-menu-backdrop" onPress={props.onCloseMenu} style={StyleSheet.absoluteFill} />
             <View accessibilityViewIsModal pointerEvents={menuOrigin ? "box-none" : "none"} testID="task-card-stop-menu-anchor"
+              style={{ position: "absolute", left: menuOrigin?.left ?? 0, top: menuOrigin?.top ?? 0, width: STOP_MENU_WIDTH, opacity: menuOrigin ? 1 : 0 }}>
+              {menu}
+            </View>
+          </View>
+        </Modal>
+      ) : null}
+    </Animated.View>
+  );
+}
+
+
+interface ArchiveSplitControlProps {
+  tokens: TaskTokens;
+  strings: ReturnType<typeof cardStrings>;
+  pending: boolean;
+  disabled: boolean;
+  compact: boolean;
+  hug?: boolean;
+  line: number;
+  menuOpen: boolean;
+  count: number;
+  theme: PluginTheme;
+  onToggleMenu(): void;
+  onCloseMenu(): void;
+  onPick(scope: "self" | "tree"): void;
+  closeMenuLabel: string;
+  menuLeft?: boolean;
+  hint?: string;
+}
+
+function ArchiveSplitControl(props: ArchiveSplitControlProps) {
+  const { tokens, strings, compact } = props;
+  const scale = useTasksFontScale();
+  const stopping = props.pending || props.disabled;
+  const archiveHover = useHover();
+  const chevronHover = useHover();
+  const pillHovered = archiveHover.hovered || chevronHover.hovered;
+  const pulse = useLiftPress(pillHovered, "control", !stopping);
+  const anchorRef = useRef<View>(null);
+  const menuRef = useRef<View>(null);
+  const stageRef = useRef<View>(null);
+  const [menuOrigin, setMenuOrigin] = useState<{ left: number; top: number } | null>(null);
+  const archiveSections: MenuSection[] = [
+    {
+      key: "archive",
+      items: [
+        {
+          key: "only",
+          label: strings.archiveOnly,
+          icon: "Archive",
+          onSelect: () => props.onPick("self"),
+        },
+        {
+          key: "all",
+          label: strings.archiveWithChildren,
+          leading: <StopTreeGlyph tokens={tokens} color={tokens.card.archiveText} />,
+          hint: String(props.count),
+          onSelect: () => props.onPick("tree"),
+        },
+      ],
+    },
+  ];
+  const hue = buttonHue(tokens, "archive");
+  const color = hue.color;
+  const archiveLift = stopping ? surfaceLift(false, false) : surfaceLift(pillHovered, pulse.pressed, undefined, "control", pulse.input);
+  const baseHeight = compact ? COMPACT_CARD_BUTTON_HEIGHT : cardButtonHeight();
+  const height = taskControlHeight(baseHeight, scale);
+  const round = compact ? 7 : 6;
+  const iconSize = compact ? 14 : 13;
+  const label = strings.details.archive;
+  const chevronWidth = compact ? 36 : 26;
+  const fit = useActionFit(label, `${scale}|${useWindowDimensions().fontScale}`, baseHeight + chevronWidth, 2 * (compact ? 12 : 10) + iconSize + 4 + chevronWidth);
+  const segment: ViewStyle = {
+    ...(compact ? { minHeight: height, paddingVertical: 4 } : { height }),
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "center",
+    ...webTransition,
+  };
+  const menuHeight = layoutMenu(archiveSections, scale).height + 2 * StyleSheet.hairlineWidth;
+  useLayoutEffect(() => {
+    if (Platform.OS === "web" && props.menuOpen) {
+      return openToolbarDetailsLayer(menuRef.current, anchorRef.current, compact ? "above" : "below");
+    }
+  }, [props.menuOpen, compact, props.menuLeft, menuHeight]);
+  const measureMenu = () => {
+    stageRef.current?.measureInWindow((sx, sy, sw, sh) => {
+      anchorRef.current?.measureInWindow((x, y, width, anchorHeight) => {
+        const below = y - sy + anchorHeight + 4;
+        const above = y - sy - menuHeight - 6;
+        const preferred = compact || below + menuHeight > sh - 8 ? above : below;
+        setMenuOrigin({
+          left: Math.max(8, Math.min(x - sx + (props.menuLeft ? 0 : width - STOP_MENU_WIDTH), sw - STOP_MENU_WIDTH - 8)),
+          top: Math.max(8, Math.min(preferred, sh - menuHeight - 8)),
+        });
+      });
+    });
+  };
+  const menu = (
+    <CascadeMenu
+      sections={archiveSections}
+      theme={props.theme}
+      width={STOP_MENU_WIDTH}
+      top={Platform.OS === "web" && !compact ? 4 : 0}
+      align="left"
+      anchorRef={anchorRef}
+      onClose={props.onCloseMenu}
+      testID="task-card-archive-split-menu"
+    />
+  );
+  return (
+    <Animated.View
+      ref={anchorRef}
+      collapsable={false}
+      style={{
+        flexDirection: "row",
+        ...(compact ? { flexGrow: 1, flexShrink: 0, flexBasis: 0, minWidth: height, ...(props.hug ? { flexGrow: 0 } : null) } : { flexShrink: 0, height }),
+        alignSelf: "center",
+        marginVertical: compact ? 0 : (Math.round(props.line * scale) - height) / 2,
+        zIndex: 40,
+        borderRadius: round,
+        backgroundColor: "transparent",
+        ...pulse.style,
+        ...fit.style,
+        ...(compact && props.hug && !fit.iconOnly && fit.full !== null ? { width: fit.full } : null),
+      }}
+      testID="task-card-archive-split"
+    >
+      <Pressable
+        accessibilityRole="button"
+        accessibilityLabel={label}
+        accessibilityState={stopping ? { disabled: true, busy: props.pending } : undefined}
+        disabled={stopping}
+        onPress={pulse.guard(() => props.onPick("self"))}
+        onPressIn={pulse.onPressIn}
+        onPressOut={pulse.onPressOut}
+        onTouchStart={pulse.onTouchStart}
+        onTouchMove={pulse.onTouchMove}
+        onTouchEnd={pulse.onTouchEnd}
+        onTouchCancel={pulse.onTouchCancel}
+        {...archiveHover.hoverProps}
+        {...hintProps(fit.iconOnly ? props.hint : undefined)}
+        style={({ pressed }) => [
+          segment,
+          NO_BORDER,
+          {
+            flexGrow: 1, flexShrink: 0, flexBasis: "auto",
+            gap: 4,
+            paddingHorizontal: fit.iconOnly ? 0 : compact ? 12 : 10,
+            backgroundColor: "transparent",
+            overflow: "hidden",
+            borderTopLeftRadius: round,
+            borderBottomLeftRadius: round,
+            borderTopRightRadius: 0,
+            borderBottomRightRadius: 0,
+            opacity: stopping ? 0.6 : 1,
+          },
+        ]}
+      >
+        {props.pending ? (
+          <SpinnerRing size={iconSize} color={color} testID="task-card-archive-split-spinner" />
+        ) : (
+          <Icon name="Archive" size={iconSize} color={color} />
+        )}
+        {fit.iconOnly ? null : <Text onLayout={fit.labelLayout} numberOfLines={1} style={{ flexShrink: 0, ...fit.labelStyle, textAlign: "center", fontSize: F.sm, fontWeight: "500", color }}>
+          {label}
+        </Text>}
+      </Pressable>
+      <Pressable
+          accessibilityRole="button"
+          accessibilityLabel={strings.archiveOptions}
+          disabled={stopping}
+          onPress={pulse.guard(props.onToggleMenu)}
+          onPressIn={pulse.onPressIn}
+          onPressOut={pulse.onPressOut}
+          onTouchStart={pulse.onTouchStart}
+          onTouchMove={pulse.onTouchMove}
+          onTouchEnd={pulse.onTouchEnd}
+          onTouchCancel={pulse.onTouchCancel}
+          {...chevronHover.hoverProps}
+          style={({ pressed }) => [
+            segment,
+            {
+              width: compact ? 36 : 26,
+              backgroundColor: props.menuOpen ? hue.hover : "transparent",
+              overflow: "hidden",
+              borderTopRightRadius: round,
+              borderBottomRightRadius: round,
+              opacity: stopping ? 0.6 : 1,
+            },
+          ]}
+        >
+          <View
+            pointerEvents="none"
+            testID="task-card-archive-split-divider"
+            style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: BUTTON_LINE, backgroundColor: withAlpha(hue.border, 0.4) }}
+          />
+          <Icon name={compact ? "ChevronUp" : "ChevronDown"} size={compact ? 14 : 13} color={color} />
+        </Pressable>
+      <View
+          pointerEvents="none"
+          testID="task-card-archive-split-outline"
+          style={[StyleSheet.absoluteFill, liftedButtonOutline(tokens, hue.border, false, archiveLift), { borderRadius: round, opacity: stopping ? 0.6 : 1 }]}
+        />
+      {props.menuOpen ? Platform.OS === "web" ? (
+        <View ref={menuRef} collapsable={false} testID="task-card-archive-split-menu-layer"
+          style={{ position: "absolute", top: compact ? -(menuHeight + 6) : height,
+            ...(props.menuLeft ? { left: 0 } : { right: 0 }), width: STOP_MENU_WIDTH,
+            height: menuHeight + (compact ? 6 : 4), padding: 0 }}>
+          {menu}
+        </View>
+      ) : (
+        <Modal visible transparent animationType="none" statusBarTranslucent onShow={measureMenu} onRequestClose={props.onCloseMenu}>
+          <View ref={stageRef} collapsable={false} testID="task-card-archive-split-menu-stage" onLayout={measureMenu} style={{ flex: 1 }}>
+            <Pressable accessibilityLabel={props.closeMenuLabel} testID="task-card-archive-split-menu-backdrop" onPress={props.onCloseMenu} style={StyleSheet.absoluteFill} />
+            <View accessibilityViewIsModal pointerEvents={menuOrigin ? "box-none" : "none"} testID="task-card-archive-split-menu-anchor"
               style={{ position: "absolute", left: menuOrigin?.left ?? 0, top: menuOrigin?.top ?? 0, width: STOP_MENU_WIDTH, opacity: menuOrigin ? 1 : 0 }}>
               {menu}
             </View>

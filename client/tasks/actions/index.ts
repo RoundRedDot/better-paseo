@@ -8,6 +8,7 @@ import type { TaskCard, TaskPermission, TaskPermissionAction } from "../model";
 import { useTasksLanguage, type TasksLanguage } from "../i18n";
 import { confirmDialog } from "../../components/confirm-dialog";
 import { activeStopChildren, stopTargets } from "./stop-targets";
+import { archiveScope, type ArchiveScope } from "./archive-scope";
 
 /** One permission button the card draws. `open` jumps to the tab instead of answering. */
 export interface PermissionButton {
@@ -840,7 +841,7 @@ export function useUnarchiveControl(options: {
 export interface ArchiveControl {
   /** The request is out; the button spins and takes no second press. */
   pending(agentId: string): boolean;
-  press(agentId: string): void;
+  press(agentId: string, scope?: ArchiveScope): void;
 }
 
 /** The daemon archives at once; past this the request has failed. */
@@ -878,20 +879,45 @@ export function useArchiveControl(options: {
     setPendingIds(next);
   }, []);
 
-  const press = useCallback((agentId: string) => {
+  const press = useCallback((agentId: string, scope?: ArchiveScope) => {
     if (pendingRef.current.has(agentId)) return;
-    setPending(agentId, true);
     const zh = latest.current.language === "zh";
-    const timeoutMessage = zh ? "归档请求没有响应。" : "The archive request did not answer.";
-    void withTimeout(Promise.resolve().then(() => latest.current.paseo.agents.ref(agentId).archive()), ARCHIVE_TIMEOUT_MS, timeoutMessage)
-      .catch((error: unknown) => {
-        if (!mountedRef.current) return;
-        const detail = shortError(error);
-        latest.current.toast.error(zh ? `归档失败：${detail}` : `Could not archive: ${detail}`);
-      })
-      .finally(() => {
-        if (mountedRef.current) setPending(agentId, false);
+    const run = () => {
+      if (pendingRef.current.has(agentId)) return;
+      setPending(agentId, true);
+      const timeoutMessage = zh ? "归档请求没有响应。" : "The archive request did not answer.";
+      const progress = { detached: 0, archived: 0 };
+      const request = scope
+        ? archiveScope(latest.current.paseo, agentId, scope, progress)
+        : withTimeout(Promise.resolve().then(() => latest.current.paseo.agents.ref(agentId).archive()), ARCHIVE_TIMEOUT_MS, timeoutMessage);
+      void request
+        .catch((error: unknown) => {
+          if (!mountedRef.current) return;
+          const detail = shortError(error);
+          const partial = progress.detached || progress.archived
+            ? zh ? `已解除 ${progress.detached} 个关联，已归档 ${progress.archived} 个任务；请检查其余任务。` : `Detached ${progress.detached} and archived ${progress.archived}; check the remaining tasks.`
+            : "";
+          latest.current.toast.error(zh ? `归档失败：${detail}${partial}` : `Could not archive: ${detail}${partial ? ` ${partial}` : ""}`);
+        })
+        .finally(() => {
+          if (mountedRef.current) setPending(agentId, false);
+        });
+    };
+    if (scope !== "tree") {
+      run();
+      return;
+    }
+    const title = zh ? "归档所有子任务？" : "Archive all subtasks?";
+    const message = zh ? "当前卡片和所有子任务都会归档。运行中的子任务将被中断。" : "This task and all subtasks will be archived. Running subtasks will be interrupted.";
+    const confirmLabel = zh ? "归档全部" : "Archive all";
+    const cancelLabel = zh ? "取消" : "Cancel";
+    if (Platform.OS === "web") {
+      void confirmDialog({ title, message, confirmLabel, cancelLabel, destructive: true }).then((yes) => {
+        if (yes && mountedRef.current) run();
       });
+      return;
+    }
+    Alert.alert(title, message, [{ text: cancelLabel, style: "cancel" }, { text: confirmLabel, style: "destructive", onPress: run }]);
   }, [setPending]);
 
   const pending = useCallback((agentId: string) => pendingIds.has(agentId), [pendingIds]);

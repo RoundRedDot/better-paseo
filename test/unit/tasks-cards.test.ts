@@ -4873,6 +4873,20 @@ describe("overlays in the board's menu chrome", () => {
     }
   });
 
+  it.each([false, true])("offers scoped archive for a parent card (compact=%s)", async (compact) => {
+    const onArchive = vi.fn();
+    const card = { ...sample("sample-done"), children: sample("sample-running").children };
+    const tree = await render(cardElement(card, { compact, onArchive }));
+    await act(async () => byLabel(tree.root, "归档").props.onPress());
+    expect(onArchive).toHaveBeenCalledWith(card.id, "self");
+    await act(async () => byLabel(tree.root, "归档选项").props.onPress());
+    const menu = hostByTestId(tree.root, "task-card-archive-split-menu");
+    const rows = menu.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "menuitem");
+    expect(rows.map((row) => texts(row))).toEqual([["仅归档当前卡片"], ["同时归档所有子任务", "3"]]);
+    await act(async () => rows[1]!.props.onPress());
+    expect(onArchive).toHaveBeenLastCalledWith(card.id, "tree");
+  });
+
   it("opens the phone's stop menu in a native modal", async () => {
     const tree = await render(cardElement(sample("sample-running"), { compact: true, onStop: () => {} }));
     await act(async () => byLabel(tree.root, "停止选项").props.onPress());

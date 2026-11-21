@@ -869,9 +869,10 @@ describe("Tasks archive control", () => {
     renderer = null;
   });
 
-  async function mountArchive(archive: () => Promise<{ archivedAt: string }>) {
-    const ref = vi.fn(() => ({ archive }));
-    const paseo = { agents: { ref } } as unknown as Parameters<typeof useArchiveControl>[0]["paseo"];
+  async function mountArchive(archive: () => Promise<{ archivedAt: string }>, detach = vi.fn().mockResolvedValue(undefined)) {
+    const ref = vi.fn((_id: string) => ({ archive, detach }));
+    const list = vi.fn().mockResolvedValue({ entries: [{ agent: { id: "child", labels: { "paseo.parent-agent-id": "parent" } } }], pageInfo: { hasMore: false, nextCursor: null } });
+    const paseo = { agents: { ref, list } } as unknown as Parameters<typeof useArchiveControl>[0]["paseo"];
     let control: ArchiveControl | null = null;
     function Probe() {
       control = useArchiveControl({ paseo });
@@ -902,6 +903,40 @@ describe("Tasks archive control", () => {
     });
     expect(control().pending("done-1")).toBe(false);
     expect(mocks.toastError).not.toHaveBeenCalled();
+  });
+
+  it("detaches children before archiving only the parent on the existing host", async () => {
+    const archive = vi.fn().mockResolvedValue({ archivedAt: "now" });
+    const detach = vi.fn().mockResolvedValue(undefined);
+    const { control, ref } = await mountArchive(archive, detach);
+    await act(async () => { control().press("parent", "self"); for (let i = 0; i < 10; i++) await Promise.resolve(); });
+    expect(ref.mock.calls.map(([id]) => id)).toEqual(["child", "parent"]);
+    expect(detach).toHaveBeenCalledTimes(1);
+    expect(archive).toHaveBeenCalledTimes(1);
+  });
+
+  it("reports partial completion if the parent archive fails after detaching a child", async () => {
+    const archive = vi.fn().mockRejectedValue(new Error("socket closed"));
+    const detach = vi.fn().mockResolvedValue(undefined);
+    const { control } = await mountArchive(archive, detach);
+    await act(async () => { control().press("parent", "self"); for (let i = 0; i < 12; i++) await Promise.resolve(); });
+    expect(mocks.toastError).toHaveBeenLastCalledWith(expect.stringContaining("Detached 1 and archived 0"));
+    expect(control().pending("parent")).toBe(false);
+  });
+
+  it("asks before archiving all subtasks", async () => {
+    const archive = vi.fn().mockResolvedValue({ archivedAt: "now" });
+    mocks.platform.OS = "ios";
+    mocks.alert.mockReset();
+    const { control, ref } = await mountArchive(archive);
+    await act(async () => control().press("parent", "tree"));
+    expect(archive).not.toHaveBeenCalled();
+    expect(mocks.alert).toHaveBeenCalledWith(expect.any(String), expect.stringContaining("interrupted"), expect.any(Array));
+    const buttons = mocks.alert.mock.calls[0]![2] as { onPress?: () => void }[];
+    await act(async () => { buttons[1]!.onPress?.(); for (let i = 0; i < 10; i++) await Promise.resolve(); });
+    expect(ref.mock.calls.map(([id]) => id)).toEqual(["child", "parent"]);
+    expect(archive).toHaveBeenCalledTimes(2);
+    mocks.platform.OS = "web";
   });
 
   it("toasts a failed archive", async () => {

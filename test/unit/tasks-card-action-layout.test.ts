@@ -308,6 +308,17 @@ function unevenLines(frames: Map<ReactTestInstance, Frame>, bar: ReactTestInstan
   });
 }
 
+describe("phone archive split under native layout", () => {
+  it.each([240, 320, 390].flatMap((width) => [1, 1.4].flatMap((scale) => (["zh", "en"] as const).map((language) => [width, scale, language] as const))))(
+    "fits the archive and open controls at %ipt, scale %f, %s", async (width, textScale, language) => {
+      const card = { ...sample("sample-done"), children: sample("sample-running").children };
+      await act(async () => { renderer = TestRenderer.create(phoneCard(card, language, { onArchive() {}, onOpen() {}, onUnread() {} })); });
+      const frames = await settleHostLayout(row, { width, textScale });
+      expect(overflows(frames, textScale)).toEqual([]);
+    },
+  );
+});
+
 describe("phone card action bar under native (Yoga) layout", () => {
   it.each(WIDTHS.flatMap((width) => TEXT_SCALES.flatMap((scale) => (["zh", "en"] as const).map((language) => [width, scale, language] as const))))(
     "fits quick answers, View questions, Stop and Open at %ipt, scale %f, %s",

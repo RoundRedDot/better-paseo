@@ -540,7 +540,7 @@ export function useBoard(
       // A file the plugin keeps: not gated on the daemon, and not a blocked write.
       onUnread: (card) => latest.current.unread.press(card),
       onUnarchive: unarchiveAvailable ? (agentId) => write(agentId, "unarchive", () => latest.current.unarchive.press(agentId)) : undefined,
-      onArchive: (agentId) => write(agentId, "archive", () => latest.current.archive.press(agentId)),
+      onArchive: (agentId, scope) => write(agentId, "archive", () => latest.current.archive.press(agentId, scope)),
       onPermission: (card, button) => {
         if (button.kind === "question") {
           const current = cardById(card.id);
