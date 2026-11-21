@@ -193,6 +193,17 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
       expect(runtime.copyText).toHaveBeenCalledExactlyOnceWith(text);
       const translate = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.testID === "footer-translate");
       expect(translate).toHaveLength(1);
+      // Like every other footer item, Translate names itself on hover.
+      const texts = () => renderer.root.findAll((node) => String(node.type) === "Text").map((node) => [node.props.children].flat().join(""));
+      expect(texts()).not.toContain("Translate");
+      vi.useFakeTimers();
+      try {
+        act(() => translate[0]!.props.onHoverIn());
+        act(() => { vi.advanceTimersByTime(400); });
+        expect(texts()).toContain("Translate");
+        act(() => translate[0]!.props.onHoverOut());
+      } finally { vi.useRealTimers(); }
+      expect(texts()).not.toContain("Translate");
       expect(runtime.translate).not.toHaveBeenCalled();
       await act(async () => translate[0]!.props.onPress({ stopPropagation() {} }));
       expect(runtime.translate).toHaveBeenCalledOnce();
