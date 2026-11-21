@@ -105,16 +105,8 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
           height: FOOTER_HEIGHT,
           flexDirection: "row",
           alignItems: "center",
-          gap: space.xs,
           paddingHorizontal: space.xs,
           borderRadius: radiusV2.block,
-        },
-        copyLabel: {
-          fontFamily: tokens.fontUi,
-          fontSize: TYPE.button.size,
-          lineHeight: TYPE.button.lineHeight,
-          color: tokens.foregroundMuted,
-          ...unselectable,
         },
         metadata: {
           width: "auto",
@@ -163,7 +155,6 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
             size={DISCLOSURE_HEADER.icon}
             color={copied ? tokens.success : tokens.foregroundMuted}
           />
-          <Text style={styles.copyLabel}>{toolbarLabel("Copy", language)}</Text>
         </ToolbarItem>
         {translation && canTranslate ? (
           <MessageTranslateButton {...translation} kind="assistant_message" text={text} streaming={false}

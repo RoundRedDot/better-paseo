@@ -65,7 +65,8 @@ describe("assistant footer", () => {
       act(() => { toolbar.props.onLongPress(); });
       expect(renderer.root.findAllByType("View" as never).some((node) =>
         node.props.testID === "footer-detail-Elapsed time")).toBe(visible);
-      for (const label of ["Agent", "Model name", "Start time", "End time", "Output"]) {
+      expect(renderer.root.findAllByProps({ testID: "footer-detail-Agent" })).toHaveLength(0);
+      for (const label of ["Model name", "Start time", "End time", "Output"]) {
         expect(renderer.root.findAllByType("View" as never).some((node) =>
           node.props.testID === `footer-detail-${label}`)).toBe(true);
       }
@@ -117,7 +118,7 @@ describe("assistant footer", () => {
       act(() => { trigger.props.onLongPress(); });
       expect(clipboard.copyText).not.toHaveBeenCalled();
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
-      expect(table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"))).toHaveLength(6);
+      expect(table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"))).toHaveLength(5);
       const close = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityLabel === "Close preview")!;
       act(() => { close.props.onPress(); });
       expect(renderer.root.findAllByType("Modal" as never)).toHaveLength(0);
@@ -144,13 +145,13 @@ describe("assistant footer", () => {
       act(() => { toolbar.props.onLongPress(); });
       const table = renderer.root.findAllByType("View" as never).find((node) => node.props.testID === "footer-details-table")!;
       expect(table.findAllByType("Text" as never).map((node) => node.props.children))
-        .toEqual(["Agent", "codex", "模型名称", "GPT-6.1-Sol", "思考强度", "High", "开始时间", "10-15 21:02:03",
+        .toEqual(["模型名称", "GPT-6.1-Sol", "思考强度", "High", "开始时间", "10-15 21:02:03",
           "结束时间", "10-15 21:03:25", "耗时", "1分22秒"]);
       const buttons = table.findAllByType("Pressable" as never);
       expect(buttons.map((node) => node.props.accessibilityLabel))
-        .toEqual(["Copy agent", "Copy model name", "Copy thinking level", "Copy start time", "Copy end time"]);
+        .toEqual(["Copy model name", "Copy thinking level", "Copy start time", "Copy end time"]);
       // The model row shows its display label but copies the configured model name.
-      const copied = ["codex", "gpt-6.1-sol", "High", "10-15 21:02:03", "10-15 21:03:25"];
+      const copied = ["gpt-6.1-sol", "High", "10-15 21:02:03", "10-15 21:03:25"];
       for (const [index, value] of copied.entries()) {
         await act(async () => { buttons[index]!.props.onPress(); });
         expect(clipboard.copyText).toHaveBeenLastCalledWith(value);
@@ -159,9 +160,9 @@ describe("assistant footer", () => {
       const duration = table.findAllByType("View" as never).find((node) => node.props.testID === "footer-detail-Elapsed time")!;
       expect(duration.findAllByType("Pressable" as never)).toHaveLength(0);
       const rows = table.findAllByType("View" as never).filter((node) => node.props.testID?.startsWith("footer-detail-"));
-      expect(table.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["codex", "codex"]);
+      expect(table.findAllByType(ProviderLogo).map((node) => node.props.provider)).toEqual(["codex"]);
       expect(table.findAllByType("Icon" as never).map((node) => node.props.name))
-        .toEqual(["Check", "Check", "Brain", "Check", "Clock", "Check", "Clock", "Check", "Hourglass"]);
+        .toEqual(["Check", "Brain", "Check", "Clock", "Check", "Clock", "Check", "Hourglass"]);
       for (const [index, row] of rows.entries()) {
         const slot = row.findAllByType("View" as never).find((node) => node.props.testID === "footer-value-icon")!;
         const valueCell = row.findAllByType("View" as never)
@@ -399,7 +400,7 @@ describe("assistant footer", () => {
     try {
       const metadata = renderer.root.findAllByType("Pressable" as never).filter((node) => node.props.accessibilityRole === "image");
       expect(metadata).toHaveLength(2);
-      expect(labels()).toEqual([language === "zh" ? "复制" : "Copy", "15:05", language === "zh" ? "3分56秒" : "3m 56s"]);
+      expect(labels()).toEqual(["15:05", language === "zh" ? "3分56秒" : "3m 56s"]);
       const timeLabel = startedAt != null ? (language === "zh" ? "开始时间" : "Start time")
         : (language === "zh" ? "结束时间" : "End time");
       const timeStamp = startedAt != null ? formatFullStamp(new Date(startedAt)) : "10-15 15:05:03";
@@ -498,7 +499,7 @@ describe("assistant footer", () => {
     try {
       const labels = renderer.root.findAllByType("Text" as never)
         .map((node) => [node.props.children].flat().join(""));
-      expect(labels).toEqual(["复制", "GPT-6.1-Sol", "15:05", "2分18秒"]);
+      expect(labels).toEqual(["GPT-6.1-Sol", "15:05", "2分18秒"]);
       expect(renderer.root.findAllByType("Icon" as never).map((node) => node.props.name))
         .toEqual(["Copy", "Clock", "Hourglass"]);
       const image = renderer.root.findByType("Image" as never);
@@ -514,7 +515,7 @@ describe("assistant footer", () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;
     act(() => { renderer = TestRenderer.create(footer(false)); });
     try {
-      expect(renderer.root.findAllByType("Text" as never)).toHaveLength(2);
+      expect(renderer.root.findAllByType("Text" as never)).toHaveLength(1);
       act(() => { renderer.update(React.createElement(AssistantFooter, { text, at, tokens, durationMs: 0 })); });
       expect(renderer.root.findAllByType("Text" as never).at(-1)!.props.children).toBe("0秒");
     } finally {
@@ -609,7 +610,8 @@ describe("assistant footer", () => {
       expect(renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityRole === "button")!.props.accessibilityLabel).toBe("Reply copied");
       const button = renderer.root.findAllByType("Pressable" as never).find((node) => node.props.accessibilityRole === "button")!;
       expect(button.findByType("Icon" as never).props.name).toBe("Check");
-      expect(button.findByType("Text" as never).props.children).toBe("Copy");
+      // Icon only: the label lives in the tooltip and accessibility label.
+      expect(button.findAllByType("Text" as never)).toHaveLength(0);
     } finally {
       act(() => renderer.unmount());
     }
