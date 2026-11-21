@@ -161,7 +161,13 @@ export async function readTranslationModelCatalog(paseo: PaseoApi, provider: str
   if (!api) return { ...none, error: HOST_UNSUPPORTED, reason: "host_unsupported" };
   // Never `providers.snapshot()`: on a cold catalog it warms every enabled provider, which can
   // start an unrelated OpenCode runtime with the user's plugins and MCP servers.
-  const enabled = (await api.listTextProviders()).providers;
+  let enabled: ProviderTextListEntry[];
+  try {
+    enabled = (await api.listTextProviders()).providers;
+  } catch {
+    // The SDK refuses before sending when the host does not know the list request; nothing was sent.
+    return { ...none, error: HOST_UNSUPPORTED, reason: "host_unsupported" };
+  }
   // Each provider is checked on its own: one failed check neither hides the others nor reads as
   // "no provider qualifies".
   const settled = await Promise.allSettled(enabled.map((entry) => api.getTextCapability(entry.provider)));

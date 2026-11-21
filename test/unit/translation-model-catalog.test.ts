@@ -44,6 +44,18 @@ describe("translation model catalog", () => {
     expect(await catalogHandler()({ provider: "" }, { paseo })).toMatchObject({ providers: [], reason: "host_unsupported" });
   });
 
+  it("offers nothing when the SDK refuses the list for a host that does not know it", async () => {
+    // Regression: the rejection surfaced as a failed settings read instead of an unsupported host.
+    const getTextCapability = vi.fn();
+    const paseo = { providers: { snapshot, getTextCapability, generateText: vi.fn(),
+      listTextProviders: async () => { throw new Error("Update the host to list one-shot text generation providers."); } } } as unknown as PaseoApi;
+    expect(await catalogHandler()({ provider: "" }, { paseo })).toMatchObject({
+      providers: [], reason: "host_unsupported",
+      error: "Translation needs a Paseo version that can generate text with no tools, and this Paseo does not provide it.",
+    });
+    expect(getTextCapability).not.toHaveBeenCalled();
+  });
+
   it("lists only providers the host supports, with the models it can use", async () => {
     const getTextCapability = vi.fn(async (provider: string) => capability(provider, provider === "opencode"));
     const paseo = { providers: { snapshot, listTextProviders, getTextCapability, generateText: vi.fn() } } as unknown as PaseoApi;
