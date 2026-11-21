@@ -597,6 +597,7 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp, inlin
     <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={item.data.phase === "streaming"}>
       <InlineReplyBlock state={inline} theme={theme} tokens={tokens} compact={layout.compact} text={shown} firstBlock={item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView text={shown} tokens={tokens} variant={preferences.markdownVariant}
         compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
+        renderMath
         listContinuation={item.data.listContinuation}
         probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} /></InlineReplyBlock>
     </SelectionTranslationScope>
@@ -690,6 +691,7 @@ function LiveAssistantMessageRenderer({
             variant={preferences.markdownVariant}
             compact={layout.compact}
             streaming={streaming}
+            renderMath
             onRevealPath={handleRevealPath}
             probeId={`assistant:${timestamp.getTime()}`}
           /></InlineReplyBlock> : null}
