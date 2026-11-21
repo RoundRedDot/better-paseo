@@ -10,6 +10,7 @@ import {
   type TimelineTranslationSettings,
 } from "../../shared/timeline-translation";
 import { ProviderLogo } from "../../client/components/provider-logo";
+import { ModelSettingsControls } from "../../client/model-settings-controls";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { DEFAULT_PREFERENCES, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { Section, SectionFooter, SettingRow } from "../../client/settings-controls";
@@ -416,12 +417,100 @@ describe("timeline translation settings", () => {
     const error = "Translation needs a Paseo version that runs helper agents with no tools. This Paseo does not report that support.";
     mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error });
     await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    expect(textValues(renderer!.root)).toContain(error);
+    // The host's English reason gives way to the page's own, localized notice.
+    expect(textValues(renderer!.root)).not.toContain(error);
+    expect(textValues(renderer!.root)).toContain("No provider on this Paseo can run translation with no tools, so there is nothing to choose. The saved choice is kept.");
     expect(textValues(renderer!.root).some((text) => text.includes("the list shows only those"))).toBe(true);
     const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
     await act(async () => { trigger.props.onPress(); });
     expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio")).toHaveLength(0);
     expect(mocks.saveSpy).not.toHaveBeenCalled();
+  });
+
+  it.each(["en", "zh"] as const)("lists no provider and says why when this Paseo runs none with no tools, keeping the saved one (%s)", async (lang) => {
+    updateEnhancerPreferences({ language: lang });
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "high" });
+    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error: "Translation needs a Paseo version that runs helper agents with no tools. This Paseo does not report that support." });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(false, lang) })); });
+    const texts = () => textValues(renderer!.root);
+    // The saved provider still names the control, but is not a choice.
+    expect(texts()).toContain("Oh My Pi");
+    for (const label of [lang === "zh" ? "Provider" : "Provider", lang === "zh" ? "模型" : "Model"]) {
+      const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
+      await act(async () => { trigger.props.onPress(); });
+      expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio")).toHaveLength(0);
+    }
+    expect(texts()).toContain(lang === "zh"
+      ? "当前没有能以无工具方式运行翻译的 Provider，所以没有可选项。已保存的选择保持不变。"
+      : "No provider on this Paseo can run translation with no tools, so there is nothing to choose. The saved choice is kept.");
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+  });
+
+  it.each(["en", "zh"] as const)("offers only tool-free providers when the saved one is not among them (%s)", async (lang) => {
+    updateEnhancerPreferences({ language: lang });
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "high" });
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    mocks.modelsRpc.mockReset().mockImplementation(async ({ provider }: { provider: string }) => provider === "omp"
+      ? { providers: ["claude"], providerLabels: { claude: "Claude" }, models: [], error: 'Provider "omp" cannot run translation with no tools. Choose another provider.' }
+      : { ...good, providers: ["claude"], providerLabels: { claude: "Claude" } });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(false, lang) })); });
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    await act(async () => { trigger.props.onPress(); });
+    expect([...new Set(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel))]).toEqual(["Claude"]);
+    expect(textValues(renderer!.root)).toContain(lang === "zh"
+      ? "已保存的 Provider「Oh My Pi」不能以无工具方式运行翻译，保存值保持不变。请从列表中选择其他 Provider。"
+      : "The saved provider Oh My Pi cannot run translation with no tools. It stays saved; choose another provider from the list.");
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Claude");
+    await act(async () => { option.props.onPress(); });
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "claude", model: "claude-sonnet-4-5" }), "rev-1");
+  });
+
+  it("stops offering a provider's cached models once the host no longer lists that provider", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "" });
+    const ompModels = [{ id: "omp-model", label: "OMP Model", thinkingOptions: [], defaultThinkingOptionId: null }, { id: "omp-other", label: "OMP Other", thinkingOptions: [], defaultThinkingOptionId: null }];
+    let supported = ["claude", "omp"];
+    mocks.modelsRpc.mockReset().mockImplementation(async ({ provider }: { provider: string }) => supported.includes(provider) || !provider
+      ? { providers: supported, providerLabels: { claude: "Claude" }, models: provider === "omp" ? ompModels : [], error: null }
+      : { providers: supported, providerLabels: { claude: "Claude" }, models: [], error: `Provider "${provider}" cannot run translation with no tools. Choose another provider.` });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const radios = () => [...new Set(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel))];
+    const open = async (label: string) => {
+      const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
+      await act(async () => { trigger.props.onPress(); });
+    };
+    await open("Model");
+    expect(radios()).toEqual(["OMP Model", "OMP Other"]);
+    act(() => renderer!.unmount());
+
+    // The host stops reporting omp; its models are still in the page's cache.
+    supported = ["claude"];
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const refresh = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
+    await act(async () => { refresh.props.onPress(); });
+    await open("Model");
+    expect(radios()).toEqual([]);
+    // The saved model still names the control; nothing was cleared or saved.
+    expect(textValues(renderer!.root)).toContain("omp-model");
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+  });
+
+  it("still offers a saved provider and model the catalog lacks by default, as title generation expects", async () => {
+    const noop = () => {};
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(ModelSettingsControls, {
+        look: makeLook(), language: "en", provider: "omp", model: "omp-model", thinkingOptionId: "", disableThinking: false,
+        disabledThinkingLabel: "", disabled: false, loading: false, providers: ["claude"], providerLabels: { claude: "Claude" }, models: [],
+        onProvider: noop, onModel: noop, onThinking: noop, onRefresh: noop,
+      }));
+    });
+    const radios = () => [...new Set(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel))];
+    for (const [label, expected] of [["Provider", ["Claude", "Oh My Pi"]], ["Model", ["omp-model"]]] as const) {
+      const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
+      await act(async () => { trigger.props.onPress(); });
+      expect(radios()).toEqual(expected);
+      await act(async () => { trigger.props.onPress(); });
+    }
   });
 
   it("reads a provider's catalog again on the next visit after it failed", async () => {

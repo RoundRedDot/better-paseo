@@ -12,20 +12,29 @@ const WORDS = {
   zh: { provider: "Provider", model: "模型", thinking: "思考等级", choose: "请选择…", modelDefault: "模型默认", unsupported: "不支持", refresh: "刷新模型", notRecommended: "不推荐使用" },
 };
 
-export function ModelSettingsControls({ look, language, provider, model, thinkingOptionId, disableThinking, disabledThinkingLabel, disabled, loading, providers, providerLabels, models, onProvider, onModel, onThinking, onRefresh }: {
+/**
+ * `offerSavedChoices` (default true) also offers a saved provider or model the
+ * catalog does not list. Off, a saved value still names its control but is
+ * not a choice: the lists hold only what the catalog offers.
+ */
+export function ModelSettingsControls({ look, language, provider, model, thinkingOptionId, disableThinking, disabledThinkingLabel, disabled, loading, providers, providerLabels, models, offerSavedChoices = true, onProvider, onModel, onThinking, onRefresh }: {
   look: PageLook; language: "en" | "zh"; provider: string; model: string; thinkingOptionId: string;
   disableThinking: boolean; disabledThinkingLabel: string; disabled: boolean; loading: boolean;
   providers: string[]; providerLabels: Record<string, string>; models: ModelCatalog["models"];
+  offerSavedChoices?: boolean;
   onProvider(value: string): void; onModel(value: string): void; onThinking(value: string): void; onRefresh(): void;
 }) {
   const words = WORDS[language];
-  const providerChoices: MenuChoice[] = [...new Set([...providers, ...(provider ? [provider] : [])])]
+  const providerChoice = (id: string): MenuChoice => ({ value: id, name: `${providerLabels[id] || providerBrand(id).displayName}${id === "cursor" ? ` · ${words.notRecommended}` : ""}`,
+    logo: <ProviderLogo provider={id} size={20} color={providerBrand(id).monochrome ? look.tokens.foreground : undefined} /> });
+  const providerChoices: MenuChoice[] = [...new Set([...providers, ...(provider && offerSavedChoices ? [provider] : [])])]
     .sort((a, b) => Number(a === "cursor") - Number(b === "cursor"))
-    .map((id) => ({ value: id, name: `${providerLabels[id] || providerBrand(id).displayName}${id === "cursor" ? ` · ${words.notRecommended}` : ""}`,
-      logo: <ProviderLogo provider={id} size={20} color={providerBrand(id).monochrome ? look.tokens.foreground : undefined} /> }));
+    .map(providerChoice);
   const selectedModel = models.find((item) => item.id === model);
   const modelChoices: MenuChoice[] = models.map((item) => ({ value: item.id, name: item.label || item.id, logo: null }));
-  if (model && !selectedModel) modelChoices.push({ value: model, name: model, logo: null });
+  if (model && !selectedModel && offerSavedChoices) modelChoices.push({ value: model, name: model, logo: null });
+  const shownProvider = providerChoices.find((item) => item.value === provider) ?? (provider ? providerChoice(provider) : { value: "", name: words.choose, logo: null });
+  const shownModel = modelChoices.find((item) => item.value === model) ?? (model ? { value: model, name: model, logo: null } : { value: "", name: words.choose, logo: null });
   const options = selectedModel?.thinkingOptions ?? [];
   const modelDefault = `${words.modelDefault}${selectedModel?.defaultThinkingOptionId ? ` · ${selectedModel.defaultThinkingOptionId}` : ""}`;
   const thinkingChoices: MenuChoice[] = [{ value: "", name: modelDefault, logo: null }, ...options.map((item) => ({ value: item.id, name: item.label, logo: null }))];
@@ -40,10 +49,10 @@ export function ModelSettingsControls({ look, language, provider, model, thinkin
       disabled={blocked || unavailable}
     />;
   return <>
-    <SettingRow title={words.provider} look={look} wrapControl disabled={disabled} control={menu(words.provider, provider, providerChoices.find((item) => item.value === provider) ?? { value: "", name: words.choose, logo: null }, providerChoices, onProvider)} />
+    <SettingRow title={words.provider} look={look} wrapControl disabled={disabled} control={menu(words.provider, provider, shownProvider, providerChoices, onProvider)} />
     <SettingRow title={words.model} look={look} wrapControl disabled={disabled} control={<View style={{ flexDirection: "row", flexWrap: "wrap", justifyContent: "flex-end", alignItems: "center", gap: space.sm, maxWidth: "100%" }}>
       <Pressable accessibilityRole="button" accessibilityLabel={words.refresh} accessibilityState={{ disabled: blocked }} disabled={blocked} onPress={onRefresh} style={{ width: refreshSize, height: refreshSize, alignItems: "center", justifyContent: "center", opacity: blocked ? 0.5 : 1 }}><Icon name="RefreshCw" size={18} color={look.tokens.foregroundMuted} /></Pressable>
-      {menu(words.model, model, modelChoices.find((item) => item.value === model) ?? { value: "", name: words.choose, logo: null }, modelChoices, (next) => { if (next !== model) onModel(next); }, !provider)}
+      {menu(words.model, model, shownModel, modelChoices, (next) => { if (next !== model) onModel(next); }, !provider)}
     </View>} />
     <SettingRow title={words.thinking} look={look} wrapControl disabled={disabled} control={menu(words.thinking, thinkingOptionId, { value: thinkingOptionId, name: thinkingLabel, logo: null }, thinkingChoices, onThinking, disableThinking || !options.length)} />
   </>;
