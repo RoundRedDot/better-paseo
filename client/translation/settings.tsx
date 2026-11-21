@@ -50,8 +50,8 @@ export interface TranslationCatalogState {
   reason: "host_unsupported" | "check_failed" | null;
   /** Providers whose check failed; the list may be missing them. */
   uncheckedProviders: string[];
-  /** The selected provider's host limitations. */
-  limitations: string[];
+  /** Each provider's host limitations, from the read that returned its models. */
+  limitationsByProvider: Record<string, string[]>;
   loading: boolean;
   error: string | null;
 }
@@ -63,7 +63,7 @@ interface CatalogCache {
   loaded: boolean;
   reason: TranslationCatalogState["reason"];
   uncheckedProviders: string[];
-  limitations: string[];
+  limitationsByProvider: Record<string, string[]>;
 }
 
 const EMPTY_CATALOG: CatalogCache = {
@@ -73,17 +73,20 @@ const EMPTY_CATALOG: CatalogCache = {
   loaded: false,
   reason: null,
   uncheckedProviders: [],
-  limitations: [],
+  limitationsByProvider: {},
 };
 
 /** Each host's last answer, shown while its page checks again: one host's list never shows on another's. */
 const catalogCaches = new Map<string, CatalogCache>();
 
-/** The latest catalog read of any settings page: only it writes the cache and the shown state. */
+/** Catalog reads, numbered across every settings page. */
 let latestCatalogRead = 0;
+/** Each host's newest read: only its answer writes that host's cache, so an older one never overwrites it. */
+const newestCatalogReadByHost = new Map<string, number>();
 
 export function resetTranslationSettingsCatalogForTests(): void {
   latestCatalogRead = 0;
+  newestCatalogReadByHost.clear();
   catalogCaches.clear();
 }
 
@@ -294,33 +297,40 @@ export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageL
     return () => { committedSettings.current = null; };
   }, [state]);
 
-  // Only the latest read, also across page mounts, writes the cache and shows
-  // its loading state and error: an earlier one may answer last.
+  // Each page ends its own latest read, so two open pages never leave one loading. Only the host's
+  // newest read writes the shared cache; an earlier answer arriving last does not overwrite it.
+  const pageRead = useRef(0);
   const loadModels = useCallback(async (provider: string) => {
     const read = ++latestCatalogRead;
+    newestCatalogReadByHost.set(hostId, read);
+    pageRead.current = read;
     setCatalog((prev) => ({ ...prev, loading: true, error: null }));
     try {
       const res = await fetchModels({ provider });
-      if (!committedSettings.current || read !== latestCatalogRead) return null;
-      const catalogCache = catalogCaches.get(hostId) ?? EMPTY_CATALOG;
-      const nextModelsByProvider = { ...catalogCache.modelsByProvider };
+      const shown = committedSettings.current !== null && pageRead.current === read;
+      const newest = newestCatalogReadByHost.get(hostId) === read;
+      const previous = catalogCaches.get(hostId) ?? EMPTY_CATALOG;
+      // A read that could not list the providers keeps the last list this host answered.
+      const listFailed = res.reason === "check_failed" && res.providers.length === 0 && previous.providers.length > 0;
       // The provider snapshot succeeds independently of the model lookup.
       // A model error must not be cached as an empty catalog.
-      if (provider && !res.error) nextModelsByProvider[provider] = res.models;
-      const nextCache: CatalogCache = {
+      const answeredProvider = Boolean(provider) && !res.error;
+      const next: CatalogCache = listFailed ? previous : {
         providers: res.providers,
-        providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
-        modelsByProvider: nextModelsByProvider,
+        providerLabels: { ...previous.providerLabels, ...res.providerLabels },
+        modelsByProvider: answeredProvider ? { ...previous.modelsByProvider, [provider]: res.models } : previous.modelsByProvider,
+        limitationsByProvider: answeredProvider
+          ? { ...previous.limitationsByProvider, [provider]: res.limitations ?? [] }
+          : previous.limitationsByProvider,
         loaded: true,
         reason: res.reason ?? null,
         uncheckedProviders: res.uncheckedProviders ?? [],
-        limitations: res.limitations ?? [],
       };
-      catalogCaches.set(hostId, nextCache);
-      setCatalog({ ...nextCache, loading: false, error: res.error });
-      return res.error ? null : { read, models: res.models };
+      if (newest) catalogCaches.set(hostId, next);
+      if (shown) setCatalog({ ...next, loading: false, error: res.error });
+      return res.error || !newest || !shown ? null : { read, models: res.models };
     } catch (error) {
-      if (committedSettings.current && read === latestCatalogRead) {
+      if (committedSettings.current && pageRead.current === read) {
         setCatalog((prev) => ({
           ...prev,
           loading: false,
@@ -373,7 +383,8 @@ export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageL
   // A failed or refused check comes first: an empty list is the host's answer only without one.
   const providerName = (id: string) => catalog.providerLabels[id] || providerBrand(id).displayName;
   const catalogNotice = catalog.reason === "host_unsupported" ? t.hostUnsupported
-    : catalog.reason === "check_failed" ? t.checkFailed(catalog.uncheckedProviders.map(providerName).join(", "))
+    : catalog.reason === "check_failed"
+      ? (catalog.uncheckedProviders.length > 0 ? t.checkFailed(catalog.uncheckedProviders.map(providerName).join(", ")) : catalog.error)
       : answered && catalog.providers.length === 0 && !catalog.error ? t.noToolFreeProviders
         : answered && settings.provider && !catalog.providers.includes(settings.provider)
           ? t.savedProviderNotToolFree(providerName(settings.provider))
@@ -383,6 +394,8 @@ export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageL
     ? t.checkFailed(catalog.uncheckedProviders.map(providerName).join(", "))
     : null;
   const activeProvider = settings.provider || catalog.providers[0] || "";
+  // The saved provider's own limitations: another client may switch it to one whose models are cached.
+  const selectedLimitations = catalog.limitationsByProvider[settings.provider] ?? [];
   // A provider the host no longer lists offers none of its cached models; the saved model only names the control.
   const models = catalog.providers.includes(activeProvider) ? catalog.modelsByProvider[activeProvider] ?? [] : [];
   const selectedModel = models.find((m) => m.id === settings.model);
@@ -469,9 +482,9 @@ export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageL
         {catalogNotice ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={catalogNotice} tone="danger" alert /></View> : null}
         {partialNotice ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={partialNotice} tone="danger" alert /></View> : null}
         {/* What the host could not rule out for the chosen provider, shown before anything is sent. */}
-        {!catalogNotice && catalog.providers.includes(settings.provider) && catalog.limitations.length > 0
+        {!catalogNotice && catalog.providers.includes(settings.provider) && selectedLimitations.length > 0
           ? <View testID="translation-limitations" style={{ paddingHorizontal: space.lg, paddingBottom: space.sm, gap: space.xs }}>
-              {catalog.limitations.map((id) => <RowNotice key={id} look={look} text={describeTranslationLimitation(id, lang)} tone="warning" />)}
+              {selectedLimitations.map((id) => <RowNotice key={id} look={look} text={describeTranslationLimitation(id, lang)} tone="warning" />)}
             </View>
           : null}
       </> : null}

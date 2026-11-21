@@ -649,6 +649,76 @@ describe("timeline translation settings", () => {
     expect(textValues(renderer!.root)).not.toContain("Host A Gateway");
   });
 
+  it("ends loading on two open pages whose reads answer in reverse order, keeping the newer answer", async () => {
+    // Regression: the later page's read made the earlier page drop its own answer, which left that
+    // page loading, with its controls disabled, until it was reopened.
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    const older = { ...good, models: [{ id: "old-model", label: "Old Model", thinkingOptions: [], defaultThinkingOptionId: null }] };
+    const answers: Array<(value: unknown) => void> = [];
+    mocks.modelsRpc.mockReset().mockImplementation(() => new Promise((resolve) => { answers.push(resolve); }));
+    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-a" });
+    let first!: ReturnType<typeof TestRenderer.create>;
+    let second!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { first = TestRenderer.create(page()); });
+    await act(async () => { second = TestRenderer.create(page()); });
+    expect(answers).toHaveLength(2);
+    const refreshDisabled = (root: ReturnType<typeof TestRenderer.create>) =>
+      root.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models").props.disabled;
+    await act(async () => { answers[1]!(good); });
+    await act(async () => { answers[0]!(older); });
+    expect(refreshDisabled(first)).toBe(false);
+    expect(refreshDisabled(second)).toBe(false);
+    act(() => { first.unmount(); second.unmount(); });
+    // The earlier read answered last but did not overwrite the shared cache.
+    mocks.modelsRpc.mockReset().mockImplementation(() => new Promise(() => {}));
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
+    await act(async () => { trigger.props.onPress(); });
+    const radio = (label: string) => renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === label).length;
+    expect(radio("Old Model")).toBe(0);
+    expect(radio("Claude Opus 4.1")).toBeGreaterThan(0);
+  });
+
+  it("shows the saved provider's own limitations after another client switches it between cached providers", async () => {
+    // Regression: limitations were kept from the last read only, so switching back to a cached
+    // provider showed the other provider's limitations.
+    const catalogFor = (provider: string) => ({ providers: ["opencode", "newapi"], providerLabels: {}, error: null, reason: null, uncheckedProviders: [],
+      models: [{ id: `${provider}-model`, label: `${provider} model`, thinkingOptions: [], defaultThinkingOptionId: null }],
+      limitations: provider === "newapi" ? ["prompt_sent_to_configured_gateway"] : ["provider_runtime_builtin_hooks_unobserved"] });
+    mocks.modelsRpc.mockReset().mockImplementation(async ({ provider }: { provider: string }) => catalogFor(provider));
+    const gateway = "The text goes from your Paseo host to the gateway this provider is configured for.";
+    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-a" });
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "opencode-model" });
+    await act(async () => { renderer = TestRenderer.create(page()); });
+    expect(textValues(renderer!.root)).not.toContain(gateway);
+    // Another client switches to newapi: its models are read.
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "newapi", model: "newapi-model" });
+    await act(async () => { renderer!.update(page()); });
+    expect(textValues(renderer!.root)).toContain(gateway);
+    // And back to opencode, whose models are cached: no read, and none of newapi's limitations.
+    const reads = mocks.modelsRpc.mock.calls.length;
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "opencode-model" });
+    await act(async () => { renderer!.update(page()); });
+    expect(mocks.modelsRpc.mock.calls.length).toBe(reads);
+    expect(textValues(renderer!.root)).not.toContain(gateway);
+  });
+
+  it("keeps the last provider list when a later read cannot list the providers", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "mock/mock-model" });
+    const listed = { providers: ["opencode"], providerLabels: { opencode: "Listed Gateway" }, error: null, reason: null, uncheckedProviders: [], limitations: [],
+      models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [], defaultThinkingOptionId: null }] };
+    const failed = { providers: [], providerLabels: {}, models: [], uncheckedProviders: [], limitations: [], reason: "check_failed",
+      error: "Paseo could not read this host's providers for translation with no tools. Refresh to try again." };
+    mocks.modelsRpc.mockReset().mockResolvedValueOnce(listed).mockResolvedValue(failed);
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-a" })); });
+    const refresh = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
+    await act(async () => { refresh.props.onPress(); });
+    expect(textValues(renderer!.root)).toContain("Listed Gateway");
+    expect(textValues(renderer!.root)).toContain(failed.error);
+    expect(textValues(renderer!.root).some((text) => text.includes("Update") || text.includes("does not provide it"))).toBe(false);
+  });
+
   it("keeps the newest catalog when an earlier page's read answers after a later page's", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
     const good = await mocks.modelsRpc({ provider: "claude" });
