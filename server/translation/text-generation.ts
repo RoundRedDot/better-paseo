@@ -175,7 +175,7 @@ export async function readTranslationModelCatalog(paseo: PaseoApi, provider: str
     // a read that can be retried. Either way nothing was sent.
     if ((error as { code?: unknown } | null)?.code === PROVIDER_TEXT_LIST_UNSUPPORTED)
       return { ...none, error: HOST_UNSUPPORTED, reason: "host_unsupported" };
-    return { ...none, error: PROVIDER_LIST_FAILED, reason: "check_failed" };
+    return { ...none, error: PROVIDER_LIST_FAILED, reason: "list_failed" };
   }
   // Each provider is checked on its own: one failed check neither hides the others nor reads as
   // "no provider qualifies".

@@ -216,7 +216,9 @@ export type TranslateTimelineItemInput = z.output<typeof translateTimelineItemRp
  * them.
  */
 export const translationCatalogSchema = modelCatalogSchema.extend({
-  reason: z.enum(["host_unsupported", "check_failed"]).nullable().default(null),
+  // `list_failed`: the provider list itself could not be read. `check_failed`: the list was read
+  // but providers' checks did not finish.
+  reason: z.enum(["host_unsupported", "check_failed", "list_failed"]).nullable().default(null),
   uncheckedProviders: z.array(z.string()).default([]),
   /** The selected provider's limitations, as the host reports them. */
   limitations: z.array(z.string()).default([]),

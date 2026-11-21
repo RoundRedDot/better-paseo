@@ -47,7 +47,7 @@ export interface TranslationCatalogState {
   /** A catalog read has answered: an empty provider list is the host's answer, not a pending one. */
   loaded: boolean;
   /** Why an empty list is not the host's complete answer. */
-  reason: "host_unsupported" | "check_failed" | null;
+  reason: "host_unsupported" | "check_failed" | "list_failed" | null;
   /** Providers whose check failed; the list may be missing them. */
   uncheckedProviders: string[];
   /** Each provider's host limitations, from the read that returned its models. */
@@ -310,8 +310,9 @@ export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageL
       const shown = committedSettings.current !== null && pageRead.current === read;
       const newest = newestCatalogReadByHost.get(hostId) === read;
       const previous = catalogCaches.get(hostId) ?? EMPTY_CATALOG;
-      // A read that could not list the providers keeps the last list this host answered.
-      const listFailed = res.reason === "check_failed" && res.providers.length === 0 && previous.providers.length > 0;
+      // Only a read that could not list the providers keeps the last list this host answered. A list
+      // that was read stands, even when its providers' checks did not finish.
+      const listFailed = res.reason === "list_failed" && previous.providers.length > 0;
       // The provider snapshot succeeds independently of the model lookup.
       // A model error must not be cached as an empty catalog.
       const answeredProvider = Boolean(provider) && !res.error;
@@ -328,7 +329,9 @@ export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageL
       };
       if (newest) catalogCaches.set(hostId, next);
       if (shown) setCatalog({ ...next, loading: false, error: res.error });
-      return res.error || !newest || !shown ? null : { read, models: res.models };
+      // The answer is this page's to act on when it is this page's latest read, whether or not
+      // another page has read the host since; that only decides what the shared cache keeps.
+      return res.error || !shown ? null : { read, models: res.models };
     } catch (error) {
       if (committedSettings.current && pageRead.current === read) {
         setCatalog((prev) => ({
@@ -351,6 +354,10 @@ export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageL
     if (!checkedOnOpen.current || cached.providers.length === 0 || (activeProvider && !cached.modelsByProvider[activeProvider])) {
       checkedOnOpen.current = true;
       void loadModels(activeProvider);
+    } else {
+      // The shared cache answered for this provider, perhaps from another page's read: show that
+      // same cache, so the models and limitations shown are the ones the check found.
+      setCatalog((prev) => ({ ...cached, loading: prev.loading, error: prev.error }));
     }
   }, [state.status, settings.customModel, settings.provider, loadModels, hostId]);
 
@@ -368,7 +375,8 @@ export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageL
     setSwitchingProvider(true);
     try {
       const catalogRead = await loadModels(provider);
-      if (!catalogRead || catalogRead.read !== latestCatalogRead) return;
+      // Dropped only when this page read again since, or the settings changed underneath.
+      if (!catalogRead || catalogRead.read !== pageRead.current) return;
       const current = committedSettings.current;
       if (current?.status !== "ready" || current.saving || current.revision !== state.revision) return;
       const firstModel = catalogRead.models[0];
@@ -383,8 +391,8 @@ export function TimelineTranslationSettings({ look, hostId = "" }: { look: PageL
   // A failed or refused check comes first: an empty list is the host's answer only without one.
   const providerName = (id: string) => catalog.providerLabels[id] || providerBrand(id).displayName;
   const catalogNotice = catalog.reason === "host_unsupported" ? t.hostUnsupported
-    : catalog.reason === "check_failed"
-      ? (catalog.uncheckedProviders.length > 0 ? t.checkFailed(catalog.uncheckedProviders.map(providerName).join(", ")) : catalog.error)
+    : catalog.reason === "check_failed" ? t.checkFailed(catalog.uncheckedProviders.map(providerName).join(", "))
+      : catalog.reason === "list_failed" ? catalog.error
       : answered && catalog.providers.length === 0 && !catalog.error ? t.noToolFreeProviders
         : answered && settings.provider && !catalog.providers.includes(settings.provider)
           ? t.savedProviderNotToolFree(providerName(settings.provider))

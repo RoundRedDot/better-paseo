@@ -66,7 +66,7 @@ describe("translation model catalog", () => {
     const paseo = { providers: { snapshot, getTextCapability: vi.fn(), generateText: vi.fn(),
       listTextProviders: async () => { throw error; } } } as unknown as PaseoApi;
     expect(await catalogHandler()({ provider: "" }, { paseo })).toMatchObject({
-      providers: [], reason: "check_failed",
+      providers: [], reason: "list_failed",
       error: "Paseo could not read this host's providers for translation with no tools. Refresh to try again.",
     });
   });

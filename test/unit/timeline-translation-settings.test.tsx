@@ -708,15 +708,91 @@ describe("timeline translation settings", () => {
     mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "mock/mock-model" });
     const listed = { providers: ["opencode"], providerLabels: { opencode: "Listed Gateway" }, error: null, reason: null, uncheckedProviders: [], limitations: [],
       models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [], defaultThinkingOptionId: null }] };
-    const failed = { providers: [], providerLabels: {}, models: [], uncheckedProviders: [], limitations: [], reason: "check_failed",
+    const failed = { providers: [], providerLabels: {}, models: [], uncheckedProviders: [], limitations: [], reason: "list_failed",
       error: "Paseo could not read this host's providers for translation with no tools. Refresh to try again." };
     mocks.modelsRpc.mockReset().mockResolvedValueOnce(listed).mockResolvedValue(failed);
     await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-a" })); });
     const refresh = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
     await act(async () => { refresh.props.onPress(); });
-    expect(textValues(renderer!.root)).toContain("Listed Gateway");
     expect(textValues(renderer!.root)).toContain(failed.error);
+    // The last list's models are still offered.
+    const model = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
+    await act(async () => { model.props.onPress(); });
+    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Mock").length).toBeGreaterThan(0);
     expect(textValues(renderer!.root).some((text) => text.includes("Update") || text.includes("does not provide it"))).toBe(false);
+  });
+
+  it("saves a provider chosen on one page although another open page read the host meanwhile", async () => {
+    // Regression: the other page's newer read made this page treat its own answer as stale, so
+    // the user's choice was dropped without saving although the settings had not changed.
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    const reads: Array<{ provider: string; answer: (value: unknown) => void }> = [];
+    mocks.modelsRpc.mockReset().mockImplementation(({ provider }: { provider: string }) => new Promise((answer) => { reads.push({ provider, answer }); }));
+    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-a" });
+    let first!: ReturnType<typeof TestRenderer.create>;
+    let second!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { first = TestRenderer.create(page()); });
+    await act(async () => { reads[0]!.answer(good); });
+    const trigger = first.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    await act(async () => { trigger.props.onPress(); });
+    await act(async () => { first.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex")[0]!.props.onPress(); });
+    expect(reads.at(-1)?.provider).toBe("codex");
+    const choice = reads.at(-1)!;
+    // Another page opens and reads the host before the choice's read answers.
+    await act(async () => { second = TestRenderer.create(page()); });
+    expect(reads.length).toBe(3);
+    await act(async () => { reads[2]!.answer(good); });
+    await act(async () => { choice.answer(good); });
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex" }), "rev-1");
+    act(() => { first.unmount(); second.unmount(); });
+  });
+
+  it("shows the models and limitations another page read when the saved provider switches to them", async () => {
+    // Regression: the page saw the other page's read in the shared cache, skipped its own, and
+    // rendered its older catalog, without that provider's models or limitations.
+    const catalogFor = (provider: string) => ({ providers: ["opencode", "newapi"], providerLabels: {}, error: null, reason: null, uncheckedProviders: [],
+      models: [{ id: `${provider}-model`, label: `${provider} model`, thinkingOptions: [], defaultThinkingOptionId: null }],
+      limitations: provider === "newapi" ? ["prompt_sent_to_configured_gateway"] : [] });
+    mocks.modelsRpc.mockReset().mockImplementation(async ({ provider }: { provider: string }) => catalogFor(provider));
+    const gateway = "The text goes from your Paseo host to the gateway this provider is configured for.";
+    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-a" });
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "opencode-model" });
+    let first!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { first = TestRenderer.create(page()); });
+    // Another client saves newapi; a second page opens with it and reads newapi.
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "newapi", model: "newapi-model" });
+    let second!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { second = TestRenderer.create(page()); });
+    const reads = mocks.modelsRpc.mock.calls.length;
+    // The first page now sees newapi, already in the shared cache.
+    await act(async () => { first.update(page()); });
+    expect(mocks.modelsRpc.mock.calls.length).toBe(reads);
+    expect(textValues(first.root)).toContain(gateway);
+    const trigger = first.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
+    await act(async () => { trigger.props.onPress(); });
+    expect(first.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "newapi model").length).toBeGreaterThan(0);
+    act(() => { first.unmount(); second.unmount(); });
+  });
+
+  it("drops a provider the host no longer lists when the listed providers' checks did not finish", async () => {
+    // Regression: any empty answer kept the whole last list, so a provider the host had removed
+    // stayed offered when the remaining provider's check timed out.
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "opencode", model: "mock/mock-model" });
+    const listed = { providers: ["opencode"], providerLabels: { opencode: "Removed Gateway" }, error: null, reason: null, uncheckedProviders: [], limitations: [],
+      models: [{ id: "mock/mock-model", label: "Mock", thinkingOptions: [], defaultThinkingOptionId: null }] };
+    const unchecked = { providers: [], providerLabels: {}, models: [], limitations: [], reason: "check_failed", uncheckedProviders: ["newapi"],
+      error: "Paseo could not check newapi for translation with no tools. The list may be incomplete; refresh to try again." };
+    mocks.modelsRpc.mockReset().mockResolvedValueOnce(listed).mockResolvedValue(unchecked);
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(), hostId: "host-a" })); });
+    const refresh = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
+    await act(async () => { refresh.props.onPress(); });
+    // The removed provider's models are no longer offered.
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
+    expect(trigger.props.disabled).toBe(false);
+    await act(async () => { trigger.props.onPress(); });
+    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Mock")).toHaveLength(0);
+    expect(textValues(renderer!.root)).toContain("Paseo could not check newapi for translation with no tools, so the list may be incomplete. Refresh to try again.");
   });
 
   it("keeps the newest catalog when an earlier page's read answers after a later page's", async () => {
