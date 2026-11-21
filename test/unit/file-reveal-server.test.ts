@@ -5,12 +5,14 @@ import { EventEmitter } from "node:events";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
-const { spawn, editorCommand, settings, EditorUnavailableError } = vi.hoisted(() => ({
+const { spawn, editorCommand, settings, home, EditorUnavailableError } = vi.hoisted(() => ({
   spawn: vi.fn(),
   editorCommand: vi.fn(),
   settings: { app: "system", status: "ready" },
+  home: { path: "" },
   EditorUnavailableError: class EditorUnavailableError extends Error {},
 }));
+vi.mock("node:os", async (actual) => ({ ...(await actual<typeof import("node:os")>()), homedir: () => home.path }));
 vi.mock("../../server/editor-target", async (actual) => {
   const real = await actual<typeof import("../../server/editor-target")>();
   return { ...real, editorCommand, EditorUnavailableError };
@@ -28,7 +30,8 @@ beforeAll(async () => {
     queueMicrotask(() => { child.emit("spawn"); child.emit("exit", 0); });
     return child;
   });
-  root = await mkdtemp(join(tmpdir(), "file-reveal-"));
+  root = await mkdtemp(join(tmpdir(), "file-reveal home-"));
+  home.path = root;
   await writeFile(join(root, "notes.md"), "# notes\n");
   await writeFile(join(root, "Better Paseo Icon.html"), "<html></html>");
   await writeFile(join(root, "run"), "#!/bin/sh\n");
@@ -56,6 +59,14 @@ describe("file.reveal on macOS", () => {
   const nativePlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
   beforeEach(() => { Object.defineProperty(process, "platform", { ...nativePlatform, value: "darwin" }); });
   afterEach(() => { Object.defineProperty(process, "platform", nativePlatform); });
+  it("opens home-relative paths on the daemon, including selectors and spaces", async () => {
+    spawn.mockClear();
+    const reveal = await revealHandler();
+    await expect(reveal({ cwd: "/other", path: "~/notes.md:3" })).resolves.toEqual({ revealed: join(root, "notes.md"), error: null });
+    await expect(reveal({ cwd: "/other", path: "~/Better Paseo Icon.html" })).resolves.toEqual({ revealed: join(root, "Better Paseo Icon.html"), error: null });
+    expect(spawn).toHaveBeenLastCalledWith("open", [join(root, "Better Paseo Icon.html")], expect.anything());
+    spawn.mockClear();
+  });
   it("opens a file in its default app and only reveals an executable", async () => {
     const reveal = await revealHandler();
     await expect(reveal({ cwd: root, path: "notes.md:3" })).resolves.toEqual({ revealed: join(root, "notes.md"), error: null });

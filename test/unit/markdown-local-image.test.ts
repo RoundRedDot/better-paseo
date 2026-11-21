@@ -7,7 +7,7 @@ import { describe, expect, it } from "vitest";
 import type { Tokens } from "../../client/vendor/marked";
 import { lexBlock } from "../../client/components/markdown/lex";
 import { isImagePath } from "../../client/image-file";
-import { localImagePath, localPath, splitLocalImages } from "../../client/components/markdown/render/local-path";
+import { localImagePath, localPath, resolveLocalLink, splitLocalImages } from "../../client/components/markdown/render/local-path";
 
 function paragraphTokens(markdown: string) {
   const [block] = lexBlock(markdown);
@@ -33,6 +33,10 @@ describe("localImagePath", () => {
 });
 
 describe("localPath", () => {
+  it("preserves home-relative destinations and resolves ordinary relative links", () => {
+    expect(resolveLocalLink("~/notes/plan.md", "/repo")).toBe("~/notes/plan.md");
+    expect(resolveLocalLink("docs/plan.md", "/repo")).toBe("/repo/docs/plan.md");
+  });
   it("takes a path link as the file it names", () => {
     expect(localPath("/Users/me/.agents/handoffs/handoff-20261012-083930.md")).toBe(
       "/Users/me/.agents/handoffs/handoff-20261012-083930.md",

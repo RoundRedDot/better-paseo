@@ -5,6 +5,7 @@ import { normalizePath } from "../../../paths/format-path";
 
 /** Resolve a Markdown destination without stripping characters that may belong to its filename. */
 export function resolveLocalLink(path: string, cwd?: string): string {
+  if (path === "~" || path.startsWith("~/")) return path;
   if (!cwd || /^(?:[\\/]|[A-Za-z]:[\\/])/.test(path)) return normalizePath(path);
   return normalizePath(`${cwd}/${path}`);
 }

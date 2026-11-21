@@ -121,6 +121,9 @@ export function formatPath(raw: string, ctx: FormatPathContext): FormattedPath {
 
   if (!path) return unmatched(raw.trim(), raw.trim());
 
+  // Only the daemon knows its home directory; retain this spelling for RPCs and copy.
+  if (path === "~" || path.startsWith("~/")) return unmatched(path, path);
+
   // Relative input is drawn as written: it is already short, and it is what
   // the model typed. Only the absolute form is resolved, for reveal and copy.
   if (!isAbsolutePath(path)) {

@@ -10,6 +10,13 @@ import {
 const app: FormatPathContext = { roots: [{ path: "/projects/app" }], cwd: "/projects/app", mode: "relative" };
 
 describe("formatPath", () => {
+  it("retains home-relative paths for the daemon and clipboard", () => {
+    expect(formatPath("~/.agents/skills/paseo/SKILL.md:12", app)).toMatchObject({
+      absolutePath: "~/.agents/skills/paseo/SKILL.md", displayPath: "~/.agents/skills/paseo/SKILL.md", suffix: ":12",
+    });
+    expect(formatPath("~/../notes.md", { ...app, mode: "absolute" }).absolutePath).toBe("~/../notes.md");
+    expect(formatPath("~other/a.md", app).absolutePath).toBe("/projects/app/~other/a.md");
+  });
   it("shows a path inside the root relative to it", () => {
     expect(formatPath("/projects/app/src/a.ts", app)).toEqual({
       absolutePath: "/projects/app/src/a.ts",

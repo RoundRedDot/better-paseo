@@ -1,5 +1,6 @@
 import { open, stat, type FileHandle } from "node:fs/promises";
 import type { Stats } from "node:fs";
+import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { updateCheckRpc } from "./shared/update-check";
@@ -117,6 +118,11 @@ function stripSelector(path: string): string {
 
 type ResolvedSelector = { path: string } | { error: "No path" | "Not a local path" };
 
+function expandHome(path: string): string {
+  if (path === "~") return homedir();
+  return path.startsWith("~/") ? join(homedir(), path.slice(2)) : path;
+}
+
 /**
  * `stripSelector`, unless the whole string names a file: a path with a space,
  * `#` or `:` in it (`My Shots/a.png`) is a real name, not a path plus selector.
@@ -125,7 +131,8 @@ type ResolvedSelector = { path: string } | { error: "No path" | "Not a local pat
  * ordering is the fix for issue #25, so do not move the guard below `stat`.
  */
 async function resolveSelector(path: string, cwd: string): Promise<ResolvedSelector> {
-  const whole = path.trim();
+  const trimmed = path.trim();
+  const whole = expandHome(trimmed);
   if (!whole) return { error: "No path" };
   if (isNetworkOrDevicePath(whole)) return { error: "Not a local path" };
   try {
@@ -134,7 +141,7 @@ async function resolveSelector(path: string, cwd: string): Promise<ResolvedSelec
   } catch {
     // Not a file as written; fall back to cutting the selector.
   }
-  const stripped = stripSelector(path);
+  const stripped = expandHome(stripSelector(trimmed));
   if (!stripped) return { error: "No path" };
   return isNetworkOrDevicePath(stripped) ? { error: "Not a local path" } : { path: stripped };
 }
