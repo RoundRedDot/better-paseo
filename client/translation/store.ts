@@ -37,6 +37,8 @@ type WatchHelper = (helperId: string, onChunk: () => void) => () => void;
 
 /** The text never left this device. */
 const TEXT_NOT_SENT = "The text was not sent.";
+/** The text left this device and its outcome is unknown. */
+const MAY_HAVE_REACHED_MODEL = "The text may have reached the model service.";
 
 const POLL_MS = 1000;
 const MAX_ENTRIES = 500;
@@ -177,6 +179,7 @@ export function createTranslationStore() {
           fn?.();
         };
 
+        let submitted = false;
         try {
           // Ask the host, without the text, whether this translation can run. Only a `ready`
           // answer lets the text leave this device; the server checks again on `start`.
@@ -202,6 +205,8 @@ export function createTranslationStore() {
             }
             return;
           }
+          // From here the text may have left this device: any lost answer says so.
+          submitted = true;
           let result = await call({
             action: "start",
             agentId: input.agentId,
@@ -250,9 +255,11 @@ export function createTranslationStore() {
           if (!current) return;
           // Preserve the user's current expand/collapse choice (`current.visible`) across settlement.
           if (result.state === "idle") {
+            // The plugin no longer knows the job (it restarted, or the job expired) after it got
+            // the text, so the model may have received it.
             setEntry({
               ...current,
-              state: { state: "error", error: "The translation task was lost. Please retry." },
+              state: { state: "error", error: `The translation task was lost after the text was sent. ${MAY_HAVE_REACHED_MODEL}` },
             });
           } else {
             setEntry({ ...current, state: result });
@@ -261,11 +268,14 @@ export function createTranslationStore() {
           if (!isLatestJob(seed)) return;
           const current = entries.get(seed.sourceKey);
           if (!current) return;
+          const reason = error instanceof Error ? error.message : String(error);
           setEntry({
             ...current,
             state: {
               state: "error",
-              error: error instanceof Error ? error.message : String(error),
+              // A start whose answer was lost, or a job whose status stopped arriving, may still
+              // have reached the model.
+              error: submitted ? `Lost contact with the plugin after the text was sent (${reason}). ${MAY_HAVE_REACHED_MODEL}` : reason,
             },
           });
         } finally {

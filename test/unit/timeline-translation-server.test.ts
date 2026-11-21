@@ -612,4 +612,60 @@ describe("translation without a verified tool-free route", () => {
       state: "error", error: "opencode cannot translate with no tools on this Paseo. The text was not sent.",
     });
   });
+
+  describe("an answer lost after the text was sent", () => {
+    const sourceKey = "source-agent-1:assistant:lost";
+    const text = "SYNTHETIC lost answer";
+    const agentConfig = { provider: "opencode", model: "mock/mock-model" };
+
+    async function run(handlers: { check?: () => Promise<unknown>; start: () => Promise<unknown>; status?: () => Promise<unknown> }) {
+      const env = createMockEnv();
+      const store = createTranslationStore();
+      const call = vi.fn(async (input: TranslateTimelineItemInput) => {
+        if (input.action === "check") return handlers.check ? handlers.check() : { state: "ready" };
+        if (input.action === "start") return handlers.start();
+        if (input.action === "status") return handlers.status!();
+        return { state: "idle" };
+      });
+      store.startTranslation({ sourceKey, text, settings: env.settings, agentId: "source-agent-1", sourceKind: "assistant_message", interfaceLanguage: "en", agentConfig }, call as never);
+      await vi.waitFor(() => expect(store.readValid(sourceKey, text, env.settings, "en", agentConfig)?.state.state).toBe("error"), { timeout: 8_000 });
+      return store.readValid(sourceKey, text, env.settings, "en", agentConfig)!.state;
+    }
+
+    it("a lost start reply says the text may have reached the model", async () => {
+      // Regression: it showed only the transport error, as if nothing had been sent.
+      expect(await run({ start: async () => { throw new Error("socket closed"); } })).toEqual({
+        state: "error",
+        error: "Lost contact with the plugin after the text was sent (socket closed). The text may have reached the model service.",
+      });
+    });
+
+    it("status that stops arriving says the text may have reached the model", async () => {
+      expect(await run({
+        start: async () => ({ state: "running", handle: "h-1" }),
+        status: async () => { throw new Error("timed out"); },
+      })).toEqual({
+        state: "error",
+        error: "Lost contact with the plugin after the text was sent (timed out). The text may have reached the model service.",
+      });
+    }, 15_000);
+
+    it("a job the plugin no longer knows after a restart says the text may have reached the model", async () => {
+      // Regression: it said only "The translation task was lost. Please retry."
+      expect(await run({
+        start: async () => ({ state: "running", handle: "h-1" }),
+        status: async () => ({ state: "idle" }),
+      })).toEqual({
+        state: "error",
+        error: "The translation task was lost after the text was sent. The text may have reached the model service.",
+      });
+    });
+
+    it("a check that cannot reach the plugin says the text was not sent", async () => {
+      expect(await run({ check: async () => { throw new Error("socket closed"); }, start: async () => { throw new Error("must not start"); } })).toEqual({
+        state: "error",
+        error: "Could not reach the plugin on your Paseo host. The text was not sent.",
+      });
+    });
+  });
 });

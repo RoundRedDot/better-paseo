@@ -628,7 +628,8 @@ describe("selection bar Translate", () => {
     select("fails once", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
     button("Translate")!.click();
     await flush();
-    expect(panel().textContent).toContain("Translation failed: quota");
+    // The start failed after the text was sent, so the error says it may have reached the model.
+    expect(panel().textContent).toContain("Translation failed: Lost contact with the plugin after the text was sent (quota). The text may have reached the model service.");
     button("Retry")!.click();
     await flush();
     expect(panel().textContent).toContain("好");

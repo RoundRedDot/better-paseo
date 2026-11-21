@@ -629,7 +629,8 @@ describe("selection translation", () => {
 
     job.start();
     await vi.waitFor(() => expect(job.view()?.status).toBe("error"));
-    expect(job.view()).toMatchObject({ status: "error", error: "quota" });
+    // The start failed after the text was sent, so the error says it may have reached the model.
+    expect(job.view()).toMatchObject({ status: "error", error: "Lost contact with the plugin after the text was sent (quota). The text may have reached the model service." });
     expect(JSON.parse(mocks.rpc.mock.calls[1]![0].configSignature)).toMatchObject({ model: "claude-opus-4-5", targetCode: "ja" });
     job.start();
     await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
