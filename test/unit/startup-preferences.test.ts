@@ -103,6 +103,36 @@ describe("preferences read while the plugin loads", () => {
     host.settings = { status: "loading" };
   });
 
+  it.each(["ios", "android", "web"])("routes local file links on %s", async (platform) => {
+    vi.stubGlobal("__rnMockOS", platform);
+    const { contribute } = await load();
+    const plugin = fakeClient(() => new Promise(() => {}));
+    const cleanup = contribute(plugin.client as never);
+    const [assistant] = plugin.active("omp-enhanced-assistant");
+    const transform = (text: string, phase = "complete") => assistant!.transform({
+      item: { type: "assistant_message", text }, phase,
+    });
+    try {
+      const apk = "[APK](/workspace/app/build/outputs/apk/release/app-release.apk)";
+      for (const text of [apk, `| File |\n| --- |\n| ${apk} |`,
+        "> - [Notes][notes]\n\n[notes]: docs/notes.md", "<file:///workspace/archive.zip>"]) {
+        for (const phase of ["streaming", "complete"]) {
+          if (platform === "web") expect(transform(text, phase)).toBeDefined();
+          else expect(transform(text, phase)).toBeUndefined();
+        }
+      }
+      for (const text of ["A **formatted** reply", "[Docs](https://example.com/guide.md)",
+        "`src/main.ts`", "![Image](/workspace/screenshot.png)", `\`\`\`md\n${apk}\n\`\`\``]) {
+        expect(transform(text)).toBeDefined();
+      }
+      const toolResult = `[external_agent_tool_result]\n${apk}\n[/external_agent_tool_result]\n`;
+      expect(transform(toolResult)).toMatchObject({ items: [{ kind: "omp-tool-call" }] });
+    } finally {
+      cleanup();
+      vi.unstubAllGlobals();
+    }
+  });
+
   it("reprojects interactive replies when handoff changes", async () => {
     const { contribute, preferences } = await load();
     let answer!: (value: unknown) => void;
