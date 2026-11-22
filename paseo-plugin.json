@@ -28,6 +28,7 @@
       "ci",
       "--omit=dev"
     ],
+    ["npm", "run", "prepare:math"],
     [
       "node",
       "scripts/build-client.mjs",

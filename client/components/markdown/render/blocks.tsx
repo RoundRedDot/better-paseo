@@ -5,6 +5,8 @@ import { Icon } from "@getpaseo/plugin/client/ui";
 import type { MathToken } from "../lex";
 import type { InsightToken } from "../insight";
 import { CodeBlock } from "./code-block";
+import { DisplayMath } from "./display-math";
+import { codeLanguage, fenceClosed } from "./text";
 import type { RenderContext } from "./context";
 import { codeSurface } from "../../host-font-escape";
 import { contentTextProps, contentTextStyle } from "../../../ui/content-text";
@@ -106,8 +108,10 @@ function renderBlock(
   }
 
   if (generic.type === "math") {
-    // TeX source on the code face (plan D6): readable, and copyable as TeX.
     const math = generic as unknown as MathToken;
+    if (context.displayMath && math.closed && math.text) {
+      return <DisplayMath key={key} tex={math.text} context={context} />;
+    }
     return (
       <MarkdownProse key={key} context={context} {...(codeSurface as object)} style={styles.plain} text={math.text} />
     );
@@ -177,6 +181,9 @@ function renderBlock(
       return <QuoteBlock key={key} token={token} context={context} prefix={key} options={options} />;
 
     case "code":
+      if (context.displayMath && codeLanguage(token.lang).toLowerCase() === "math" && fenceClosed(token.raw) && token.text.trim()) {
+        return <DisplayMath key={key} tex={token.text} context={context} />;
+      }
       return <CodeBlock key={key} token={token} context={context} open={options.open} />;
 
     case "hr":

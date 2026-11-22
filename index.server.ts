@@ -18,6 +18,8 @@ import { imageRpc } from "./shared/image-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
 import { isNetworkOrDevicePath } from "./shared/network-path";
 import { perfDumpRpc } from "./shared/perf-rpc";
+import { renderMath, type RenderOutput } from "./shared/math-rpc";
+import type { createMathRenderer } from "./server/math/render";
 import { EMBEDDED_FONTS } from "./server/font-data";
 import { MARK_BITMAPS } from "./server/mark-bitmaps";
 import { writePerfDump } from "./server/perf-dump";
@@ -476,6 +478,16 @@ function tokenize(
 }
 
 export default function contribute(server: PluginServerContext) {
+  let mathRenderer: Promise<ReturnType<typeof createMathRenderer>> | undefined;
+  server.handle(renderMath, async (input): Promise<RenderOutput> => {
+    try {
+      mathRenderer ??= import("./server/math/render").then(({ createMathRenderer }) => createMathRenderer());
+      return await (await mathRenderer).render(input);
+    } catch {
+      mathRenderer = undefined;
+      return { ok: false, code: "renderer-unavailable", reason: "Local formula rendering failed" };
+    }
+  });
   // Presentation preferences live in the daemon (host scope), so every
   // client — including iOS and Android, which have no localStorage — reads
   // and saves the same record (S5 fix round 1).
@@ -635,5 +647,9 @@ export default function contribute(server: PluginServerContext) {
 
   // The highlighter and the cache sit at module scope on purpose, shared by
   // every contribution, so a single teardown must not dispose them.
-  return () => { stopAutomaticUpdateCheck(); };
+  return async () => {
+    stopAutomaticUpdateCheck();
+    const renderer = await mathRenderer?.catch(() => undefined);
+    renderer?.dispose();
+  };
 }
