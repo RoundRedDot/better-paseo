@@ -1,4 +1,5 @@
 import type { PluginClientContext, PluginTimelineTransformerContribution } from "@getpaseo/plugin/client";
+import { Platform } from "react-native";
 import { z } from "zod";
 import { contributeSettingsScreen } from "./client/settings-screen";
 import { PluginUpdateIndicator } from "./client/plugin-update-indicator";
@@ -18,7 +19,7 @@ import { transformCompaction, transformToolCall } from "./client/tools/transform
 import { showToolAtLevel } from "./client/tools/timeline-level";
 import { transformNotification } from "./client/notice-transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
-import { assistantRows, hasUiFence } from "./client/assistant-transform";
+import { assistantRows, hasLocalFileLink, hasUiFence } from "./client/assistant-transform";
 import { externalHistoryRows } from "./client/external-history";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
@@ -249,7 +250,11 @@ export default function contribute(client: PluginClientContext) {
           if (!getEnhancerPreferences().assistantMarkdown) return undefined;
           if (!item.text.trim()) return undefined;
           if (getEnhancerPreferences().liveUiReplies && hasUiFence(item.text, phase)) return undefined;
-          return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
+          const importedRows = externalHistoryRows(item.text, phase, item.messageId);
+          if (!importedRows && (Platform.OS === "ios" || Platform.OS === "android") && hasLocalFileLink(item.text)) {
+            return undefined;
+          }
+          return { items: importedRows ?? assistantRows(item.text, phase) };
         },
       }),
   );

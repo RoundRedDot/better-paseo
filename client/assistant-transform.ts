@@ -1,8 +1,9 @@
 import { isAssistantPlaceholder } from "./assistant-text";
 import { splitBlocks } from "./components/markdown/blocks";
 import { parseSystemEnvelope } from "./system-envelope";
-import { lexBlockTokens } from "./components/markdown/lex";
-import type { Tokens } from "./vendor/marked";
+import { lexBlock, lexBlockTokens } from "./components/markdown/lex";
+import { localPath } from "./components/markdown/render/local-path";
+import type { Token, Tokens } from "./vendor/marked";
 
 export interface AssistantRowData {
   text: string;
@@ -60,6 +61,27 @@ export function hasUiFence(text: string, phase = "complete"): boolean {
     index = close;
   }
   return false;
+}
+
+function containsLocalFileLink(tokens: readonly Token[]): boolean {
+  return tokens.some((token) => {
+    if (token.type === "link") return localPath(token.href) !== null;
+    if (token.type === "list") {
+      return (token as Tokens.List).items.some((item) => containsLocalFileLink(item.tokens));
+    }
+    if (token.type === "table") {
+      const { header, rows } = token as Tokens.Table;
+      return header.some((cell) => containsLocalFileLink(cell.tokens)) ||
+        rows.some((row) => row.some((cell) => containsLocalFileLink(cell.tokens)));
+    }
+    const children = (token as Tokens.Generic).tokens;
+    return children !== undefined && containsLocalFileLink(children);
+  });
+}
+
+export function hasLocalFileLink(text: string): boolean {
+  if (!text.includes("](") && !text.includes("]:") && !/<file:/i.test(text)) return false;
+  return containsLocalFileLink(lexBlock(text, true));
 }
 
 /** Completed long replies use the host's existing row virtualization. */
