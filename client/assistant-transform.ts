@@ -3,6 +3,7 @@ import { splitBlocks } from "./components/markdown/blocks";
 import { parseSystemEnvelope } from "./system-envelope";
 import { lexBlock, lexBlockTokens } from "./components/markdown/lex";
 import { localPath } from "./components/markdown/render/local-path";
+import { isPathLike } from "./components/markdown/render/text";
 import type { Token, Tokens } from "./vendor/marked";
 
 export interface AssistantRowData {
@@ -66,6 +67,7 @@ export function hasUiFence(text: string, phase = "complete"): boolean {
 function containsLocalFileLink(tokens: readonly Token[]): boolean {
   return tokens.some((token) => {
     if (token.type === "link") return localPath(token.href) !== null;
+    if (token.type === "codespan") return isPathLike(token.text);
     if (token.type === "list") {
       return (token as Tokens.List).items.some((item) => containsLocalFileLink(item.tokens));
     }
@@ -80,7 +82,7 @@ function containsLocalFileLink(tokens: readonly Token[]): boolean {
 }
 
 export function hasLocalFileLink(text: string): boolean {
-  if (!text.includes("](") && !text.includes("]:") && !/<file:/i.test(text)) return false;
+  if (!text.includes("](") && !text.includes("]:") && !text.includes("`") && !/<file:/i.test(text)) return false;
   return containsLocalFileLink(lexBlock(text, true));
 }
 

@@ -115,14 +115,15 @@ describe("preferences read while the plugin loads", () => {
     try {
       const apk = "[APK](/workspace/app/build/outputs/apk/release/app-release.apk)";
       for (const text of [apk, `| File |\n| --- |\n| ${apk} |`,
-        "> - [Notes][notes]\n\n[notes]: docs/notes.md", "<file:///workspace/archive.zip>"]) {
+        "> - [Notes][notes]\n\n[notes]: docs/notes.md", "<file:///workspace/archive.zip>",
+        "`src/main.ts`", "Built `/workspace/app/build/app-release.apk`", "- See `docs/notes.md`"]) {
         for (const phase of ["streaming", "complete"]) {
           if (platform === "web") expect(transform(text, phase)).toBeDefined();
           else expect(transform(text, phase)).toBeUndefined();
         }
       }
       for (const text of ["A **formatted** reply", "[Docs](https://example.com/guide.md)",
-        "`src/main.ts`", "![Image](/workspace/screenshot.png)", `\`\`\`md\n${apk}\n\`\`\``]) {
+        "Run `npm test`", "![Image](/workspace/screenshot.png)", `\`\`\`md\n${apk}\n\`\`\``]) {
         expect(transform(text)).toBeDefined();
       }
       const toolResult = `[external_agent_tool_result]\n${apk}\n[/external_agent_tool_result]\n`;
