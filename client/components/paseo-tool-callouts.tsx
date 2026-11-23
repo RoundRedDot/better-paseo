@@ -2,6 +2,7 @@ import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
 import { usePaseo } from "@getpaseo/plugin/client";
+import { useCodexProvider } from "../state/provider-family";
 import { surfaceProps } from "./view-props";
 import { radiusV2, space } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
@@ -109,6 +110,7 @@ export function AgentStatusView({ data, tokens, raw = false, compact = false }: 
 }) {
   const mobile = useCardMobile(compact);
   const live = useLiveAgent(data.agentId);
+  const codex = useCodexProvider(data.status === "finished" ? live.provider : undefined);
   const permission = !raw && data.status === "needs permission" ? readPermissionRequest(data.body) : undefined;
   const reply = permission ? permission.rest : data.body;
   const fields: AgentField[] = live.model ? [{ key: "model", icon: "Cpu", label: live.model }] : [];
@@ -126,7 +128,7 @@ export function AgentStatusView({ data, tokens, raw = false, compact = false }: 
     {permission ? <PermissionAnswerNote tokens={tokens} /> : null}
     {permission?.requestId ? <PermissionRequestId requestId={permission.requestId} tokens={tokens} /> : null}
     {rest ? <AgentSection label={data.status === "finished" && !raw ? "Reply" : undefined} tokens={tokens}>
-      <AgentMarkdown testID="agent-status-body" text={rest} tokens={tokens} raw={raw} mobile={mobile} /></AgentSection> : null}
+      <AgentMarkdown testID="agent-status-body" text={rest} tokens={tokens} raw={raw} mobile={mobile} codexDirectives={codex} /></AgentSection> : null}
   </View>;
 }
 

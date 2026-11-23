@@ -9,6 +9,7 @@
 import { Lexer, type MarkedOptions, type Token } from "../../vendor/marked";
 import { perfCount, perfOn } from "../../debug/perf";
 import { insightStart, insightTokenizer } from "./insight";
+import { codexBlockStart, codexBlockTokenizer, codexInlineStart, codexInlineTokenizer } from "./codex";
 
 /**
  * `$$ … $$` on its own lines: TeX shown as source (plan D6, no KaTeX). An
@@ -54,14 +55,27 @@ export const LEXER_OPTIONS: MarkedOptions = {
   extensions: {
     renderers: {},
     childTokens: {},
+    block: [mathTokenizer as never, insightTokenizer, codexBlockTokenizer as never],
+    inline: [codexInlineTokenizer as never],
+    startBlock: [mathStart, insightStart, codexBlockStart],
+    startInline: [codexInlineStart],
+  },
+};
+
+const LITERAL_OPTIONS: MarkedOptions = {
+  ...LEXER_OPTIONS,
+  extensions: {
+    renderers: {}, childTokens: {},
     block: [mathTokenizer as never, insightTokenizer],
+    inline: [],
     startBlock: [mathStart, insightStart],
+    startInline: [],
   },
 };
 
 /** Block-level tokens only: what the splitter needs, without inline work. */
-export function lexBlockTokens(markdown: string): Token[] {
-  return new Lexer(LEXER_OPTIONS).blockTokens(markdown);
+export function lexBlockTokens(markdown: string, codex = true): Token[] {
+  return new Lexer(codex ? LEXER_OPTIONS : LITERAL_OPTIONS).blockTokens(markdown);
 }
 
 const LRU_LIMIT = 500;
@@ -82,28 +96,30 @@ const tails = new Map<string, Token[]>();
  * treat the result as read-only: it is shared by every block with this
  * source. `open` marks the tail of a reply that is still streaming.
  */
-export function lexBlock(raw: string, open = false): Token[] {
-  const hit = lru.get(raw);
+export function lexBlock(raw: string, open = false, codex = true): Token[] {
+  const key = (codex ? "1" : "0") + raw;
+  const options = codex ? LEXER_OPTIONS : LITERAL_OPTIONS;
+  const hit = lru.get(key);
   if (hit !== undefined) {
     // Re-inserting moves the key to the young end of the insertion order.
-    lru.delete(raw);
-    lru.set(raw, hit);
+    lru.delete(key);
+    lru.set(key, hit);
     return hit;
   }
   if (!open && perfOn()) perfCount("md.lexFinalMiss");
   if (open) {
-    const tail = tails.get(raw);
+    const tail = tails.get(key);
     if (tail !== undefined) return tail;
-    const tokens: Token[] = Lexer.lex(raw, LEXER_OPTIONS);
-    tails.set(raw, tokens);
+    const tokens: Token[] = Lexer.lex(raw, options);
+    tails.set(key, tokens);
     if (tails.size > TAIL_LIMIT) {
       const oldest = tails.keys().next().value;
       if (oldest !== undefined) tails.delete(oldest);
     }
     return tokens;
   }
-  const tokens: Token[] = Lexer.lex(raw, LEXER_OPTIONS);
-  lru.set(raw, tokens);
+  const tokens: Token[] = Lexer.lex(raw, options);
+  lru.set(key, tokens);
   while (lru.size > LRU_LIMIT) {
     const oldest = lru.keys().next().value;
     if (oldest === undefined) break;

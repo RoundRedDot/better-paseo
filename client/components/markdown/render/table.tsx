@@ -121,7 +121,7 @@ export function MdTable({
   const keeps = useCallback((event: PointerEvent) => addsCellRange(event)
     && ((frameRef.current as unknown as HTMLElement | null)?.contains(event.target as Node) ?? false), []);
   rowRefs.current.length = token.rows.length + 1;
-  const selectedText = rangeText(token, selection.ranges);
+  const selectedText = rangeText(token, selection.ranges, context.literalCodex);
   // Ranges of empty cells have nothing to copy, so they are not drawn once let go.
   const ranges = selection.dragging || selectedText ? selection.ranges : NO_RANGES;
   const align = (column: number) => styles[ALIGN_KEYS[aligns[column] ?? "left"]];

@@ -3,7 +3,8 @@ import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import "./helpers/quiet-renderer";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => vi.fn() }));
+const paseo = vi.hoisted(() => ({}));
+vi.mock("@getpaseo/plugin/client", () => ({ useRpc: () => vi.fn(), usePaseo: () => paseo }));
 const iconCalls = vi.hoisted(() => [] as Array<{ icon?: unknown }>);
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");

@@ -12,7 +12,7 @@ import type { RenderContext } from "./context";
 import { MARKER_GAP, MOBILE_BULLET_GAP } from "./styles";
 import { BlockSelectionContext } from "./block-selection";
 import { renderInline } from "./inline";
-import { escapeProse, nativeBlockSource, nativeProseSource, type NativeProseSource } from "./native-prose-source";
+import { escapeProse, hasCodexInline, nativeBlockSource, nativeProseSource, type NativeProseSource } from "./native-prose-source";
 import { resolveLocalLink } from "./local-path";
 
 // Paseo 0.12 registers this Fabric component and its view config before rendering plugins.
@@ -35,7 +35,7 @@ interface Props extends TextProps {
 /** A paragraph, heading or list body; code fences and tables keep their existing renderers. */
 export function MarkdownProse({ context, tokens, text, prefix, bold, style, ...rest }: Props) {
   const selection = useContext(BlockSelectionContext);
-  if (Platform.OS !== "ios" || context.plainProse) {
+  if (Platform.OS !== "ios" || context.plainProse || (tokens && hasCodexInline(tokens))) {
     const body = text === undefined ? renderInline(tokens, context, "p", bold) : context.renderText ? context.renderText(text) : text;
     // A selected block (iOS while streaming, Android) gives up native selection
     // as the native prose does, so a double tap leaves one highlight, not two.

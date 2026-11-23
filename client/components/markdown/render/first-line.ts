@@ -3,7 +3,7 @@
  * the reply (the inline translate button) can center on it. Pure module: it
  * mirrors the vertical layout `blocks.tsx` gives each block kind.
  */
-import type { Token, Tokens } from "../../../vendor/marked";
+import type { Token, TokenizerThis, Tokens } from "../../../vendor/marked";
 import { space } from "../../theme-tokens";
 import { lexBlockTokens } from "../lex";
 import type { VariantMetrics } from "./styles";
@@ -11,6 +11,7 @@ import { codeBlockFirstLineCenter } from "../../syntax-highlight";
 import { COPY_BUTTON_BOX } from "../../../ui/copy-button";
 import { tableFirstLineCenter } from "./table";
 import { codeLanguage } from "./text";
+import { codexBlockTokenizer, type CodexToken } from "../codex";
 
 export interface FirstLineLayout {
   metrics: VariantMetrics;
@@ -20,6 +21,7 @@ export interface FirstLineLayout {
   monoLineHeight: number;
   /** Whether the Markdown is the start of its reply, where a heading drops its top margin. */
   first?: boolean;
+  codexDirectives?: boolean;
 }
 
 /**
@@ -27,7 +29,13 @@ export interface FirstLineLayout {
  * paragraph or fence keeps its block kind, and a streaming reply past it gives
  * a memo the same source and is not lexed again per chunk.
  */
-export function firstLineSource(text: string): string {
+export function firstLineSource(text: string, codexDirectives = true): string {
+  if (text.includes("\r")) text = text.replace(/\r\n|\r/g, "\n");
+  if (codexDirectives && /^ {0,3}(?:::browser-complete\{|::code-comment\{|::artifact-template\{|:codex-file-citation\{|<oai-mem-citation>)/.test(text)) {
+    const prefix = text.slice(0, 16_384);
+    const token = codexBlockTokenizer.call({} as TokenizerThis, prefix);
+    if (token) return prefix.slice(0, token.raw.length);
+  }
   return text.length > 1024 ? text.slice(0, 1024) : text;
 }
 
@@ -43,11 +51,11 @@ export function firstLineSource(text: string): string {
  * else (a rendered Mermaid diagram) falls back to a body line at the top.
  */
 export function firstLineCenter(text: string, layout: FirstLineLayout): number {
-  const tokens = lexBlockTokens(firstLineSource(text));
+  const tokens = lexBlockTokens(firstLineSource(text, layout.codexDirectives ?? true), layout.codexDirectives ?? true);
   return centerIn(tokens, layout, layout.metrics.blockGap, layout.first ?? true) ?? layout.metrics.bodyLineHeight / 2;
 }
 
-function centerIn(tokens: readonly Token[], layout: FirstLineLayout, gap: number, first: boolean): number | null {
+function centerIn(tokens: readonly Token[], layout: FirstLineLayout, gap: number, first: boolean, inQuote = false): number | null {
   const { metrics, ruleHeight } = layout;
   let offset = 0;
   for (const token of tokens) {
@@ -70,7 +78,7 @@ function centerIn(tokens: readonly Token[], layout: FirstLineLayout, gap: number
       }
       case "blockquote": {
         // A quote's blocks are never the reply's first.
-        const inner = centerIn((token as Tokens.Blockquote).tokens, layout, space.xs, false);
+        const inner = centerIn((token as Tokens.Blockquote).tokens, layout, space.xs, false, true);
         return offset + space.xs + (inner ?? metrics.bodyLineHeight / 2);
       }
       case "code": {
@@ -86,6 +94,13 @@ function centerIn(tokens: readonly Token[], layout: FirstLineLayout, gap: number
         // `styles.insight`: a 1 px border and `space.md` padding around a
         // header row of the title and its Copy button.
         return offset + 1 + space.md + Math.max(metrics.bodyLineHeight, COPY_BUTTON_BOX) / 2;
+      case "codex": {
+        if (inQuote) return offset + metrics.bodyLineHeight / 2;
+        const codex = token as unknown as CodexToken;
+        if (codex.kind === "memory") return offset + Math.max(32, metrics.bodyLineHeight) / 2;
+        const padding = codex.kind === "browser" ? 3 : 13;
+        return offset + padding + metrics.bodyLineHeight / 2;
+      }
       default:
         return offset + metrics.bodyLineHeight / 2;
     }

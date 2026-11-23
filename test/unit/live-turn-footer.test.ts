@@ -12,6 +12,7 @@ const runtime = vi.hoisted(() => ({
   api: {} as unknown,
   copyText: vi.fn(async (_text: string) => {}),
   translate: vi.fn(() => new Promise<never>(() => {})),
+  family: vi.fn(async ({ provider }: { provider: string }) => ({ codex: ["my-codex", "gemini", "grok"].includes(provider) })),
 }));
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
@@ -21,7 +22,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
     () => selector(runtime.agent),
   ),
   usePaseo: () => runtime.api,
-  useRpc: (rpc: unknown) => rpc === translateTimelineItemRpc ? runtime.translate : () => Promise.resolve(null),
+  useRpc: (rpc: unknown) => rpc === translateTimelineItemRpc ? runtime.translate : rpc === providerFamilyRpc ? runtime.family : () => Promise.resolve(null),
   useWorkspace: () => null,
   useSettings: () => ({ data: undefined, status: "loading" }),
 }));
@@ -38,13 +39,14 @@ vi.mock("../../client/components/selection-actions", () => ({ useSelectionAction
 vi.mock("../../client/components/tool-callouts", () => ({ ToolCallout: () => null }));
 vi.mock("../../client/components/markdown/markdown-view", async () => {
   const rn = await import("./helpers/rn-mock");
-  return { MarkdownView: ({ text }: { text: string }) => React.createElement(rn.Text, null, text) };
+  return { MarkdownView: ({ text, codexDirectives }: { text: string; codexDirectives?: boolean }) => React.createElement(rn.Text, { testID: "reply-markdown", codexDirectives }, text) };
 });
 
 import { LiveAssistantRenderer, LiveToolCallRenderer, type LiveAssistantPayload, type LiveToolCallPayload } from "../../client/live-renderers";
 import { AssistantFooter } from "../../client/components/turn-footer";
 import { assistantRows } from "../../client/assistant-transform";
 import { translateTimelineItemRpc } from "../../shared/timeline-translation";
+import { providerFamilyRpc } from "../../shared/provider-family-rpc";
 import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
 import { formatFooterStamp, formatFullStamp } from "../../client/ui/time";
 
@@ -55,13 +57,28 @@ const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", 
 const catalog: PaseoProviderModelsResult = { provider: "codex", fetchedAt: "now", requestId: "r",
   models: [{ provider: "codex", id: "sol", label: "GPT-6.1-Sol", thinkingOptions: [{ id: "medium", label: "Medium" }] }] };
 
-beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; });
+beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; runtime.agent.provider = "codex"; });
 afterEach(() => {
   resetTranslationSettingsStoreForTests();
   expect(runtime.listeners.size).toBe(0);
 });
 
 describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform) => {
+  it.each(["codex", "claude", "my-codex", "my-claude", "gemini", "grok"].flatMap((provider) => [false, true].map((split) => ({ provider, split }))))("enables Codex directives only for $provider replies, split=$split", async ({ provider, split }) => {
+    runtime.agent.provider = provider;
+    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page([]));
+    const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
+    runtime.api = { agents: { ref: () => ({ timeline: { refetch, subscribe: () => release } }) }, providers: { listModels: async () => catalog } };
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, {
+      agentId: "provider-check", theme, host: { id: "local", label: "Local" }, layout: { platform, compact: platform !== "web" },
+      timestamp: new Date(2000), item: { type: "plugin", kind: "omp-assistant", version: 1,
+        data: { text: '::browser-complete{title="Done"}', phase: "complete", ...(split ? { blockIndex: 0 } : {}) } },
+    } satisfies PluginTimelineItemProps<LiveAssistantPayload>)); });
+    try {
+      expect(renderer.root.findByProps({ testID: "reply-markdown" }).props.codexDirectives).toBe(["codex", "my-codex", "gemini", "grok"].includes(provider));
+    } finally { await act(async () => renderer.unmount()); }
+  });
   it("shows the turn end time while matching the reply by its original timestamp", async () => {
     const startedAt = new Date(2026, 9, 16, 9, 1, 0).getTime();
     const replyAt = startedAt + 10000;

@@ -10,15 +10,19 @@ import { decodeEntities, isPathLike, softBreaks } from "./text";
 import { localPath } from "./local-path";
 import { LocalLink } from "./local-link";
 import { ProseSpan } from "../../../ui/prose-text";
+import { citationLabel, codexPath, type CodexToken } from "../codex";
 
 /** The visible text of an inline run, for measuring and summaries. */
-export function inlineText(tokens: readonly Token[] | undefined): string {
+export function inlineText(tokens: readonly Token[] | undefined, literalCodex = false): string {
   if (!tokens) return "";
   let out = "";
   for (const token of tokens) {
     switch (token.type) {
+      case "codex":
+        out += literalCodex ? token.raw : citationLabel(token as unknown as CodexToken);
+        break;
       case "text":
-        out += token.tokens ? inlineText(token.tokens) : softBreaks(decodeEntities(token.text));
+        out += token.tokens ? inlineText(token.tokens, literalCodex) : softBreaks(decodeEntities(token.text));
         break;
       case "escape":
       case "codespan":
@@ -35,7 +39,7 @@ export function inlineText(tokens: readonly Token[] | undefined): string {
         break;
       default: {
         const children = (token as Tokens.Generic).tokens;
-        out += children ? inlineText(children) : (token.raw ?? "");
+        out += children ? inlineText(children, literalCodex) : (token.raw ?? "");
       }
     }
   }
@@ -62,6 +66,14 @@ export function renderInline(
   tokens.forEach((token, index) => {
     const key = `${keyPrefix}i${index}`;
     switch (token.type) {
+      case "codex": {
+        const citation = token as unknown as CodexToken;
+        if (context.literalCodex) { out.push(citation.raw); return; }
+        const label = citationLabel(citation);
+        const path = codexPath(citation.attrs.path!)!;
+        out.push(<LocalLink key={key} path={path} context={context}><ProseSpan style={{ backgroundColor: context.tokens.v2.surface1, color: context.tokens.foregroundMuted }}>{label}</ProseSpan></LocalLink>);
+        return;
+      }
       case "text":
         // A list item's text token wraps its own inline run.
         if (token.tokens && token.tokens.length > 0) {

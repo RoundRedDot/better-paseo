@@ -9,6 +9,7 @@ import { InlineTranslation, InlineTranslateButton, InlineTranslationNotice, type
 import { variantMetrics } from "../../components/markdown/render/styles";
 import { useThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
+import { useCodexProvider } from "../../state/provider-family";
 import { HoverPreviewContext } from "../../ui/hover-preview";
 import { useCopy } from "../../ui/use-copy";
 import { useHover } from "../../ui/use-hover";
@@ -38,6 +39,7 @@ type NoteProps = {
   language: TasksLanguage;
   compact?: boolean;
   translationAgentId?: string;
+  provider?: string;
 };
 
 export function QuestionContextNote(props: NoteProps) {
@@ -72,6 +74,7 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
   const { ready } = props;
   const [expanded, setExpanded] = useState(false);
   const preferences = useEnhancerPreferences();
+  const codex = useCodexProvider(props.provider);
   const prose = useThemeTokens(props.theme, preferences);
   useSelectionActions(prose, !!props.translationAgentId && preferences.selectionActions);
   const adjustment = useTasksFontAdjustment();
@@ -108,8 +111,8 @@ function NoteBody(props: NoteProps & { ready: Extract<QuestionContext, { state: 
         expanded={expanded} fadeColor={colors.surface1} touch={props.compact} onToggle={() => setExpanded((open) => !open)}>
         <HoverPreviewContext.Provider value>
           {props.translationAgentId ? <SelectionTranslationScope agentId={props.translationAgentId} kind="assistant_message" streaming={false}>
-            <MarkdownView text={text!} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />
-          </SelectionTranslationScope> : <MarkdownView text={text!} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />}
+            <MarkdownView text={text!} codexDirectives={codex} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />
+          </SelectionTranslationScope> : <MarkdownView text={text!} codexDirectives={codex} tokens={prose} variant={preferences.markdownVariant} compact={props.compact === true} size={font} />}
         </HoverPreviewContext.Provider>
       </FoldedText>
     </View> : <View testID="task-question-note-loading" accessible accessibilityRole="progressbar" accessibilityLabel={words.contextLoading} style={box}>

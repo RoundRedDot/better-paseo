@@ -118,8 +118,8 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
                 {card.location.branch ? <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: branch.background }}><Icon name="GitBranch" size={14} color={branch.icon} /><Text style={[meta, { color: branch.text }]}>{card.location.branch}</Text></View> : null}
               </View>
             </View> : null}
-            {props.inline ? props.context ? <QuestionContextNote read={props.context} theme={props.theme} language={props.language} compact={props.compact} translationAgentId={translationAgentId} /> : null
-              : <QuestionContextNote read={ownContext} theme={props.theme} language={props.language} compact={props.compact} translationAgentId={translationAgentId} />}
+            {props.inline ? props.context ? <QuestionContextNote read={props.context} theme={props.theme} language={props.language} compact={props.compact} translationAgentId={translationAgentId} provider={card?.provider} /> : null
+              : <QuestionContextNote read={ownContext} theme={props.theme} language={props.language} compact={props.compact} translationAgentId={translationAgentId} provider={card?.provider} />}
             {multiple ? <ScrollView horizontal showsHorizontalScrollIndicator={false}><View accessibilityRole="tablist" style={{ flexDirection: "row", borderBottomWidth: 1, borderBottomColor: colors.border }}>
               {questions!.map((q, i) => <HoverControl base={colors.surface0} foreground={colors.foreground} key={i} testID={`task-question-tab-${i}`} accessibilityRole="tab" accessibilityState={{ selected: i === index }} onPress={() => selectQuestion(i)} style={{ minHeight: 40, justifyContent: "center", paddingHorizontal: 12, borderBottomWidth: 2, borderBottomColor: i === index ? colors.accent : "transparent" }}><Text style={[meta, { color: i === index ? colors.foreground : colors.foregroundMuted, fontWeight: "600" }]}>{words.question(i + 1)}{answered[i] ? " ✓" : ""}</Text></HoverControl>)}
             </View></ScrollView> : null}

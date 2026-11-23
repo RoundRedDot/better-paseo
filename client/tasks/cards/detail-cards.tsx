@@ -3,6 +3,7 @@ import { createDetailChrome, useDetailChrome, type DetailChrome, type DetailChro
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { useRpc } from "@getpaseo/plugin/client";
+import { useCodexProvider } from "../../state/provider-family";
 import { Icon, ScrollView as SheetScrollView, useToast } from "@getpaseo/plugin/client/ui";
 import { revealPathRpc } from "../../../shared/file-rpc";
 import { fileOpenError } from "../../i18n/file-open-error";
@@ -1886,6 +1887,7 @@ function TimelineTextBody(props: Inner & {
   translation?: InlineTranslationState;
 }) {
   const { tokens, id } = props;
+  const codex = useCodexProvider(id === "detail-message" ? props.card.provider : undefined);
   const words = cardStrings(props.language).details;
   const [open, setOpen] = useState(props.tabs === true && props.id !== "detail-prompt");
   const query = props.id === "detail-prompt" ? props.searchQuery ?? "" : "";
@@ -1943,7 +1945,7 @@ function TimelineTextBody(props: Inner & {
   const text = props.translation?.active && props.translation.view?.status === "done" ? props.translation.view.result.translation : prompt.text;
   const lines = errorLines(text);
   const long = lines.length > PROMPT_LINES || text.length > 600;
-  const markdown = <MarkdownView text={text} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />;
+  const markdown = <MarkdownView text={text} codexDirectives={codex} streaming={streaming} renderText={renderText} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={font} onRevealPath={onRevealPath} />;
   return (
     <View style={{ paddingHorizontal: 6, paddingTop: 4 }}>
       <View style={props.translation?.active && props.translation.view && ["running", "settings-loading", "config-loading"].includes(props.translation.view.status) ? { opacity: 0.55 } : undefined}>

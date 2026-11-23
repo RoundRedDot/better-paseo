@@ -23,6 +23,7 @@
  */
 import type { Token } from "../../vendor/marked";
 import { lexBlockTokens } from "./lex";
+import { directiveChanged } from "./codex";
 
 // Footnote identifiers are alphanumeric, underscore or hyphen ([^1], [^note]).
 const footnoteReferencePattern = /\[\^[\w-]{1,200}\](?!:)/;
@@ -107,6 +108,7 @@ function countDoubleDollars(str: string): number {
 export interface BlockCache {
   input: string;
   blocks: string[];
+  codex: boolean;
   /**
    * How many leading blocks have been checked to sit at their expected offsets
    * in `input`. marked trims a few raws (a bare "- " lexes to "-\n"), so the
@@ -120,7 +122,7 @@ export interface BlockCache {
 }
 
 export function createBlockCache(): BlockCache {
-  return { input: "", blocks: [], verifiedCount: 0, verifiedLength: 0, primed: false };
+  return { input: "", blocks: [], codex: true, verifiedCount: 0, verifiedLength: 0, primed: false };
 }
 
 const blankLineEnding = "\n\n";
@@ -199,14 +201,31 @@ function mergeTokensIntoBlocks(tokens: readonly Token[]): string[] {
   return merged;
 }
 
-function reuse(previous: BlockCache, input: string): BlockCache | null {
-  if (!previous.primed || input.length <= previous.input.length) return null;
+function reuse(previous: BlockCache, input: string, codex: boolean): BlockCache | null {
+  if (!previous.primed || previous.codex !== codex || input.length <= previous.input.length) return null;
   // A slice compared with === is a bulk comparison; startsWith walks chars.
   if (input.slice(0, previous.input.length) !== previous.input) return null;
   if (linkDefinitionPattern.test(input)) return null;
-
   const stableCount = countStableBlocks(previous.blocks);
   if (stableCount === 0) return null;
+  // An unfinished review can change earlier blocks when its header or closing
+  // delimiter arrives. Ordinary appends can continue reusing those blocks.
+  const appended = previous.input.slice(-2) + input.slice(previous.input.length);
+  if (codex && /(?:^|\n)::|}/.test(appended) && /::(?:code-comment|browser-complete|artifact-template)\{|:codex-file-citation\{/.test(previous.input)) {
+    let offset = 0;
+    for (let index = 0; index < stableCount; index++) {
+      const block = previous.blocks[index] ?? "";
+      if (!previous.input.startsWith(block, offset)) return null;
+      if (!/^ {0,3}(`{3,}|~{3,})/.test(block)) {
+        const markers = /(?:^|\n) {0,3}::(?:code-comment|browser-complete|artifact-template)\{|:codex-file-citation\{/g;
+        for (const marker of block.matchAll(markers)) {
+          const start = offset + marker.index + marker[0].indexOf(":");
+          if (directiveChanged(previous.input.slice(start), input.slice(start))) return null;
+        }
+      }
+      offset += block.length;
+    }
+  }
 
   let verifiedCount = previous.verifiedCount;
   let verifiedLength = previous.verifiedLength;
@@ -226,9 +245,10 @@ function reuse(previous: BlockCache, input: string): BlockCache | null {
   }
   if (verifiedCount !== stableCount) return null;
 
-  const tail = mergeTokensIntoBlocks(lexBlockTokens(input.slice(verifiedLength))).map(copyString);
+  const tail = mergeTokensIntoBlocks(lexBlockTokens(input.slice(verifiedLength), codex)).map(copyString);
   return {
     input,
+    codex,
     // The same string instances for stable blocks, so memo by value is free.
     blocks: previous.blocks.slice(0, stableCount).concat(tail),
     verifiedCount,
@@ -242,27 +262,43 @@ function reuse(previous: BlockCache, input: string): BlockCache | null {
  * (line endings normalised). Pass the message's own cache to reuse the stable
  * prefix of the previous call; without one, every call lexes the whole text.
  */
-export function splitBlocks(markdown: string, cache?: BlockCache): string[] {
+export function splitBlocks(markdown: string, cache?: BlockCache, codex = true): string[] {
+  if (cache === undefined) return splitBlockTokens(markdown, codex).blocks;
   // Footnote references and definitions must share one tree.
   if (footnoteReferencePattern.test(markdown) || footnoteDefinitionPattern.test(markdown)) {
     return [markdown];
   }
 
   const input = markdown.includes("\r") ? markdown.replace(lineEndingPattern, "\n") : markdown;
-  if (cache === undefined) return mergeTokensIntoBlocks(lexBlockTokens(input));
-  if (cache.primed && cache.input === input) return cache.blocks;
+  if (cache.primed && cache.codex === codex && cache.input === input) return cache.blocks;
 
-  const next = reuse(cache, input) ?? {
+  const next = reuse(cache, input, codex) ?? {
     input,
-    blocks: mergeTokensIntoBlocks(lexBlockTokens(input)).map(copyString),
+    codex,
+    blocks: mergeTokensIntoBlocks(lexBlockTokens(input, codex)).map(copyString),
     verifiedCount: 0,
     verifiedLength: 0,
     primed: true,
   };
   cache.input = next.input;
+  cache.codex = codex;
   cache.blocks = next.blocks;
   cache.verifiedCount = next.verifiedCount;
   cache.verifiedLength = next.verifiedLength;
   cache.primed = true;
   return next.blocks;
+}
+
+/**
+ * `splitBlocks` without a cache, with the block tokens the blocks came from
+ * for a caller that inspects them too. A reply with footnotes is one block
+ * and is not lexed: its tokens are null.
+ */
+export function splitBlockTokens(markdown: string, codex = true): { blocks: string[]; tokens: Token[] | null } {
+  if (footnoteReferencePattern.test(markdown) || footnoteDefinitionPattern.test(markdown)) {
+    return { blocks: [markdown], tokens: null };
+  }
+  const input = markdown.includes("\r") ? markdown.replace(lineEndingPattern, "\n") : markdown;
+  const tokens = lexBlockTokens(input, codex);
+  return { blocks: mergeTokensIntoBlocks(tokens), tokens };
 }

@@ -6,6 +6,8 @@ import type { PluginServerContext } from "@getpaseo/plugin/server";
 import { updateCheckRpc } from "./shared/update-check";
 import { agentUpdatesRpc } from "./shared/agent-updates";
 import { createAgentUpdateCheck } from "./server/agent-updates";
+import { providerFamilyRpc } from "./shared/provider-family-rpc";
+import { providerIsCodex } from "./server/provider-family";
 import { openTerminalRpc, updateCommand } from "./shared/open-terminal";
 import { createUpdateCheck, startAutomaticUpdateCheck } from "./server/update-check";
 import { pluginDataDir } from "./server/plugin-data";
@@ -483,6 +485,7 @@ export default function contribute(server: PluginServerContext) {
   const checkUpdate = createUpdateCheck(undefined, join(pluginDataDir(), "update-check.json"));
   const stopAutomaticUpdateCheck = startAutomaticUpdateCheck(preferences, checkUpdate);
   server.handle(updateCheckRpc, ({ action }) => checkUpdate(action));
+  server.handle(providerFamilyRpc, async ({ provider }, { paseo }) => ({ codex: await providerIsCodex(provider, paseo) }));
   const checkAgents = createAgentUpdateCheck();
   server.handle(agentUpdatesRpc, async ({ action }, { paseo }) => {
     const settings = await preferences.read();

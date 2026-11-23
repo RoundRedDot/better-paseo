@@ -27,6 +27,7 @@ import { NoticeCallout } from "./components/notice-callout";
 import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
+import { useCodexProvider } from "./state/provider-family";
 import { useTurnFooter } from "./state/turn-footers";
 import { setPromptUsage, usePromptUsage } from "./state/prompt-usage";
 import { useAgentMessageSender } from "./state/agent-message-senders";
@@ -541,10 +542,10 @@ function LiveAssistantRendererBody(props: PluginTimelineItemProps<LiveAssistantP
 // The reply's right gutter, which the translate button sits in.
 const REPLY_TRANSLATE_GUTTER = 32;
 
-function InlineReplyBlock({ state, theme, tokens: given, compact, text, firstBlock, listContinuation, children }: {
+function InlineReplyBlock({ state, theme, tokens: given, compact, text, firstBlock, listContinuation, codexDirectives, children }: {
   state: InlineTranslationState; theme: PluginTheme; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
   /** The Markdown the block shows, original or translated: the button centers on its first line. */
-  text: string; firstBlock: boolean; listContinuation?: boolean; children: ReactNode;
+  text: string; firstBlock: boolean; listContinuation?: boolean; codexDirectives: boolean; children: ReactNode;
 }) {
   const { hovered, hoverProps } = useHover();
   const input = useInputCapabilities(compact);
@@ -554,10 +555,10 @@ function InlineReplyBlock({ state, theme, tokens: given, compact, text, firstBlo
   const metrics = variantMetrics(preferences.markdownVariant, tokens.typography.content.size, compact);
   const gap = firstBlock ? 0 : listContinuation ? metrics.itemGap : metrics.blockGap;
   const ruleHeight = Number(hairline(tokens.platform).height ?? 1);
-  const source = firstLineSource(text);
+  const source = firstLineSource(text, codexDirectives);
   const monoLineHeight = tokens.typography.mono.lineHeight;
-  const center = useMemo(() => firstLineCenter(source, { metrics, ruleHeight, monoLineHeight, first: firstBlock }),
-    [source, metrics, ruleHeight, monoLineHeight, firstBlock]);
+  const center = useMemo(() => firstLineCenter(source, { metrics, ruleHeight, monoLineHeight, first: firstBlock, codexDirectives }),
+    [source, metrics, ruleHeight, monoLineHeight, firstBlock, codexDirectives]);
   const top = gap + center - REPLY_TRANSLATE_GUTTER / 2;
   const enabled = settings.status !== "ready" || settings.values.enabled;
   const loading = state.active && state.view && ["running", "settings-loading", "config-loading"].includes(state.view.status);
@@ -584,18 +585,21 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp, inlin
   const revealPath = useRpc(revealPathRpc);
   const toast = useToast();
   const cwd = useAgent(agentId, (agent) => agent.cwd);
+  const provider = useAgent(agentId, (agent) => agent.provider);
+  const codex = useCodexProvider(provider);
   const onRevealPath = useCallback((path: string) => {
     revealWithSetting(revealPath, toast, cwd ?? "", path);
   }, [cwd, revealPath, toast]);
   const probe = probeCard("assistant", textItemKey("assistant", item.data.text), false);
   const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}:${item.data.blockIndex ?? "block"}`).current;
   const shown = inline.active && inline.view?.status === "done" ? inline.view.result.translation : item.data.text;
+  const codexDirectives = codex;
   return <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}
     style={assistantBlockStyles.continuation}>
     {probe.node}
     <PreferenceSyncSlot />
     <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={item.data.phase === "streaming"}>
-      <InlineReplyBlock state={inline} theme={theme} tokens={tokens} compact={layout.compact} text={shown} firstBlock={item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView text={shown} tokens={tokens} variant={preferences.markdownVariant}
+      <InlineReplyBlock state={inline} theme={theme} tokens={tokens} compact={layout.compact} text={shown} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives} text={shown} tokens={tokens} variant={preferences.markdownVariant}
         compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
         listContinuation={item.data.listContinuation}
         probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} /></InlineReplyBlock>
@@ -620,6 +624,9 @@ function LiveAssistantMessageRenderer({
   const messageText = item.data.messageText ?? item.data.text;
   const streaming = item.data.phase === "streaming";
   const translated = inline?.active && inline.view?.status === "done" ? inline.view.result.translation : null;
+  const provider = useAgent(agentId, (agent) => agent.provider);
+  const codex = useCodexProvider(provider);
+  const codexDirectives = codex;
   const probe = probeCard(
     "assistant",
     textItemKey("assistant", item.data.text),
@@ -682,7 +689,7 @@ function LiveAssistantMessageRenderer({
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
         <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={streaming}>
-          {inline ? <InlineReplyBlock state={inline} theme={theme} tokens={tokens} compact={layout.compact} text={translated ?? revealed} firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView
+          {inline ? <InlineReplyBlock state={inline} theme={theme} tokens={tokens} compact={layout.compact} text={translated ?? revealed} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives}
             text={translated ?? revealed}
             firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
             listContinuation={item.data.listContinuation}

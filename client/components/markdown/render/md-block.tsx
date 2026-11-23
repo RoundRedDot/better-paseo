@@ -36,7 +36,7 @@ function MdBlockBody({ raw, open, first, context, id }: MdBlockProps) {
     finishedBefore.current = !open;
   });
 
-  const tokens = lexBlock(raw, open);
+  const tokens = lexBlock(raw, open, context.codexDirectives === true);
   // While the block is the open tail, the parts a chunk left alone keep what
   // was drawn for them. A link definition or a footnote changes how text
   // before it reads, so a block holding one is drawn whole every time.

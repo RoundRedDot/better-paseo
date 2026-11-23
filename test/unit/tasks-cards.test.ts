@@ -51,10 +51,12 @@ vi.mock("../../client/components/open-link", () => opened);
 
 const folder = vi.hoisted(() => ({
   reveal: vi.fn<(_input: { cwd: string; path: string }) => Promise<{ revealed: string | null; error: string | null }>>(),
+  paseo: {},
 }));
 vi.mock("@getpaseo/plugin/client", async (original) => ({
   ...await original<object>(),
   useRpc: () => folder.reveal,
+  usePaseo: () => folder.paseo,
 }));
 
 // A test can stand in for a desktop's fine pointer, which hovers.

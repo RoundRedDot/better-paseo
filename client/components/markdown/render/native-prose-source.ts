@@ -59,8 +59,12 @@ export function nativeProseSource(tokens: readonly Token[]): NativeProseSource {
 }
 
 /** Local images retain their existing preview UI. */
+export function hasCodexInline(tokens: readonly Token[]): boolean {
+  return tokens.some((token) => token.type === "codex" || ("tokens" in token && token.tokens && hasCodexInline(token.tokens)));
+}
+
 export function nativeParagraphs(tokens: readonly Token[]): boolean {
-  return tokens.some((token) => token.type === "paragraph" || token.type === "text") && tokens.every((token) =>
+  return !hasCodexInline(tokens) && tokens.some((token) => token.type === "paragraph" || token.type === "text") && tokens.every((token) =>
     token.type === "space" || ((token.type === "paragraph" || token.type === "text") &&
       !token.tokens?.some((run) => run.type === "image" && localImagePath(run.href) !== null)));
 }

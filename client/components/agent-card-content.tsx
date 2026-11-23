@@ -166,8 +166,8 @@ const FADE_STEPS = 8;
  * Markdown the card is about. Inline, a long body folds to 200px under a fade
  * with "Show all - N lines"; a hover preview never folds, its panel scrolls.
  */
-export function AgentMarkdown({ text, tokens, mobile, raw = false, testID }: {
-  text: string; tokens: ExtendedThemeTokens; mobile: boolean; raw?: boolean; testID?: string;
+export function AgentMarkdown({ text, tokens, mobile, raw = false, testID, codexDirectives = false }: {
+  text: string; tokens: ExtendedThemeTokens; mobile: boolean; raw?: boolean; testID?: string; codexDirectives?: boolean;
 }) {
   const inPreview = usePreviewPanel() !== null;
   const lines = useMemo(() => text.split("\n"), [text]);
@@ -177,7 +177,7 @@ export function AgentMarkdown({ text, tokens, mobile, raw = false, testID }: {
   const surface = tokens.row.outputBg;
   const content = raw ? <PreviewLines text={text} lines={lines} tokens={tokens} style={{ color: tokens.foreground,
     fontFamily: tokens.fontMono, fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight }} /> :
-    <MarkdownView text={text} tokens={tokens} variant="document" compact={mobile} size={blockProseBase(tokens.typography)} />;
+    <MarkdownView text={text} codexDirectives={codexDirectives} tokens={tokens} variant="document" compact={mobile} size={blockProseBase(tokens.typography)} />;
   return <View testID={testID}>
     <View testID={folded ? "agent-body-folded" : undefined} style={folded ? styles.folded : undefined}>
       {content}

@@ -5,6 +5,7 @@ import "./helpers/quiet-renderer";
 
 vi.hoisted(() => { (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true; });
 const translateRpc = vi.hoisted(() => vi.fn());
+const providerHost = vi.hoisted(() => ({}));
 const modalRenders = vi.hoisted(() => ({ count: 0 }));
 const keyboard = vi.hoisted(() => ({ hide: undefined as (() => void) | undefined, show: undefined as (() => void) | undefined, blur: vi.fn(), scrollToEnd: vi.fn() }));
 vi.mock("react-native", async () => {
@@ -17,7 +18,7 @@ vi.mock("react-native", async () => {
 });
 vi.mock("@getpaseo/plugin/client", () => ({
   useSettings: () => ({ status: "loading" }),
-  usePaseo: () => undefined,
+  usePaseo: () => providerHost,
   useRpc: () => translateRpc,
 }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
@@ -44,6 +45,7 @@ import { createFakePaseo } from "./helpers/fake-paseo";
 import type { TaskCard } from "../../client/tasks/model";
 import { InlineTranslation } from "../../client/translation/inline";
 import { SelectionTranslationScope } from "../../client/translation/ui";
+import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
 
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111", foregroundMuted: "#666", accent: "#36c", accentForeground: "#fff", statusWarning: "#960", statusDanger: "#c33", statusSuccess: "#393" } };
@@ -407,6 +409,18 @@ describe("agent note above the question", () => {
     const current = asked();
     await act(async () => { store.open(current); tree = TestRenderer.create(<TaskQuestionDialog store={store} paseo={paseo as never} cardById={() => current} submit={vi.fn(async () => {})} theme={theme} language="zh" />); });
   }
+
+  it.each(["codex", "claude"])("renders the question note using the %s timeline rules", async (provider) => {
+    const directive = '::browser-complete{title="Finished"}';
+    const entries = [rows[0], { item: { type: "assistant_message", text: directive } }, rows[2]];
+    const { paseo } = timeline([{ error: null, entries }]);
+    const current = { ...asked(), provider };
+    const store = createQuestionDialogStore();
+    await act(async () => { store.open(current); tree = TestRenderer.create(<TaskQuestionDialog store={store} paseo={paseo as never} cardById={() => current} submit={vi.fn(async () => {})} theme={theme} language="zh" />); });
+    expect(shown()).toContain("Finished");
+    expect(tree!.root.findByType(MarkdownView).props).toMatchObject({ text: directive, codexDirectives: provider === "codex" });
+    if (provider === "codex") expect(shown()).not.toContain("::browser-complete");
+  });
 
   it("shows what the agent wrote before an async question, not the reply after it", async () => {
     const { refetch, paseo } = timeline([{ error: null, entries: rows }]);

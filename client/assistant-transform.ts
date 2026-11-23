@@ -1,8 +1,8 @@
 import { isAssistantPlaceholder } from "./assistant-text";
-import { splitBlocks } from "./components/markdown/blocks";
+import { splitBlockTokens } from "./components/markdown/blocks";
 import { parseSystemEnvelope } from "./system-envelope";
 import { lexBlockTokens } from "./components/markdown/lex";
-import type { Tokens } from "./vendor/marked";
+import type { Token, Tokens } from "./vendor/marked";
 
 export interface AssistantRowData {
   text: string;
@@ -62,13 +62,59 @@ export function hasUiFence(text: string, phase = "complete"): boolean {
   return false;
 }
 
+const DIRECTIVE_MARKER = /::(?:browser-complete|code-comment|artifact-template)\{|:codex-file-citation\{/;
+
+/**
+ * Whether the Codex lexer read a block directive (a card, a review, an output
+ * file), at any depth. Blocks are split with that lexer while a reply from
+ * another provider renders the same text literally, so such a reply stays
+ * whole. A directive quoted in a code fence is code, not a block of its own.
+ */
+function hasBlockDirective(tokens: readonly Token[]): boolean {
+  return tokens.some((token) => token.type === "codex" ? token.kind !== "memory"
+    : hasBlockDirective(token.type === "list" ? (token as Tokens.List).items : (token as Tokens.Generic).tokens ?? []));
+}
+
+// A line that could open code, a math block or raw HTML, any of which can hold a directive as text.
+// Each run of the prefix has one reading (a marker takes exactly one blank), so a long one cannot backtrack.
+const CODE_OR_HTML = /^(?: {4}|\t)|^(?:[ \t>]|(?:[-*+]|\d{1,9}[.)])[ \t])*(?:`{3,}|~{3,}|<|\$\$)/;
+// A table delimiter row, with or without pipes, or a rule: the line before or after may be a table cell.
+const TABLE_OR_RULE = /\||^[ \t]*[-:][-: \t]*$/;
+// Every block directive carries attributes; an empty one is plain text.
+const TOP_DIRECTIVE = /^ {0,3}(?:::(?:browser-complete|code-comment|artifact-template)\{\s*[\w-]+=|:codex-file-citation\{[^\n]*purpose=["']?output)/;
+
+/**
+ * A top-level directive line before anything that could open code or raw
+ * HTML is a block directive, so the reply stays whole without being lexed.
+ * Anything after such a line is left to the lexer.
+ */
+function leadingDirective(text: string): boolean {
+  for (const line of text.split("\n")) {
+    // A table can take the next line into a row, so it goes to the lexer too.
+    if (CODE_OR_HTML.test(line) || TABLE_OR_RULE.test(line)) return false;
+    // A block directive ends its line; a table row or prose after it is not one.
+    if (TOP_DIRECTIVE.test(line) && /\}\s*$/.test(line)) return true;
+  }
+  return false;
+}
+
+/** One lex both splits the reply and finds its directives. */
+function historyRows(text: string): Array<{ text: string; listContinuation?: boolean }> {
+  const marked = DIRECTIVE_MARKER.test(text);
+  if (marked && leadingDirective(text)) return [{ text }];
+  const { blocks, tokens } = splitBlockTokens(text);
+  // Footnote references and definitions share one tree: never split.
+  if (tokens === null || (marked && hasBlockDirective(tokens))) return [{ text }];
+  return blocks.flatMap(historyBlockRows);
+}
+
 /** Completed long replies use the host's existing row virtualization. */
 export function assistantRows(text: string, phase: string) {
   if (isAssistantPlaceholder(text)) return [];
   // Definitions and their references share a lexer context, as do system cards.
   const blocks = phase === "complete" && text.length > 16_384 &&
     !/^ {0,3}\[[^\]]+\]:/m.test(text) && !parseSystemEnvelope(text)
-    ? splitBlocks(text).flatMap(historyBlockRows) : [{ text }];
+    ? historyRows(text) : [{ text }];
   return blocks.map((block, index) => ({
     type: "plugin" as const, kind: "omp-assistant", version: 1,
     data: {

@@ -750,6 +750,17 @@ describe("detail message typography", () => {
       renderer = undefined;
     }
   });
+
+  it.each(["codex", "claude"])("enables directives for %s latest replies only", async (provider) => {
+    const detailProps = props(false);
+    const message = { prompt: { state: "ready" as const, text: '::browser-complete{title="Done"}' }, load() {} };
+    const human = { prompt: { state: "ready" as const, text: "Follow-up" }, load() {} };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...detailProps} card={{ ...detailProps.card, provider }} columns={false}
+      firstPrompt={message} humanMessage={human} lastMessage={message} />); });
+    expect(host(renderer!.root, "detail-message").findByType(MarkdownView).props.codexDirectives).toBe(provider === "codex");
+    expect(host(renderer!.root, "detail-prompt").findByType(MarkdownView).props.codexDirectives).toBe(false);
+    expect(host(renderer!.root, "detail-human").findByType(MarkdownView).props.codexDirectives).toBe(false);
+  });
 });
 
 describe("detail message times", () => {

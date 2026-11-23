@@ -54,17 +54,18 @@ export function selectableBlock(blocks: readonly Token[]): boolean {
 }
 
 /** Visible prose only: formatting delimiters, link targets and UI labels stay out. */
-export function blockSelectionText(blocks: readonly Token[]): string {
+export function blockSelectionText(blocks: readonly Token[], literalCodex = false): string {
   return blocks.map((block): string => {
     switch (block.type) {
       case "space": return "";
-      case "paragraph": case "text": case "heading": return inlineText(block.tokens ?? [block]);
-      case "blockquote": return blockSelectionText((block as Tokens.Blockquote).tokens);
-      case "list": return (block as Tokens.List).items.map((item) => blockSelectionText(item.tokens)).join("\n");
+      case "paragraph": case "text": case "heading": return inlineText(block.tokens ?? [block], literalCodex);
+      case "blockquote": return blockSelectionText((block as Tokens.Blockquote).tokens, true);
+      case "list": return (block as Tokens.List).items.map((item) => blockSelectionText(item.tokens, literalCodex)).join("\n");
+      case "codex": return literalCodex ? block.raw : "";
       case "code": return (block as Tokens.Code).text;
       case "table": {
         const table = block as Tokens.Table;
-        return [table.header, ...table.rows].map((row) => row.map((cell) => inlineText(cell.tokens)).join("\t")).join("\n");
+        return [table.header, ...table.rows].map((row) => row.map((cell) => inlineText(cell.tokens, literalCodex)).join("\t")).join("\n");
       }
       case "html": return block.raw.replace(/\n+$/, "");
       case "math": return String((block as Tokens.Generic).text ?? "");

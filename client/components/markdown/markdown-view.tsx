@@ -26,6 +26,8 @@ export const TimelineProseContext = createContext(false);
 
 export interface MarkdownViewProps {
   text: string;
+  /** Interpret structured directives in an assistant reply. */
+  codexDirectives?: boolean;
   /** Optional inline decoration, leaving Markdown layout and parsing intact. */
   renderText?(text: string): React.ReactNode;
   /** False for a continuation row of the same reply. */
@@ -72,8 +74,8 @@ interface Split {
   tail: string;
 }
 
-function split(text: string, cache: BlockCache, streaming: boolean): Split {
-  const blocks = splitBlocks(text, cache);
+function split(text: string, cache: BlockCache, streaming: boolean, codex: boolean): Split {
+  const blocks = splitBlocks(text, cache, codex);
   const last = blocks[blocks.length - 1] ?? "";
   return { blocks, tail: streaming ? repairTail(last) : last };
 }
@@ -86,6 +88,7 @@ function split(text: string, cache: BlockCache, streaming: boolean): Split {
  */
 export function MarkdownView({
   text,
+  codexDirectives = false,
   renderText,
   firstBlock = true,
   listContinuation = false,
@@ -104,9 +107,9 @@ export function MarkdownView({
   const tokens = useZoomedTokens(given);
   // One cache per message, owned by this component: never shared with
   // another reply that streams at the same time.
-  const cacheRef = useRef<BlockCache | null>(null);
-  if (cacheRef.current === null) cacheRef.current = createBlockCache();
-  const cache = cacheRef.current;
+  const cacheRef = useRef<{ codex: boolean; cache: BlockCache } | null>(null);
+  if (cacheRef.current === null || cacheRef.current.codex !== codexDirectives) cacheRef.current = { codex: codexDirectives, cache: createBlockCache() };
+  const cache = cacheRef.current.cache;
   // The flip probe compares a view with its own previous parse. `probeId`
   // names the message by timestamp, and several replies can share a
   // millisecond (seen on web history-100: 41 "flips" between unrelated
@@ -119,14 +122,14 @@ export function MarkdownView({
   const instance = probeId === undefined ? undefined : instanceRef.current?.instance;
 
   const { blocks, tail } = useMemo(() => {
-    if (!perfOn()) return split(text, cache, streaming);
+    if (!perfOn()) return split(text, cache, streaming, codexDirectives);
     let result: Split = { blocks: [], tail: "" };
     probeMarkdown(instance, text, (source) => {
-      result = split(source, cache, streaming);
+      result = split(source, cache, streaming, codexDirectives);
       const last = result.blocks.length - 1;
       const kinds = result.blocks.map((raw, index) => ({
         kind: blockKind(
-          index === last ? lexBlock(result.tail, streaming) : lexBlock(raw),
+          index === last ? lexBlock(result.tail, streaming, codexDirectives) : lexBlock(raw, false, codexDirectives),
         ),
       }));
       // A tail the repair held back entirely (a lone `#` or `-`) draws
@@ -135,7 +138,7 @@ export function MarkdownView({
       return kinds;
     });
     return result;
-  }, [text, cache, streaming, instance]);
+  }, [text, cache, streaming, instance, codexDirectives]);
 
   // Sizes follow the host's content size (S7 §2.3); the metrics object is
   // cached per input, so the context — and every finished block — stays put
@@ -156,11 +159,12 @@ export function MarkdownView({
       variant,
       collapseCode,
       plainProse,
+      codexDirectives,
       blockSelection,
       onRevealPath,
       renderText,
     }),
-    [styles, tokens, metrics, variant, collapseCode, plainProse, blockSelection, onRevealPath, renderText],
+    [styles, tokens, metrics, variant, collapseCode, plainProse, codexDirectives, blockSelection, onRevealPath, renderText],
   );
 
   // A streamed chunk changes the tail and leaves every block before it as it
