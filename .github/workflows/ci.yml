@@ -80,6 +80,9 @@ jobs:
       - name: Install dependencies
         run: node scripts/npm-retry.mjs ci
 
+      - name: Test local validation runner
+        run: node --test scripts/test-local.test.mjs
+
       # vitest.config.ts allows 30 s per case. The long-fixture sweeps override
       # that, up to 180 s. The suite is several minutes on a GitHub runner.
       - name: Test

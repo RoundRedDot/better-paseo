@@ -45,6 +45,8 @@ npm run build:client
 paseo plugin reload better-paseo
 ```
 
+For local UI validation, `npm run test:local` runs the unit suite and reuses only the two exhaustive Markdown sweeps when their complete inputs and environment match a previous successful local run. The first run, changed inputs, or a missing record run the entire suite. The record is shared by this repository's worktrees; the command reports whether it was reused. Run `node --test scripts/test-local.test.mjs` when changing the local test runner. `npm test` remains the full suite for CI and registry updates. Typecheck, client build, Hermes, and any task-specific checks remain required.
+
 Paseo installs the plugin from GitHub, so a change on a local branch is not what a client runs
 until it is pushed and the plugin is updated (`paseo plugin update better-paseo`).
 

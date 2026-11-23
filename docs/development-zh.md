@@ -47,6 +47,8 @@ npm run build:client
 paseo plugin reload better-paseo
 ```
 
+本地 UI 验证可运行 `npm run test:local`。它运行单元测试，并仅在全部输入和环境与本机上次成功记录一致时复用两组穷举 Markdown 测试；首次运行、输入变化或没有记录时运行全套。记录由本仓库的 worktree 共用，命令会报告是否复用。修改本地测试脚本时运行 `node --test scripts/test-local.test.mjs`。CI 和插件目录更新仍使用完整的 `npm test`；typecheck、客户端构建、Hermes 和任务特定检查的要求不变。
+
 Paseo 从 GitHub 安装插件，因此本地分支的修改在推送到远端并更新插件（`paseo plugin update better-paseo`）之前不会在客户端生效。
 
 日常更新可以安装当前 `main` 的 SHA，但正式版本发布不同。版本提交、日常 daemon 以及插件市场的钉住版本必须是同一个 SHA。首先修改 `package.json` 中的版本号并提交，在 `versions.json` 中映射其完整 hash，然后安装该 SHA：
