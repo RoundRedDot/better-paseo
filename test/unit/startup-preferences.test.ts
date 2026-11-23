@@ -130,12 +130,13 @@ describe("preferences read while the plugin loads", () => {
     preferences.updateEnhancerPreferences({ liveUiReplies: false });
     expect(plugin.registrations).toHaveLength(count);
     preferences.updateEnhancerPreferences({ assistantMarkdown: true });
-    expect(plugin.registrations).toHaveLength(count + 1);
+    // The assistant reply and the standard-level tool fold both follow this switch.
+    expect(plugin.registrations).toHaveLength(count + 2);
     expect(plugin.active("omp-enhanced-assistant")[0]!.transform(reply)).toBeDefined();
     preferences.updateEnhancerPreferences({ assistantMarkdown: false });
     const beforeBoth = plugin.registrations.length;
     preferences.updateEnhancerPreferences({ assistantMarkdown: true, liveUiReplies: true });
-    expect(plugin.registrations).toHaveLength(beforeBoth + 1);
+    expect(plugin.registrations).toHaveLength(beforeBoth + 2);
     expect(plugin.active("omp-enhanced-assistant")[0]!.transform(ui)).toBeUndefined();
     cleanup();
     const cleaned = plugin.registrations.length;

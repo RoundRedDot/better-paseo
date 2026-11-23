@@ -50,6 +50,7 @@ import { translateTimelineItemRpc } from "../../shared/timeline-translation";
 import { providerFamilyRpc } from "../../shared/provider-family-rpc";
 import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
 import { formatFooterStamp, formatFullStamp } from "../../client/ui/time";
+import { resetNewestRepliesForTests } from "../../client/state/newest-reply";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -58,7 +59,7 @@ const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", 
 const catalog: PaseoProviderModelsResult = { provider: "codex", fetchedAt: "now", requestId: "r",
   models: [{ provider: "codex", id: "sol", label: "GPT-6.1-Sol", thinkingOptions: [{ id: "medium", label: "Medium" }] }] };
 
-beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; runtime.agent.provider = "codex"; });
+beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; runtime.agent.provider = "codex"; resetNewestRepliesForTests(); });
 afterEach(() => {
   resetTranslationSettingsStoreForTests();
   expect(runtime.listeners.size).toBe(0);
@@ -249,8 +250,11 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
     await act(async () => { renderer = TestRenderer.create(row("a", "streaming")); });
     try {
       await act(async () => { renderer.update(row("ans", "streaming", 2500)); });
+      await act(async () => { renderer.update(row("answ", "streaming", 2500)); });
       expect(renderer.root.findAllByType(AssistantFooter)).toHaveLength(0);
-      expect(refetch).not.toHaveBeenCalled();
+      // One read for the standard level's running work card (the turn's steps so
+      // far); the chunks after it read nothing.
+      expect(refetch).toHaveBeenCalledTimes(1);
       expect(subscribe).toHaveBeenCalledTimes(1);
       await act(async () => {
         onEvent({ agentId: "a", timestamp: new Date(2000).toISOString(),
@@ -260,7 +264,8 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
         renderer.update(row("answer", "complete"));
       });
       expect(renderer.root.findByType(AssistantFooter).props.usage).toEqual(usage);
-      expect(refetch).toHaveBeenCalledTimes(1);
+      // The turn's end and the agent going idle each read the ended turn once.
+      expect(refetch).toHaveBeenCalledTimes(3);
     } finally { act(() => renderer.unmount()); }
   });
 

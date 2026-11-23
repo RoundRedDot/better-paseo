@@ -569,6 +569,26 @@ function GroupedPreview({ calls, resolvePath, path, onViewImage, ...rest }: Grou
   );
 }
 
+/**
+ * One file's folded edits in the details panel (`turn-work-card.tsx`): the
+ * merged-row preview, one call at a time, so only the call on view is parsed
+ * and highlighted.
+ */
+export function FileEditsPreview({ calls, resolvePath, tokens, compact }: {
+  calls: readonly ToolCallView[];
+  resolvePath: ResolvePath;
+  tokens: ExtendedThemeTokens;
+  compact: boolean;
+}) {
+  const first = calls[0];
+  if (!first) return null;
+  const path = first.filePath ? resolvePath(first.filePath) : undefined;
+  if (calls.length === 1) return <ToolPreviewContent data={first} resolvePath={resolvePath} tokens={tokens} compact={compact} />;
+  return <GroupedPreview calls={calls} resolvePath={resolvePath} tokens={tokens} compact={compact} path={path} onViewImage={noop} />;
+}
+
+function noop() {}
+
 /** Keyed by call at the call site, so a page's own state (folded lines) does not carry over to the next. */
 function GroupedCallBody({ call, preview, onViewImage, ...rest }: Omit<GroupedBodyProps, "calls"> & {
   call: ToolCallView;

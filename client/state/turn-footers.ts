@@ -1,14 +1,39 @@
 import { useCallback, useLayoutEffect, useMemo, useRef, useSyncExternalStore } from "react";
 import type { PaseoApi, PaseoAgentTimelineHandle } from "@getpaseo/client";
+import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import { useRpc } from "@getpaseo/plugin/client";
 import { turnUsageRpc, type RecordedTurn } from "../../shared/turn-usage-rpc";
 import { createAgentTimelinePageReader, getAgentTimelinePageReader, type AgentTimelinePageReader } from "./agent-timeline-page-reader";
 import { completedTurnFooters, startsTurn, type CompletedTurnFooter, type Entry, type TurnMarks } from "./turn-duration";
+import { collectTurnWork, liveCallSignature, splitTurns, workSignature, type TurnSpan, type TurnWork } from "./turn-work";
 
 type Timeline = Pick<PaseoAgentTimelineHandle, "refetch" | "subscribe">;
 interface Target { at: number; text: string }
 type Footers = Map<number, Map<string, CompletedTurnFooter>>;
 type Usage = NonNullable<CompletedTurnFooter["usage"]>;
+
+/**
+ * The row that draws a turn's work card. A finished turn uses its final
+ * assistant reply. While that reply is still streaming, every live update
+ * shares one anchor, because the reply text changes on each chunk.
+ */
+export type WorkAnchor =
+  | { kind: "reply"; at: number; text: string }
+  | { kind: "live" };
+
+export function workAnchorKey(anchor: WorkAnchor): string {
+  return anchor.kind === "reply" ? `r:${anchor.at}:${anchor.text}` : "live";
+}
+
+type TurnSplitState = { running: boolean; activeTurnId: string | null; marks?: TurnMarks; fromStart: boolean };
+
+/** Added and removed lines of one edit or write; `viewable`: it has a diff or content to show. */
+export interface LineCount { added: number; removed: number; viewable: boolean }
+
+interface TurnIndex {
+  spans: TurnSpan[];
+  byReply: Map<string, TurnSpan>;
+}
 
 /**
  * A recorded turn ends at most this far before its last timeline item and this
@@ -37,6 +62,19 @@ function assignRecorded(turns: readonly RecordedTurn[], footers: readonly Comple
     if (best && (!previous || bestGap < previous.gap)) assigned.set(best, { usage: turn.usage, gap: bestGap });
   }
   return assigned;
+}
+
+/**
+ * The loaded window is one running turn cut off at the top. A turn boundary
+ * inside the window means the running turn starts here.
+ */
+function activeWindowIsCut(items: Entry[], atStart: boolean): boolean {
+  if (atStart || items.length === 0) return false;
+  let start = 0;
+  for (let index = 1; index < items.length; index++) {
+    if (startsTurn(items[index - 1]!, items[index]!)) start = index;
+  }
+  return start === 0 && items[0]!.item.type !== "user_message";
 }
 
 /** The recorded turns' starts and ends that fall in the loaded span. */
@@ -76,7 +114,23 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   let dirty = false;
   let pending: Promise<void> | null = null;
   const coverage = new WeakMap<Entry[], Map<number, Map<string, boolean>>>();
-  const publish = () => { for (const listener of listeners) listener(); };
+  // Turn work (`turn-work.ts`): how the last read split its entries, the
+  // calls the subscription delivered since, and each card's last result.
+  let split: TurnSplitState = { running: false, activeTurnId: null, fromStart: false };
+  // The entries as of the last published read: a read assigns `entries`
+  // before its footers settle, and the cards follow the footers.
+  let workEntries: Entry[] = [];
+  let index: TurnIndex | null = null;
+  const live = new Map<string, ToolCallTimelineItem>();
+  let liveRevision = 0;
+  let liveRetains = 0;
+  const workListeners = new Map<string, Set<() => void>>();
+  const works = new Map<string, { entries: Entry[]; liveRevision: number; owns: (text: string) => boolean; work: TurnWork | null }>();
+  const lineCounts = new Map<string, LineCount | null>();
+  const publish = () => {
+    for (const listener of listeners) listener();
+    for (const set of workListeners.values()) for (const listener of set) listener();
+  };
   const get = (at: number, text: string) => footers.get(at)?.get(text) ?? null;
 
   /** `atStart`: no older page exists, so a turn at the top is whole. */
@@ -99,6 +153,9 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       coverage.set(items, indexed);
     }
     const lastAt = items.length ? Date.parse(items[items.length - 1]!.timestamp) : NaN;
+    // The streaming reply's card needs the running turn back to its start.
+    // A newer reply still waits for the turn event that refreshes the read.
+    if (liveRetains > 0 && activeWindowIsCut(items, atStart)) return true;
     for (const target of targets) {
       const complete = indexed.get(target.at)?.get(target.text);
       if (complete === undefined) {
@@ -119,7 +176,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     const hasNewer = page.hasNewer;
     const epoch = page.epoch;
     let items = page.entries;
-    while (ticket === generation && targets.size) {
+    while (ticket === generation && retained()) {
       if (page.error || page.staleCursor || page.gap || page.epoch !== epoch) throw new Error("Incomplete turn footer timeline");
       if (!page.hasOlder || !needsOlder(items)) break;
       const cursor = page.startCursor;
@@ -130,7 +187,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       }
       items = [...page.entries, ...items];
     }
-    if (ticket !== generation || !targets.size) return;
+    if (ticket !== generation || !retained()) return;
     entries = items;
     fromStart = !page.hasOlder;
     const isRunning = snapshot ? snapshot.status === "running" : running === true;
@@ -168,7 +225,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       recordedSince = since;
       try { recorded = await loadRecorded(since); }
       catch { recordedStale = true; }
-      if (ticket !== generation || !targets.size) return;
+      if (ticket !== generation || !retained()) return;
     }
     const marks = Number.isFinite(firstAt) ? turnMarks(recorded, firstAt - RECORD_EARLY_MS) : undefined;
     if (marks) completed = build(marks);
@@ -187,6 +244,11 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       at.set(footer.text, value);
     }
     footers = next;
+    split = { running: isRunning, activeTurnId, marks, fromStart };
+    workEntries = items;
+    index = null;
+    // The read now holds every call the subscription delivered before it.
+    if (!isRunning) live.clear();
     publish();
     if (ticket === generation && !needsOlder(entries, fromStart)) dirty = false;
   }
@@ -195,14 +257,16 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     dirty = true;
     if (!pending) {
       pending = Promise.resolve().then(async () => {
-        while (dirty && targets.size) {
+        while (dirty && retained()) {
           dirty = false;
           const ticket = generation;
           try { await read(ticket); }
           catch {
             if (ticket === generation) {
               entries = [];
+              workEntries = [];
               footers = new Map();
+              index = null;
               publish();
             }
           }
@@ -221,13 +285,21 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   function connect() {
     if (unsubscribe) return;
     unsubscribe = pageReader.observe(source(), ({ event }) => {
+      if (event.type === "timeline") {
+        if (event.item.type === "tool_call") noteLiveCall(event.item);
+        return;
+      }
       if (event.type === "replacement" || event.type === "subscription_restored") {
         entries = [];
+        workEntries = [];
         footers = new Map();
+        index = null;
+        live.clear();
+        liveRevision++;
         if (event.type === "replacement") usageByTurn.clear();
         recordedStale = true;
         publish();
-        if (targets.size) void refresh();
+        if (retained()) void refresh();
       } else if (event.type === "turn_started" || event.type === "turn_completed" ||
         event.type === "turn_failed" || event.type === "turn_canceled") {
         // Only a provider-reported turn ID can attribute usage to history.
@@ -236,24 +308,131 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
         }
         // The server records every ended turn's timing, and usage on completion.
         if (event.type !== "turn_started") recordedStale = true;
-        if (targets.size) void refresh();
+        else if (live.size) { live.clear(); liveRevision++; }
+        if (retained()) void refresh();
       }
     });
   }
 
   function disconnect() {
-    if (targets.size || observers) return;
+    if (retained() || observers) return;
     generation++;
     dirty = false;
     unsubscribe?.();
     unsubscribe = null;
     entries = [];
+    workEntries = [];
     fromStart = false;
     footers = new Map();
+    index = null;
+    live.clear();
+    works.clear();
+    lineCounts.clear();
+  }
+
+  function retained(): boolean {
+    return targets.size > 0 || liveRetains > 0;
+  }
+
+  function turnIndex(): TurnIndex {
+    if (index) return index;
+    const spans = splitTurns(workEntries, split);
+    const byReply = new Map<string, TurnSpan>();
+    const replies = new Map<string, number>();
+    for (const span of spans) {
+      if (span.reply) {
+        const key = workAnchorKey({ kind: "reply", ...span.reply });
+        replies.set(key, (replies.get(key) ?? 0) + 1);
+        byReply.set(key, span);
+      }
+    }
+    // Two turns whose final replies cannot be told apart draw neither card.
+    for (const [key, count] of replies) if (count > 1) byReply.delete(key);
+    index = { spans, byReply };
+    return index;
+  }
+
+  /**
+   * A call the subscription delivered. Copied only while something retains
+   * the live anchor. Only a change of status, kind, path or command notifies
+   * that listener. Streamed output, or another chunk of the same edit, does not.
+   */
+  function noteLiveCall(item: ToolCallTimelineItem) {
+    const listeners = workListeners.get(workAnchorKey({ kind: "live" }));
+    // Nobody is drawing the running card, so the call's payload is not copied.
+    if (!item.callId || !listeners?.size) return;
+    const previous = live.get(item.callId);
+    live.set(item.callId, item);
+    if (previous && liveCallSignature(previous) === liveCallSignature(item)) return;
+    liveRevision++;
+    listeners.forEach((listener) => listener());
+  }
+
+  /**
+   * The card for `anchor`, or null when this row does not draw it or the turn
+   * folded nothing. `owns` says whether the plugin draws a reply's row.
+   */
+  function work(anchor: WorkAnchor, owns: (text: string) => boolean): TurnWork | null {
+    const key = workAnchorKey(anchor);
+    const cached = works.get(key);
+    const { spans, byReply } = turnIndex();
+    const span = anchor.kind === "reply" ? byReply.get(key) :
+      spans[spans.length - 1]?.active ? spans[spans.length - 1] : undefined;
+    const dependsOnLive = anchor.kind === "live" || (span?.active ?? false);
+    if (cached && cached.entries === workEntries && cached.owns === owns &&
+      (!dependsOnLive || cached.liveRevision === liveRevision)) return cached.work;
+    let next: TurnWork | null = null;
+    if (span && (anchor.kind === "live" || (span.reply !== null && owns(span.reply.text)))) {
+      const collected = collectTurnWork(workEntries, span, key, live);
+      if (anchor.kind === "reply") {
+        const footer = get(anchor.at, anchor.text);
+        if (footer && footer.durationMs !== null) collected.durationMs = footer.durationMs;
+      }
+      next = collected.steps.length || collected.current ? collected : null;
+    }
+    if (cached && workSignature(cached.work) === workSignature(next)) next = cached.work;
+    works.set(key, { entries: workEntries, liveRevision, owns, work: next });
+    return next;
+  }
+
+  /** A folded edit's added and removed lines, measured once per call. */
+  function lineCount(callId: string, item: ToolCallTimelineItem, measure: (item: ToolCallTimelineItem) => LineCount | null) {
+    if (lineCounts.has(callId)) return lineCounts.get(callId)!;
+    const count = item.status === "completed" ? measure(item) : null;
+    if (item.status === "completed") lineCounts.set(callId, count);
+    return count;
   }
 
   return {
     get,
+    work,
+    lineCount,
+    subscribeWork(anchor: WorkAnchor, listener: () => void) {
+      const key = workAnchorKey(anchor);
+      let set = workListeners.get(key);
+      if (!set) workListeners.set(key, set = new Set());
+      set.add(listener);
+      return () => {
+        set!.delete(listener);
+        if (!set!.size) {
+          workListeners.delete(key);
+          works.delete(key);
+        }
+      };
+    },
+    /**
+     * A live-anchor caller keeps the read back to the running turn's start.
+     * The product card does not call this.
+     */
+    retainLive() {
+      liveRetains++;
+      connect();
+      if (!entries.length || needsOlder(entries, fromStart)) void request();
+      return () => {
+        liveRetains = Math.max(0, liveRetains - 1);
+        disconnect();
+      };
+    },
     refresh,
     subscribe(listener: () => void) {
       listeners.add(listener);
@@ -262,7 +441,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     setRunning(next: boolean) {
       if (running === next) return;
       running = next;
-      if (targets.size) void refresh();
+      if (retained()) void refresh();
     },
     observe() {
       observers++;
@@ -284,12 +463,12 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
 
 const stores = new WeakMap<PaseoApi, Map<string, ReturnType<typeof createTurnFooterStore>>>();
 
-export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text: string, running: boolean | null,
-  observeOnly = false) {
+/** The agent's one footer store, shared by its reply footers and work cards. */
+function useFooterStore(paseo: PaseoApi, agentId: string) {
   const turnUsage = useRpc(turnUsageRpc);
   const turnUsageRef = useRef(turnUsage);
   turnUsageRef.current = turnUsage;
-  const store = useMemo(() => {
+  return useMemo(() => {
     let agents = stores.get(paseo);
     if (!agents) stores.set(paseo, agents = new Map());
     let store = agents.get(agentId);
@@ -298,6 +477,39 @@ export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text
       getAgentTimelinePageReader(paseo, agentId)));
     return store;
   }, [paseo, agentId]);
+}
+
+export type TurnFooterStore = ReturnType<typeof createTurnFooterStore>;
+
+/**
+ * A row's work card (`turn-work.ts`), or null. A finished reply rides on the
+ * read its footer already retains. The live anchor keeps that read back to
+ * the running turn, and the product card does not use it. A null anchor
+ * subscribes to nothing.
+ */
+export function useTurnWork(paseo: PaseoApi, agentId: string, anchor: WorkAnchor | null, owns: (text: string) => boolean,
+  running: boolean | null = null) {
+  const store = useFooterStore(paseo, agentId);
+  useLayoutEffect(() => { if (typeof running === "boolean") store.setRunning(running); }, [store, running]);
+  const key = anchor ? workAnchorKey(anchor) : null;
+  const anchorRef = useRef(anchor);
+  anchorRef.current = anchor;
+  const live = anchor?.kind === "live";
+  useLayoutEffect(() => {
+    if (live) return store.retainLive();
+  }, [store, live]);
+  const subscribe = useCallback((listener: () => void) => {
+    const current = anchorRef.current;
+    return current ? store.subscribeWork(current, listener) : () => {};
+  }, [store, key]);
+  const getSnapshot = useCallback(() => anchorRef.current ? store.work(anchorRef.current, owns) : null,
+    [store, key, owns]);
+  return { store, work: useSyncExternalStore(subscribe, getSnapshot, getSnapshot) };
+}
+
+export function useTurnFooter(paseo: PaseoApi, agentId: string, at: number, text: string, running: boolean | null,
+  observeOnly = false) {
+  const store = useFooterStore(paseo, agentId);
   const enabled = typeof running === "boolean";
   const targetAt = observeOnly ? 0 : at;
   const targetText = observeOnly ? "" : text;

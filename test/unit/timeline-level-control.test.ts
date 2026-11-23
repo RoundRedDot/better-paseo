@@ -174,7 +174,7 @@ describe("timeline level pill", () => {
     expect(button.icon).toBe("ListCollapse");
     expect(menuItems(button).rows.map(({ id, title, description, icon }) => [id, title, description, icon])).toEqual([
       ["simple", "简洁", "只看对话和结果", "MessageSquareText"],
-      ["standard", "标准", "加上改动和失败步骤", "FileText"],
+      ["standard", "标准", "汇总改动，列出失败", "FileText"],
       ["detailed", "详细", "显示每一步", "ListChecks"],
     ]);
   });
@@ -182,7 +182,7 @@ describe("timeline level pill", () => {
   it.each([false, true])("shows English descriptions in both layouts (compact=%s)", (compact) => {
     updateEnhancerPreferences({ language: "en" });
     const rows = menuItems(timelineLevelButton(getEnhancerPreferences(), () => {}), () => {}, compact).rows;
-    expect(rows.map((row) => row.description)).toEqual(["Conversation and results", "Changes and failed steps", "Every step"]);
+    expect(rows.map((row) => row.description)).toEqual(["Conversation and results", "Summarize changes, show failures", "Every step"]);
   });
 
   it("hides while Better Paseo chat is off", () => {

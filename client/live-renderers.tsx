@@ -1,4 +1,4 @@
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import { useAgent, usePaseo, useRpc } from "@getpaseo/plugin/client";
 import { useToast } from "@getpaseo/plugin/client/ui";
@@ -28,12 +28,16 @@ import { useEnhancerPreferences } from "./preferences";
 import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
 import { useCodexProvider } from "./state/provider-family";
-import { useTurnFooter } from "./state/turn-footers";
+import { useTurnFooter, useTurnWork, type WorkAnchor } from "./state/turn-footers";
+import { useNewestReplyAt, useNoteReply } from "./state/newest-reply";
+import type { TurnWork } from "./state/turn-work";
+import { TurnWorkCard } from "./components/turn-work-card";
+import { standardFoldActive } from "./tools/standard-fold";
 import { setPromptUsage, usePromptUsage } from "./state/prompt-usage";
 import { useAgentMessageSender } from "./state/agent-message-senders";
 import { useTimelineLevelPill } from "./timeline-level-control";
 import { useFooterModel } from "./state/footer-model";
-import type { AssistantRowData } from "./assistant-transform";
+import { type AssistantRowData } from "./assistant-transform";
 import { HOST_REWIND_MENU } from "./ui/host-rewind";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
@@ -685,6 +689,11 @@ function LiveAssistantMessageRenderer({
     >
       {probe.node}
       <PreferenceSyncSlot />
+      {/* A split reply draws the card on the block that carries the whole text, as its footer does. */}
+      {!envelope && standardFoldActive(preferences) && (item.data.blockIndex === undefined || item.data.messageText !== undefined) ? (
+        <ReplyTurnWork agentId={agentId} at={timestamp.getTime()} text={streaming ? null : messageText}
+          tokens={tokens} compact={layout.compact} />
+      ) : null}
       {envelope ? (
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
@@ -726,6 +735,71 @@ function LiveAssistantMessageRenderer({
     </View>
   );
 }
+
+/** Replies the plugin draws, as the assistant transformer decides (`index.client.tsx`). */
+const ownsAnyReply = (text: string) => text.trim() !== "";
+const LIVE_ANCHOR: WorkAnchor = { kind: "live" };
+
+/**
+ * The running turn's work, for a row that arrived during that turn, or null.
+ * `since` is the turn's first item: a row from an earlier turn never draws it.
+ *
+ * Only a running agent's row subscribes: an idle chat's newest reply reads
+ * nothing more than its footer does. The agent can report idle before the
+ * store's read of the ended turn lands; a row showing the running card keeps
+ * its subscription until that read takes the card away, so the settled card
+ * replaces it in one update instead of after a gap.
+ */
+function useLiveTurnWork(agentId: string, at: number, candidate: boolean) {
+  const paseo = usePaseo();
+  const running = useAgent(agentId, (agent) => agent.status === "running") === true;
+  const shown = useRef(false);
+  const enabled = candidate && (running || shown.current);
+  // A prompt row has no turn footer to tell the store the agent runs.
+  const { store, work } = useTurnWork(paseo, agentId, enabled ? LIVE_ANCHOR : null, ownsAnyReply, enabled ? running : null);
+  const live = enabled && work && work.running && at >= work.since ? work : null;
+  useLayoutEffect(() => { shown.current = live !== null; });
+  return { store, work: live };
+}
+
+/**
+ * The standard level's work card above an assistant reply
+ * (`components/turn-work-card.tsx`).
+ *
+ * While the turn runs, the turn's newest reply draws it from the live anchor,
+ * so successful steps show up as they finish instead of disappearing until the
+ * turn ends. Each newer reply takes the card over. When the turn ends, the
+ * final reply keeps the card in place and switches to its settled anchor: the
+ * store publishes both in one update, so the card neither leaves nor moves.
+ * `text` is null while the reply streams; its settled card needs the final text.
+ */
+const ReplyTurnWork = memo(function ReplyTurnWork({ agentId, at, text, tokens, compact }: {
+  agentId: string; at: number; text: string | null; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
+}) {
+  const paseo = usePaseo();
+  useNoteReply(agentId, at);
+  const newestAt = useNewestReplyAt(agentId);
+  const live = useLiveTurnWork(agentId, at, newestAt === null || at >= newestAt);
+  const anchor = useMemo((): WorkAnchor | null => text === null ? null : { kind: "reply", at, text }, [at, text]);
+  const settled = useTurnWork(paseo, agentId, anchor, ownsAnyReply);
+  const shown: { work: TurnWork; store: typeof settled.store } | null = live.work ? { work: live.work, store: live.store }
+    : settled.work ? { work: settled.work, store: settled.store } : null;
+  return shown ? <TurnWorkCard agentId={agentId} at={at} work={shown.work} store={shown.store} tokens={tokens} compact={compact} /> : null;
+});
+
+/**
+ * The running turn's card under its prompt, until the turn's first reply
+ * takes it (`ReplyTurnWork`). Only a prompt the plugin draws can hold it.
+ */
+const PromptTurnWork = memo(function PromptTurnWork({ agentId, promptKey, at, tokens, compact }: {
+  agentId: string; promptKey: string; at: number; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
+}) {
+  const latest = useIsLatestPrompt(agentId, promptKey, at);
+  const newestReplyAt = useNewestReplyAt(agentId);
+  const live = useLiveTurnWork(agentId, at, latest);
+  const work = latest && live.work && (newestReplyAt === null || newestReplyAt < live.work.since) ? live.work : null;
+  return work ? <TurnWorkCard agentId={agentId} at={at} work={work} store={live.store} tokens={tokens} compact={compact} /> : null;
+});
 
 /**
  * One footer per completed turn, including history while another turn runs.
@@ -959,6 +1033,9 @@ function LiveUserMessageRendererBody({
           }
         />
       )}
+      {!envelope && standardFoldActive(preferences) ? (
+        <PromptTurnWork agentId={agentId} promptKey={promptKey} at={atMs} tokens={tokens} compact={layout.compact} />
+      ) : null}
       <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
     </View>
   );

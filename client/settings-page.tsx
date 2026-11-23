@@ -118,19 +118,39 @@ const INLINE_CODE_OPTIONS: ReadonlyArray<{
 
 type PreviewDevice = "desktop" | "mobile";
 
-/** A fixed viewport shows how extra work steps push the reply down. */
+/** A fixed viewport (100 x 80 units) shows how extra work steps push the reply down. */
 function TimelineLevelIllustration({ level, tokens }: { level: TimelineLevel; tokens: ExtendedThemeTokens }) {
-  const stepWidths = level === "simple" ? [] : level === "standard" ? [50, 38] : [50, 36, 56, 42];
-  const replyWidths = level === "simple" ? [80, 72, 80, 76, 46] : level === "standard" ? [80, 74, 48] : [80];
+  const at = (y: number) => `${y / 80 * 100}%` as const;
+  const stepWidths = level === "detailed" ? [50, 36, 56, 42] : [];
+  // Standard folds a turn's work into a "worked for" line and an edited-files card.
+  const workEnd = level === "standard" ? 56 : 25 + stepWidths.length * 9;
+  const replyWidths = level === "simple" ? [80, 72, 80, 76, 46] : level === "standard" ? [80, 48] : [80];
+  const bar = (key: string, left: number, top: number, width: number, color: string, height = 4.25) =>
+    <View key={key} style={{ position: "absolute", left: `${left}%`, top: at(top), width: `${width}%`, height: `${height}%`, borderRadius: 4, backgroundColor: color }} />;
   return (
     <View accessible={false} style={{ width: "100%", aspectRatio: 1.25, borderWidth: 1, borderRadius: 6, borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0, overflow: "hidden" }}>
       <View style={{ position: "absolute", left: "40%", top: "8.75%", width: "54%", height: "15%", borderRadius: 9, backgroundColor: tokens.userSurface }} />
-      {stepWidths.length > 0 ? <View style={{ position: "absolute", left: "6%", top: "31.25%", width: "88%", height: level === "standard" ? "22.5%" : "45%", borderRadius: 5, backgroundColor: tokens.accentBg }} /> : null}
+      {level === "standard" ? <>
+        {bar("worked-icon", 10, 23.6, 4.2, tokens.foregroundSubtle)}
+        {bar("worked", 18, 23.6, 24, tokens.foregroundSubtle)}
+        <View style={{ position: "absolute", left: "6%", top: at(30), width: "88%", height: at(24), borderWidth: 1, borderRadius: 5, borderColor: tokens.v2.border, backgroundColor: tokens.accentBg }} />
+        {bar("files-icon", 10, 33.4, 4.2, tokens.accent)}
+        {bar("files", 18, 33.4, 34, tokens.foregroundMuted)}
+        {bar("files-add", 72, 33.4, 9, tokens.row.diffAdd)}
+        {bar("files-del", 83, 33.4, 6, tokens.row.diffDel)}
+        <View style={{ position: "absolute", left: "6%", top: at(39.5), width: "88%", height: 1, backgroundColor: tokens.v2.border }} />
+        {[40, 28].map((width, index) => <React.Fragment key={index}>
+          {bar(`file-${index}`, 18, 42.6 + index * 6, width, tokens.foregroundSubtle, 3.6)}
+          {bar(`file-add-${index}`, 76, 42.6 + index * 6, 5, tokens.row.diffAdd, 3.6)}
+          {bar(`file-del-${index}`, 83, 42.6 + index * 6, 6, tokens.row.diffDel, 3.6)}
+        </React.Fragment>)}
+      </> : null}
+      {stepWidths.length > 0 ? <View style={{ position: "absolute", left: "6%", top: "31.25%", width: "88%", height: "45%", borderRadius: 5, backgroundColor: tokens.accentBg }} /> : null}
       {stepWidths.map((width, index) => <React.Fragment key={index}>
-        <View style={{ position: "absolute", left: "11%", top: `${(25 + index * 9 + 2.4) / 80 * 100}%`, width: "4.2%", aspectRatio: 1, borderRadius: 20, backgroundColor: tokens.accent }} />
-        <View style={{ position: "absolute", left: "19%", top: `${(25 + index * 9 + 2.8) / 80 * 100}%`, width: `${width}%`, height: "4.25%", borderRadius: 4, backgroundColor: tokens.foregroundSubtle }} />
+        <View style={{ position: "absolute", left: "11%", top: at(25 + index * 9 + 2.4), width: "4.2%", aspectRatio: 1, borderRadius: 20, backgroundColor: tokens.accent }} />
+        {bar(`step-${index}`, 19, 25 + index * 9 + 2.8, width, tokens.foregroundSubtle)}
       </React.Fragment>)}
-      {replyWidths.map((width, index) => <View key={index} style={{ position: "absolute", left: "10%", top: `${(29 + stepWidths.length * 9 + index * 9 + 2.2) / 80 * 100}%`, width: `${width}%`, height: "5.75%", borderRadius: 4, backgroundColor: tokens.foreground }} />)}
+      {replyWidths.map((width, index) => bar(`reply-${index}`, 10, workEnd + 4 + index * 9 + 2.2, width, tokens.foreground, 5.75))}
     </View>
   );
 }

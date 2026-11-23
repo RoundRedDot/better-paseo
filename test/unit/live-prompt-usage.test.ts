@@ -91,7 +91,8 @@ vi.mock("../../client/tools/classify", () => ({ classifyTool: () => ({ title: "R
 vi.mock("../../client/tools/disclosure", () => ({ defaultToolExpanded: () => false, toolDisclosureKey: () => "tool-key" }));
 vi.mock("../../client/debug/perf", () => ({ probeCard: () => ({ node: null, viewProps: {} }), textItemKey: () => "text-key" }));
 vi.mock("../../client/ui/use-revealed-text", () => ({ useRevealedText: (text: string) => text }));
-vi.mock("../../client/state/turn-footers", () => ({ useTurnFooter: () => null }));
+vi.mock("../../client/state/turn-footers", () => ({ useTurnFooter: () => null, useTurnWork: () => ({ store: null, work: null }) }));
+vi.mock("../../client/components/turn-work-card", () => ({ TurnWorkCard: () => null }));
 vi.mock("../../client/state/agent-message-senders", () => ({ useAgentMessageSender: () => null }));
 vi.mock("../../client/state/footer-model", () => ({ useFooterModel: () => ({ modelName: null, thinkingLabel: null }) }));
 vi.mock("../../client/system-envelope", () => ({ parseSystemEnvelope: () => null }));

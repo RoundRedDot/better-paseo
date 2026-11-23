@@ -14,8 +14,8 @@ import { perfSlashCommand } from "./client/debug/perf-command";
 import { installTimelineLevelControl } from "./client/timeline-level-control";
 import { loadMark } from "./client/debug/load-marks";
 import { scheduleLoadTraceDump } from "./client/debug/load-trace";
-import { transformCompaction, transformToolCall } from "./client/tools/transform";
-import { showToolAtLevel } from "./client/tools/timeline-level";
+import { transformCompaction, transformToolCallAt } from "./client/tools/transform";
+import { standardFoldActive } from "./client/tools/standard-fold";
 import { transformNotification } from "./client/notice-transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
 import { assistantRows, hasUiFence } from "./client/assistant-transform";
@@ -82,12 +82,15 @@ export default function contribute(client: PluginClientContext) {
   const removeUpdateIndicator = indicatorHost.addUpdateIndicator?.(PluginUpdateIndicator);
 
   // Live chat timeline interception: render real tool calls, reasoning, and todos with enhanced UI.
-  const removeToolTransformer = followPreference("timelineLevel", () => addChatTransformer({
+  // Standard folds successful edits into the assistant reply's work card
+  // while the plugin draws that reply (`standardFoldActive`).
+  const removeToolTransformer = followPreference(
+    (preferences) => `${preferences.timelineLevel}|${standardFoldActive(preferences)}`,
+    () => addChatTransformer({
     id: "omp-enhanced-tool-call",
     query: { itemType: "tool_call" },
     transform(input) {
-      if (!showToolAtLevel(input.item, getEnhancerPreferences().timelineLevel)) return { items: [] };
-      return transformToolCall(input);
+      return transformToolCallAt(input, getEnhancerPreferences());
     },
   }));
 

@@ -8,6 +8,9 @@ import { toolErrorText } from "./error-text";
 import { isTaskEcho } from "./task-notification";
 import { readCodexAsyncQuestions } from "./codex-questions";
 import { agentMessageFromDetail, agentMessageSchema, senderlessAgentMessage } from "./agent-message";
+import { showToolAtLevel } from "./timeline-level";
+import { standardFoldActive } from "./standard-fold";
+import type { EnhancerPreferences } from "../preferences";
 
 type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string]: JsonValue };
 
@@ -102,4 +105,17 @@ export function transformToolCall({ item, phase }: {
       },
     ],
   };
+}
+
+/**
+ * The `tool_call` transformer under the reader's preferences: the level's
+ * filter, then the row. Standard folds successful edits into the assistant
+ * reply's work card only while the plugin draws that reply (`standardFoldActive`).
+ */
+export function transformToolCallAt(input: { item: ToolCallTimelineItem; phase: "streaming" | "complete" },
+  preferences: Pick<EnhancerPreferences, "chatEnabled" | "timelineLevel" | "assistantMarkdown">,
+): PluginTimelineTransformResult | undefined {
+  if (input.item.type !== "tool_call") return undefined;
+  if (!showToolAtLevel(input.item, preferences.timelineLevel, standardFoldActive(preferences))) return { items: [] };
+  return transformToolCall(input);
 }
