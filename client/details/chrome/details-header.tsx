@@ -6,7 +6,7 @@
  * moves the drawer, a horizontal swipe steps.
  */
 import { useState, type ReactNode } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { space } from "../../components/theme-tokens";
 import { unselectable } from "../../components/selection";
@@ -50,6 +50,7 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
   const text = entry.title || titleText || "";
   const navigable = shell.index > 0 && shell.count > 0;
   const subtitle = subtitleParts(entry, navigable ? `${shell.index} / ${shell.count}` : null);
+  const desktopSide = Platform.OS === "web" && pointer && shell.form === "side";
   const titleStyle = [
     styles.title,
     unselectable,
@@ -62,7 +63,8 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
     <View
       testID="details-header"
       {...(shell.headerHandlers ?? {})}
-      style={[styles.header, { minHeight: DETAILS_HEADER[pointer ? "pointer" : "touch"] }]}
+      style={[styles.header, { minHeight: desktopSide ? 36 : DETAILS_HEADER[pointer ? "pointer" : "touch"] },
+        desktopSide && { paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
       <View testID="details-header-icon" style={[styles.tile, { backgroundColor: tokens.v2.surface1 }]}>
         {entry.icon ? <TileIcon name={entry.icon} color={entry.iconColor ?? tokens.foregroundMuted} />

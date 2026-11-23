@@ -129,10 +129,27 @@ export function nearestScroller(node: unknown): HTMLElement | null {
   const view = element?.ownerDocument.defaultView;
   while (element && view) {
     const overflow = view.getComputedStyle(element).overflowY;
-    if (/auto|scroll|overlay/.test(overflow) && element.scrollHeight > element.clientHeight) return element;
+    if (/auto|scroll|overlay/.test(overflow) && (element.matches('[data-testid="agent-chat-scroll"]') || element.scrollHeight > element.clientHeight)) return element;
     element = element.parentElement;
   }
   return null;
+}
+
+/** Reserve space in the host's timeline content without resizing its scroll viewport. */
+export function bindTimelineSpace(node: unknown): { setWidth(width: number): void; release(): void } {
+  const scroller = nearestScroller(node);
+  const content = scroller?.matches('[data-testid="agent-chat-scroll"]') ? scroller.firstElementChild as HTMLElement | null : null;
+  if (!content) return { setWidth() {}, release() {} };
+  const original = content.style.getPropertyValue("padding-right");
+  const priority = content.style.getPropertyPriority("padding-right");
+  const padding = content.ownerDocument.defaultView!.getComputedStyle(content).paddingRight;
+  return {
+    setWidth(width) { content.style.setProperty("padding-right", `calc(${padding} + ${width}px)`, priority); },
+    release() {
+      if (original) content.style.setProperty("padding-right", original, priority);
+      else content.style.removeProperty("padding-right");
+    },
+  };
 }
 
 /** The host's constrained content column above this row, within its own scroller. */

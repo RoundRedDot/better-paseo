@@ -60,6 +60,7 @@ export function SidePanel(props: {
   /** Desktop web or iPad: the left edge drags the width. */
   resizable: boolean;
   onResizeStart?(): void;
+  onWidthChange?(width: number): void;
   onOutside(): void;
   children: ReactNode;
 }) {
@@ -165,6 +166,7 @@ export function SidePanel(props: {
     const rerender = () => setDragged((count) => count + 1);
     return bindEdgeDrag(edge.current, () => sideWidth(latest.current.stage, latest.current.wide), () => latest.current.onResizeStart?.(), (next) => {
       sessionWidth = Math.round(Math.max(SIDE.min, Math.min(latest.current.stage.width * SIDE.max, next)));
+      latest.current.onWidthChange?.(sideWidth(latest.current.stage, false));
       if (node?.style) node.style.width = `${sideWidth(latest.current.stage, false)}px`;
       else rerender();
     }, rerender);

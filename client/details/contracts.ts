@@ -70,6 +70,8 @@ export interface BlockEntry {
   readsImage: boolean;
   /** A desktop side panel opened for this entry closes on a click outside. */
   dismissOnOutside?: boolean;
+  /** Reserve space in the desktop timeline while this entry is shown at the side. */
+  reserveTimeline?: boolean;
   /** The preview content, the same tree the hover panel draws. */
   render(): ReactNode;
   copies(): readonly CopyItem[];

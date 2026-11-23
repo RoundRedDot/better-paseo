@@ -23,11 +23,11 @@ export interface DetailsLayout {
   measure(): void;
 }
 
-export function useDetailsLayout(pointer: boolean, host: HostList | null): DetailsLayout {
+export function useDetailsLayout(pointer: boolean, host: HostList | null, reserveTimeline = false): DetailsLayout {
   const { width, height } = useWindowDimensions();
   const [settled, setSettled] = useState({ width, height });
   const [measurement, setMeasurement] = useState<{
-    bounds: { left: number; right: number; contentRight?: number } | null; ready: boolean;
+    bounds: { left: number; right: number; contentRight?: number; canReserveTimeline?: boolean } | null; ready: boolean;
   }>({ bounds: null, ready: false });
   const measure = useCallback(() => {
     if (!host) return;
@@ -43,8 +43,9 @@ export function useDetailsLayout(pointer: boolean, host: HostList | null): Detai
         return;
       }
       const contentRight = box.contentRight;
-      setMeasurement((current) => current.ready && current.bounds?.left === left && current.bounds.right === right && current.bounds.contentRight === contentRight
-        ? current : { bounds: { left, right, contentRight }, ready: true });
+      const canReserveTimeline = box.canReserveTimeline;
+      setMeasurement((current) => current.ready && current.bounds?.left === left && current.bounds.right === right && current.bounds.contentRight === contentRight && current.bounds.canReserveTimeline === canReserveTimeline
+        ? current : { bounds: { left, right, contentRight, canReserveTimeline }, ready: true });
     });
   }, [host, width]);
   useEffect(measure, [measure, height]);
@@ -58,9 +59,11 @@ export function useDetailsLayout(pointer: boolean, host: HostList | null): Detai
   const left = Math.min(bounds?.left ?? 0, width);
   const paneWidth = Math.max(0, Math.min(bounds?.right ?? width, width) - left);
   const sidebar = width - paneWidth;
-  // Native panels are modal. Desktop web can share the timeline only in measured empty space.
+  // Work details can reserve space in the timeline; other details use its empty gutter.
   const sideSpace = Platform.OS === "web" && pointer
-    ? Math.max(0, Math.floor(Math.min(bounds?.right ?? width, width) - (bounds?.contentRight ?? width)))
+    ? reserveTimeline && bounds?.canReserveTimeline
+      ? Math.max(0, paneWidth - 400)
+      : Math.max(0, Math.floor(Math.min(bounds?.right ?? width, width) - (bounds?.contentRight ?? width)))
     : undefined;
   // The current form widens each boundary by the 16 band, so it is the previous choice's input.
   const current = useRef<DetailsForm | null>(null);

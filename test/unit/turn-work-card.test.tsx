@@ -100,6 +100,7 @@ describe("turn work card", () => {
     expect(byType("ToolCallout")).toHaveLength(0);
     pressText("读取了文件 · 编辑了文件 · 运行了命令");
     expect(openId).toBe("agent:work:r:10000:done:steps");
+    expect(getBlock("agent", openId!)?.reserveTimeline).toBe(true);
     expect(byType("ToolCallout")).toHaveLength(0);
     pressText("用时 9秒");
     expect(byType("ToolCallout")).toHaveLength(0);

@@ -44,7 +44,7 @@ import { DETAILS_MOTION, animate } from "./motion";
 import { OVERDRAG, panelResponder, type DragTarget } from "./gestures";
 import { useSafeInsets } from "./safe-area";
 import { useDetailsLayout } from "./use-details-layout";
-import { bindDetailsLayer, bindWorkOutsideClick, keepOffWindowDrag, layerTakesKey, webBodyAtTop } from "./web-layer";
+import { bindDetailsLayer, bindTimelineSpace, bindWorkOutsideClick, keepOffWindowDrag, layerTakesKey, webBodyAtTop } from "./web-layer";
 import { bindDetailsKeys, registerDetailsKeyboardActions } from "../keyboard";
 import { useCopy } from "../../ui/use-copy";
 import { canProbeOlder, noteNavigation, stepDetails, syncTimeline, useHostList } from "./timeline-sync";
@@ -119,7 +119,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const paneRef = useRef<View>(null);
   const anchor = useCallback(() => paneRef.current, []);
   const host = useHostList(agentId, anchor);
-  const layout = useDetailsLayout(pointer, host);
+  const layout = useDetailsLayout(pointer, host, entry.reserveTimeline);
   const [insets, insetProbe] = useSafeInsets();
   const lockList = useListScrollLock();
   const revealPath = useRpc(revealPathRpc);
@@ -214,6 +214,15 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const panelWidth = form === "side" ? sideWidth(layout.stage, fullscreen)
     : form === "floating" ? floatingWidth(layout.stage.width)
       : layout.stage.width;
+  const timelineSpace = useRef<ReturnType<typeof bindTimelineSpace> | null>(null);
+  useLayoutEffect(() => {
+    if (Platform.OS !== "web" || !pointer || !entry.reserveTimeline || form !== "side" || leaving || !layout.ready) return;
+    const reservation = bindTimelineSpace(paneRef.current);
+    timelineSpace.current = reservation;
+    reservation.setWidth(panelWidth);
+    return () => { timelineSpace.current = null; reservation.release(); };
+  }, [entry.reserveTimeline, form, leaving, layout.ready, pointer]);
+  useLayoutEffect(() => { timelineSpace.current?.setWidth(panelWidth); }, [panelWidth]);
   const navRef = useRef({ nav, canStep, panelWidth });
   navRef.current = { nav, canStep, panelWidth };
   const slideTo = useCallback((direction: -1 | 1) => {
@@ -486,6 +495,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
       wide={fullscreen}
       resizable={pointer && Platform.OS === "web" || Platform.OS === "ios" && Platform.isPad}
       onResizeStart={() => { if (fullscreen) detailsApi.setFullscreen(agentId, false); }}
+      onWidthChange={(width) => timelineSpace.current?.setWidth(width)}
       onOutside={close}
     >
       {content}

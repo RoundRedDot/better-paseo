@@ -910,7 +910,7 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
             </PreviewScrollerContext.Provider>
           </ScrollView>
         ) : (
-          <View ref={webBody} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll]}>
+          <View ref={webBody} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll, shell?.form === "side" && styles.sideScroll]}>
             {content}
           </View>
         )}
@@ -1247,6 +1247,7 @@ const styles = StyleSheet.create({
   // at its fit detent sizes itself to its content, which a 0 basis would collapse.
   detailsBody: { flexGrow: 1, flexShrink: 1, minHeight: 0, position: "relative" },
   detailsScroll: { flexGrow: 1, flexShrink: 1, minHeight: 0 },
+  sideScroll: { marginTop: 0 },
   pressBodyFill: { flexGrow: 1, minHeight: 0 },
   pressBodyContent: { padding: space.md, gap: space.sm },
   unwrappedScroll: { flexGrow: 1 },

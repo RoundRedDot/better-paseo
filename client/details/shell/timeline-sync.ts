@@ -56,7 +56,7 @@ export function syncDelta(row: { top: number; height: number }, band: Band): num
 /** The host list as the panel drives it. */
 export interface HostList {
   /** The list's visible box in window coordinates, null when it cannot be measured. */
-  viewport(): Promise<{ top: number; bottom: number; left?: number; right?: number; contentRight?: number } | null>;
+  viewport(): Promise<{ top: number; bottom: number; left?: number; right?: number; contentRight?: number; canReserveTimeline?: boolean } | null>;
   /** Observes pane and content-column resizing independently of the window (web). */
   observeResize?(measure: () => void): () => void;
   /** Moves the content up by `delta` (down when negative) over `ms`; returns how far it can move. */
@@ -262,6 +262,7 @@ export function webHostList(anchor: () => unknown): HostList {
       return Promise.resolve(rect.height > 0 ? {
         top: rect.top, bottom: rect.bottom, left: rect.left, right: rect.right,
         contentRight: column?.getBoundingClientRect().right ?? rect.right,
+        canReserveTimeline: scroller.matches('[data-testid="agent-chat-scroll"]') && !!scroller.firstElementChild,
       } : null);
     },
     scroll(delta, ms) {

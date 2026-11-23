@@ -211,6 +211,8 @@ const web = {
   glides: [] as number[],
   row: 0,
   pane: null as { left: number; right: number; contentRight: number } | null,
+  reserveHost: false,
+  timelinePadding: "16px",
   /** Each node's inline `-webkit-app-region`, by test ID. */
   appRegion: new Map<string, string>(),
 };
@@ -237,13 +239,22 @@ function fakeElement(testID?: string): unknown {
   };
   const scroller = {
     parentElement: null, ownerDocument: null as unknown,
+    matches: () => web.reserveHost,
+    firstElementChild: null as unknown,
     scrollTop: 0, scrollHeight: 3000, clientHeight: 750,
     getBoundingClientRect: () => ({ top: 100, bottom: 850, height: 750, left: web.pane!.left, right: web.pane!.right }),
   };
-  const column = { ownerDocument: null as unknown, parentElement: scroller, getBoundingClientRect: () => ({ right: web.pane!.contentRight }) };
+  const column = { ownerDocument: null as unknown, parentElement: scroller, matches: () => false, getBoundingClientRect: () => ({ right: web.pane!.contentRight }) };
+  const content = { ownerDocument: null as unknown, style: {
+    getPropertyValue: () => "16px", getPropertyPriority: () => "",
+    setProperty: (_name: string, value: string) => { web.timelinePadding = value; },
+    removeProperty: () => { web.timelinePadding = ""; },
+  } };
+  scroller.firstElementChild = content;
   view.getComputedStyle = ((element: unknown) => ({
     overflowY: element === scroller ? "auto" : "visible",
     maxWidth: element === column ? "720px" : "none",
+    paddingRight: "16px",
   })) as typeof view.getComputedStyle;
   const doc = { defaultView: view, querySelectorAll: () => web.openPreviews,
     addEventListener(type: string, listener: (event: unknown) => void) {
@@ -254,6 +265,7 @@ function fakeElement(testID?: string): unknown {
   };
   scroller.ownerDocument = doc;
   column.ownerDocument = doc;
+  content.ownerDocument = doc;
   return {
     setAttribute() {}, ownerDocument: doc, parentElement: testID === "details-pane-probe" && web.pane ? column : null,
     style: {
@@ -377,6 +389,8 @@ beforeEach(() => {
   web.openPreviews = [];
   web.hidden = false;
   web.pane = null;
+  web.reserveHost = false;
+  web.timelinePadding = "16px";
   web.appRegion.clear();
   web.scrolls = [];
   web.glides = [];
@@ -465,6 +479,83 @@ describe("DetailsHostSlot", () => {
 });
 
 describe("form", () => {
+  it("reserves the desktop timeline for work details, aligns the chrome and restores it on close", async () => {
+    webDesktop();
+    screen.width = 1280;
+    web.reserveHost = true;
+    web.pane = { left: 240, right: 1280, contentRight: 1280 };
+    fake.box.blocks = [block("work", 1, { reserveTimeline: true, render: () => createElement(React.Fragment, null,
+      createElement(HoverPreviewHeader, { tokens, icon: "List" }),
+      createElement(HoverPreviewBody, null, createElement(Probe, { id: "work" }))) })];
+    const renderer = render(slot());
+    await act(async () => fake.api.open(AGENT, "work"));
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    expect(byTestId(renderer, "details-floating")).toBeNull();
+    expect(web.timelinePadding).toBe("calc(16px + 420px)");
+    expect(flat(byTestId(renderer, "details-header")!.props.style)).toMatchObject({ minHeight: 36, paddingVertical: 3, borderBottomWidth: 1 });
+    expect(flat(byTestId(renderer, "details-toolbar")!.props.style).minHeight).toBe(36);
+    expect(flat(byTestId(renderer, "hover-preview-body")!.props.style).marginTop).toBe(0);
+    act(() => seen.shell!.toggleFullscreen!());
+    expect(web.timelinePadding).toBe("calc(16px + 624px)");
+    act(() => fake.api.close());
+    expect(web.timelinePadding).toBe("16px");
+  });
+
+  it("keeps the floating form without reserving the timeline when the desktop pane is too narrow", async () => {
+    webDesktop();
+    screen.width = 1000;
+    web.reserveHost = true;
+    web.pane = { left: 240, right: 1000, contentRight: 1000 };
+    fake.box.blocks = [block("work", 1, { reserveTimeline: true })];
+    const renderer = render(slot());
+    await act(async () => fake.api.open(AGENT, "work"));
+    expect(byTestId(renderer, "details-floating")).not.toBeNull();
+    expect(web.timelinePadding).toBe("16px");
+  });
+
+  it("releases the reserved timeline when switching from work to another detail", async () => {
+    webDesktop();
+    screen.width = 1280;
+    web.reserveHost = true;
+    web.pane = { left: 240, right: 1280, contentRight: 1280 };
+    fake.box.blocks = [block("work", 1, { reserveTimeline: true }), block("other", 2)];
+    const renderer = render(slot());
+    await act(async () => fake.api.open(AGENT, "work"));
+    expect(web.timelinePadding).toBe("calc(16px + 420px)");
+    await act(async () => fake.api.open(AGENT, "other"));
+    expect(web.timelinePadding).toBe("16px");
+    expect(byTestId(renderer, "details-floating")).not.toBeNull();
+  });
+
+  it("updates reserved space when the timeline pane narrows and widens", async () => {
+    webDesktop();
+    screen.width = 1280;
+    web.reserveHost = true;
+    web.pane = { left: 240, right: 1280, contentRight: 1280 };
+    let changed!: () => void;
+    vi.stubGlobal("ResizeObserver", class {
+      constructor(callback: () => void) { changed = callback; }
+      observe() {}
+      disconnect() {}
+    });
+    try {
+      fake.box.blocks = [block("work", 1, { reserveTimeline: true })];
+      const renderer = render(slot());
+      await act(async () => fake.api.open(AGENT, "work"));
+      expect(web.timelinePadding).toBe("calc(16px + 420px)");
+      web.pane.left = 500;
+      await act(async () => changed());
+      expect(byTestId(renderer, "details-floating")).not.toBeNull();
+      expect(web.timelinePadding).toBe("16px");
+      web.pane.left = 240;
+      await act(async () => changed());
+      expect(byTestId(renderer, "details-side")).not.toBeNull();
+      expect(web.timelinePadding).toBe("calc(16px + 420px)");
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   it.each([[1000, "details-side"], [1100, "details-floating"]] as const)("waits for desktop space before mounting %s", async (contentRight, panel) => {
     webDesktop();
     web.pane = { left: 240, right: 1440, contentRight };
