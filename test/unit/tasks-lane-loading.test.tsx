@@ -122,7 +122,7 @@ describe("history lane loading", () => {
     const fake = createFakePaseo();
     const original = fake.paseo.agents.list.bind(fake.paseo.agents);
     vi.spyOn(fake.paseo.agents, "list").mockImplementation(async (options) => {
-      if (!options?.filter?.statuses?.includes("idle")) return original(options);
+      if (!options?.subscribe || !options.filter?.statuses?.includes("idle")) return original(options);
       if (failure === "request") throw new Error("History unavailable");
       const result = await original(options);
       return { ...result, subscription: { ...result.subscription!, ready: Promise.reject(new Error("History unavailable")) } };
@@ -150,7 +150,7 @@ describe("history lane loading", () => {
     const fake = createFakePaseo();
     const original = fake.paseo.agents.list.bind(fake.paseo.agents);
     let land!: () => void;
-    vi.spyOn(fake.paseo.agents, "list").mockImplementation((options) => options?.filter?.statuses?.includes("idle")
+    vi.spyOn(fake.paseo.agents, "list").mockImplementation((options) => options?.subscribe && options.filter?.statuses?.includes("idle")
       ? new Promise((resolve) => { land = () => { void original(options).then(resolve); }; })
       : original(options));
     const mounted = await mount(fake, compact, "done", { doneWindow: "all", includeDone: true });
@@ -166,7 +166,9 @@ describe("history lane loading", () => {
     const done = laneList("done", true)[0]!;
     const original = fake.paseo.agents.list.bind(fake.paseo.agents);
     let land!: () => void;
-    vi.spyOn(fake.paseo.agents, "list").mockImplementation((options) => new Promise((resolve) => { land = () => { void original(options).then(resolve); }; }));
+    vi.spyOn(fake.paseo.agents, "list").mockImplementation((options) => options?.subscribe
+      ? new Promise((resolve) => { land = () => { void original(options).then(resolve); }; })
+      : original(options));
     act(() => mounted.updateOptions({ doneWindow: "all", includeDone: true, includeArchived: true }));
     expect(mounted.current.lanes.done.initialLoading).toBe(false);
     expect(mounted.current.lanes.archived.initialLoading).toBe(true);

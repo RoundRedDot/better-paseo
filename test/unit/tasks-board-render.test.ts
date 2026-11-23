@@ -4067,6 +4067,32 @@ describe("Tasks board, desktop", () => {
     expect(hostsById("detail-back")).toHaveLength(0);
   });
 
+  it("shows a folded historical subtask in the archived parent's details", async () => {
+    const handle = (data as unknown as { __handle: { byId: Map<string, TaskCard>; lanes: Record<string, { cards: TaskCard[] }> } }).__handle;
+    const sample = handle.byId.get("sample-done")!;
+    const parent: TaskCard = { ...sample, id: "history-parent", title: "Historical parent", lane: "archived", status: "archived", archived: "agent", children: [] };
+    const child: TaskCard = { ...sample, id: "history-child", title: "Historical child", lane: "archived", status: "archived", archived: "agent", parent: { id: parent.id, title: parent.title, missing: false, archived: false, detached: true } };
+    const before = handle.lanes.archived!.cards;
+    handle.lanes.archived!.cards = [parent, child];
+    handle.byId.set(parent.id, parent);
+    handle.byId.set(child.id, child);
+    host.settings = { ...DEFAULT_TASKS_SETTINGS, board: { ...DEFAULT_TASKS_SETTINGS.board, showArchived: true } };
+    try {
+      act(() => { renderer = TestRenderer.create(screen(false, { sub: "1" })); });
+      await act(async () => { await deviceTasksStore().update({ showArchived: true }); });
+      layOut(2400);
+      const shown = cards().find((card) => card.props.card.id === parent.id)!;
+      expect(shown.props.card.children.map((row: { id: string }) => row.id)).toEqual([child.id]);
+      act(() => shown.props.onSelect(shown.props.card));
+      expect(renderer!.root.findByType(TaskDetailCards).props.card.children.map((row: { id: string }) => row.id)).toEqual([child.id]);
+      expect(handle.byId.get(parent.id)?.children).toEqual([]);
+    } finally {
+      handle.lanes.archived!.cards = before;
+      handle.byId.delete(parent.id);
+      handle.byId.delete(child.id);
+    }
+  });
+
   it("hands the cards Unarchive when the host has the CLI", async () => {
     host.canStop = true;
     await act(async () => {

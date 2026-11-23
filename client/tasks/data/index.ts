@@ -1031,6 +1031,8 @@ interface SnapshotCache {
 interface TasksDemand {
   board: boolean;
   done: boolean;
+  /** A mounted board or a hold inheriting its data needs a history scan. */
+  historyScan?: "board" | "hold";
   /** The unread and failed agents without a board; a board always has them. */
   attention?: boolean;
 }
@@ -1052,6 +1054,9 @@ interface Run {
 
 interface RefreshToken {
   cancelled: boolean;
+  cancelledSignal: Promise<void>;
+  signalCancellation: () => void;
+  listsReady?: Promise<Landing[]>;
 }
 
 /** How a list's open ended: applied, failed, or overtaken by a close or a newer open of its tier. */
@@ -1066,10 +1071,12 @@ export type TasksHoldReason = "intent" | "linger";
 interface WarmHold {
   release: () => void;
   timer: ReturnType<typeof setTimeout> | null;
+  historyScan: boolean;
 }
 
 interface TaskStore {
   subscribe(listener: () => void, demand: TasksDemand): () => void;
+  setHistoryWindow(owner: object, window: DoneWindow | undefined): void;
   /** Keep the board's subscriptions open for `reason`: until `ms` from now, or with no deadline when null. */
   hold(reason: TasksHoldReason, ms: number | null): void;
   hasHold(reason: TasksHoldReason): boolean;
@@ -1096,6 +1103,19 @@ function createStore(api: PaseoApi): TaskStore {
   const listeners = new Set<() => void>();
   const entries = new Map<string, AgentEntry>();
   const sourceMembers = new Map<string, Set<string>>();
+  const historyScanKey = "history-scan";
+  const historyPendingKey = "history-scan-pending";
+  const historyWindows = new Map<object, DoneWindow>();
+  let retainedHistoryWindows: DoneWindow[] = ["7d"];
+  /** Done-list removes must not be undone from a retained, unconfirmed record. */
+  const pendingHistoryRemovals = new Set<string>();
+  let historyScanSequence = 0;
+  let pendingHistoryScan: number | null = null;
+  let currentHistoryScan: Promise<Landing> | null = null;
+  /** How `currentHistoryScan` ended, set in the same step as its last state change; null while it runs. */
+  let historyScanResult: Landing | null = null;
+  let historyScanOwner: RefreshToken | undefined;
+  const historyScanWaiters = new Set<() => void>();
   const workspaces = new Map<string, PaseoWorkspace>();
   /**
    * Archive time of a workspace that has since left the list. The list drops
@@ -1207,6 +1227,7 @@ function createStore(api: PaseoApi): TaskStore {
   let attentionConsumers = 0;
   let boardConsumers = 0;
   let doneConsumers = 0;
+  let historyConsumers = 0;
   let generation = 0;
   let baseRun = 0;
   /**
@@ -1342,6 +1363,8 @@ function createStore(api: PaseoApi): TaskStore {
   /** The done run a refresh is reading again; no next page is fetched while it is the current one. */
   let doneRefreshRun = -1;
   let doneReady = false;
+  /** The archived lane's first history scan has either completed or reported an error. */
+  let archivedHistoryReady = false;
   /**
    * The archived lane is asked for: the done list includes archived agents,
    * whose records stay. Kept while the board closes, so a warm hold reads
@@ -1714,6 +1737,21 @@ function createStore(api: PaseoApi): TaskStore {
   function updateRecord(agent: PaseoAgent, placement: AgentPlacement, confirmed = false) {
     // Independently bootstrapped lists and pages can arrive after a newer live update.
     if (!confirmed && isStaleAgent(agent)) return;
+    pendingHistoryRemovals.delete(agent.id);
+    // A daemon snapshot is positive evidence: retain a history candidate before
+    // a later first-page replacement can discard its only list membership.
+    if (historyConsumers > 0 && historyCandidate(agent, historyWindowSet(), archivedAsked)) {
+      const members = sourceMembers.get(historyScanKey) ?? new Set<string>();
+      members.add(agent.id);
+      sourceMembers.set(historyScanKey, members);
+    } else {
+      sourceMembers.get(historyScanKey)?.delete(agent.id);
+    }
+    if (pendingHistoryScan !== null && isDone(agent) && (!isArchived(agent) || archivedAsked)) {
+      const pending = sourceMembers.get(historyPendingKey) ?? new Set<string>();
+      pending.add(agent.id);
+      sourceMembers.set(historyPendingKey, pending);
+    }
     const updatedAt = epoch(agent.updatedAt);
     latestUpdates.set(agent.id, confirmed ? updatedAt : Math.max(updatedAt, latestUpdates.get(agent.id) ?? updatedAt));
     if (isArchived(agent) && !keepsArchived(agent)) {
@@ -1927,7 +1965,10 @@ function createStore(api: PaseoApi): TaskStore {
     if (payload.kind === "remove" && payload.agentId) {
       // The daemon sends a remove to every list the agent no longer matches;
       // only the done list's means it left done (archived, running, deleted).
-      if (sourceKey === DONE_SUBSCRIPTION) removeStamps.set(payload.agentId, ++recordClock);
+      if (sourceKey === DONE_SUBSCRIPTION) {
+        removeStamps.set(payload.agentId, ++recordClock);
+        pendingHistoryRemovals.add(payload.agentId);
+      }
       // A held read can be the first step of an archive the board hears of only
       // as removes (its archived lane off): applied after them, it brought the
       // archived task back as done. Let it go and read the agent instead.
@@ -1942,7 +1983,9 @@ function createStore(api: PaseoApi): TaskStore {
       if (held && (held.sourceKey === sourceKey || (held.kind === "clear" && sourceMembers.get(sourceKey)?.has(payload.agentId)))) {
         held.removedFromSource = true;
       }
-      const wasMember = sourceMembers.get(sourceKey)?.delete(payload.agentId);
+      const wasHistory = sourceKey === DONE_SUBSCRIPTION && sourceMembers.get(historyScanKey)?.delete(payload.agentId);
+      const wasPending = sourceKey === DONE_SUBSCRIPTION && sourceMembers.get(historyPendingKey)?.delete(payload.agentId);
+      const wasMember = sourceMembers.get(sourceKey)?.delete(payload.agentId) || wasHistory || wasPending;
       // A list that held the agent let it go (archived, read, running): a read
       // by id asked before this would set its memberships back.
       if (wasMember) recordStamps.set(payload.agentId, ++recordClock);
@@ -2037,6 +2080,7 @@ function createStore(api: PaseoApi): TaskStore {
           return;
         }
         dropHeldSnapshot(id);
+        removeStamps.set(id, ++recordClock);
         for (const members of sourceMembers.values()) members.delete(id);
         removeRecord(id);
       }).catch((caught: unknown) => {
@@ -2072,6 +2116,34 @@ function createStore(api: PaseoApi): TaskStore {
    * the done lane meanwhile. The agent is read again by id, and its record
    * and lists follow what it is now.
    */
+  function applyConfirmedAgent(id: string, agent: PaseoAgent | null, placement: AgentPlacement) {
+    if (!agent || (isArchived(agent) && !keepsArchived(agent))) {
+      dropHeldSnapshot(id);
+      if (!agent) {
+        removeStamps.set(id, ++recordClock);
+        if (!entries.has(id)) recordStamps.set(id, recordClock);
+      }
+      if (entries.has(id)) {
+        batchUpdates(() => {
+          for (const members of sourceMembers.values()) members.delete(id);
+          removeRecord(id);
+        });
+      }
+      return;
+    }
+    if (isArchived(agent)) dropHeldSnapshot(id);
+    else if (waitsForHeldClear(agent)) return;
+    batchUpdates(() => {
+      reconcileActiveMembers(agent);
+      for (const [key, members] of sourceMembers) {
+        if (key === DONE_SUBSCRIPTION && isDone(agent)) members.add(agent.id);
+        else if (key.startsWith("done-page-") || key === DONE_SUBSCRIPTION) members.delete(agent.id);
+      }
+      updateRecord(agent, placement, true);
+      dropIfUnreferenced(agent.id);
+    });
+  }
+
   function confirmAgent(id: string, attempt = 0) {
     // One read at a time; one asked for meanwhile runs once that answers, so
     // it sees the state of after it was asked, not the earlier read's.
@@ -2091,31 +2163,7 @@ function createStore(api: PaseoApi): TaskStore {
       clearPageError(`read:${id}`);
       // A newer state landed while the read was out: it is the one to keep.
       if (changedSince(id, asked)) return;
-      if (!result || (isArchived(result.agent) && !keepsArchived(result.agent))) {
-        // Archived or gone: it leaves the board, and no hold brings it back.
-        dropHeldSnapshot(id);
-        if (entries.has(id)) {
-          batchUpdates(() => {
-            for (const members of sourceMembers.values()) members.delete(id);
-            removeRecord(id);
-          });
-        }
-        return;
-      }
-      const agent = result.agent;
-      // Archived (kept for the archived lane): no hold of it lands later.
-      if (isArchived(agent)) dropHeldSnapshot(id);
-      // The same read state a hold is keeping: the hold decides when it lands.
-      else if (waitsForHeldClear(agent)) return;
-      batchUpdates(() => {
-        reconcileActiveMembers(agent);
-        for (const [key, members] of sourceMembers) {
-          if (key === DONE_SUBSCRIPTION && isDone(agent)) members.add(agent.id);
-          else if (key.startsWith("done-page-") || key === DONE_SUBSCRIPTION) members.delete(agent.id);
-        }
-        updateRecord(agent, result.project ?? null, true);
-        dropIfUnreferenced(agent.id);
-      });
+      applyConfirmedAgent(id, result?.agent ?? null, result?.project ?? null);
     }).catch((caught: unknown) => {
       if (run !== generation) return;
       confirmChecks.delete(id);
@@ -2133,6 +2181,24 @@ function createStore(api: PaseoApi): TaskStore {
         }, delay);
       }
     }).finally(again);
+  }
+
+  async function confirmHistoryAgent(id: string, alive: () => boolean): Promise<Landing> {
+    const asked = recordClock;
+    try {
+      const result = await api.agents.ref(id).refresh();
+      if (!alive()) return "stale";
+      clearPageError(`read:${id}`);
+      if (!changedSince(id, asked)) applyConfirmedAgent(id, result?.agent ?? null, result?.project ?? null);
+      return "landed";
+    } catch (caught) {
+      if (!alive()) return "stale";
+      if (changedSince(id, asked) || !entries.has(id)) return "landed";
+      pageError(`read:${id}`, caught);
+      const delay = CONFIRM_RETRY_DELAYS_MS[0];
+      if (delay !== undefined) setTimeout(() => { if (alive()) confirmAgent(id, 1); }, delay);
+      return "failed";
+    }
   }
 
   function matchingEntries(result: PaseoAgentListResult | { entries: PaseoAgentListResult["entries"] }) {
@@ -2408,10 +2474,11 @@ function createStore(api: PaseoApi): TaskStore {
 
   /** A list whose later pages could not be read: the board says so until a later snapshot of it reads them all. */
   function pageError(key: string, caught: unknown) {
-    if (isBackgroundWorkspacesGate(caught)) return;
+    if (key !== historyScanKey && isBackgroundWorkspacesGate(caught)) return;
     const message = caught instanceof Error ? caught.message : String(caught);
     pageErrors.set(key, message);
-    subscriptionError(message);
+    error = message;
+    notify();
   }
 
   function clearPageError(key: string) {
@@ -3003,9 +3070,12 @@ function createStore(api: PaseoApi): TaskStore {
       // The host answered the inclusive list: it has the feature, whether or not a later page reads.
       if (options.filter?.includeBackground) backgroundProven = true;
       let first = refreshed !== undefined;
+      let receivedSnapshot = false;
       const land = (list: PaseoAgentListResult, liveIds?: ReadonlySet<string>) => {
         if (options.filter?.includeBackground) backgroundProven = true;
         replaceAgentSnapshot(key, list, first, liveIds);
+        if (key === DONE_SUBSCRIPTION && receivedSnapshot && historyConsumers > 0) startHistoryScan(undefined, true);
+        receivedSnapshot = true;
         if (!first) return;
         first = false;
         refreshed?.(list);
@@ -3499,6 +3569,193 @@ function createStore(api: PaseoApi): TaskStore {
     return { statuses: ["idle", "closed"], includeBackground: true, ...(archivedAsked ? { includeArchived: true } : null) };
   }
 
+  function historyWindowSet(): DoneWindow[] {
+    const windows = [...new Set(historyWindows.values())].sort();
+    return windows.length ? windows : retainedHistoryWindows;
+  }
+
+  function historyCandidate(agent: PaseoAgent, windows: readonly DoneWindow[], archived: boolean): boolean {
+    if (!isDone(agent)) return false;
+    if (!isArchived(agent)) return Boolean(agent.lastError);
+    if (!archived) return false;
+    const now = Date.now();
+    const archiveAge = now - Date.parse(agent.archivedAt!);
+    const updateAge = now - Date.parse(agent.updatedAt);
+    const inWindow = windows.some((window) => {
+      const cutoff = doneWindowMs(window);
+      return cutoff === null || archiveAge <= cutoff;
+    });
+    if (!inWindow) return false;
+    // A loaded candidate stays owned while any view still includes it.
+    if (sourceMembers.get(historyScanKey)?.has(agent.id)) return true;
+    return windows.some((window) => {
+      const cutoff = doneWindowMs(window);
+      return cutoff !== null && archiveAge <= cutoff && updateAge > cutoff;
+    });
+  }
+
+  function setHistoryWindow(owner: object, window: DoneWindow | undefined) {
+    const before = historyWindowSet().join(",");
+    if (window === undefined) historyWindows.delete(owner);
+    else historyWindows.set(owner, window);
+    if (historyWindows.size > 0) retainedHistoryWindows = [...new Set(historyWindows.values())].sort();
+    retainKnownHistory();
+    if (before !== historyWindowSet().join(",") && doneConsumers > 0) {
+      const sequence = ++historyScanSequence;
+      queueMicrotask(() => {
+        if (sequence === historyScanSequence && historyConsumers > 0) startHistoryScan(undefined, true);
+      });
+    }
+  }
+
+  /** A retained record is evidence unless a later done-list remove awaits confirmation. */
+  function retainKnownHistory() {
+    if (historyConsumers === 0) return;
+    const members = sourceMembers.get(historyScanKey) ?? new Set<string>();
+    const windows = historyWindowSet();
+    for (const [id, entry] of entries) {
+      if (!pendingHistoryRemovals.has(id) && historyCandidate(entry.agent, windows, archivedAsked)) members.add(id);
+    }
+    if (members.size > 0) sourceMembers.set(historyScanKey, members);
+  }
+
+  /** Read the old tail too: archive time and a settled failure are independent of updatedAt. */
+  async function scanHistory(refresh?: RefreshToken, verifyAttention = false): Promise<Landing> {
+    const sequence = ++historyScanSequence;
+    pendingHistoryScan = sequence;
+    const pending = sourceMembers.get(historyPendingKey) ?? new Set<string>();
+    for (const [id, entry] of entries) {
+      if (!pendingHistoryRemovals.has(id) && isDone(entry.agent) && (!isArchived(entry.agent) || archivedAsked)) pending.add(id);
+    }
+    if (pending.size > 0) sourceMembers.set(historyPendingKey, pending);
+    const scanGeneration = generation;
+    const windows = historyWindowSet();
+    const archived = archivedAsked;
+    const asked = recordClock;
+    const attentionAsked = snapshotArrivals.get(ATTENTION_KEY) ?? 0;
+    const alive = () => sequence === historyScanSequence && scanGeneration === generation && historyConsumers > 0 && !refresh?.cancelled && archived === archivedAsked;
+    // Called right after `alive()` held, so this scan is still the current one.
+    const settle = (result: "landed" | "failed") => (historyScanResult = result);
+    const options = { filter: { ...doneFilter(), ...(!archived ? { requiresAttention: false } : null) }, sort: DONE_SORT, page: { limit: LIST_PAGE_SIZE } };
+    try {
+      const first = await listAgents(options);
+      if (!alive()) return "stale";
+      const rest = await readAgentPages(options, first.pageInfo?.nextCursor, alive);
+      if (!alive() || rest.kind === "stale") return "stale";
+      if (rest.kind === "failed") {
+        pendingHistoryScan = null;
+        if (archived) archivedHistoryReady = true;
+        pageError(historyScanKey, rest.error);
+        return settle("failed");
+      }
+      const previous = sourceMembers.get(historyScanKey) ?? new Set<string>();
+      const held = sourceMembers.get(historyPendingKey) ?? new Set<string>();
+      const next = new Set<string>();
+      const apply: PaseoAgentListResult["entries"] = [];
+      const scanned = [...first.entries, ...rest.entries];
+      const seen = new Set(scanned.map((entry) => entry.agent.id));
+      for (const entry of scanned) {
+        const id = entry.agent.id;
+        if (removedSince(id, asked)) {
+          const current = entries.get(id)?.agent;
+          // A later accepted snapshot is stronger evidence than the earlier remove.
+          if (!pendingHistoryRemovals.has(id) && current && historyCandidate(current, windows, archived)) next.add(id);
+          continue;
+        }
+        if (changedSince(id, asked)) {
+          const current = entries.get(id)?.agent;
+          if (current && historyCandidate(current, windows, archived)) next.add(id);
+          continue;
+        }
+        if (!historyCandidate(entry.agent, windows, archived)) continue;
+        next.add(id);
+        apply.push(entry);
+      }
+      // Updates may move an old scan member ahead of the cursor while pages are read.
+      for (const id of previous) {
+        const current = entries.get(id)?.agent;
+        if ((!removedSince(id, asked) || !pendingHistoryRemovals.has(id)) && changedSince(id, asked) && current && historyCandidate(current, windows, archived)) next.add(id);
+      }
+      const excludedAttention = new Set<string>();
+      const missing = new Set([...previous].filter((id) => {
+        const current = entries.get(id)?.agent;
+        if (current && !archived && current.requiresAttention) {
+          next.add(id);
+          excludedAttention.add(id);
+          return false;
+        }
+        return !next.has(id) && !changedSince(id, asked) && current && historyCandidate(current, windows, archived);
+      }));
+      for (const id of held) {
+        const current = entries.get(id)?.agent;
+        if (seen.has(id) || changedSince(id, asked) || !current || !isDone(current)) continue;
+        if (!archived && (isArchived(current) || current.requiresAttention)) continue;
+        missing.add(id);
+      }
+      for (const id of missing) next.add(id);
+      batchUpdates(() => {
+        pendingHistoryScan = null;
+        sourceMembers.delete(historyPendingKey);
+        if (archived) archivedHistoryReady = true;
+        sourceMembers.set(historyScanKey, next);
+        for (const entry of apply) landListed(DONE_SUBSCRIPTION, entry);
+        for (const id of new Set([...previous, ...held])) if (!next.has(id)) dropIfUnreferenced(id);
+        clearPageError(historyScanKey);
+        notify();
+      });
+      if (missing.size === 0 && excludedAttention.size === 0) return settle("landed");
+      const listOwner = refresh ?? refreshing?.token;
+      const lists = listOwner?.listsReady
+        ? await Promise.race([listOwner.listsReady, listOwner.cancelledSignal.then(() => null)])
+        : undefined;
+      if (!alive()) return "stale";
+      const freshAttention = (snapshotLandings.get(ATTENTION_KEY) ?? 0) > attentionAsked && snapshotOutcomes.get(ATTENTION_KEY) === "landed";
+      const attentionUncertain = !attentionReady || lists === null || lists?.some((landing) => landing !== "landed") === true || (verifyAttention && !freshAttention);
+      for (const id of excludedAttention) if (attentionUncertain || !sourceMembers.get(ATTENTION_KEY)?.has(id)) missing.add(id);
+      const confirmations = await Promise.all([...missing].filter((id) => entries.has(id) && !changedSince(id, asked)).map((id) => confirmHistoryAgent(id, alive)));
+      if (!alive()) return "stale";
+      return settle(confirmations.includes("failed") ? "failed" : "landed");
+    } catch (caught) {
+      if (!alive()) return "stale";
+      pendingHistoryScan = null;
+      if (archived) archivedHistoryReady = true;
+      pageError(historyScanKey, caught);
+      return settle("failed");
+    }
+  }
+
+  function startHistoryScan(refresh?: RefreshToken, verifyAttention = false) {
+    historyScanOwner = refresh;
+    historyScanResult = null;
+    currentHistoryScan = scanHistory(refresh, verifyAttention);
+    for (const wake of [...historyScanWaiters]) wake();
+  }
+
+  /**
+   * A scan whose result a board opening now can share: one that landed, or
+   * one still running that no refresh owns (a refresh's scan ends with it
+   * when it times out). Live updates and reconnects keep a landed scan
+   * current while a hold keeps the lists open.
+   */
+  function historyScanShared(): boolean {
+    if (currentHistoryScan === null) return false;
+    return historyScanResult === "landed" || (historyScanResult === null && historyScanOwner === undefined);
+  }
+
+  async function waitForHistoryScan(token: RefreshToken): Promise<Landing> {
+    while (!token.cancelled && currentHistoryScan) {
+      const current = currentHistoryScan;
+      let wake!: () => void;
+      const changed = new Promise<null>((resolve) => { wake = () => resolve(null); });
+      historyScanWaiters.add(wake);
+      const result = await Promise.race([current, changed]);
+      historyScanWaiters.delete(wake);
+      if (current !== currentHistoryScan || result === null) continue;
+      return result;
+    }
+    return "stale";
+  }
+
   /**
    * Turn the archived lane on or off: the done list is read again with or
    * without archived agents. The cards on the board stay until it lands, so
@@ -3508,6 +3765,7 @@ function createStore(api: PaseoApi): TaskStore {
   function setArchivedLane(on: boolean) {
     if (archivedAsked === on) return;
     archivedAsked = on;
+    if (on) archivedHistoryReady = false;
     batchUpdates(() => {
       if (doneConsumers > 0 && consumers > 0) {
         doneRun += 1;
@@ -3518,6 +3776,7 @@ function createStore(api: PaseoApi): TaskStore {
         openDoneList();
       }
       if (!on || !doneReloading) showArchivedLane(on);
+      if (historyConsumers > 0) startHistoryScan(undefined, true);
       notify();
     });
   }
@@ -3539,6 +3798,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   function startDone() {
     doneReady = false;
+    archivedHistoryReady = false;
     sourceMembers.set(DONE_SUBSCRIPTION, new Set());
     openDoneList();
   }
@@ -3566,6 +3826,14 @@ function createStore(api: PaseoApi): TaskStore {
   }
 
   function stopDone() {
+    historyScanSequence += 1;
+    pendingHistoryScan = null;
+    currentHistoryScan = null;
+    historyScanOwner = undefined;
+    for (const wake of [...historyScanWaiters]) wake();
+    sourceMembers.delete(historyScanKey);
+    sourceMembers.delete(historyPendingKey);
+    clearPageError(historyScanKey);
     doneRun += 1;
     stopSubscription(DONE_SUBSCRIPTION);
     for (const key of [...sourceMembers.keys()]) if (key === DONE_SUBSCRIPTION || key.startsWith("done-page-")) sourceMembers.delete(key);
@@ -3643,6 +3911,7 @@ function createStore(api: PaseoApi): TaskStore {
     for (const unsubscribe of providerUnsubscribes.splice(0)) unsubscribe();
     enabledProviders.clear();
     for (const key of [...sourceMembers.keys()]) sourceMembers.delete(key);
+    pendingHistoryRemovals.clear();
     entries.clear();
     agentSeenAt.clear();
     baseCards.clear();
@@ -3696,6 +3965,7 @@ function createStore(api: PaseoApi): TaskStore {
     loadingDone = false;
     doneReady = false;
     doneReloading = false;
+    archivedHistoryReady = false;
     historyError = null;
     archivedLane = archivedAsked;
     error = null;
@@ -3788,7 +4058,7 @@ function createStore(api: PaseoApi): TaskStore {
       laneCards.sort(laneCompare(lane));
       const tailOld = cutoff !== null && doneTailAt !== null && Number.isFinite(Date.parse(doneTailAt)) && now - Date.parse(doneTailAt) > cutoff;
       const paged = lane === "done" ? options.includeDone : lane === "archived" && showArchived;
-      const initialLoading = paged && (!doneReady || (lane === "archived" && doneReloading));
+      const initialLoading = paged && (!doneReady || (lane === "archived" && (doneReloading || !archivedHistoryReady)));
       lanes[lane] = {
         id: lane,
         cards: laneCards,
@@ -4156,6 +4426,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   function subscribe(listener: () => void, demand: TasksDemand): () => void {
     const done = demand.board && demand.done;
+    const history = done && demand.historyScan !== undefined;
     const attention = demand.board || demand.attention === true;
     listeners.add(listener);
     consumers += 1;
@@ -4175,9 +4446,26 @@ function createStore(api: PaseoApi): TaskStore {
       doneConsumers += 1;
       if (doneConsumers === 1) startDone();
     }
+    if (history) {
+      historyConsumers += 1;
+      if (historyConsumers === 1) {
+        retainKnownHistory();
+        startHistoryScan();
+      } else if (demand.historyScan === "board" && !historyScanShared()) startHistoryScan(undefined, true);
+    }
     return () => {
       listeners.delete(listener);
       consumers = Math.max(0, consumers - 1);
+      if (history) {
+        historyConsumers = Math.max(0, historyConsumers - 1);
+        if (historyConsumers === 0) {
+          historyScanSequence += 1;
+          pendingHistoryScan = null;
+          currentHistoryScan = null;
+          historyScanOwner = undefined;
+          for (const wake of [...historyScanWaiters]) wake();
+        }
+      }
       if (done) {
         doneConsumers = Math.max(0, doneConsumers - 1);
         if (doneConsumers === 0 && consumers > 0) stopDone();
@@ -4211,7 +4499,9 @@ function createStore(api: PaseoApi): TaskStore {
       pageErrors.clear();
       notify();
     }
-    const token: RefreshToken = { cancelled: false };
+    let signalCancellation!: () => void;
+    const cancelledSignal = new Promise<void>((resolve) => { signalCancellation = resolve; });
+    const token: RefreshToken = { cancelled: false, cancelledSignal, signalCancellation };
     let timer: ReturnType<typeof setTimeout> | null = null;
     let resolve!: (result: TasksRefreshResult) => void;
     const promise = new Promise<TasksRefreshResult>((settle) => { resolve = settle; });
@@ -4261,6 +4551,11 @@ function createStore(api: PaseoApi): TaskStore {
           if (doneRefreshRun === run.tierRun) { doneRefreshRun = -1; notify(); }
         }));
     }
+    const listsReady = Promise.all(landings);
+    token.listsReady = listsReady;
+    if (historyConsumers > 0) {
+      startHistoryScan(token);
+    }
     scheduleSubagents(0);
     timer = setTimeout(() => {
       timer = null;
@@ -4268,9 +4563,17 @@ function createStore(api: PaseoApi): TaskStore {
       cancelRefresh("failed");
     }, REFRESH_TIMEOUT_MS);
     // A list that lands keeps its place; one that fails leaves the old list live.
-    void Promise.all(landings).then((results) => active.end(
-      results.includes("failed") ? "failed" : results.length > 0 && results.every((result) => result === "stale") ? "superseded" : "done",
-    ));
+    void listsReady.then(async (results) => {
+      while (!token.cancelled && historyConsumers > 0) {
+        const current = currentHistoryScan;
+        const result = await waitForHistoryScan(token);
+        if (current !== currentHistoryScan) continue;
+        results.push(result);
+        break;
+      }
+      if (token.cancelled) return;
+      active.end(results.includes("failed") ? "failed" : results.length > 0 && results.every((result) => result === "stale") ? "superseded" : "done");
+    });
     return promise;
   }
 
@@ -4284,6 +4587,16 @@ function createStore(api: PaseoApi): TaskStore {
     const active = refreshing;
     if (!active) return;
     active.token.cancelled = true;
+    active.token.signalCancellation();
+    // Its scan, unless it already ended: a landed one stays shareable.
+    if (historyScanOwner === active.token && historyScanResult === null) {
+      historyScanSequence += 1;
+      pendingHistoryScan = null;
+      currentHistoryScan = null;
+      historyScanOwner = undefined;
+      if (archivedAsked) archivedHistoryReady = true;
+    }
+    for (const wake of [...historyScanWaiters]) wake();
     for (const [key, own] of [...replacements]) dropReplacement(key, own);
     doneRefreshRun = -1;
     notify();
@@ -4302,9 +4615,19 @@ function createStore(api: PaseoApi): TaskStore {
   function hold(reason: TasksHoldReason, ms: number | null) {
     let held = holds.get(reason);
     if (!held) {
-      held = { release: subscribe(() => {}, BOARD_DEMAND), timer: null };
+      const demand: TasksDemand = historyConsumers > 0 ? { ...BOARD_DEMAND, historyScan: "hold" } : BOARD_DEMAND;
+      held = { release: subscribe(() => {}, demand), timer: null, historyScan: demand.historyScan !== undefined };
       holds.set(reason, held);
       heldStores.add(store);
+    }
+    if (historyConsumers > 0) {
+      for (const existing of holds.values()) {
+        if (existing.historyScan) continue;
+        const release = subscribe(() => {}, { ...BOARD_DEMAND, historyScan: "hold" });
+        existing.release();
+        existing.release = release;
+        existing.historyScan = true;
+      }
     }
     if (held.timer !== null) clearTimeout(held.timer);
     held.timer = ms === null ? null : setTimeout(() => dropHold(reason), ms);
@@ -4321,6 +4644,7 @@ function createStore(api: PaseoApi): TaskStore {
 
   const store: TaskStore = {
     subscribe,
+    setHistoryWindow,
     hold,
     hasHold: (reason) => holds.has(reason),
     dropHolds() {
@@ -4359,12 +4683,17 @@ function getStore(api: PaseoApi): TaskStore {
 export function useTasks(paseo: PaseoApi, options: TasksOptions, beforeRelease?: (paseo: PaseoApi) => void): TasksHandle {
   const store = getStore(paseo);
   const archived = options.includeDone && options.includeArchived === true;
+  const windowOwner = useMemo(() => ({}), [store]);
+  useLayoutEffect(() => {
+    store.setHistoryWindow(windowOwner, options.includeDone ? options.doneWindow : undefined);
+    return () => store.setHistoryWindow(windowOwner, undefined);
+  }, [store, windowOwner, options.doneWindow, options.includeDone]);
   // Before the subscription (a layout effect runs ahead of it), so a first
   // board reads the done list once, with archived agents or without; after,
   // a switch reads it again without letting go of the board.
   useLayoutEffect(() => store.setArchivedLane(archived), [store, archived]);
   const subscribe = useMemo(() => (listener: () => void) => {
-    const release = store.subscribe(listener, { board: true, done: options.includeDone });
+    const release = store.subscribe(listener, { board: true, done: options.includeDone, historyScan: "board" });
     return () => {
       beforeRelease?.(paseo);
       release();
@@ -4460,7 +4789,8 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
   };
   const byId = new Map<string, TaskCard>();
   if (filters.hideSubtasks) for (const id of LANE_ORDER) for (const card of lanes[id].cards) byId.set(card.id, card);
-  const keep = (card: TaskCard) => {
+  // Whether the card has a place of its own, before history folds into it.
+  const shown = (card: TaskCard) => {
     if (!matches(card)) return false;
     // A detached card's former parent is history: it is a task of its own.
     if (!filters.hideSubtasks || card.parent === null || card.parent.detached) return true;
@@ -4470,7 +4800,47 @@ export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilt
     if (!parent || !matches(parent) || !parent.children.some((child) => child.id === card.id)) return true;
     return card.status === "running" ? false : parent.lane !== card.lane;
   };
+  // Historical links are used only for display when both cards are archived,
+  // and only onto a parent card that is itself on the board: one folded into
+  // its own parent's row would hide the child with it.
+  const historicalRows = new Map<string, TaskChild[]>();
+  const foldedHistory = new Set<string>();
+  // Archived cards with a detached link, and how many of them name each card as parent.
+  const linked = new Map<string, TaskCard>();
+  const undecided = new Map<string, number>();
+  if (filters.hideSubtasks) for (const card of lanes.archived.cards) {
+    if (!card.parent?.detached) continue;
+    linked.set(card.id, card);
+    undecided.set(card.parent.id, (undecided.get(card.parent.id) ?? 0) + 1);
+  }
+  // From the leaves up, without recursion: a card is decided once all its
+  // history is, and one that matching history folds into keeps its own place.
+  // Cards on a cycle of links, filtered or not, are never decided and fold nowhere.
+  const hosts = new Set<string>();
+  const queue = [...linked.values()].filter((card) => !undecided.has(card.id));
+  for (let index = 0; index < queue.length; index++) {
+    const card = queue[index]!;
+    const parentId = card.parent!.id;
+    const parent = byId.get(parentId);
+    if (matches(card) && !hosts.has(card.id) && card.children.length === 0 && parent?.lane === "archived" && shown(parent)) {
+      foldedHistory.add(card.id);
+      hosts.add(parentId);
+      if (!parent.children.some((child) => child.id === card.id)) {
+        const rows = historicalRows.get(parentId) ?? [];
+        rows.push({ id: card.id, title: card.title, status: card.status, provider: card.provider, modelLabel: card.modelLabel, thinkingLabel: card.thinkingLabel, modeLabel: card.modeLabel, context: card.context, lane: card.lane, timing: card.timing });
+        historicalRows.set(parentId, rows);
+      }
+    }
+    const left = (undecided.get(parentId) ?? 1) - 1;
+    undecided.set(parentId, left);
+    const next = linked.get(parentId);
+    if (left === 0 && next) queue.push(next);
+  }
+  const keep = (card: TaskCard) => !foldedHistory.has(card.id) && shown(card);
   const out = {} as Record<LaneId, LaneModel>;
-  for (const id of LANE_ORDER) out[id] = { ...lanes[id], cards: lanes[id].cards.filter(keep) };
+  for (const id of LANE_ORDER) out[id] = { ...lanes[id], cards: lanes[id].cards.filter(keep).map((card) => {
+    const rows = historicalRows.get(card.id);
+    return rows ? { ...card, children: [...card.children, ...rows].sort((left, right) => compareText(left.title, right.title)) } : card;
+  }) };
   return out;
 }

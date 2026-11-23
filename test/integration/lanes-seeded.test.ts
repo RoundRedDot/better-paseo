@@ -80,6 +80,9 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
     seed("archived", early, { archivedAt: iso(HOUR / 2) });
     // Prompted days ago, archived just now: the archived lane windows it by its archive time.
     seed("archived-old-task", early, { createdAt: iso(80 * HOUR), lastUserMessageAt: iso(72 * HOUR), updatedAt: iso(HOUR / 4), archivedAt: iso(HOUR / 4) });
+    // These sit beyond the updatedAt window even though each must be on the board.
+    seed("recently-archived-old-update", early, { createdAt: iso(100 * HOUR), lastUserMessageAt: iso(100 * HOUR), updatedAt: iso(99 * HOUR), archivedAt: iso(HOUR / 4) });
+    seed("old-settled-failure", early, { createdAt: iso(101 * HOUR), lastUserMessageAt: iso(101 * HOUR), updatedAt: iso(100 * HOUR), lastError: "Usage limit reached" });
     seed("workspace-archived", archivedWorkspace, { requiresAttention: true, attentionReason: "finished" });
     seed("parent", early, {});
     seed("child", early, { requiresAttention: true, attentionReason: "finished", labels: { "paseo.parent-agent-id": ids.parent! } });
@@ -110,6 +113,13 @@ describe.skipIf(!paseoBin())("lanes on a private daemon, from stored records", (
     ]);
     return compareWithOracle(board.current.byId, oracleLanes(agents, workspaces), 24 * HOUR);
   }
+
+  it("finds a recent archive and settled failure beyond the updatedAt window", async () => {
+    await board.until((current) => {
+      expect(current.byId.get(ids["recently-archived-old-update"]!)?.lane).toBe("archived");
+      expect(current.byId.get(ids["old-settled-failure"]!)?.lane).toBe("review");
+    });
+  });
 
   it("matches the oracle for every record", async () => {
     expect(await oracleMismatches()).toEqual([]);

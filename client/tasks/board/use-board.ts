@@ -483,8 +483,19 @@ export function useBoard(
   }, [unfiltered]);
   const subagentCardsRef = useRef(subagentCards);
   subagentCardsRef.current = subagentCards;
+  // Details use the same displayed rows as an archived parent on the board.
+  const historicalParents = useMemo(() => {
+    const out = new Map<string, TaskCard>();
+    for (const card of filtered.archived.cards) {
+      const original = tasks.byId.get(card.id);
+      if (original && card.children.length > original.children.length) out.set(card.id, card);
+    }
+    return out;
+  }, [filtered.archived.cards, tasks.byId]);
+  const historicalParentsRef = useRef(historicalParents);
+  historicalParentsRef.current = historicalParents;
   // Stable, reading the refs, so a lane's memo does not draw it again for it.
-  const cardById = useCallback((id: string) => byIdRef.current.get(id) ?? subagentCardsRef.current.get(id), []);
+  const cardById = useCallback((id: string) => historicalParentsRef.current.get(id) ?? byIdRef.current.get(id) ?? subagentCardsRef.current.get(id), []);
   const toastMessage = useCallback((message: string) => latest.current.toast.show(message), []);
   const open = useCallback((id: string) => {
     // A provider subagent has no tab: its card opens its parent's, where Paseo lists it.

@@ -1,10 +1,10 @@
 import React from "react";
 import TestRenderer, { act } from "react-test-renderer";
 import { describe, expect, it, vi } from "vitest";
-import type { PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
-import { ATTENTION_CLEAR_HOLD_MS, LIST_RECOVERY_DELAYS_MS, START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, planTitle, type TasksHandle } from "../../client/tasks/data";
+import type { PaseoAgentListOptions, PaseoProject, PaseoProviderModelsResult } from "@getpaseo/client";
+import { ATTENTION_CLEAR_HOLD_MS, LIST_RECOVERY_DELAYS_MS, START_IDLE_HOLD_MS, START_INIT_HOLD_MS, filterLanes, holdTasks, releaseTasksHolds, setLabelDefinitionsLoader, setTasksArchivedLane, setLastTurnLoader, setParentOriginsLoader, setProjectIconsLoader, setReadMarksLoader, setSubagentLoader, useTaskCounts, useTasks, withActiveSubtasks, type CountScope, withLastTurn, withReadMark, withSubagentCards, withSubagents, withUnreadMark, setUnreadMarksLoader, setUnreadClearer, openedTask, planTitle, type TasksHandle } from "../../client/tasks/data";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
-import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard } from "../../client/tasks/model";
+import { EMPTY_FILTERS, LANE_ORDER, type LaneId, type LaneModel, type TaskCard, type TaskChild } from "../../client/tasks/model";
 import { sampleCards } from "../../client/tasks/sample-cards";
 import { fallbackLabelColor } from "../../client/tasks/label-colors";
 import { permissionButtons, respondToPermission } from "../../client/tasks/actions";
@@ -1154,7 +1154,7 @@ describe("Tasks data store refresh", () => {
       fake.setAgentSilently(activeAgent("done-60", { status: "idle", requiresAttention: false, updatedAt: recentIso(61_000), archivedAt: recentIso(0) }));
       fake.setAgentSilently(activeAgent("done-110", { status: "idle", requiresAttention: false, updatedAt: recentIso(111_000), title: "Renamed late" }));
       const release = fake.holdReady();
-      const pages = () => listCalls(fake).filter((call) => (call.input as { subscribe?: unknown }).subscribe === undefined).length;
+      const pages = () => listCalls(fake).filter((call) => (call.input as { subscribe?: unknown; page?: { limit?: number } }).subscribe === undefined && (call.input as { page?: { limit?: number } }).page?.limit !== 200).length;
       const pagesBefore = pages();
       let result: string | undefined;
       await act(async () => {
@@ -1247,8 +1247,8 @@ describe("Tasks data store refresh", () => {
       await flush();
     });
     expect(second).toBe(first);
-    // One status, attention and done list each.
-    expect(listCalls(fake).length - listsBefore).toBe(3);
+    // One status, attention and done list each, plus the history scan.
+    expect(listCalls(fake).length - listsBefore).toBe(4);
     mounted.unmount();
     release();
     await act(async () => { await flush(); });
@@ -1851,7 +1851,7 @@ describe("Tasks data store", () => {
         git: { dirty: true, ahead: 2, behind: 1 },
         pullRequest: { number: 42, title: "Tasks board" },
       });
-      expect(fake.calls.filter((call) => call.method === "agents.list")).toHaveLength(3);
+      expect(fake.calls.filter((call) => call.method === "agents.list")).toHaveLength(4);
       expect(filterLanes(mounted.current.lanes, {
         query: "feature/tasks",
         workspaceIds: [],
@@ -2230,6 +2230,76 @@ describe("Tasks data store", () => {
     expect(filterLanes(unlisted, filters).running.cards.map((card) => card.id)).toEqual(["child-running"]);
   });
 
+  it("folds archived detached children only when their archived parent is visible", () => {
+    const sample = sampleCards().find((card) => card.id === "sample-done")!;
+    const parent: TaskCard = { ...sample, id: "parent", title: "Parent", lane: "archived", children: [], provider: "parent-provider" };
+    const child: TaskCard = { ...sample, id: "child", title: "Child", lane: "archived", provider: "child-provider", parent: { id: "parent", title: "Parent", missing: false, archived: false, detached: true } };
+    const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: id === "archived" ? [parent, child] : [], hasMore: false, loading: false }])) as Record<LaneId, LaneModel>;
+    const filters = { query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: true };
+    const folded = filterLanes(lanes, filters);
+    expect(folded.archived.cards.map((card) => card.id)).toEqual(["parent"]);
+    expect(folded.archived.cards[0]?.children.map((row) => row.id)).toEqual(["child"]);
+    expect(parent.children).toEqual([]);
+    expect(filterLanes(lanes, { ...filters, hideSubtasks: false }).archived.cards.map((card) => card.id)).toEqual(["parent", "child"]);
+    expect(filterLanes(lanes, { ...filters, providers: ["child-provider"] }).archived.cards.map((card) => card.id)).toEqual(["child"]);
+    const withoutParent = { ...lanes, archived: { ...lanes.archived, cards: [child] } };
+    expect(filterLanes(withoutParent, filters).archived.cards.map((card) => card.id)).toEqual(["child"]);
+    const restored = { ...lanes, archived: { ...lanes.archived, cards: [child] }, done: { ...lanes.done, cards: [{ ...parent, lane: "done" as const }] } };
+    expect(filterLanes(restored, filters).archived.cards.map((card) => card.id)).toEqual(["child"]);
+  });
+
+  it("keeps an archived detached child on its own card when its archived parent is itself folded away", () => {
+    const sample = sampleCards().find((card) => card.id === "sample-done")!;
+    const row = (card: TaskCard): TaskChild => ({ id: card.id, title: card.title, status: card.status, provider: card.provider, modelLabel: card.modelLabel, thinkingLabel: card.thinkingLabel, modeLabel: card.modeLabel, context: card.context, lane: card.lane, timing: card.timing });
+    const parent: TaskCard = { ...sample, id: "parent", title: "Parent", lane: "archived", children: [], provider: "parent-provider", parent: { id: "root", title: "Root", missing: false, archived: true } };
+    const root: TaskCard = { ...sample, id: "root", title: "Root", lane: "archived", children: [row(parent)], provider: "root-provider" };
+    const child: TaskCard = { ...sample, id: "child", title: "Child", lane: "archived", provider: "child-provider", parent: { id: "parent", title: "Parent", missing: false, archived: true, detached: true } };
+    const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: id === "archived" ? [root, parent, child] : [], hasMore: false, loading: false }])) as Record<LaneId, LaneModel>;
+    const filters = { query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: true };
+    const hidden = filterLanes(lanes, filters);
+    // The parent shows only as the root's row, so the child cannot fold into it.
+    expect(hidden.archived.cards.map((card) => card.id)).toEqual(["root", "child"]);
+    expect(hidden.archived.cards[0]?.children.map((item) => item.id)).toEqual(["parent"]);
+    expect(filterLanes(lanes, { ...filters, hideSubtasks: false }).archived.cards.map((card) => card.id)).toEqual(["root", "parent", "child"]);
+    // A finished subtask stays hidden with its root filtered out, so the child still has its own card.
+    expect(filterLanes(lanes, { ...filters, providers: ["parent-provider", "child-provider"] }).archived.cards.map((card) => card.id)).toEqual(["child"]);
+    // Once the parent has a card of its own, the child folds into it again.
+    const detachedParent = { ...lanes, archived: { ...lanes.archived, cards: [root, { ...parent, parent: { ...parent.parent!, detached: true as const } }, child] } };
+    const folded = filterLanes(detachedParent, filters);
+    expect(folded.archived.cards.map((card) => card.id)).toEqual(["root", "parent"]);
+    expect(folded.archived.cards[1]?.children.map((item) => item.id)).toEqual(["child"]);
+    // A filtered-out child has nothing to show on the parent's card: the parent folds into the root.
+    const withoutChild = filterLanes(detachedParent, { ...filters, providers: ["root-provider", "parent-provider"] });
+    expect(withoutChild.archived.cards.map((card) => card.id)).toEqual(["root"]);
+    expect(withoutChild.archived.cards[0]?.children.map((item) => item.id)).toEqual(["parent"]);
+    // Along a chain of archive links, a card keeps its own place only while history folds into it.
+    const link = (id: string) => ({ id, title: id, missing: false, archived: true, detached: true as const });
+    const chain: TaskCard[] = [
+      { ...sample, id: "a-root", title: "a-root", lane: "archived", children: [], parent: null },
+      { ...sample, id: "b-middle", title: "b-middle", lane: "archived", children: [], parent: link("a-root") },
+      { ...sample, id: "c-branch", title: "c-branch", lane: "archived", children: [], parent: link("b-middle") },
+      { ...sample, id: "d-leaf", title: "d-leaf", lane: "archived", children: [], parent: link("c-branch") },
+    ];
+    const chained = filterLanes({ ...lanes, archived: { ...lanes.archived, cards: chain } }, filters);
+    expect(chained.archived.cards.map((card) => [card.id, card.children.map((item) => item.id)])).toEqual([["a-root", ["b-middle"]], ["c-branch", ["d-leaf"]]]);
+    // Links that loop back fold nowhere, in any order: every card keeps its place.
+    const loop: TaskCard[] = [
+      { ...chain[0]!, parent: link("c-branch") }, { ...chain[1]!, parent: link("a-root") }, { ...chain[2]!, parent: link("b-middle") },
+    ];
+    for (const cards of [loop, [...loop].reverse(), [{ ...chain[0]!, parent: link("a-root") }]]) {
+      const looped = filterLanes({ ...lanes, archived: { ...lanes.archived, cards } }, filters);
+      expect(looped.archived.cards.map((card) => card.id).sort()).toEqual(cards.map((card) => card.id).sort());
+    }
+    // A filter hides a card of the cycle but does not break it.
+    const loopFiltered = filterLanes({ ...lanes, archived: { ...lanes.archived, cards: loop.map((card) => ({ ...card, provider: card.id === "c-branch" ? "other" : "shown" })) } }, { ...filters, providers: ["shown"] });
+    expect(loopFiltered.archived.cards.map((card) => card.id).sort()).toEqual(["a-root", "b-middle"]);
+    // A deep chain is worked out without recursion: each card folds into the one above it in pairs.
+    const deep: TaskCard[] = Array.from({ length: 20_000 }, (_, index) => ({ ...chain[0]!, id: `deep-${index}`, title: `deep-${index}`, parent: index === 0 ? null : link(`deep-${index - 1}`) }));
+    const deepLanes = filterLanes({ ...lanes, archived: { ...lanes.archived, cards: deep } }, filters);
+    expect(deepLanes.archived.cards).toHaveLength(10_000);
+    expect(deepLanes.archived.cards.at(-1)?.children.map((item) => item.id)).toEqual(["deep-19999"]);
+  });
+
   it("keeps the board quiet for a workspace update that changes nothing it shows, and keeps its workspace options", async () => {
     const fake = createFakePaseo({ agents: [activeAgent("in-ws", { status: "running" })], workspaces: [workspace()] });
     const mounted = await mountTasks(fake, "24h");
@@ -2406,7 +2476,7 @@ describe("Tasks data store", () => {
       });
       expect(mounted.current.lanes.done.cards).toHaveLength(51);
       expect(mounted.current.lanes.done.hasMore).toBe(false);
-      expect(fake.calls.filter((call) => call.method === "agents.list" && (call.input as { subscribe?: unknown }).subscribe === undefined)).toHaveLength(1);
+      expect(fake.calls.filter((call) => call.method === "agents.list" && (call.input as { subscribe?: unknown; page?: { limit?: number } }).subscribe === undefined && (call.input as { page?: { limit?: number } }).page?.limit !== 200)).toHaveLength(1);
 
       await act(async () => {
         fake.upsertAgent(activeAgent("working", { status: "idle", updatedAt: recentIso(1_000) }));
@@ -4505,7 +4575,7 @@ describe("Tasks data store", () => {
     });
     expect(ready).toBe(true);
     expect(counts.running).toBe(1);
-    expect(fake.calls.filter((call) => call.method === "agents.list")).toHaveLength(3);
+    expect(fake.calls.filter((call) => call.method === "agents.list")).toHaveLength(4);
     expect(fake.openSubscriptions()).toBe(5);
     act(() => renderer.unmount());
     expect(fake.openSubscriptions()).toBe(0);
@@ -4705,7 +4775,7 @@ describe("Tasks data store", () => {
           expect(reopened.current.ready).toBe(true);
           expect(reopened.current.lanes.review.cards.map((card) => card.id)).toEqual(["unread"]);
           expect(reopened.current.byId.get("second")?.location.branch).toBe("feature/tasks");
-          expect(fake.calls.slice(methods.length).map((call) => call.method).sort()).toEqual(["agents.list", "agents.list", "projects.list"]);
+          expect(fake.calls.slice(methods.length).map((call) => call.method).sort()).toEqual(["agents.list", "agents.list", "agents.list", "projects.list"]);
         } finally {
           reopened.unmount();
         }
@@ -4738,7 +4808,7 @@ describe("Tasks data store", () => {
         expect(fake.openSubscriptions()).toBe(3);
         const board = await mountTasks(fake);
         expect(board.current.ready).toBe(true);
-        expect(fake.calls.filter((call) => call.method === "agents.list")).toHaveLength(3);
+        expect(fake.calls.filter((call) => call.method === "agents.list")).toHaveLength(4);
         expect(fake.calls.filter((call) => call.method === "workspaces.list")).toHaveLength(1);
         board.unmount();
         expect(fake.openSubscriptions()).toBe(3);
@@ -5333,6 +5403,1547 @@ describe("Tasks data store, archived lane", () => {
 
   const ids = (lane: LaneModel) => lane.cards.map((card) => card.id);
 
+  it("finds a recently archived task and an old failure after an old page tail", async () => {
+    const old = 3 * 86_400_000;
+    const fake = createFakePaseo({
+      agents: [
+        ...Array.from({ length: 50 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })),
+        activeAgent("recent-archive", { status: "closed", updatedAt: recentIso(old + 60_000), archivedAt: recentIso(1_000) }),
+        activeAgent("old-failure", { status: "closed", updatedAt: recentIso(old + 61_000), lastError: "failed" }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountArchived(fake, true);
+    try {
+      await act(async () => {
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get("recent-archive")?.lane).toBe("archived");
+      expect(mounted.current.byId.get("old-failure")?.lane).toBe("review");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("keeps a live failure when a refresh moves it past the first page", async () => {
+    const fake = createFakePaseo({ agents: [], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, false);
+    const target = activeAgent("live-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(600_000) });
+    try {
+      await act(async () => {
+        fake.upsertAgent(target);
+        for (let index = 0; index < 200; index += 1) {
+          fake.upsertAgent(activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(500_000 - index * 1_000) }));
+        }
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get(target.id)?.lane).toBe("review");
+      const release = fake.holdPageAnswers();
+      let result: string | undefined;
+      try {
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          for (let index = 0; index < 32; index += 1) await Promise.resolve();
+        });
+        await act(async () => {
+          release();
+          for (let index = 0; index < 64; index += 1) await Promise.resolve();
+        });
+        expect(result).toBe("done");
+        expect(mounted.current.byId.get(target.id)?.lane).toBe("review");
+      } finally {
+        release();
+      }
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("keeps a newer failure after a done-list remove during a historical scan", async () => {
+    const day = 86_400_000;
+    const target = activeAgent("target", { status: "idle", updatedAt: recentIso(3 * day), lastError: "first failure" });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(4 * day + index * 1_000) })),
+    ], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, false);
+    const ready = fake.holdReady();
+    const pages = fake.holdPageAnswers();
+    try {
+      expect(mounted.current.byId.get(target.id)?.lane).toBe("review");
+      let result: string | undefined;
+      await act(async () => {
+        void mounted.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        fake.upsertAgent({ ...target, status: "running", lastError: undefined, updatedAt: recentIso(3_000) });
+        fake.upsertAgent({ ...target, status: "idle", lastError: "second failure", updatedAt: recentIso(2_000) });
+        for (let index = 0; index < 50; index += 1) {
+          fake.upsertAgent(activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 - index) }));
+        }
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get(target.id)?.error).toBe("second failure");
+      await act(async () => { ready(); for (let index = 0; index < 32; index += 1) await Promise.resolve(); });
+      await act(async () => { pages(); for (let index = 0; index < 64; index += 1) await Promise.resolve(); });
+      expect(result).toBe("done");
+      expect(mounted.current.byId.get(target.id)?.error).toBe("second failure");
+    } finally {
+      ready();
+      pages();
+      mounted.unmount();
+    }
+  });
+
+  it("keeps a failure learned during prefetch when a refresh overtakes the first scan", async () => {
+    const fake = createFakePaseo({ agents: [], workspaces: [workspace()] });
+    const target = activeAgent("prefetched-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(600_000) });
+    await act(async () => {
+      holdTasks(fake.paseo, "intent", null);
+      for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      fake.upsertAgent(target);
+      for (let index = 0; index < 200; index += 1) {
+        fake.upsertAgent(activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(500_000 - index * 1_000) }));
+      }
+      for (let index = 0; index < 16; index += 1) await Promise.resolve();
+    });
+    const pages = fake.holdPageAnswers();
+    const mounted = await mountArchived(fake, false);
+    try {
+      expect(mounted.current.byId.get(target.id)?.lane).toBe("review");
+      let result: string | undefined;
+      await act(async () => {
+        void mounted.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        pages();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("done");
+      expect(mounted.current.byId.get(target.id)?.lane).toBe("review");
+    } finally {
+      pages();
+      mounted.unmount();
+      act(() => releaseTasksHolds());
+    }
+  });
+
+  it("keeps a known record while the refresh scan determines its newer failure state", async () => {
+    const target = activeAgent("missed-failure", { status: "idle", updatedAt: recentIso(600_000) });
+    const fake = createFakePaseo({ agents: [target], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, false);
+    try {
+      expect(mounted.current.byId.get(target.id)?.lane).toBe("done");
+      fake.setAgentSilently({ ...target, lastError: "failed" });
+      await act(async () => {
+        for (let index = 0; index < 200; index += 1) {
+          fake.upsertAgent(activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(500_000 - index * 1_000) }));
+        }
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      const pages = fake.holdPageAnswers();
+      let result: string | undefined;
+      try {
+        await act(async () => {
+          void mounted.current.refresh().then((value) => { result = value; });
+          for (let index = 0; index < 32; index += 1) await Promise.resolve();
+        });
+        expect(mounted.current.byId.has(target.id)).toBe(true);
+        await act(async () => {
+          pages();
+          for (let index = 0; index < 64; index += 1) await Promise.resolve();
+        });
+        expect(result).toBe("done");
+        expect(mounted.current.byId.get(target.id)?.lane).toBe("review");
+      } finally {
+        pages();
+      }
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("keeps a known record when its refresh scan fails, then resolves it on retry", async () => {
+    const target = activeAgent("missed-failure", { status: "idle", updatedAt: recentIso(600_000) });
+    const fake = createFakePaseo({ agents: [target], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, false);
+    try {
+      fake.setAgentSilently({ ...target, lastError: "failed" });
+      await act(async () => {
+        for (let index = 0; index < 200; index += 1) {
+          fake.upsertAgent(activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(500_000 - index * 1_000) }));
+        }
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      fake.failNextAgentList((options) => options.page?.limit === 200 && options.page?.cursor !== undefined, "scan page failed");
+      let result: string | undefined;
+      await act(async () => { result = await mounted.current.refresh(); });
+      expect(result).toBe("failed");
+      expect(mounted.current.error).toContain("scan page failed");
+      expect(mounted.current.byId.get(target.id)?.lane).toBe("done");
+      await act(async () => { result = await mounted.current.refresh(); });
+      expect(result).toBe("done");
+      expect(mounted.current.byId.get(target.id)?.lane).toBe("review");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("retains a recovered archive when widening the window", async () => {
+    const day = 86_400_000;
+    const fixture = () => createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(2 * day + index * 1_000) })),
+      activeAgent("late-archive", { status: "closed", updatedAt: recentIso(3 * day), archivedAt: recentIso(1_000) }),
+    ], workspaces: [workspace()] });
+    const fake = fixture();
+    let narrow!: TasksHandle;
+    let setWindow!: (window: "24h" | "7d") => void;
+    function Probe() {
+      const [window, set] = React.useState<"24h" | "7d">("24h");
+      setWindow = set;
+      narrow = useTasks(fake.paseo, { doneWindow: window, includeDone: true, includeArchived: true });
+      return null;
+    }
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+      for (let index = 0; index < 64; index += 1) await Promise.resolve();
+    });
+    try {
+      expect(narrow.byId.get("late-archive")?.lane).toBe("archived");
+      await act(async () => {
+        setWindow("7d");
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(narrow.byId.get("late-archive")?.lane).toBe("archived");
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("unions the recovery needs of views with different windows", async () => {
+    const day = 86_400_000;
+    const shared = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(2 * day + index * 1_000) })),
+      activeAgent("late-archive", { status: "closed", updatedAt: recentIso(3 * day), archivedAt: recentIso(1_000) }),
+    ], workspaces: [workspace()] });
+    let narrow!: TasksHandle;
+    let broad!: TasksHandle;
+    let renderer!: Renderer;
+    function Narrow() { narrow = useTasks(shared.paseo, { doneWindow: "24h", includeDone: true, includeArchived: true }); return null; }
+    function Broad() { broad = useTasks(shared.paseo, { doneWindow: "7d", includeDone: true, includeArchived: true }); return null; }
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(React.Fragment, null, React.createElement(Narrow), React.createElement(Broad)));
+      for (let index = 0; index < 64; index += 1) await Promise.resolve();
+    });
+    try {
+      expect(narrow.byId.get("late-archive")?.lane).toBe("archived");
+      expect(narrow.lanes.archived.hasMore).toBe(false);
+      expect(broad.byId.get("late-archive")?.lane).toBe("archived");
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("does not treat a record awaiting delete confirmation as retained evidence when the window changes", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("pending-delete", { status: "closed", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    let current!: TasksHandle;
+    let setWindow!: (window: "24h" | "7d") => void;
+    function Probe() {
+      const [window, set] = React.useState<"24h" | "7d">("24h");
+      setWindow = set;
+      current = useTasks(fake.paseo, { doneWindow: window, includeDone: true, includeArchived: true });
+      return null;
+    }
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+      for (let index = 0; index < 64; index += 1) await Promise.resolve();
+    });
+    const reads = fake.holdRefreshes();
+    try {
+      expect(current.byId.has(target.id)).toBe(true);
+      await act(async () => {
+        fake.removeAgent(target.id);
+        setWindow("7d");
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        reads();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(current.byId.has(target.id)).toBe(false);
+    } finally {
+      reads();
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("keeps a newer live update over a historical scan page in flight", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("old-failure", { status: "closed", updatedAt: recentIso(old + 300_000), lastError: "failed" });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })),
+      target,
+    ], workspaces: [workspace()] });
+    const release = fake.holdPageAnswers();
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(fake.calls.some((call) => call.method === "agents.list" && (call.input as { page?: { limit?: number; cursor?: string } }).page?.limit === 200 && Boolean((call.input as { page?: { cursor?: string } }).page?.cursor))).toBe(true);
+      await act(async () => {
+        fake.upsertAgent({ ...target, status: "running", lastError: undefined, updatedAt: recentIso(0) });
+        release();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get(target.id)?.lane).toBe("running");
+    } finally {
+      release();
+      mounted.unmount();
+    }
+  });
+
+  it("keeps the last historical scan and reports a failed refresh", async () => {
+    const fake = createFakePaseo({ agents: [activeAgent("old-failure", { status: "closed", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) })], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(mounted.current.byId.get("old-failure")?.lane).toBe("review");
+      fake.failNextAgentList((options) => !options.subscribe && options.page?.limit === 200, "history scan failed");
+      let result: string | undefined;
+      await act(async () => { result = await mounted.current.refresh(); });
+      expect(result).toBe("failed");
+      expect(mounted.current.error).toContain("history scan failed");
+      expect(mounted.current.byId.get("old-failure")?.lane).toBe("review");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("does not restore a deleted historical record from a page already answered", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("deleted", { status: "closed", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`filler-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    const release = fake.holdPageAnswers();
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(fake.pageCalls().some((call) => call.startsWith("agents.list:"))).toBe(true);
+      await act(async () => {
+        fake.removeAgent(target.id);
+        release();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.has(target.id)).toBe(false);
+    } finally {
+      release();
+      mounted.unmount();
+    }
+  });
+
+  it("does not let an old historical scan replace a newer refresh", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("archived-late", { status: "closed", title: "Old title", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`filler-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    const release = fake.holdPageAnswers();
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(fake.pageCalls().some((call) => call.startsWith("agents.list:"))).toBe(true);
+      fake.setAgentSilently({ ...target, title: "New title" });
+      fake.passNewPageAnswers();
+      let result: string | undefined;
+      await act(async () => { result = await mounted.current.refresh(); });
+      expect(result).toBe("done");
+      expect(mounted.current.byId.get(target.id)?.title).toBe("New title");
+      await act(async () => {
+        release();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get(target.id)?.title).toBe("New title");
+    } finally {
+      release();
+      mounted.unmount();
+    }
+  });
+
+  it("changes the recovered archive set when the history window changes", async () => {
+    const day = 86_400_000;
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 50 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(8 * day + index * 1_000) })),
+      activeAgent("six-day-archive", { status: "closed", updatedAt: recentIso(9 * day), archivedAt: recentIso(6 * day) }),
+    ], workspaces: [workspace()] });
+    let current!: TasksHandle;
+    let setWindow!: (window: "24h" | "7d" | "all") => void;
+    function Probe() {
+      const [window, set] = React.useState<"24h" | "7d" | "all">("24h");
+      setWindow = set;
+      current = useTasks(fake.paseo, { doneWindow: window, includeDone: true, includeArchived: true });
+      return null;
+    }
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+      for (let index = 0; index < 32; index += 1) await Promise.resolve();
+    });
+    try {
+      expect(current.byId.has("six-day-archive")).toBe(false);
+      await act(async () => {
+        setWindow("7d");
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(current.byId.get("six-day-archive")?.lane).toBe("archived");
+      await act(async () => {
+        setWindow("all");
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(current.byId.get("six-day-archive")?.lane).toBe("archived");
+      await act(async () => {
+        setWindow("24h");
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(current.byId.has("six-day-archive")).toBe(false);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("discards a historical page from a board closed and reopened", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("late-archive", { status: "closed", title: "Before close", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    const release = fake.holdPageAnswers();
+    const first = await mountArchived(fake, true);
+    expect(fake.pageCalls().some((call) => call.startsWith("agents.list:"))).toBe(true);
+    first.unmount();
+    fake.passNewPageAnswers();
+    fake.setAgentSilently({ ...target, title: "After reopen" });
+    const second = await mountArchived(fake, true);
+    try {
+      expect(second.current.byId.get(target.id)?.title).toBe("After reopen");
+      await act(async () => {
+        release();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(second.current.byId.get(target.id)?.title).toBe("After reopen");
+    } finally {
+      release();
+      second.unmount();
+    }
+  });
+
+  it("does not start a replacement historical scan as the board closes", async () => {
+    const fake = createFakePaseo({ agents: [], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, true, "24h");
+    const scans = () => fake.calls.filter((call) => call.method === "agents.list" && (call.input as { page?: { limit?: number }; subscribe?: unknown }).page?.limit === 200 && !(call.input as { subscribe?: unknown }).subscribe).length;
+    expect(scans()).toBe(1);
+    mounted.unmount();
+    await act(async () => { for (let index = 0; index < 8; index += 1) await Promise.resolve(); });
+    expect(scans()).toBe(1);
+  });
+
+  it("rechecks historical failures when the done subscription reconnects during the board's linger", async () => {
+    const target = activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    let counts!: ReturnType<typeof useTaskCounts>;
+    function Counts() { counts = useTaskCounts(fake.paseo, true); return null; }
+    let sidebar!: Renderer;
+    await act(async () => { sidebar = TestRenderer.create(React.createElement(Counts)); });
+    const board = await mountArchived(fake, false);
+    try {
+      expect(counts.review).toBe(1);
+      act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+      fake.deleteAgentSilently(target.id);
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(counts.review).toBe(0);
+    } finally {
+      act(() => { releaseTasksHolds(); sidebar.unmount(); });
+    }
+  });
+
+  it("upgrades an existing linger when the reopened board starts scanning history", async () => {
+    const target = activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    let counts!: ReturnType<typeof useTaskCounts>;
+    function Counts() { counts = useTaskCounts(fake.paseo, true); return null; }
+    let sidebar!: Renderer;
+    await act(async () => {
+      sidebar = TestRenderer.create(React.createElement(Counts));
+      holdTasks(fake.paseo, "linger", null);
+    });
+    const board = await mountArchived(fake, false);
+    try {
+      expect(counts.review).toBe(1);
+      act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+      fake.deleteAgentSilently(target.id);
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(counts.review).toBe(0);
+    } finally {
+      act(() => { releaseTasksHolds(); sidebar.unmount(); });
+    }
+  });
+
+  it("keeps historical failures reconciled after linger expires while intent remains", async () => {
+    const target = activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let counts!: ReturnType<typeof useTaskCounts>;
+    function Counts() { counts = useTaskCounts(fake.paseo, true); return null; }
+    let sidebar!: Renderer;
+    await act(async () => {
+      sidebar = TestRenderer.create(React.createElement(Counts));
+      holdTasks(fake.paseo, "intent", null);
+    });
+    const board = await mountArchived(fake, false);
+    try {
+      expect(counts.review).toBe(1);
+      act(() => { holdTasks(fake.paseo, "linger", 30_000); board.unmount(); });
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      fake.forgetAgent(target.id);
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(counts.review).toBe(0);
+    } finally {
+      act(() => { releaseTasksHolds(); sidebar.unmount(); });
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not rescan history when the last board enters linger", async () => {
+    const fake = createFakePaseo({ agents: [], workspaces: [workspace()] });
+    const board = await mountArchived(fake, true, "24h");
+    const scans = () => fake.calls.filter((call) => call.method === "agents.list" && (call.input as { page?: { limit?: number }; subscribe?: unknown }).page?.limit === 200 && !(call.input as { subscribe?: unknown }).subscribe).length;
+    expect(scans()).toBe(1);
+    try {
+      act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+      await act(async () => { for (let index = 0; index < 16; index += 1) await Promise.resolve(); });
+      expect(scans()).toBe(1);
+    } finally {
+      act(() => releaseTasksHolds());
+    }
+  });
+
+  it("confirms an absent historical failure still held by the done subscription", async () => {
+    const target = activeAgent("old-failure", { status: "closed", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const board = await mountArchived(fake, false);
+    try {
+      expect(board.current.byId.get(target.id)?.lane).toBe("review");
+      await act(async () => {
+        fake.upsertAgent({ ...target, updatedAt: recentIso(3 * 86_400_000 - 1_000) });
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+      fake.forgetAgent(target.id);
+      // A reopen in the same window shares the lingering scan; another window scans again.
+      const reopened = await mountArchived(fake, false, "7d");
+      try {
+        await act(async () => { for (let index = 0; index < 64; index += 1) await Promise.resolve(); });
+        expect(reopened.current.byId.has(target.id)).toBe(false);
+      } finally {
+        reopened.unmount();
+      }
+    } finally {
+      act(() => releaseTasksHolds());
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a newer missing confirmation over an older by-id read", async () => {
+    const target = activeAgent("old-failure", { status: "closed", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const board = await mountArchived(fake, false);
+    let release: (() => void) | undefined;
+    try {
+      await act(async () => {
+        fake.upsertAgent({ ...target, updatedAt: recentIso(3 * 86_400_000 - 1_000) });
+        await vi.advanceTimersByTimeAsync(5_000);
+      });
+      release = fake.holdRefreshes();
+      await act(async () => {
+        fake.pushAgentSnapshot({ ...target, updatedAt: recentIso(3 * 86_400_000 + 1_000) });
+        for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      });
+      act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+      fake.forgetAgent(target.id);
+      fake.passNewRefreshes();
+      // A reopen in the same window shares the lingering scan; another window scans again.
+      const reopened = await mountArchived(fake, false, "7d");
+      try {
+        expect(reopened.current.byId.has(target.id)).toBe(false);
+        await act(async () => {
+          release?.();
+          for (let index = 0; index < 64; index += 1) await Promise.resolve();
+        });
+        expect(reopened.current.byId.has(target.id)).toBe(false);
+      } finally {
+        reopened.unmount();
+      }
+    } finally {
+      release?.();
+      act(() => releaseTasksHolds());
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a historical failure that moves ahead of a scan cursor until it is confirmed", async () => {
+    const target = activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    const pages = fake.holdPages();
+    const reads = fake.holdRefreshes();
+    try {
+      expect(board.current.byId.get(target.id)?.lane).toBe("review");
+      await act(async () => {
+        void board.current.refresh();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      fake.setAgentSilently({ ...target, title: "After cursor move", updatedAt: recentIso(500) });
+      await act(async () => {
+        pages();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(board.current.byId.get(target.id)?.lane).toBe("review");
+      await act(async () => {
+        reads();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(board.current.byId.get(target.id)?.title).toBe("After cursor move");
+      expect(board.current.byId.get(target.id)?.lane).toBe("review");
+    } finally {
+      pages();
+      reads();
+      board.unmount();
+    }
+  });
+
+  it("keeps an absent historical failure and reports a failed confirmation", async () => {
+    const target = activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    const pages = fake.holdPages();
+    try {
+      await act(async () => {
+        void board.current.refresh();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      fake.setAgentSilently({ ...target, updatedAt: recentIso(500) });
+      fake.failRefreshes(new Error("confirmation failed"));
+      await act(async () => {
+        pages();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(board.current.byId.get(target.id)?.lane).toBe("review");
+      expect(board.current.error).toContain("confirmation failed");
+    } finally {
+      pages();
+      fake.failRefreshes(null);
+      board.unmount();
+    }
+  });
+
+  it("confirms a known completed task that moves ahead of the scan cursor and fails", async () => {
+    const target = activeAgent("completed", { status: "idle", updatedAt: recentIso(600_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(3 * 86_400_000 + index) })),
+    ], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    for (let index = 0; index < 201; index += 1) {
+      fake.setAgentSilently(activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) }));
+    }
+    const pages = fake.holdPages();
+    const reads = fake.holdRefreshes();
+    try {
+      expect(board.current.byId.get(target.id)?.lane).toBe("done");
+      await act(async () => {
+        void board.current.refresh();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      fake.setAgentSilently({ ...target, lastError: "failed", updatedAt: recentIso(500) });
+      await act(async () => {
+        pages();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(board.current.byId.has(target.id)).toBe(true);
+      await act(async () => {
+        reads();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(board.current.byId.get(target.id)?.lane).toBe("review");
+    } finally {
+      pages();
+      reads();
+      board.unmount();
+    }
+  });
+
+  it("waits for the historical confirmation before completing a refresh", async () => {
+    const target = activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    const reads = fake.holdRefreshes();
+    try {
+      fake.forgetAgent(target.id);
+      let result: string | undefined;
+      await act(async () => {
+        void board.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(board.current.byId.has(target.id)).toBe(true);
+      expect(result).toBeUndefined();
+      await act(async () => {
+        reads();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("done");
+      expect(board.current.byId.has(target.id)).toBe(false);
+    } finally {
+      reads();
+      board.unmount();
+    }
+  });
+
+  it("fails a refresh when a historical confirmation fails, keeping the card", async () => {
+    const target = activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    const reads = fake.holdRefreshes();
+    try {
+      fake.forgetAgent(target.id);
+      let result: string | undefined;
+      await act(async () => {
+        void board.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBeUndefined();
+      await act(async () => {
+        reads(new Error("confirmation failed"));
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("failed");
+      expect(board.current.error).toContain("confirmation failed");
+      expect(board.current.byId.get(target.id)?.lane).toBe("review");
+    } finally {
+      reads();
+      board.unmount();
+    }
+  });
+
+  it("does not apply a historical confirmation after its refresh times out", async () => {
+    const target = activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    const board = await mountArchived(fake, false);
+    const reads = fake.holdRefreshes();
+    try {
+      fake.forgetAgent(target.id);
+      let result: string | undefined;
+      await act(async () => {
+        void board.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBeUndefined();
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      expect(result).toBe("failed");
+      await act(async () => {
+        reads();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(board.current.byId.get(target.id)?.lane).toBe("review");
+      await act(async () => { result = await board.current.refresh(); });
+      expect(result).toBe("done");
+      expect(board.current.byId.has(target.id)).toBe(false);
+    } finally {
+      reads();
+      board.unmount();
+      vi.useRealTimers();
+    }
+  });
+
+  it("keeps a newer live update over a historical confirmation in flight", async () => {
+    const target = activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const fake = createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    const reads = fake.holdRefreshes();
+    try {
+      fake.forgetAgent(target.id);
+      let result: string | undefined;
+      await act(async () => {
+        void board.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBeUndefined();
+      await act(async () => {
+        fake.upsertAgent({ ...target, status: "running", lastError: undefined, updatedAt: recentIso(500) });
+        reads();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("done");
+      expect(board.current.byId.get(target.id)?.lane).toBe("running");
+    } finally {
+      reads();
+      board.unmount();
+    }
+  });
+
+  it("does not confirm attention tasks excluded from a history scan", async () => {
+    const agents = Array.from({ length: 12 }, (_, index) => activeAgent(`unread-${index}`, {
+      status: "idle", lastError: "failed", requiresAttention: true, attentionReason: "error", updatedAt: recentIso(3 * 86_400_000 + index),
+    }));
+    const fake = createFakePaseo({ agents, workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    try {
+      const before = fake.calls.length;
+      let result: string | undefined;
+      await act(async () => { result = await board.current.refresh(); });
+      expect(result).toBe("done");
+      expect(fake.calls.slice(before).filter((call) => call.method === "agents.ref.refresh")).toHaveLength(0);
+      expect(board.current.lanes.review.cards).toHaveLength(12);
+    } finally {
+      board.unmount();
+    }
+  });
+
+  it("confirms an excluded attention task when the refreshed attention list no longer holds it", async () => {
+    const target = activeAgent("unread-failure", {
+      status: "idle", lastError: "failed", requiresAttention: true, attentionReason: "error", updatedAt: recentIso(3 * 86_400_000),
+    });
+    const fake = createFakePaseo({ agents: [target], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    try {
+      expect(board.current.byId.get(target.id)?.lane).toBe("review");
+      fake.forgetAgent(target.id);
+      let result: string | undefined;
+      await act(async () => { result = await board.current.refresh(); });
+      expect(result).toBe("done");
+      expect(board.current.byId.has(target.id)).toBe(false);
+    } finally {
+      board.unmount();
+    }
+  });
+
+  it("waits for the refreshed attention list when a window change replaces the scan", async () => {
+    const target = activeAgent("unread-failure", {
+      status: "idle", lastError: "failed", requiresAttention: true, attentionReason: "error", updatedAt: recentIso(3 * 86_400_000),
+    });
+    const fake = createFakePaseo({ agents: [target], workspaces: [workspace()] });
+    let current!: TasksHandle;
+    let setWindow!: (window: "24h" | "7d") => void;
+    function Probe() {
+      const [window, set] = React.useState<"24h" | "7d">("24h");
+      setWindow = set;
+      current = useTasks(fake.paseo, React.useMemo(() => ({ doneWindow: window, includeDone: true, includeArchived: false }), [window]));
+      return null;
+    }
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+      for (let index = 0; index < 32; index += 1) await Promise.resolve();
+    });
+    const ready = fake.holdReady();
+    try {
+      expect(current.byId.get(target.id)?.lane).toBe("review");
+      fake.forgetAgent(target.id);
+      let result: string | undefined;
+      await act(async () => {
+        void current.refresh().then((value) => { result = value; });
+        setWindow("7d");
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBeUndefined();
+      await act(async () => {
+        ready();
+        for (let index = 0; index < 96; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("done");
+      expect(current.byId.has(target.id)).toBe(false);
+    } finally {
+      ready();
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("lets a window-change scan confirm attention after the refresh times out", async () => {
+    const target = activeAgent("unread-failure", {
+      status: "idle", lastError: "failed", requiresAttention: true, attentionReason: "error", updatedAt: recentIso(3 * 86_400_000),
+    });
+    const fake = createFakePaseo({ agents: [target], workspaces: [workspace()] });
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let current!: TasksHandle;
+    let setWindow!: (window: "24h" | "7d") => void;
+    function Probe() {
+      const [window, set] = React.useState<"24h" | "7d">("24h");
+      setWindow = set;
+      current = useTasks(fake.paseo, React.useMemo(() => ({ doneWindow: window, includeDone: true, includeArchived: false }), [window]));
+      return null;
+    }
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+      for (let index = 0; index < 32; index += 1) await Promise.resolve();
+    });
+    const ready = fake.holdReady();
+    try {
+      fake.forgetAgent(target.id);
+      let result: string | undefined;
+      await act(async () => {
+        void current.refresh().then((value) => { result = value; });
+        setWindow("7d");
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(current.byId.has(target.id)).toBe(true);
+      await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+      await act(async () => { for (let index = 0; index < 64; index += 1) await Promise.resolve(); });
+      expect(result).toBe("failed");
+      expect(current.byId.has(target.id)).toBe(false);
+    } finally {
+      ready();
+      act(() => renderer.unmount());
+      vi.useRealTimers();
+    }
+  });
+
+  it("does not treat an attention snapshot older than a replacement scan as fresh", async () => {
+    const target = activeAgent("unread-failure", {
+      status: "idle", lastError: "failed", requiresAttention: true, attentionReason: "error", updatedAt: recentIso(3 * 86_400_000),
+    });
+    const fake = createFakePaseo({ agents: [target], workspaces: [workspace()] });
+    let current!: TasksHandle;
+    let setWindow!: (window: "24h" | "7d") => void;
+    function Probe() {
+      const [window, set] = React.useState<"24h" | "7d">("24h");
+      setWindow = set;
+      current = useTasks(fake.paseo, React.useMemo(() => ({ doneWindow: window, includeDone: true, includeArchived: false }), [window]));
+      return null;
+    }
+    let renderer!: Renderer;
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(Probe));
+      for (let index = 0; index < 32; index += 1) await Promise.resolve();
+    });
+    const agents = fake.paseo.agents as { list: (options: { subscribe?: unknown; filter?: { statuses?: string[] } }) => Promise<unknown> };
+    const list = agents.list.bind(agents);
+    let release!: () => void;
+    const gate = new Promise<void>((resolve) => { release = resolve; });
+    agents.list = async (options) => {
+      if (options.subscribe && options.filter?.statuses?.includes("running")) await gate;
+      return list(options);
+    };
+    try {
+      let result: string | undefined;
+      await act(async () => {
+        void current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBeUndefined();
+      fake.forgetAgent(target.id);
+      await act(async () => {
+        setWindow("7d");
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        release();
+        for (let index = 0; index < 96; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("done");
+      expect(current.byId.has(target.id)).toBe(false);
+    } finally {
+      release();
+      act(() => renderer.unmount());
+    }
+  });
+
+  it("confirms an excluded attention failure when done reconnects before attention", async () => {
+    const target = activeAgent("unread-failure", {
+      status: "idle", lastError: "failed", requiresAttention: true, attentionReason: "error", updatedAt: recentIso(3 * 86_400_000),
+    });
+    const fake = createFakePaseo({ agents: [target], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    try {
+      fake.forgetAgent(target.id);
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(board.current.byId.has(target.id)).toBe(false);
+    } finally {
+      board.unmount();
+    }
+  });
+
+  it("uses a newer complete attention snapshot instead of confirming each excluded task", async () => {
+    const attention = Array.from({ length: 12 }, (_, index) => activeAgent(`unread-${index}`, {
+      status: "idle", lastError: "failed", requiresAttention: true, attentionReason: "error", updatedAt: recentIso(3 * 86_400_000 + index),
+    }));
+    const fake = createFakePaseo({ agents: [...attention,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`done-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    const pages = fake.holdPages();
+    try {
+      const before = fake.calls.length;
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.requiresAttention === true);
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        pages();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(fake.calls.slice(before).filter((call) => call.method === "agents.ref.refresh")).toHaveLength(0);
+      expect(board.current.lanes.review.cards).toHaveLength(12);
+    } finally {
+      pages();
+      board.unmount();
+    }
+  });
+
+  it("reuses the lingering history scan when the board reopens at once", async () => {
+    const attention = Array.from({ length: 12 }, (_, index) => activeAgent(`unread-${index}`, {
+      status: "idle", lastError: "failed", requiresAttention: true, attentionReason: "error", updatedAt: recentIso(3 * 86_400_000 + index),
+    }));
+    const fake = createFakePaseo({ agents: attention, workspaces: [workspace()] });
+    const scans = () => fake.calls.filter((call) => call.method === "agents.list" && (call.input as { page?: { limit?: number } }).page?.limit === 200 && !(call.input as { subscribe?: unknown }).subscribe).length;
+    const reads = () => fake.calls.filter((call) => call.method === "agents.ref.refresh").length;
+    const board = await mountArchived(fake, false);
+    await act(async () => { for (let index = 0; index < 64; index += 1) await Promise.resolve(); });
+    expect(board.current.lanes.review.cards).toHaveLength(12);
+    const before = { scans: scans(), reads: reads() };
+    act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+    const reopened = await mountArchived(fake, false);
+    try {
+      await act(async () => { for (let index = 0; index < 64; index += 1) await Promise.resolve(); });
+      expect(reopened.current.lanes.review.cards).toHaveLength(12);
+      expect({ scans: scans(), reads: reads() }).toEqual(before);
+    } finally {
+      reopened.unmount();
+      act(() => releaseTasksHolds());
+    }
+  });
+
+  describe("history scan on a warm reopen", () => {
+    const oldFailure = () => activeAgent("old-failure", { status: "idle", lastError: "failed", updatedAt: recentIso(3 * 86_400_000) });
+    const withNewer = (target: ReturnType<typeof activeAgent>) => createFakePaseo({ agents: [target,
+      ...Array.from({ length: 201 }, (_, index) => activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) })),
+    ], workspaces: [workspace()] });
+    const isScan = (options: PaseoAgentListOptions) => options.page?.limit === 200 && !options.subscribe;
+    const scansOf = (fake: Fake) => fake.calls.filter((call) => call.method === "agents.list" &&
+      isScan(call.input as PaseoAgentListOptions) && !(call.input as PaseoAgentListOptions).page?.cursor).length;
+
+    it("shares a lingering scan still reading its pages", async () => {
+      const target = oldFailure();
+      const fake = withNewer(target);
+      const pages = fake.holdPages();
+      try {
+        const board = await mountArchived(fake, false);
+        expect(scansOf(fake)).toBe(1);
+        act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+        const reopened = await mountArchived(fake, false);
+        try {
+          expect(scansOf(fake)).toBe(1);
+          await act(async () => {
+            pages();
+            for (let index = 0; index < 64; index += 1) await Promise.resolve();
+          });
+          expect(reopened.current.byId.get(target.id)?.lane).toBe("review");
+          expect(scansOf(fake)).toBe(1);
+          expect(fake.calls.filter((call) => call.method === "agents.ref.refresh")).toHaveLength(0);
+        } finally {
+          reopened.unmount();
+        }
+      } finally {
+        pages();
+        act(() => releaseTasksHolds());
+      }
+    });
+
+    it("scans again when the lingering scan failed", async () => {
+      const target = oldFailure();
+      const fake = withNewer(target);
+      fake.failNextAgentList(isScan);
+      const board = await mountArchived(fake, false);
+      try {
+        await act(async () => { for (let index = 0; index < 32; index += 1) await Promise.resolve(); });
+        expect(board.current.byId.has(target.id)).toBe(false);
+        act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+        const reopened = await mountArchived(fake, false);
+        try {
+          await act(async () => { for (let index = 0; index < 64; index += 1) await Promise.resolve(); });
+          expect(scansOf(fake)).toBe(2);
+          expect(reopened.current.byId.get(target.id)?.lane).toBe("review");
+        } finally {
+          reopened.unmount();
+        }
+      } finally {
+        act(() => releaseTasksHolds());
+      }
+    });
+
+    it("scans again when a refresh that owned the scan timed out", async () => {
+      const target = oldFailure();
+      const fake = withNewer(target);
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const board = await mountArchived(fake, false);
+      const pages = fake.holdPages();
+      try {
+        await act(async () => { for (let index = 0; index < 32; index += 1) await Promise.resolve(); });
+        expect(scansOf(fake)).toBe(1);
+        let result: string | undefined;
+        await act(async () => {
+          void board.current.refresh().then((value) => { result = value; });
+          for (let index = 0; index < 32; index += 1) await Promise.resolve();
+        });
+        expect(scansOf(fake)).toBe(2);
+        act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+        await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+        expect(result).toBe("failed");
+        pages();
+        const reopened = await mountArchived(fake, false);
+        try {
+          await act(async () => { for (let index = 0; index < 64; index += 1) await Promise.resolve(); });
+          expect(scansOf(fake)).toBe(3);
+          expect(reopened.current.byId.get(target.id)?.lane).toBe("review");
+        } finally {
+          reopened.unmount();
+        }
+      } finally {
+        pages();
+        act(() => releaseTasksHolds());
+        vi.useRealTimers();
+      }
+    });
+
+    it("keeps a refresh's landed scan when another of its lists times out", async () => {
+      const target = oldFailure();
+      const fake = withNewer(target);
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const board = await mountArchived(fake, false);
+      const ready = fake.holdReady();
+      try {
+        await act(async () => { for (let index = 0; index < 32; index += 1) await Promise.resolve(); });
+        let result: string | undefined;
+        await act(async () => {
+          void board.current.refresh().then((value) => { result = value; });
+          for (let index = 0; index < 64; index += 1) await Promise.resolve();
+        });
+        // The refresh's history scan landed; its new subscriptions are still waiting for ready.
+        expect(scansOf(fake)).toBe(2);
+        act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+        await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+        expect(result).toBe("failed");
+        const reopened = await mountArchived(fake, false);
+        try {
+          await act(async () => { for (let index = 0; index < 64; index += 1) await Promise.resolve(); });
+          expect(scansOf(fake)).toBe(2);
+          expect(reopened.current.byId.get(target.id)?.lane).toBe("review");
+        } finally {
+          reopened.unmount();
+        }
+      } finally {
+        ready();
+        act(() => releaseTasksHolds());
+        vi.useRealTimers();
+      }
+    });
+
+    it("scans on its own when a refresh still owns the running scan, and keeps it past the refresh's timeout", async () => {
+      const target = oldFailure();
+      const fake = withNewer(target);
+      vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+      const board = await mountArchived(fake, false);
+      const pages = fake.holdPages();
+      try {
+        await act(async () => { for (let index = 0; index < 32; index += 1) await Promise.resolve(); });
+        fake.forgetAgent(target.id);
+        await act(async () => {
+          void board.current.refresh();
+          for (let index = 0; index < 32; index += 1) await Promise.resolve();
+        });
+        act(() => { holdTasks(fake.paseo, "linger", null); board.unmount(); });
+        const reopened = await mountArchived(fake, false);
+        try {
+          expect(scansOf(fake)).toBe(3);
+          await act(async () => { await vi.advanceTimersByTimeAsync(30_000); });
+          await act(async () => {
+            pages();
+            for (let index = 0; index < 64; index += 1) await Promise.resolve();
+          });
+          // The board's own scan outlives the refresh and finds the record gone.
+          expect(reopened.current.byId.has(target.id)).toBe(false);
+        } finally {
+          reopened.unmount();
+        }
+      } finally {
+        pages();
+        act(() => releaseTasksHolds());
+        vi.useRealTimers();
+      }
+    });
+  });
+
+  it("does not restore an evicted task from a historical page after a null by-id read", async () => {
+    const target = activeAgent("evicted", { status: "idle", updatedAt: recentIso(600_000) });
+    const fake = createFakePaseo({ agents: [target], workspaces: [workspace()] });
+    const board = await mountArchived(fake, false);
+    let pages: (() => void) | undefined;
+    try {
+      await act(async () => {
+        for (let index = 0; index < 201; index += 1) {
+          fake.upsertAgent(activeAgent(`new-${index}`, { status: "idle", updatedAt: recentIso(1_000 + index) }));
+        }
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      await act(async () => { await board.current.refresh(); });
+      expect(board.current.byId.has(target.id)).toBe(false);
+      fake.setAgentSilently({ ...target, lastError: "failed", updatedAt: recentIso(599_000) });
+      pages = fake.holdPageAnswers();
+      let result: string | undefined;
+      await act(async () => {
+        void board.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      fake.forgetAgent(target.id);
+      await act(async () => {
+        fake.pushAgentSnapshot({ ...target, updatedAt: recentIso(601_000) });
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(board.current.byId.has(target.id)).toBe(false);
+      await act(async () => {
+        pages?.();
+        for (let index = 0; index < 96; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("done");
+      expect(board.current.byId.has(target.id)).toBe(false);
+    } finally {
+      pages?.();
+      board.unmount();
+    }
+  });
+
+  it("rechecks recovered historical records after the done subscription reconnects", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("late-archive", { status: "closed", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 50 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(mounted.current.byId.get(target.id)?.lane).toBe("archived");
+      fake.setAgentSilently({ ...target, archivedAt: null });
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.has(target.id)).toBe(false);
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("lets a newer reconnect scan finish a refresh whose old scan page hangs", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("late-archive", { status: "closed", title: "Before reconnect", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(mounted.current.byId.get(target.id)?.title).toBe("Before reconnect");
+      const release = fake.holdPageAnswers();
+      let result: string | undefined;
+      await act(async () => {
+        void mounted.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      });
+      expect(result).toBeUndefined();
+      fake.passNewPageAnswers();
+      fake.setAgentSilently({ ...target, title: "After reconnect" });
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+        for (let index = 0; index < 48; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("done");
+      expect(mounted.current.byId.get(target.id)?.title).toBe("After reconnect");
+      await act(async () => {
+        release();
+        for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get(target.id)?.title).toBe("After reconnect");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("waits for a reconnect scan that starts after the refresh scan has finished", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("late-archive", { status: "closed", title: "Before", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, true);
+    const ready = fake.holdReady();
+    let pages: (() => void) | undefined;
+    try {
+      let result: string | undefined;
+      await act(async () => {
+        void mounted.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBeUndefined();
+      pages = fake.holdPageAnswers();
+      fake.setAgentSilently({ ...target, title: "After reconnect" });
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        ready();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBeUndefined();
+      expect(mounted.current.byId.get(target.id)?.title).toBe("Before");
+      await act(async () => {
+        pages?.();
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("done");
+      expect(mounted.current.byId.get(target.id)?.title).toBe("After reconnect");
+    } finally {
+      ready();
+      pages?.();
+      mounted.unmount();
+    }
+  });
+
+  it("does not apply a refresh scan after that refresh times out", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("late-archive", { status: "closed", title: "Before", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, true);
+    const pages = fake.holdPageAnswers();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    try {
+      expect(mounted.current.byId.get(target.id)?.title).toBe("Before");
+      fake.setAgentSilently({ ...target, title: "After timeout" });
+      let result: string | undefined;
+      await act(async () => {
+        void mounted.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(30_001);
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("failed");
+      await act(async () => {
+        pages();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get(target.id)?.title).toBe("Before");
+    } finally {
+      pages();
+      vi.useRealTimers();
+      mounted.unmount();
+    }
+  });
+
+  it("keeps a reconnect scan alive after the refresh it overtook times out", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("late-archive", { status: "closed", title: "Before", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, true);
+    const ready = fake.holdReady();
+    vi.useFakeTimers({ toFake: ["setTimeout", "clearTimeout"] });
+    let pages: (() => void) | undefined;
+    try {
+      let result: string | undefined;
+      await act(async () => {
+        void mounted.current.refresh().then((value) => { result = value; });
+        for (let index = 0; index < 64; index += 1) await Promise.resolve();
+      });
+      pages = fake.holdPageAnswers();
+      fake.setAgentSilently({ ...target, title: "After reconnect" });
+      await act(async () => {
+        fake.reconnectAgentSubscriptionWhere((options) => options.filter?.statuses?.includes("idle") === true);
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        vi.advanceTimersByTime(30_001);
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(result).toBe("failed");
+      await act(async () => {
+        pages?.();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.get(target.id)?.title).toBe("After reconnect");
+    } finally {
+      ready();
+      pages?.();
+      vi.useRealTimers();
+      mounted.unmount();
+    }
+  });
+
+  it("does not reclaim a loaded task deleted while its historical page and confirmation are in flight", async () => {
+    const old = 3 * 86_400_000;
+    const target = activeAgent("late-archive", { status: "closed", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) });
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })), target,
+    ], workspaces: [workspace()] });
+    const mounted = await mountArchived(fake, true);
+    const pages = fake.holdPageAnswers();
+    let reads: ((error?: Error) => void) | undefined;
+    try {
+      expect(mounted.current.byId.has(target.id)).toBe(true);
+      await act(async () => {
+        void mounted.current.refresh();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      reads = fake.holdRefreshes();
+      await act(async () => {
+        fake.removeAgent(target.id);
+        for (let index = 0; index < 16; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        pages();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      await act(async () => {
+        reads?.();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.byId.has(target.id)).toBe(false);
+    } finally {
+      pages();
+      reads?.();
+      mounted.unmount();
+    }
+  });
+
+  it("keeps an empty archived lane loading until its first history scan finishes", async () => {
+    const old = 3 * 86_400_000;
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })),
+      activeAgent("late-archive", { status: "closed", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) }),
+    ], workspaces: [workspace()] });
+    const pages = fake.holdPageAnswers();
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(mounted.current.lanes.archived.cards).toHaveLength(0);
+      expect(mounted.current.lanes.archived.initialLoading).toBe(true);
+      await act(async () => {
+        pages();
+        for (let index = 0; index < 32; index += 1) await Promise.resolve();
+      });
+      expect(mounted.current.lanes.archived.initialLoading).toBe(false);
+      expect(mounted.current.byId.get("late-archive")?.lane).toBe("archived");
+    } finally {
+      pages();
+      mounted.unmount();
+    }
+  });
+
+  it("reports a background capability loss during the first history scan", async () => {
+    const old = 3 * 86_400_000;
+    const fake = createFakePaseo({ agents: [
+      ...Array.from({ length: 200 }, (_, index) => activeAgent(`old-${index}`, { status: "idle", updatedAt: recentIso(old + index * 1_000) })),
+      activeAgent("late-archive", { status: "closed", updatedAt: recentIso(old + 300_000), archivedAt: recentIso(1_000) }),
+    ], workspaces: [workspace()] });
+    fake.failNextAgentList((options) => options.page?.limit === 200 && options.page?.cursor !== undefined, "Update the host to use background workspaces.");
+    const mounted = await mountArchived(fake, true);
+    try {
+      expect(mounted.current.lanes.archived.initialLoading).toBe(false);
+      expect(mounted.current.error).toContain("Update the host to use background workspaces.");
+      let result: string | undefined;
+      await act(async () => { result = await mounted.current.refresh(); });
+      expect(result).toBe("done");
+      expect(mounted.current.error).toBeNull();
+      expect(mounted.current.byId.get("late-archive")?.lane).toBe("archived");
+    } finally {
+      mounted.unmount();
+    }
+  });
+
+  it("folds a recorded origin after both tasks are archived", async () => {
+    setSubagentLoader(async () => ({ version: "1", subagents: [] }));
+    setParentOriginsLoader(async () => ({ version: "1", origins: [{ agentId: "child", parentAgentId: "parent" }] }));
+    const fake = createFakePaseo({
+      agents: [
+        activeAgent("parent", { status: "closed", title: "Parent", updatedAt: recentIso(3_000), archivedAt: recentIso(2_000) }),
+        activeAgent("child", { status: "idle", title: "Child", updatedAt: recentIso(2_000), archivedAt: recentIso(1_000) }),
+      ],
+      workspaces: [workspace()],
+    });
+    const mounted = await mountArchived(fake, true, "all");
+    try {
+      expect(ids(mounted.current.lanes.archived)).toContain("child");
+      await act(async () => {
+        await new Promise((resolve) => setTimeout(resolve, 1_600));
+      });
+      expect(mounted.current.byId.get("child")?.parent?.detached).toBe(true);
+      const filtered = filterLanes(mounted.current.lanes, { ...EMPTY_FILTERS, hideSubtasks: true });
+      expect(ids(filtered.archived)).toEqual(["parent"]);
+      expect(filtered.archived.cards[0]?.children.map((row) => row.id)).toEqual(["child"]);
+      expect(mounted.current.byId.get("parent")?.children).toEqual([]);
+    } finally {
+      mounted.unmount();
+      setParentOriginsLoader(null);
+      setSubagentLoader(null);
+    }
+  });
+
   it("lists archived tasks and an archived workspace's in their own lane, in the done window, only when asked", async () => {
     const fake = createFakePaseo({
       agents: [
@@ -5354,7 +6965,7 @@ describe("Tasks data store, archived lane", () => {
       expect(off.current.byId.has("archived")).toBe(false);
       expect(off.current.byId.has("stale")).toBe(false);
       // Off, the done list asks for no archived agent.
-      const doneLists = fake.calls.filter((call) => call.method === "agents.list" && (call.input as { filter?: { statuses?: string[] } }).filter?.statuses?.includes("idle"));
+      const doneLists = fake.calls.filter((call) => call.method === "agents.list" && (call.input as { subscribe?: unknown }).subscribe !== undefined && (call.input as { filter?: { statuses?: string[] } }).filter?.statuses?.includes("idle"));
       expect(doneLists.map((call) => (call.input as { filter: { includeArchived?: boolean } }).filter.includeArchived)).toEqual([undefined]);
 
       await off.setArchived(true);
@@ -5402,7 +7013,7 @@ describe("Tasks data store, archived lane", () => {
     });
     try {
       const before = renders;
-      const doneLists = () => fake.calls.filter((call) => call.method === "agents.list" && (call.input as { filter?: { statuses?: string[] } }).filter?.statuses?.includes("idle"));
+      const doneLists = () => fake.calls.filter((call) => call.method === "agents.list" && (call.input as { subscribe?: unknown }).subscribe !== undefined && (call.input as { filter?: { statuses?: string[] } }).filter?.statuses?.includes("idle"));
       const listsBefore = doneLists().length;
       act(() => {
         setTasksArchivedLane(fake.paseo, true);
@@ -5483,8 +7094,8 @@ describe("Tasks data store, archived lane", () => {
       });
       expect(new Set(totals)).toEqual(new Set([2, 4]));
       expect(totals.indexOf(4)).toBe(totals.lastIndexOf(2) + 1);
-      // Only the done list is read again; the board keeps its other subscriptions.
-      expect(lists()).toBe(listsBefore + 1);
+      // The done subscription and history scan read again; the other subscriptions stay.
+      expect(lists()).toBe(listsBefore + 2);
 
       totals.length = 0;
       await act(async () => {
@@ -5492,7 +7103,7 @@ describe("Tasks data store, archived lane", () => {
         for (let index = 0; index < 8; index += 1) await Promise.resolve();
       });
       expect(new Set(totals)).toEqual(new Set([2]));
-      expect(lists()).toBe(listsBefore + 2);
+      expect(lists()).toBe(listsBefore + 4);
     } finally {
       act(() => renderer.unmount());
     }
@@ -5950,11 +7561,17 @@ describe("Tasks data store, archived lane", () => {
       });
       await advanceRecovery(1, LIST_RECOVERY_DELAYS_MS[1]! + 10);
       await advanceRecovery(4, 10);
-      expect(mounted.current.error).toBeNull();
+      // The independent history scan cannot finish while the gate rejects it.
+      expect(mounted.current.error).toBe(HOST_GATE);
       expect(mounted.current.byId.get("parent")?.children.map((child) => child.id)).toContain("child");
       expect(mounted.current.byId.get("parent")?.lane).toBe("running");
       expect(mounted.current.lanes.running.cards.map((card) => card.id)).not.toContain("child");
       expect(gate.plainSubscribes).toBe(plain);
+      accept = true;
+      let result: string | undefined;
+      await act(async () => { result = await mounted.current.refresh(); });
+      expect(result).toBe("done");
+      expect(mounted.current.error).toBeNull();
     } finally {
       vi.useRealTimers();
       mounted.unmount();

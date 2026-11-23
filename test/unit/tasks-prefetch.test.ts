@@ -235,7 +235,7 @@ describe("Tasks board prefetch", () => {
     expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
   });
 
-  it("a board opened after the hover sends nothing and draws at once", async () => {
+  it("a board opened after the hover draws at once and starts the history scan", async () => {
     await mountSidebar();
     await hover();
     const warmed = fake.calls.length;
@@ -245,12 +245,12 @@ describe("Tasks board prefetch", () => {
     // Before any answer could arrive: the board is ready on the warm data.
     expect(boardText()).toContain("2 tasks");
     await settle();
-    expect(fake.calls.length).toBe(warmed);
+    expect(fake.calls.slice(warmed).map((call) => call.method)).toEqual(["agents.list"]);
     await fire("onPointerLeave");
     // The intent's grace runs out under the open board, which keeps its data.
     await advance(INTENT_GRACE_MS);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
-    expect(fake.calls.length).toBe(warmed);
+    expect(fake.calls.length).toBe(warmed + 1);
   });
 
   it("keeps the board's data 30 s after it closes, then releases it", async () => {
@@ -264,14 +264,14 @@ describe("Tasks board prefetch", () => {
     expect(fake.openSubscriptions()).toBe(COUNTS_ONLY);
   });
 
-  it("a board reopened within the grace period sends nothing", async () => {
+  it("a board reopened within the grace period keeps its subscriptions and shares their history scan", async () => {
     await mountSidebar();
     await openBoard();
     await closeBoard();
     await advance(BOARD_LINGER_MS - 1000);
     const closed = fake.calls.length;
     await openBoard();
-    expect(fake.calls.length).toBe(closed);
+    expect(fake.calls.slice(closed).map((call) => call.method)).toEqual([]);
     expect(boardText()).toContain("2 tasks");
     // Its own close starts a fresh grace period.
     await closeBoard();
@@ -355,7 +355,7 @@ describe("Tasks board prefetch", () => {
     await openBoard();
     await advance(HOVER_INTENT_MS * 2);
     const requests = boardCalls(before).sort();
-    expect(requests).toEqual(["agents.list", "projects.list", "providers.listModels"]);
+    expect(requests).toEqual(["agents.list", "agents.list", "projects.list", "providers.listModels"]);
     expect(fake.openSubscriptions()).toBe(BOARD_OPEN);
   });
 
@@ -443,7 +443,7 @@ describe("Tasks board prefetch", () => {
       await settle();
       const warmed = fake.calls.length;
       await openBoard();
-      expect(fake.calls.length).toBe(warmed);
+      expect(fake.calls.slice(warmed).map((call) => call.method)).toEqual(["agents.list"]);
     } finally {
       cleanup();
     }

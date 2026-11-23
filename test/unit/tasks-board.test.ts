@@ -49,6 +49,19 @@ import { filterLanes, type TasksHandle } from "../../client/tasks/data";
 const defaults = { hideSubtasks: false, doneWindow: "24h" as const };
 
 describe("title refresh", () => {
+  it("does not duplicate a historical child when its parent's old title is still revealing", () => {
+    const sample = sampleCards().find((card) => card.id === "sample-done")!;
+    const child: TaskCard = { ...sample, id: "child", title: "Child", lane: "archived", status: "archived", archived: "agent", children: [], parent: { id: "parent", title: "Old title", missing: false, archived: false } };
+    const parent: TaskCard = { ...sample, id: "parent", title: "Old title", lane: "archived", status: "archived", archived: "agent", parent: null, children: [{ id: child.id, title: child.title, status: child.status, lane: child.lane, timing: child.timing }] };
+    const lanes = handle().lanes;
+    const previous = { ...lanes, archived: { ...lanes.archived, cards: [parent, child] } };
+    const next = { ...lanes, archived: { ...lanes.archived, cards: [{ ...parent, title: "New title", children: [] }, { ...child, parent: { ...child.parent!, detached: true as const } }] } };
+    const held = holdRevealingTitles(previous, next, new Set([parent.id]));
+    const filtered = filterLanes(held, { ...EMPTY_FILTERS, hideSubtasks: true });
+    expect(filtered.archived.cards.map((card) => card.id)).toEqual([parent.id]);
+    expect(filtered.archived.cards[0]?.children.map((row) => row.id)).toEqual([child.id]);
+  });
+
   it.each(LANE_ORDER)("holds only the revealing card at its old position, then accepts the final update once (%s)", (lane) => {
     const lanes = handle().lanes;
     const first = { ...lanes.done.cards[0]!, id: "first", lane };

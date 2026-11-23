@@ -702,6 +702,10 @@ export function createFakePaseo(options: FakePaseoOptions = {}) {
         release();
       };
     },
+    /** Let later page answers through while an earlier answer remains held. */
+    passNewPageAnswers() {
+      answerGate = null;
+    },
     /** Hold the first page of every workspace list asked for until the returned release is called. */
     holdWorkspaceLists(): () => void {
       let release!: () => void;
