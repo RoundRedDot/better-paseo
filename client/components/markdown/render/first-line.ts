@@ -7,8 +7,7 @@ import type { Token, TokenizerThis, Tokens } from "../../../vendor/marked";
 import { space } from "../../theme-tokens";
 import { lexBlockTokens } from "../lex";
 import type { VariantMetrics } from "./styles";
-import { codeBlockFirstLineCenter } from "../../syntax-highlight";
-import { COPY_BUTTON_BOX } from "../../../ui/copy-button";
+import { CODE_HEADER_HEIGHT, codeBlockFirstLineCenter } from "../../syntax-highlight";
 import { tableFirstLineCenter } from "./table";
 import { codeLanguage } from "./text";
 import { codexBlockTokenizer, type CodexToken } from "../codex";
@@ -91,9 +90,7 @@ function centerIn(tokens: readonly Token[], layout: FirstLineLayout, gap: number
       case "table":
         return offset + tableFirstLineCenter(metrics.cellLineHeight);
       case "insight":
-        // `styles.insight`: a 1 px border and `space.md` padding around a
-        // header row of the title and its Copy button.
-        return offset + 1 + space.md + Math.max(metrics.bodyLineHeight, COPY_BUTTON_BOX) / 2;
+        return offset + CODE_HEADER_HEIGHT / 2;
       case "codex": {
         if (inQuote) return offset + metrics.bodyLineHeight / 2;
         const codex = token as unknown as CodexToken;

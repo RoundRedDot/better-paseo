@@ -104,12 +104,14 @@ function renderBlock(
     return (
       <View key={key} style={styles.insight}>
         <View style={styles.insightHeader}>
-          <MarkdownProse context={context} style={styles.insightTitle} text="✦ Insight" />
+          <MarkdownProse context={context} style={styles.insightTitle} text="Insight" />
           <CopyButton text={insight.text.trim()} tokens={context.tokens} label="Copy section" />
         </View>
-        {renderBlocks(insight.tokens, insightContext, `${key}i`, {
-          ...options, first: true, open: options.open && !insight.closed,
-        })}
+        <View style={styles.insightBody}>
+          {renderBlocks(insight.tokens, insightContext, `${key}i`, {
+            ...options, first: true, open: options.open && !insight.closed,
+          })}
+        </View>
       </View>
     );
   }

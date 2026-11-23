@@ -777,7 +777,7 @@ describe("timeline translation", () => {
     { label: "table", text: "| First | b |\n|---|---|\n| 1 | 2 |\n\nafter", data: {}, size: 15, variant: "document" as const, first: "First" },
     { label: "table at a larger size in terminal", text: "| First | b |\n|---|---|\n| 1 | 2 |", data: {}, size: 22, variant: "terminal" as const, first: "First" },
     { label: "table on Android", text: "| First | b |\n|---|---|\n| 1 | 2 |", data: {}, size: 17, variant: "document" as const, platform: "android" as const, first: "First" },
-    { label: "insight", text: "`✦ Insight ─────────────────`\n- point\n`─────────────────`", data: {}, size: 15, variant: "document" as const, first: "✦ Insight" },
+    { label: "insight", text: "`✦ Insight ─────────────────`\n- point\n`─────────────────`", data: {}, size: 15, variant: "document" as const, first: "Insight" },
   ])("centers the translation button on the first line of a $label", async ({ text, data, size, variant, ...rest }) => {
     const platform = "platform" in rest ? rest.platform : "web";
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;

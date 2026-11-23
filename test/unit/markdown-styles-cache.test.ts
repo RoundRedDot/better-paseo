@@ -38,7 +38,7 @@ describe("shared Markdown styles", () => {
       buildStyles(tokens, "terminal", metrics),
       buildStyles(tokens, "document", metrics, true),
       buildStyles({ ...tokens, codeInline: "#334455" }, "document", metrics),
-      buildStyles({ ...tokens, v2: { ...tokens.v2, surface1: "#aabbcc" } }, "document", metrics),
+      buildStyles({ ...tokens, v2: { ...tokens.v2, surfaceCode: "#aabbcc" } }, "document", metrics),
     ];
     for (const changed of changes) expect(changed).not.toBe(first);
     expect(changes[0]!.paragraph.color).toBe("#112233");

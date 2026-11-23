@@ -7,7 +7,8 @@ import { StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { mix, radiusV2, space, withAlpha, type ExtendedThemeTokens } from "../../theme-tokens";
 import { hairline } from "../../../ui/tokens/platform";
-import { even, proseScale } from "../../../ui/tokens/typography";
+import { even, proseScale, TYPE } from "../../../ui/tokens/typography";
+import { CODE_HEADER_HEIGHT } from "../../syntax-highlight";
 import { selectableSurface, unselectable } from "../../selection";
 
 /**
@@ -206,6 +207,7 @@ export interface MarkdownStyles {
   root: ViewStyle;
   insight: ViewStyle;
   insightHeader: ViewStyle;
+  insightBody: ViewStyle;
   insightTitle: TextStyle;
   insightList: ViewStyle;
   headingBlock: ViewStyle;
@@ -279,7 +281,7 @@ export function buildStyles(
   const key = JSON.stringify([
     tokens.platform, tokens.fontUi, tokens.fontMono, tokens.foreground, tokens.foregroundMuted,
     tokens.accent, tokens.codeInline, tokens.isDark,
-    tokens.v2.surface1, tokens.v2.surface2, tokens.v2.border, tokens.v2.borderSubtle,
+    tokens.v2.surface1, tokens.v2.surface2, tokens.v2.surfaceCode, tokens.v2.border, tokens.v2.borderSubtle,
     variant, metrics, quiet, rule,
   ]);
   const cached = stylesCache.get(key);
@@ -336,26 +338,31 @@ export function buildStyles(
     },
     insight: {
       minWidth: 0,
-      borderWidth: 1,
-      borderColor: tokens.v2.border,
       borderRadius: radiusV2.block,
-      backgroundColor: tokens.v2.surface1,
-      padding: space.md,
-      gap: space.sm,
+      backgroundColor: tokens.v2.surfaceCode,
+      overflow: "hidden",
     },
     insightHeader: {
       flexDirection: "row",
       alignItems: "center",
       justifyContent: "space-between",
       gap: space.sm,
+      height: CODE_HEADER_HEIGHT,
+      paddingLeft: space.md,
+      paddingRight: space.xs,
+    },
+    insightBody: {
+      paddingHorizontal: space.md,
+      paddingTop: 2,
+      paddingBottom: space.sm,
+      gap: metrics.blockGap,
     },
     insightTitle: {
       flexShrink: 1,
-      fontFamily: bodyFont,
-      fontSize: metrics.bodySize,
-      lineHeight: metrics.bodyLineHeight,
-      fontWeight: "600",
-      color: quiet ? tokens.foregroundMuted : tokens.foreground,
+      fontFamily: tokens.fontUi,
+      fontSize: TYPE.caption.size,
+      lineHeight: TYPE.caption.lineHeight,
+      color: tokens.foregroundMuted,
     },
     insightList: {
       gap: Math.max(space.sm, metrics.itemGap),

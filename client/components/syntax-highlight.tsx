@@ -68,7 +68,7 @@ export const LARGE_BLOCK_LINES = 400;
  */
 const APPEND_BATCH = 400;
 /** Code header height (S7 design spec §3.6): 32 on touch platforms, 30 on desktop. */
-const HEADER_HEIGHT = Platform.OS === "web" ? 30 : 32;
+export const CODE_HEADER_HEIGHT = Platform.OS === "web" ? 30 : 32;
 
 const scheduleFrame: (callback: () => void) => () => void =
   typeof requestAnimationFrame === "function"
@@ -233,7 +233,7 @@ const codeBlockMargin = (compact: boolean) => compact ? space.xs : space.sm;
 export function codeBlockFirstLineCenter(code: string, language: string, compact: boolean, monoLineHeight: number): number {
   const lines = code.trimEnd().split("\n");
   const header = codeLanguageLabel(language === "diff" || looksLikeUnifiedDiff(lines) ? "diff" : language) !== "";
-  return codeBlockMargin(compact) + (header ? HEADER_HEIGHT / 2 : space.sm + monoLineHeight / 2);
+  return codeBlockMargin(compact) + (header ? CODE_HEADER_HEIGHT / 2 : space.sm + monoLineHeight / 2);
 }
 
 /**
@@ -583,7 +583,7 @@ export function SyntaxHighlightBlock({
               marginVertical: codeBlockMargin(compact),
             },
         header: {
-          height: HEADER_HEIGHT,
+          height: CODE_HEADER_HEIGHT,
           flexDirection: "row",
           alignItems: "center",
           gap: space.sm,

@@ -16,6 +16,9 @@ const { buildThemeTokens } = await import("../../client/components/theme-tokens"
 const { DEFAULT_PREFERENCES } = await import("../../client/preferences");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 const { StyleSheet } = await import("react-native");
+const { firstLineCenter } = await import("../../client/components/markdown/render/first-line");
+const { variantMetrics } = await import("../../client/components/markdown/render/styles");
+const { CODE_HEADER_HEIGHT } = await import("../../client/components/syntax-highlight");
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 afterEach(() => { (globalThis as { __rnMockOS?: string }).__rnMockOS = undefined; });
@@ -47,7 +50,7 @@ describe("Insight rendering", () => {
 
   for (const platform of ["web", "ios", "android"] as const) {
     for (const dark of [false, true]) {
-      it(`${platform}, ${dark ? "dark" : "light"}: draws a flat card and copies its Markdown body`, async () => {
+      it(`${platform}, ${dark ? "dark" : "light"}: draws a code-style card and copies its Markdown body`, async () => {
         (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
         const colors = {
           surface0: dark ? "#18181b" : "#ffffff", surface1: dark ? "#27272a" : "#f6f6f7",
@@ -66,12 +69,13 @@ describe("Insight rendering", () => {
           try {
             const card = () => renderer.root.findAll((node) =>
               (node.type as unknown) === "View" &&
-              StyleSheet.flatten(node.props.style)?.borderWidth === 1,
+              StyleSheet.flatten(node.props.style)?.backgroundColor === tokens.v2.surfaceCode &&
+              StyleSheet.flatten(node.props.style)?.overflow === "hidden",
             );
             expect(card()).toHaveLength(1);
             const style = StyleSheet.flatten(card()[0]!.props.style);
-            expect(style.backgroundColor).toBe(tokens.v2.surface1);
-            expect(style.borderColor).toBe(tokens.v2.border);
+            expect(style.backgroundColor).toBe(tokens.v2.surfaceCode);
+            expect(style.borderWidth).toBeUndefined();
             expect(style.borderLeftWidth).toBeUndefined();
             expect(style.boxShadow).toBeUndefined();
             expect(style.shadowOpacity).toBeUndefined();
@@ -85,6 +89,8 @@ describe("Insight rendering", () => {
             const headerRow = card()[0]!.find((node) => (node.type as unknown) === "View" &&
               StyleSheet.flatten(node.props.style)?.justifyContent === "space-between");
             expect(StyleSheet.flatten(headerRow.props.style).flexDirection).toBe("row");
+            expect(StyleSheet.flatten(headerRow.props.style).height).toBe(CODE_HEADER_HEIGHT);
+            expect(firstLineCenter(header + body, { metrics: variantMetrics(variant, 20), ruleHeight: 1, monoLineHeight: 20 })).toBe(CODE_HEADER_HEIGHT / 2);
             expect(headerRow.findAll((node) => node === button())).toHaveLength(1);
             await act(async () => { button().props.onPress(); });
             expect(clipboard).toHaveBeenLastCalledWith(body.trim());
@@ -94,10 +100,10 @@ describe("Insight rendering", () => {
             const texts = renderer.root.findAll((node) => (node.type as unknown) === "Text");
             if (platform === "ios") {
               const prose = renderer.root.findAll((node) => String(node.type) === "EnrichedMarkdownText" || String(node.type) === "EnrichedMarkdown");
-              expect(prose.some((node) => node.props.markdown === "✦ Insight" && node.props.selectable)).toBe(true);
+              expect(prose.some((node) => node.props.markdown === "Insight" && node.props.selectable)).toBe(true);
               expect(prose.some((node) => node.props.markdown.includes("`id`"))).toBe(true);
             } else {
-              expect(texts.some((node) => node.props.children === "✦ Insight" && node.props.selectable)).toBe(true);
+              expect(texts.some((node) => node.props.children === "Insight" && node.props.selectable)).toBe(true);
               expect(texts.some((node) => node.props.children === "id")).toBe(true);
             }
             expect(JSON.stringify(renderer.toJSON())).not.toContain("────");
