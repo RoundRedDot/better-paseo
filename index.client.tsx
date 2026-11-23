@@ -18,7 +18,7 @@ import { transformCompaction, transformToolCallAt } from "./client/tools/transfo
 import { standardFoldActive } from "./client/tools/standard-fold";
 import { transformNotification } from "./client/notice-transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
-import { assistantRows, hasUiFence } from "./client/assistant-transform";
+import { assistantRows, hasBrowserPromptFence, hasUiFence } from "./client/assistant-transform";
 import { externalHistoryRows } from "./client/external-history";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
@@ -252,6 +252,7 @@ export default function contribute(client: PluginClientContext) {
           if (!getEnhancerPreferences().assistantMarkdown) return undefined;
           if (!item.text.trim()) return undefined;
           if (getEnhancerPreferences().liveUiReplies && hasUiFence(item.text, phase)) return undefined;
+          if (hasBrowserPromptFence(item.text)) return undefined;
           return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
         },
       }),

@@ -103,6 +103,19 @@ describe("preferences read while the plugin loads", () => {
     host.settings = { status: "loading" };
   });
 
+  it("hands closed browser prompts to the next transformer during streaming and history", async () => {
+    const { contribute } = await load();
+    const plugin = fakeClient(() => new Promise(() => {}));
+    const cleanup = contribute(plugin.client as never);
+    const transform = plugin.active("omp-enhanced-assistant")[0]!.transform;
+    const item = (text: string, phase: string) => ({ item: { type: "assistant_message", text }, phase });
+    expect(transform(item("```browser-prompt\nopen", "streaming"))).toBeDefined();
+    expect(transform(item("```browser-prompt\nopen\n```", "streaming"))).toBeUndefined();
+    expect(transform(item("```browser-prompt\nopen\n```", "complete"))).toBeUndefined();
+    expect(transform(item("````markdown\n```browser-prompt\nopen\n```\n````", "complete"))).toBeDefined();
+    cleanup();
+  });
+
   it("reprojects interactive replies when handoff changes", async () => {
     const { contribute, preferences } = await load();
     let answer!: (value: unknown) => void;

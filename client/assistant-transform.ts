@@ -62,6 +62,29 @@ export function hasUiFence(text: string, phase = "complete"): boolean {
   return false;
 }
 
+// Match browser-prompt's closed-fence parser, including indented blocks.
+export function hasBrowserPromptFence(text: string): boolean {
+  if (!text.includes("browser-prompt")) return false;
+  let open: { char: string; size: number; prompt: boolean } | null = null;
+  for (const line of text.split(/\r?\n/)) {
+    if (open === null) {
+      const match = /^[ \t]*(`{3,}|~{3,})(.*)$/.exec(line);
+      if (!match) continue;
+      const marker = match[1]!;
+      const info = match[2]!.trim();
+      if (marker[0] === "`" && info.includes("`")) continue;
+      open = { char: marker[0]!, size: marker.length, prompt: info.split(/\s+/)[0]!.toLowerCase() === "browser-prompt" };
+      continue;
+    }
+    const trimmed = line.trim();
+    if (trimmed.length >= open.size && [...trimmed].every((char) => char === open!.char)) {
+      if (open.prompt) return true;
+      open = null;
+    }
+  }
+  return false;
+}
+
 const DIRECTIVE_MARKER = /::(?:browser-complete|code-comment|artifact-template)\{|:codex-file-citation\{/;
 
 /**

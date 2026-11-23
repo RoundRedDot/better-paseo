@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assistantRows, hasUiFence } from "../../client/assistant-transform";
+import { assistantRows, hasBrowserPromptFence, hasUiFence } from "../../client/assistant-transform";
 
 const longReply = Array.from({ length: 80 }, (_, index) =>
   `## Section ${index}\n\n${"A complete paragraph with **formatting**. ".repeat(20)}\n\n`).join("");
@@ -105,6 +105,19 @@ describe("long reply history rows", () => {
     const rows = assistantRows(text, "complete");
     expect(rows.length).toBeGreaterThan(1);
     expect(rows.map((row) => row.data.text).join("")).toBe(text);
+  });
+});
+
+describe("browser-prompt fence yield", () => {
+  it("matches closed fences accepted by the receiving plugin", () => {
+    for (const text of ["```browser-prompt\nopen\n```", "~~~browser-prompt title\nopen\n~~~", "  ```browser-prompt\r\nopen\r\n  ```", "browser-prompt\n```Browser-Prompt\nopen\n```", "```ts\nx\n```\n```browser-prompt\ny\n```"]) {
+      expect(hasBrowserPromptFence(text)).toBe(true);
+    }
+  });
+  it("leaves unfinished, quoted and unrelated fences alone", () => {
+    for (const text of ["```browser-prompt\nopen", "````markdown\n```browser-prompt\nopen\n```\n````", "```browser-prompts\nx\n```", "```Browser-Prompt\nx\n```", "browser-prompt text"]) {
+      expect(hasBrowserPromptFence(text)).toBe(false);
+    }
   });
 });
 
