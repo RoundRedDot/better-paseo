@@ -11,13 +11,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, useWindowDimensions } from "react-native";
 import type { DetailsForm } from "../contracts";
-import { detailsForm } from "../layout-model";
+import { DETAILS_BREAKPOINTS, detailsForm } from "../layout-model";
 import { DETAILS_MOTION } from "./motion";
 import type { HostList } from "./timeline-sync";
 
 export interface DetailsLayout {
   stage: { width: number; height: number; sideSpace?: number };
   form: DetailsForm;
+  ready: boolean;
   left: number;
   measure(): void;
 }
@@ -25,17 +26,25 @@ export interface DetailsLayout {
 export function useDetailsLayout(pointer: boolean, host: HostList | null): DetailsLayout {
   const { width, height } = useWindowDimensions();
   const [settled, setSettled] = useState({ width, height });
-  const [bounds, setBounds] = useState<{ left: number; right: number; contentRight?: number } | null>(null);
+  const [measurement, setMeasurement] = useState<{
+    bounds: { left: number; right: number; contentRight?: number } | null; ready: boolean;
+  }>({ bounds: null, ready: false });
   const measure = useCallback(() => {
     if (!host) return;
     void host.viewport().then((box) => {
-      if (box?.left === undefined || box.right === undefined) return;
+      if (box?.left === undefined || box.right === undefined) {
+        setMeasurement((current) => current.ready ? current : { ...current, ready: true });
+        return;
+      }
       const left = Math.max(0, Math.ceil(box.left));
       const right = Math.min(width, Math.floor(box.right));
-      if (right <= left) return;
+      if (right <= left) {
+        setMeasurement((current) => current.ready ? current : { ...current, ready: true });
+        return;
+      }
       const contentRight = box.contentRight;
-      setBounds((current) => current?.left === left && current.right === right && current.contentRight === contentRight
-        ? current : { left, right, contentRight });
+      setMeasurement((current) => current.ready && current.bounds?.left === left && current.bounds.right === right && current.bounds.contentRight === contentRight
+        ? current : { bounds: { left, right, contentRight }, ready: true });
     });
   }, [host, width]);
   useEffect(measure, [measure, height]);
@@ -45,6 +54,7 @@ export function useDetailsLayout(pointer: boolean, host: HostList | null): Detai
     const timer = setTimeout(() => setSettled({ width, height }), DETAILS_MOTION.resizeSettleMs);
     return () => clearTimeout(timer);
   }, [width, height, settled.width, settled.height]);
+  const bounds = measurement.bounds;
   const left = Math.min(bounds?.left ?? 0, width);
   const paneWidth = Math.max(0, Math.min(bounds?.right ?? width, width) - left);
   const sidebar = width - paneWidth;
@@ -59,5 +69,6 @@ export function useDetailsLayout(pointer: boolean, host: HostList | null): Detai
     current.current = next;
     return next;
   }, [settled.width, settled.height, sidebar, pointer, sideSpace]);
-  return { stage: { width: paneWidth, height, sideSpace }, left, form, measure };
+  const ready = !(Platform.OS === "web" && pointer && width >= DETAILS_BREAKPOINTS.sideEnter && host) || measurement.ready;
+  return { stage: { width: paneWidth, height, sideSpace }, left, form, ready, measure };
 }

@@ -141,6 +141,8 @@ export interface DisclosureHeaderProps {
   copyItems?(): CopyItem[];
   readsImage?: boolean;
   onViewImage?(): void;
+  /** Selection for a separately registered details entry. */
+  detailsMarker?: { agentId: string; id: string; selected: boolean };
   tokens: ExtendedThemeTokens;
   /** `layout.compact`. */
   compact?: boolean;
@@ -298,6 +300,7 @@ export function DisclosureHeader({
   copyItems,
   readsImage = false,
   onViewImage,
+  detailsMarker,
 }: DisclosureHeaderProps) {
   const preferences = useEnhancerPreferences();
   const placement = useContext(BlockPlacementContext);
@@ -345,7 +348,7 @@ export function DisclosureHeader({
     anchor.hold();
   }, [anchor]);
   const pressOut = useCallback(() => setPressed(false), []);
-  const palette = rowPalette(tokens, tone, hovered || pressed || expanded || menuOpen || isCurrent);
+  const palette = rowPalette(tokens, tone, hovered || pressed || expanded || menuOpen || isCurrent || Boolean(detailsMarker?.selected));
   const rowLabelStyle = preferences.rowLabelStyle;
   // Icon-only rows still need words: a row with no target keeps its verb.
   const hasTarget = target !== undefined && target !== null && target !== "";
@@ -537,6 +540,7 @@ export function DisclosureHeader({
                 ]}
               >
                 {detailsEnabled && hasMarker.current ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} radius={height / 2} /> : null}
+                {detailsMarker ? <CurrentMarker agentId={detailsMarker.agentId} id={detailsMarker.id} tokens={tokens} radius={height / 2} /> : null}
                 <View style={styles.slot}>
                   {showChevron ? (
                     <Icon

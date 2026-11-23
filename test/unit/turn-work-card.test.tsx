@@ -21,7 +21,7 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
 import { updateEnhancerPreferences, getEnhancerPreferences } from "../../client/preferences";
-import { detailsApi, useDetails } from "../../client/details/details-store";
+import { detailsApi, MARKER_LINGER_MS, useDetails } from "../../client/details/details-store";
 import { getBlock } from "../../client/details/block-registry";
 import { timelineEntry as entry } from "./helpers/turn-timeline";
 import { Dimensions } from "react-native";
@@ -113,6 +113,36 @@ describe("turn work card", () => {
     expect(openId).toBe("agent:work:r:10000:done:steps");
     expect(byType("ToolCallout")).toHaveLength(0);
     expect(getEnhancerPreferences().blockDetails).toBe(false);
+  });
+
+  it.each([true, false])("marks the work row while selected with block details %s", (enabled) => {
+    vi.useFakeTimers();
+    act(() => { updateEnhancerPreferences({ blockDetails: enabled }); });
+    const agentId = `selection-${enabled}`;
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<TurnWorkCard agentId={agentId} at={10000} work={turn()} store={store} tokens={tokens} compact={false} />); });
+    pressText("用时 9秒");
+    const markers = () => renderer.root.findAll((node) => (node.type as unknown) === "Animated.View" && node.props?.testID === "details-current-marker");
+    expect(markers()).toHaveLength(0);
+    pressText("读取了文件 · 编辑了文件 · 运行了命令");
+    expect(markers()).toHaveLength(1);
+    pressText("用时 9秒");
+    expect(markers()).toHaveLength(0);
+    pressText("用时 9秒");
+    expect(markers()).toHaveLength(1);
+    act(() => { detailsApi.open(agentId, "other"); });
+    expect(markers()).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(markers()).toHaveLength(0);
+    pressText("读取了文件 · 编辑了文件 · 运行了命令");
+    expect(markers()).toHaveLength(1);
+    act(() => { detailsApi.close(agentId); });
+    expect(markers()).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(markers()).toHaveLength(0);
+    vi.useRealTimers();
   });
 
   it.each([["side", true], ["side", false], ["drawer", true], ["drawer", false]] as const)(

@@ -440,6 +440,15 @@ describe("DetailsHostSlot", () => {
 });
 
 describe("form", () => {
+  it.each([[1000, "details-side"], [1100, "details-floating"]] as const)("waits for desktop space before mounting %s", async (contentRight, panel) => {
+    webDesktop();
+    web.pane = { left: 240, right: 1440, contentRight };
+    const renderer = render(slot());
+    open("a");
+    expect(byTestId(renderer, "details-floating")).toBeNull();
+    await act(async () => {});
+    expect(byTestId(renderer, panel)).not.toBeNull();
+  });
   it.each([[1440, 1000, "details-side"], [1280, 1000, "details-floating"]] as const)(
     "shows independent work in %s px layout with ordinary details disabled", async (width, contentRight, panel) => {
       webDesktop();
@@ -562,7 +571,7 @@ describe("form", () => {
     { os: "ios", width: 834, height: 1194, hover: false, form: "floating" },
     { os: "ios", width: 1194, height: 834, hover: false, form: "side" },
     { os: "web", width: 1440, height: 900, hover: true, form: "floating" },
-  ])("$width×$height draws the $form", ({ os, width, height, hover, form }) => {
+  ])("$width×$height draws the $form", async ({ os, width, height, hover, form }) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     screen.width = width;
     screen.height = height;
@@ -570,6 +579,7 @@ describe("form", () => {
     caps.touch = !hover;
     const renderer = render(slot());
     open("a");
+    await act(async () => {});
     expect(byTestId(renderer, `details-${form}`)).not.toBeNull();
     expect(seen.shell!.form).toBe(form);
     expect(fake.box.state.form).toBe(form);
@@ -894,10 +904,11 @@ describe("tablet swipe hints", () => {
     act(() => seen.shell!.close());
   });
 
-  it("does not add swipe hints to a pointer-only desktop panel", () => {
+  it("does not add swipe hints to a pointer-only desktop panel", async () => {
     webDesktop();
     const renderer = render(slot());
     open("b");
+    await act(async () => {});
     expect(byTestId(renderer, "details-swipe-previous")).toBeNull();
     expect(byTestId(renderer, "details-swipe-next")).toBeNull();
     act(() => seen.shell!.close());
@@ -1125,6 +1136,7 @@ describe("closing", () => {
     const keys = webDesktop();
     render(slot());
     open("b");
+    await act(async () => {});
     keys.press("ArrowRight");
     expect(fake.api.step).toHaveBeenCalledWith(AGENT, 1);
     expect(seen.shell!.entry.id).toBe("c");
@@ -2048,7 +2060,7 @@ describe("a pinch in the phone drawer", () => {
     expect(fake.api.close).not.toHaveBeenCalled();
   });
 
-  it("draws the saved size in the drawer and scales web details", () => {
+  it("draws the saved size in the drawer and scales web details", async () => {
     updateEnhancerPreferences({ detailsFontSize: 19 });
     const { panel, shown } = drawer("pinch-saved");
     expect(shown()).toBe("22");
@@ -2058,19 +2070,21 @@ describe("a pinch in the phone drawer", () => {
     fake.box.blocks = [block("pinch-side", 1, { render: zoomed })];
     const side = render(slot());
     open("pinch-side");
+    await act(async () => {});
     expect(zooms.at(-1)).toEqual({ scale: 19 / 14 });
     act(() => updateEnhancerPreferences({ detailsFontSize: 14 }));
     expect(zooms.at(-1)).toBe(0);
     expect(byTestId(side, "details-body")!.props.onTouchStart).toBeUndefined();
   });
 
-  it("applies desktop toolbar changes and keeps the size when changing blocks", () => {
+  it("applies desktop toolbar changes and keeps the size when changing blocks", async () => {
     webDesktop();
     const renderBlock = () => createElement(React.Fragment, null,
       createElement(HoverPreviewHeader, { tokens, icon: "FileText" }), zoomed());
     fake.box.blocks = [block("zoom-a", 1, { render: renderBlock }), block("zoom-b", 2, { render: renderBlock })];
     const renderer = render(slot());
     open("zoom-a");
+    await act(async () => {});
     const button = (label: string) => renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
     act(() => button("Increase text size").props.onPress());
     expect(getEnhancerPreferences().detailsFontSize).toBe(15);

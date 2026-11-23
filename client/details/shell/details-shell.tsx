@@ -157,6 +157,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
 
   // The form drawn, which trails the layout's by the form change's fade.
   const [form, setForm] = useState<DetailsForm>(layout.form);
+  const shownPanel = useRef(false);
   const [entrance, setEntrance] = useState<Entrance>(quiet ? "none" : "slide");
   const formFade = useRef(new Animated.Value(1)).current;
   const panelTop = useRef<number | null>(null);
@@ -165,6 +166,10 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   useEffect(() => {
     if (layout.form === form) return;
     const next = layout.form;
+    if (!shownPanel.current) {
+      setForm(next);
+      return;
+    }
     const animation = animate(formFade, 0, latest.current.reduced ? DETAILS_MOTION.reducedMs : DETAILS_MOTION.formOutMs, () => {
       const now = latest.current;
       // Full screen does not carry into or out of the side panel: it opens at its initial size.
@@ -458,7 +463,9 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     </TranslationSettingsParentCloseContext.Provider>
   );
 
-  const frame = insets === null ? null : form === "side" ? (
+  const ready = layout.ready && (shownPanel.current || form === layout.form);
+  if (ready && insets !== null) shownPanel.current = true;
+  const frame = insets === null || !ready ? null : form === "side" ? (
     <SidePanel
       key="side"
       tokens={tokens}

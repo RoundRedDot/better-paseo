@@ -35,7 +35,7 @@ import { countDiff, countLines } from "../tools/summarize";
 import { FileEditsPreview, ToolCallout } from "./tool-callouts";
 import { BlockPlacementContext, type BlockEntry } from "../details/contracts";
 import { registerBlock, type BlockRegistration } from "../details/block-registry";
-import { detailsApi } from "../details/details-store";
+import { detailsApi, useMarkerPhase } from "../details/details-store";
 import type { LineCount, TurnFooterStore } from "../state/turn-footers";
 import type { TurnWork, WorkFile, WorkStep } from "../state/turn-work";
 
@@ -143,7 +143,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
             tokens={tokens} compact={compact} icon={<RowIcon name="ListCollapse" />} verb={label} keepVerb />
           {open ? (
             <FadeIn style={styles.indent}>
-              <WorkSummary work={work} text={text} tokens={tokens} compact={compact}
+              <WorkSummary agentId={agentId} entryId={entry.id} work={work} text={text} tokens={tokens} compact={compact}
                 onToggle={toggleSteps} />
             </FadeIn>
           ) : null}
@@ -161,16 +161,18 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   );
 });
 
-function WorkSummary({ work, text, tokens, compact, onToggle }: {
-  work: TurnWork; text: (typeof STRINGS)["en"]; tokens: ExtendedThemeTokens; compact: boolean; onToggle(): void;
+function WorkSummary({ agentId, entryId, work, text, tokens, compact, onToggle }: {
+  agentId: string; entryId: string; work: TurnWork; text: (typeof STRINGS)["en"]; tokens: ExtendedThemeTokens; compact: boolean; onToggle(): void;
 }) {
   const styles = useCardStyles(tokens);
+  const phase = useMarkerPhase(agentId, entryId);
   const intent = useMemo(() => firstLine(work.intent), [work.intent]);
   const summary = workVerbs(work.steps).map((verb) => text[verb]).join(" · ");
   return (
     <>
       {intent ? <Text style={styles.intent} numberOfLines={2}>{intent}</Text> : null}
       <DisclosureHeader expanded={false} onToggle={onToggle} tokens={tokens} compact={compact}
+        detailsMarker={{ agentId, id: entryId, selected: phase === "on" }}
         icon={<RowIcon name="List" />} verb={summary} keepVerb />
     </>
   );
