@@ -62,6 +62,42 @@ export function hasUiFence(text: string, phase = "complete"): boolean {
   return false;
 }
 
+// The browser-prompt plugin's own fence rules: any run of spaces or tabs
+// before the marker, and the language is the first word of the info string.
+const PLUGIN_FENCE_OPEN = /^[ \t]*(`{3,}|~{3,})(.*)$/;
+
+/**
+ * True when the reply holds a closed ```browser-prompt fence. The
+ * browser-prompt plugin turns each one into a card with run buttons, and
+ * sorts after better-paseo in Paseo's first-wins transformer order, so the
+ * transformer must leave such a reply unclaimed or the card shows as code.
+ * Mirrors that plugin's parser: only a closed block becomes a card (an open
+ * one, while streaming or in a cut-off reply, stays with this plugin), a
+ * fence inside another fenced block is quoted code, and the language must be
+ * exactly `browser-prompt`.
+ */
+export function hasBrowserPromptFence(text: string): boolean {
+  if (!text.includes("browser-prompt")) return false;
+  let open: { char: string; size: number; prompt: boolean } | null = null;
+  for (const line of text.split(/\r?\n/)) {
+    if (open === null) {
+      const match = PLUGIN_FENCE_OPEN.exec(line);
+      if (match === null) continue;
+      const marker = match[1] ?? "```";
+      const info = (match[2] ?? "").trim();
+      if (marker[0] === "`" && info.includes("`")) continue;
+      open = { char: marker[0]!, size: marker.length, prompt: info.split(/\s+/)[0] === "browser-prompt" };
+      continue;
+    }
+    const trimmed = line.trim();
+    if (trimmed.length >= open.size && [...trimmed].every((char) => char === open!.char)) {
+      if (open.prompt) return true;
+      open = null;
+    }
+  }
+  return false;
+}
+
 /** Completed long replies use the host's existing row virtualization. */
 export function assistantRows(text: string, phase: string) {
   if (isAssistantPlaceholder(text)) return [];

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { assistantRows, hasUiFence } from "../../client/assistant-transform";
+import { assistantRows, hasBrowserPromptFence, hasUiFence } from "../../client/assistant-transform";
 
 const longReply = Array.from({ length: 80 }, (_, index) =>
   `## Section ${index}\n\n${"A complete paragraph with **formatting**. ".repeat(20)}\n\n`).join("");
@@ -87,5 +87,29 @@ describe("ui fence yield", () => {
     expect(hasUiFence("```ui.json\n", "streaming")).toBe(false);
     expect(hasUiFence("```ui\n", "streaming")).toBe(true);
     expect(hasUiFence("```ui", "complete")).toBe(true);
+  });
+});
+
+describe("browser-prompt fence yield", () => {
+  it("reports a reply with a closed browser-prompt fence", () => {
+    expect(hasBrowserPromptFence("Steps:\n\n```browser-prompt\n1. Open https://example.com\n```\n\nThen tell me.")).toBe(true);
+    expect(hasBrowserPromptFence("~~~browser-prompt Check the site\n1. Open it\n~~~")).toBe(true);
+    expect(hasBrowserPromptFence("1. Next:\n\n    ```browser-prompt\n    1. Open it\n    ```")).toBe(true);
+    expect(hasBrowserPromptFence("\t```browser-prompt\r\n1. Open it\r\n```")).toBe(true);
+    expect(hasBrowserPromptFence("```ts\nconst one = 1;\n```\n\n```browser-prompt\n1. Open it\n```")).toBe(true);
+  });
+
+  it("keeps a block that has not closed, while streaming or cut off", () => {
+    expect(hasBrowserPromptFence("Steps:\n\n```browser-prompt\n1. Open")).toBe(false);
+    expect(hasBrowserPromptFence("```browser-prompt\n1. Open it\n``")).toBe(false);
+  });
+
+  it("keeps plain markdown, other languages and quoted fences", () => {
+    expect(hasBrowserPromptFence("Just **markdown** about browser-prompt blocks")).toBe(false);
+    expect(hasBrowserPromptFence("```ui\nCard()\n```")).toBe(false);
+    expect(hasBrowserPromptFence("```browser-prompts\n1. Open it\n```")).toBe(false);
+    expect(hasBrowserPromptFence("```Browser-Prompt\n1. Open it\n```")).toBe(false);
+    expect(hasBrowserPromptFence("````markdown\n```browser-prompt\n1. Open it\n```\n````")).toBe(false);
+    expect(hasUiFence("```browser-prompt\n1. Open it\n```")).toBe(false);
   });
 });

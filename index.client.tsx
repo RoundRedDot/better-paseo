@@ -18,7 +18,7 @@ import { transformCompaction, transformToolCall } from "./client/tools/transform
 import { showToolAtLevel } from "./client/tools/timeline-level";
 import { transformNotification } from "./client/notice-transform";
 import { agentMessageSchema } from "./client/tools/agent-message";
-import { assistantRows, hasUiFence } from "./client/assistant-transform";
+import { assistantRows, hasBrowserPromptFence, hasUiFence } from "./client/assistant-transform";
 import { externalHistoryRows } from "./client/external-history";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { markBitmapsRpc } from "./shared/mark-rpc";
@@ -236,8 +236,9 @@ export default function contribute(client: PluginClientContext) {
   // The assistant's reply. The preference is read inside `transform`, and the
   // transformer is registered again when it changes, so replies already shown
   // follow it too; a reply the plugin should not own is left to the host or,
-  // for ```ui/```app fences, to a plugin further down the chain that renders
-  // them live.
+  // for ```ui/```app fences (with Live UI replies on) and closed
+  // ```browser-prompt fences, to a plugin further down the chain that
+  // renders them.
   const removeAssistantTransformer = followPreference(
     (preferences) => !preferences.assistantMarkdown ? "host" : preferences.liveUiReplies ? "live-ui" : "markdown",
     () =>
@@ -249,6 +250,7 @@ export default function contribute(client: PluginClientContext) {
           if (!getEnhancerPreferences().assistantMarkdown) return undefined;
           if (!item.text.trim()) return undefined;
           if (getEnhancerPreferences().liveUiReplies && hasUiFence(item.text, phase)) return undefined;
+          if (hasBrowserPromptFence(item.text)) return undefined;
           return { items: externalHistoryRows(item.text, phase, item.messageId) ?? assistantRows(item.text, phase) };
         },
       }),
