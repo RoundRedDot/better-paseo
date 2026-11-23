@@ -132,6 +132,11 @@ describe("standard level work card while a turn runs", () => {
       // Opened by the reader; a remount would close it again.
       await act(async () => card!.findAllByType(DisclosureHeader)[0]!.props.onToggle());
       expect(cards(renderer)[0]!.findAllByType(DisclosureHeader)[0]!.props.expanded).toBe(true);
+      // The file card too, though the running card's key is not the settled one's.
+      const filesHeader = () => renderer.root.findAll((node) => node.props?.testID?.startsWith?.("work-files:") &&
+        typeof node.props.onPress === "function").at(-1)!;
+      await act(async () => filesHeader().props.onPress());
+      expect(filesHeader().props.accessibilityState).toEqual({ expanded: true });
 
       // The reply settles while the turn still runs: same card.
       await act(async () => renderer.update(replyRow(harness.agentId, 3, "Fixed it.", "complete")));
@@ -149,6 +154,7 @@ describe("standard level work card while a turn runs", () => {
       expect(settled).toHaveLength(1);
       expect(settled[0]!.props.work).toMatchObject({ running: false, files: [{ path: "a.ts" }, { path: "b.ts" }] });
       expect(settled[0]!.findAllByType(DisclosureHeader)[0]!.props.expanded).toBe(true);
+      expect(filesHeader().props.accessibilityState).toEqual({ expanded: true });
     } finally { await act(async () => renderer.unmount()); }
   });
 

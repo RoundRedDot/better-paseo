@@ -4,12 +4,12 @@
  *   ▸ 用时 1分18秒            first press: the intent line and what kinds of
  *                              work it was; second: the steps themselves
  *   ✎ 已编辑 4 个文件  查看变更       +33 −4
- *     client/paths/format-path.ts       +5 −2
- *     …three paths, then 再显示 N 个文件
+ *     client/paths/format-path.ts       +5 −2      only once the file card
+ *     …three paths, then 再显示 N 个文件            is opened
  *
  * Closed, the card is those rows and nothing else: steps, command output,
- * the fourth path on and every diff mount only when opened, and unmount when
- * closed. A diff opens in the details panel, one file at a time; with block
+ * the file paths and every diff mount only when opened, and unmount when
+ * closed. The file card's choice outlives a remount (`disclosure-store`). A diff opens in the details panel, one file at a time; with block
  * details off it opens under the card. Line counts are the turn's edit events
  * added up, not the file's net change, and are measured once per call.
  */
@@ -28,6 +28,8 @@ import { PathContext, usePathContextValue } from "../ui/path-text";
 import { formatPath } from "../paths/format-path";
 import { formatDuration } from "../ui/time";
 import { useEnhancerPreferences } from "../preferences";
+import { useDisclosure } from "../state/disclosure-store";
+import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { resolveLanguage, type SettingsLanguage } from "../i18n/settings-strings";
 import { classifyTool, type ToolCallView } from "../tools/classify";
 import { toolErrorText } from "../tools/error-text";
@@ -63,7 +65,16 @@ function viewOf(item: ToolCallTimelineItem): ToolCallView {
     callId: item.callId, error: toolErrorText(item.error) });
 }
 
-/** Paths a closed card lists before "show more". */
+/**
+ * The file card's open/closed key. A running turn's card is keyed `live` and
+ * its settled card by the reply, so the key is the turn's first folded edit,
+ * which both share: opening the card while the turn runs keeps it open after.
+ */
+export function workFilesKey(agentId: string, work: Pick<TurnWork, "files">): string {
+  return `${agentId}:work-files:${work.files[0]?.callIds[0] ?? ""}`;
+}
+
+/** Paths an opened file card lists before "show more". */
 export const FILE_ROWS_CLOSED = 3;
 
 /** One call's added and removed lines, as its own row would count them. */
@@ -206,6 +217,9 @@ function FileCard({ agentId, at, work, store, text, tokens, compact }: {
 }) {
   const styles = useCardStyles(tokens);
   const { blockDetails } = useEnhancerPreferences();
+  const [open, setOpen] = useDisclosure(workFilesKey(agentId, work), false);
+  const { hover: canHover } = useInputCapabilities(compact);
+  const { hovered: headerHovered, hoverProps: headerHoverProps } = useHover();
   const [expanded, setExpanded] = useState(false);
   const [inlinePath, setInlinePath] = useState<string | null>(null);
   // Paths read relative to the workspace, as a tool row's do.
@@ -224,8 +238,10 @@ function FileCard({ agentId, at, work, store, text, tokens, compact }: {
     registrations.current.clear();
   }, []);
 
-  const open = useCallback((file: WorkFile) => {
+  const openFile = useCallback((file: WorkFile) => {
     if (!blockDetails) {
+      // The diff opens under the card's list, so 查看变更 on a closed card opens it.
+      setOpen(true);
       setInlinePath((current) => current === file.path ? null : file.path);
       return;
     }
@@ -243,32 +259,42 @@ function FileCard({ agentId, at, work, store, text, tokens, compact }: {
     if (existing) existing.update(entry);
     else registrations.current.set(file.path, registerBlock(entry));
     detailsApi.open(agentId, id, { navigable: false });
-  }, [agentId, at, blockDetails, compact, items, store, tokens, work.key]);
+  }, [agentId, at, blockDetails, compact, items, setOpen, store, tokens, work.key]);
 
   const firstViewable = work.files.find((_, index) => counts[index]?.viewable);
   const inlineFile = inlinePath ? work.files.find((file) => file.path === inlinePath) : undefined;
   return (
-    <View style={styles.files}>
-      <View style={styles.filesHeader}>
-        <View style={styles.slot}><RowIcon name="Pencil" color={tokens.row.icon} /></View>
+    <View style={[styles.files, !open && styles.filesClosed]}>
+      <Pressable accessibilityRole="button" accessibilityState={{ expanded: open }} testID={`work-files:${agentId}`}
+        onPress={() => setOpen(!open)} {...headerHoverProps}
+        style={({ pressed }) => [styles.filesHeader, (headerHovered || pressed) && styles.hovered]}>
+        {/* As a disclosure row: the pencil turns into the chevron on hover and while open. */}
+        <View style={styles.slot}>
+          <RowIcon name={open ? "ChevronDown" : canHover && headerHovered ? "ChevronRight" : "Pencil"}
+            color={headerHovered ? tokens.foreground : tokens.row.icon} />
+        </View>
         <Text style={styles.filesTitle} numberOfLines={1}>{work.complete ? text.files(work.files.length) : text.someFiles}</Text>
-        {firstViewable ? <ViewChanges label={text.view} onPress={() => open(firstViewable)} tokens={tokens} /> : null}
+        {firstViewable ? <ViewChanges label={text.view} onPress={() => openFile(firstViewable)} tokens={tokens} /> : null}
         {/* The total ends where each row's count ends, so the counts read as one column. */}
         <View style={styles.spacer} />
         {total ? <Stat count={total} tokens={tokens} /> : null}
-      </View>
-      <View style={styles.divider} />
-      {shown.map((file) => {
-        const count = counts[work.files.indexOf(file)] ?? null;
-        return <FileRow key={file.path} agentId={agentId} file={file} shown={formatPath(file.path, pathContext).displayPath}
-          count={work.complete ? count : null}
-          onOpen={count?.viewable ? open : undefined} current={inlinePath === file.path} tokens={tokens} />;
-      })}
-      {extra > 0 ? (
-        <MoreToggle expanded={expanded} label={expanded ? text.fewer : text.more(extra)}
-          onPress={() => setExpanded((value) => !value)} tokens={tokens} />
+      </Pressable>
+      {open ? (
+        <>
+          <View style={styles.divider} />
+          {shown.map((file) => {
+            const count = counts[work.files.indexOf(file)] ?? null;
+            return <FileRow key={file.path} agentId={agentId} file={file} shown={formatPath(file.path, pathContext).displayPath}
+              count={work.complete ? count : null}
+              onOpen={count?.viewable ? openFile : undefined} current={inlinePath === file.path} tokens={tokens} />;
+          })}
+          {extra > 0 ? (
+            <MoreToggle expanded={expanded} label={expanded ? text.fewer : text.more(extra)}
+              onPress={() => setExpanded((value) => !value)} tokens={tokens} />
+          ) : null}
+        </>
       ) : null}
-      {inlineFile && !blockDetails ? <InlineFileChanges agentId={agentId} file={inlineFile} items={items} tokens={tokens} compact={compact} /> : null}
+      {open && inlineFile && !blockDetails ? <InlineFileChanges agentId={agentId} file={inlineFile} items={items} tokens={tokens} compact={compact} /> : null}
     </View>
   );
 }
@@ -403,7 +429,10 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
       fontSize: block.target.size, lineHeight: block.target.lineHeight },
     files: { marginTop: space.xs, borderWidth: 1, borderColor: tokens.border,
       borderRadius: 10, paddingHorizontal: inset, paddingTop: space.xs / 2, paddingBottom: space.xs },
-    filesHeader: { ...row },
+    // Bare while closed: the header row's own height, an even inset above and below.
+    filesClosed: { paddingBottom: space.xs / 2 },
+    // The header bleeds into the card's padding for its hover fill, as a list row does.
+    filesHeader: { ...row, marginHorizontal: -space.xs, paddingHorizontal: space.xs, borderRadius: 6 },
     // Edge to edge between the card's borders, one device pixel thick.
     divider: { ...hairline(tokens.platform, "bottom"), marginHorizontal: -inset, marginTop: space.xs / 2,
       marginBottom: space.xs, backgroundColor: tokens.border },

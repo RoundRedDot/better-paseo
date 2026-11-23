@@ -27,6 +27,7 @@ import { timelineEntry as entry } from "./helpers/turn-timeline";
 import { Dimensions } from "react-native";
 import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
 import { PreviewChromeContext } from "../../client/ui/hover-preview";
+import { resetDisclosureStore } from "../../client/state/disclosure-store";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
@@ -72,14 +73,21 @@ beforeEach(() => {
   const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
   act(() => { renderer = TestRenderer.create(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
 });
-afterEach(() => { act(() => renderer.unmount()); detailsApi.close("agent"); vi.restoreAllMocks(); });
+afterEach(() => { act(() => renderer.unmount()); detailsApi.close("agent"); resetDisclosureStore(); vi.restoreAllMocks(); });
 
 describe("turn work card", () => {
-  it("closed: the work row, the file header and three paths, nothing else", () => {
+  it("closed: the work row and the file header, no paths", () => {
     const shown = texts();
-    expect(shown).toContain("用时 9秒");
-    expect(shown).toContain("已编辑 4 个文件");
-    expect(shown).toContain("查看变更");
+    expect(shown).toEqual(["用时 9秒", "已编辑 4 个文件", "查看变更"]);
+    expect(renderer.root.findByProps({ testID: "work-files:agent" }).props.accessibilityState).toEqual({ expanded: false });
+    expect(byType("ToolCallout")).toHaveLength(0);
+    expect(byType("FileEditsPreview")).toHaveLength(0);
+  });
+
+  it("opened file card: three paths, nothing else", () => {
+    pressText("已编辑 4 个文件");
+    const shown = texts();
+    expect(renderer.root.findByProps({ testID: "work-files:agent" }).props.accessibilityState).toEqual({ expanded: true });
     expect(shown).toContain("再显示 1 个文件");
     expect(shown.some((text) => text.includes("撤销"))).toBe(false);
     expect(shown).not.toContain("d.ts");
@@ -204,7 +212,38 @@ describe("turn work card", () => {
     expect(block?.title).toBe("读取了文件 · 编辑了文件 · 运行了命令");
   });
 
+  it("closes the file card again, and keeps the choice across a remount", () => {
+    pressText("已编辑 4 个文件");
+    expect(texts()).toContain("a.ts");
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => renderer.unmount());
+    act(() => { renderer = TestRenderer.create(<TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} />); });
+    expect(texts()).toContain("a.ts");
+    pressText("已编辑 4 个文件");
+    expect(texts()).not.toContain("a.ts");
+    // Another agent's card with the same calls is its own choice.
+    act(() => { renderer.update(<TurnWorkCard agentId="other" at={10000} work={turn()} store={store} tokens={tokens} compact={false} />); });
+    expect(texts()).not.toContain("a.ts");
+  });
+
+  it("opens the first file's changes from a closed card without opening the card", () => {
+    pressText("查看变更");
+    expect(openId).toBe("agent:work:r:10000:done:file:a.ts");
+    expect(texts()).not.toContain("a.ts");
+  });
+
+  it("opens a closed card for 查看变更 when the changes show under it", () => {
+    act(() => { updateEnhancerPreferences({ blockDetails: false }); });
+    pressText("查看变更");
+    expect(texts()).toContain("a.ts");
+    expect(byType("ToolCallout")).toHaveLength(2);
+    // Closing the card takes the inline changes with it.
+    pressText("已编辑 4 个文件");
+    expect(byType("ToolCallout")).toHaveLength(0);
+  });
+
   it("shows more paths only on request, and opens one file's changes in the details panel", () => {
+    pressText("已编辑 4 个文件");
     pressText("再显示 1 个文件");
     expect(texts()).toContain("d.ts");
     expect(texts()).toContain("收起文件");
