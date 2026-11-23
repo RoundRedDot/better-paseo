@@ -4,9 +4,6 @@ import { getEnhancerPreferences, updateEnhancerPreferences } from "../../client/
 
 describe("file open errors", () => {
   it("localises known errors while retaining launcher details", () => {
-    expect(fileOpenError({ error: "spawn xdg-open ENOENT", errorKind: "system_opener_unavailable", errorApp: "system" }, "en")).toContain("xdg-open");
-    expect(fileOpenError({ error: "spawn xdg-open ENOENT", errorKind: "system_opener_unavailable", errorApp: "system" }, "zh")).toContain("xdg-open");
-    expect(fileOpenError({ error: "spawn xdg-open ENOENT", errorKind: "system_opener_unavailable", errorApp: "system" }, "en")).toContain("Plugin markdown for replies");
     expect(fileOpenError({ error: "unavailable", errorKind: "settings_unavailable" }, "zh")).toBe("文件打开设置不可用");
     expect(fileOpenError({ error: "not synchronized", errorKind: "settings_unsynced" }, "zh")).toBe("文件打开设置尚未同步，请稍后重试");
     expect(fileOpenError({ error: "missing", errorKind: "editor_unavailable", errorApp: "vscode" }, "zh")).toBe("VS Code 未安装或其命令不在 PATH 中");
@@ -15,6 +12,19 @@ describe("file open errors", () => {
     expect(fileOpenError({ error: "spawn /usr/bin/code ENOENT", errorKind: "launch_failed", errorApp: "vscode" }, "zh")).toBe("VS Code 打开失败：spawn /usr/bin/code ENOENT");
     expect(fileOpenError({ error: "pending", errorKind: "launch_unconfirmed" }, "zh")).toBe("无法确认是否打开，目标可能已经打开");
     expect(fileOpenError({ error: "missing", errorKind: "editor_unavailable", errorApp: "zed" }, "en")).toBe("missing");
+  });
+
+  it.each(["en", "zh"] as const)("provides a general system opener fix in %s and retains details", (language) => {
+    const message = fileOpenError({ error: "spawn xdg-open ENOENT", errorKind: "launch_failed", errorApp: "system", errorCode: "system_opener_unavailable" }, language);
+    expect(message).toContain("spawn xdg-open ENOENT");
+    expect(message).toContain("PATH");
+    expect(message).not.toMatch(/Markdown|markdown/);
+  });
+
+  it("recognizes the previously deployed server's error kind", () => {
+    const message = fileOpenError({ error: "spawn xdg-open ENOENT", errorKind: "system_opener_unavailable", errorApp: "system" }, "zh");
+    expect(message).toContain("spawn xdg-open ENOENT");
+    expect(message).toContain("PATH");
   });
 
   it("preserves errors from older servers without a structured kind", () => {

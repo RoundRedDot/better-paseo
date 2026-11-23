@@ -3,6 +3,8 @@ import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { EventEmitter } from "node:events";
 import type { PluginServerContext } from "@getpaseo/plugin/server";
+import { z } from "zod";
+import { revealPathRpc } from "../../shared/file-rpc";
 import { afterAll, afterEach, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
 
 const { spawn, editorCommand, settings, home, EditorUnavailableError } = vi.hoisted(() => ({
@@ -299,9 +301,9 @@ describe("file.reveal on macOS", () => {
   });
 });
 
-it("reports a missing Linux system opener separately from a missing file", async () => {
+it.each(["linux", "freebsd"] as const)("reports a missing %s system opener in a form old clients accept", async (platform) => {
   const nativePlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
-  Object.defineProperty(process, "platform", { ...nativePlatform, value: "linux" });
+  Object.defineProperty(process, "platform", { ...nativePlatform, value: platform });
   spawn.mockImplementationOnce(() => {
     const child = new EventEmitter() as EventEmitter & { unref: () => void };
     child.unref = vi.fn();
@@ -311,9 +313,40 @@ it("reports a missing Linux system opener separately from a missing file", async
   });
   try {
     const reveal = await revealHandler();
-    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ errorKind: "system_opener_unavailable", errorApp: "system" });
+    const result = await reveal({ cwd: root, path: "notes.md" });
+    expect(result).toMatchObject({ error: "spawn xdg-open ENOENT", errorKind: "launch_failed", errorCode: "system_opener_unavailable", errorApp: "system" });
+    expect(revealPathRpc.output.parse(result)).toMatchObject({ errorCode: "system_opener_unavailable" });
+    const oldClientOutput = z.object({ revealed: z.string().nullable(), error: z.string().nullable(), errorKind: z.enum(["settings_unavailable", "settings_unsynced", "editor_unavailable", "launch_failed", "launch_unconfirmed"]).optional(), errorApp: z.string().optional() });
+    expect(oldClientOutput.parse(result)).toMatchObject({ error: "spawn xdg-open ENOENT", errorKind: "launch_failed" });
     expect(spawn).toHaveBeenLastCalledWith("xdg-open", [root], expect.anything());
   } finally {
+    Object.defineProperty(process, "platform", nativePlatform);
+  }
+});
+
+it.each([
+  { platform: "linux", app: "system", command: "another-opener" },
+  { platform: "linux", app: "zed", command: "xdg-open" },
+  { platform: "darwin", app: "system", command: "open" },
+] as const)("keeps other missing commands as launch failures: $platform $app", async ({ platform, app, command }) => {
+  const nativePlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
+  Object.defineProperty(process, "platform", { ...nativePlatform, value: platform });
+  settings.app = app;
+  if (app === "zed") editorCommand.mockReturnValueOnce({ command, args: [], completion: "exit" });
+  spawn.mockImplementationOnce(() => {
+    const child = new EventEmitter() as EventEmitter & { unref: () => void };
+    child.unref = vi.fn();
+    const error = Object.assign(new Error(`spawn ${command} ENOENT`), { code: "ENOENT", path: command });
+    queueMicrotask(() => child.emit("error", error));
+    return child;
+  });
+  try {
+    const reveal = await revealHandler();
+    const result = await reveal({ cwd: root, path: "notes.md" });
+    expect(result).toMatchObject({ errorKind: "launch_failed", errorApp: app });
+    expect(result).not.toHaveProperty("errorCode");
+  } finally {
+    settings.app = "system";
     Object.defineProperty(process, "platform", nativePlatform);
   }
 });

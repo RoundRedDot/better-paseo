@@ -42,6 +42,7 @@ export const revealPathRpc = defineRpc({
     revealed: z.string().nullable(),
     error: z.string().nullable(),
     errorKind: z.enum(FILE_OPEN_ERROR_KINDS).optional(),
+    errorCode: z.literal("system_opener_unavailable").optional(),
     errorApp: z.enum(FILE_OPEN_APPS).optional(),
   }),
 });

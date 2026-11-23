@@ -3,7 +3,7 @@ import { resolveLanguage, type SettingsLanguage } from "./settings-strings";
 import { FILE_OPEN_LABELS, type FileOpenApp } from "../../shared/file-open-apps";
 import type { FileOpenErrorKind } from "../../shared/file-rpc";
 
-type RevealResult = { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp };
+type RevealResult = { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp; errorCode?: "system_opener_unavailable" };
 
 /**
  * A path press: opens or reveals the path on the host with the current file
@@ -23,12 +23,12 @@ export function revealWithSetting(
 const names: Record<FileOpenApp, string> = { system: "System app", ...FILE_OPEN_LABELS };
 
 /** Server details are retained for diagnosis, including with older servers. */
-export function fileOpenError(result: { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp }, language: SettingsLanguage = resolveLanguage(getEnhancerPreferences().language)): string {
+export function fileOpenError(result: RevealResult, language: SettingsLanguage = resolveLanguage(getEnhancerPreferences().language)): string {
   const detail = result.error ?? "";
-  if (result.errorKind === "system_opener_unavailable") {
+  if (result.errorCode === "system_opener_unavailable" || result.errorKind === "system_opener_unavailable") {
     return language === "zh"
-      ? "Linux 主机找不到 xdg-open。要在 Paseo 中打开回复里的文件链接，请在「聊天展示」中关闭「回复使用插件 Markdown」。"
-      : "The Linux host could not find xdg-open. To open reply links in Paseo, turn off ‘Plugin markdown for replies’ under Chat presentation.";
+      ? `daemon 主机找不到 xdg-open。请安装 xdg-open 并确认它在 daemon 的 PATH 中：${detail}`
+      : `The daemon host could not find xdg-open. Install xdg-open and ensure it is in the daemon's PATH: ${detail}`;
   }
   if (language !== "zh" || !result.errorKind) return detail;
   if (result.errorKind === "settings_unavailable") return "文件打开设置不可用";
