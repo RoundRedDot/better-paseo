@@ -10,8 +10,8 @@ export class LaunchUnconfirmedError extends Error {
 }
 
 /** Runs the platform's opener without a shell. */
-export async function openWithShell(target: string, entry: PathEntry): Promise<void> {
-  const { command, args, windowsVerbatimArguments } = shellOpenCommand(process.platform, target, entry);
+export async function openWithShell(target: string, entry: PathEntry, realTarget = target): Promise<void> {
+  const { command, args, windowsVerbatimArguments } = shellOpenCommand(process.platform, target, entry, realTarget);
   // Explorer's exit code means nothing, so starting it is the success.
   const completion = process.platform === "win32" ? "spawn" : "exit";
   const child = spawn(command, args, { detached: true, windowsHide: true, stdio: completion === "exit" ? ["ignore", "ignore", "pipe"] : "ignore", ...(windowsVerbatimArguments ? { windowsVerbatimArguments } : null) });

@@ -1,4 +1,4 @@
-import { open, stat, type FileHandle } from "node:fs/promises";
+import { open, realpath, stat, type FileHandle } from "node:fs/promises";
 import type { Stats } from "node:fs";
 import { homedir } from "node:os";
 import { isAbsolute, join, resolve } from "node:path";
@@ -507,14 +507,17 @@ export default function contribute(server: PluginServerContext) {
 
     const target = isAbsolute(requested) ? requested : resolve(input.cwd, requested);
     let entry: Stats;
+    let realTarget: string;
     try {
       entry = await stat(target);
+      // `stat` follows links, so the link's own name says nothing about what opening it runs.
+      realTarget = await realpath(target);
     } catch (error) {
       return revealFailure(error);
     }
     // Folders and anything that would run keep the platform's reveal, whatever the setting.
     let app: FileOpenApp = "system";
-    if (!entry.isDirectory() && !launches(target, entry)) {
+    if (!entry.isDirectory() && !launches(target, entry) && !launches(realTarget, entry)) {
       try {
         const settings = await preferences.read();
         if (settings.status !== "ready") throw new Error("File open settings are unavailable");
@@ -527,7 +530,7 @@ export default function contribute(server: PluginServerContext) {
       }
     }
     try {
-      await (app === "system" ? openWithShell(target, entry) : openInEditor(app, target));
+      await (app === "system" ? openWithShell(target, entry, realTarget) : openInEditor(app, target));
       return { revealed: target, error: null };
     } catch (error) {
       const kind = error instanceof EditorUnavailableError ? "editor_unavailable" : error instanceof LaunchUnconfirmedError ? "launch_unconfirmed" : "launch_failed";
