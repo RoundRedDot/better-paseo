@@ -49,7 +49,8 @@ function createMockEnv(options?: {
   throwOnRun?: boolean;
   createAgentError?: Error;
   archiveResult?: { error: string | null };
-  providerEntries?: Array<{ provider: string; enabled: boolean; status: string }>;
+  providerEntries?: Array<{ provider: string; enabled: boolean; status: string; modes?: unknown[] }>;
+  listModes?: (provider: string) => Promise<{ modes?: unknown[]; error?: string | null }>;
 }) {
   const dir = makeTempDir();
   const parsed = timelineTranslationSettingsSchema.parse({
@@ -70,6 +71,7 @@ function createMockEnv(options?: {
     archived: number;
     deletedHelpers: string[];
     touchedSourceTimeline: boolean;
+    listModesCalls: string[];
   } = {
     prompts: [],
     workspaceInputs: [],
@@ -77,6 +79,7 @@ function createMockEnv(options?: {
     archived: 0,
     deletedHelpers: [],
     touchedSourceTimeline: false,
+    listModesCalls: [],
   };
 
   const paseo = {
@@ -114,6 +117,10 @@ function createMockEnv(options?: {
             { provider, enabled: true, status: "ready" },
           ],
         };
+      },
+      async listModes(reqProvider: string) {
+        captured.listModesCalls.push(reqProvider);
+        return options?.listModes?.(reqProvider) ?? { modes: [], error: null };
       },
       async listModels(reqProvider: string) {
         return {
@@ -649,5 +656,59 @@ describe("ordinary translation helpers", () => {
     expect(env.captured.prompts).toEqual([]);
     expect(env.captured.archived).toBe(1);
     expect(env.captured.deletedHelpers).toEqual([]);
+  });
+});
+
+const CLAUDE_MODES = [
+  { id: "plan", label: "Plan Mode", colorTier: "planning" },
+  { id: "default", label: "Always Ask", colorTier: "safe" },
+  { id: "acceptEdits", label: "Accept File Edits", colorTier: "moderate" },
+  { id: "auto", label: "Auto mode", colorTier: "moderate" },
+  { id: "bypassPermissions", label: "Bypass", colorTier: "dangerous" },
+];
+
+describe("translation helper permission mode", () => {
+  async function createdConfig(env: ReturnType<typeof createMockEnv>, jobId: string) {
+    env.translator.request({ action: "start", jobId, agentId: "source-agent-1", text: "Hello",
+      sourceKind: "assistant_message", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo);
+    expect(await waitForJob(env.translator, env.paseo, jobId)).toMatchObject({ state: "done" });
+    return (env.captured.agentConfigs[0] as { config: Record<string, unknown> }).config;
+  }
+
+  it("starts a Claude helper in plan mode", async () => {
+    const env = createMockEnv({ providerEntries: [{ provider: "claude", enabled: true, status: "ready", modes: CLAUDE_MODES }] });
+    expect((await createdConfig(env, "mode-claude")).modeId).toBe("plan");
+    expect(env.captured.listModesCalls).toEqual([]);
+  });
+
+  it("starts a custom provider helper in its least permissive mode", async () => {
+    const env = createMockEnv({
+      settings: { customModel: true, provider: "alt", model: "alt-model" },
+      providerEntries: [
+        { provider: "claude", enabled: true, status: "ready", modes: CLAUDE_MODES },
+        { provider: "alt", enabled: true, status: "ready", modes: [
+          { id: "full", label: "Full Access", colorTier: "dangerous", isUnattended: true },
+          { id: "write", label: "Write Approval", colorTier: "moderate" },
+          { id: "ask", label: "Always Ask", colorTier: "safe" },
+        ] },
+      ],
+    });
+    expect((await createdConfig(env, "mode-custom")).modeId).toBe("ask");
+  });
+
+  it("reads the modes when the snapshot does not list them", async () => {
+    const env = createMockEnv({ listModes: async () => ({ modes: CLAUDE_MODES, error: null }) });
+    expect((await createdConfig(env, "mode-fallback")).modeId).toBe("plan");
+    expect(env.captured.listModesCalls).toEqual(["claude"]);
+  });
+
+  it("leaves the mode unset when the provider offers none", async () => {
+    const env = createMockEnv({ providerEntries: [{ provider: "claude", enabled: true, status: "ready", modes: [] }] });
+    expect(await createdConfig(env, "mode-none")).not.toHaveProperty("modeId");
+  });
+
+  it("still translates when the modes cannot be read", async () => {
+    const env = createMockEnv({ listModes: async () => { throw new Error("offline"); } });
+    expect(await createdConfig(env, "mode-unreadable")).not.toHaveProperty("modeId");
   });
 });

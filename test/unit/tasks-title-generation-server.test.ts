@@ -45,8 +45,9 @@ async function fixture() {
   ] }));
   const refreshWorkspace = vi.fn(async (): Promise<{ projectId: string; name: string } | null> => ({ projectId: "source-project", name: "Other workspace" }));
   const setTitle = vi.fn(async (_title: string) => ({ title: _title }));
-  const snapshot = vi.fn(async () => ({ entries: [{ provider: "codex", enabled: true, status: "ready" }, { provider: "claude", enabled: true, status: "ready" }] }));
-  const api = { providers: { listModels, snapshot }, agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: refreshWorkspace, setTitle }) } } as unknown as PaseoApi;
+  const snapshot = vi.fn(async (): Promise<{ entries: Array<{ provider: string; enabled: boolean; status: string; modes?: unknown[] }> }> => ({ entries: [{ provider: "codex", enabled: true, status: "ready" }, { provider: "claude", enabled: true, status: "ready" }] }));
+  const listModes = vi.fn(async (_provider: string): Promise<{ error: string | null; modes?: unknown[] }> => ({ error: null, modes: [] }));
+  const api = { providers: { listModels, listModes, snapshot }, agents: { ref: vi.fn(() => ({ refresh, timeline: { refetch: timeline } })) }, workspaces: { create: workspace, ref: () => ({ refresh: refreshWorkspace, setTitle }) } } as unknown as PaseoApi;
   const values = titleGenerationSettingsSchema.parse({ customModel: true, disableThinking: false, provider: "claude", model: "claude-haiku-5-5", prompt: "Use an actionable title" });
   const read = vi.fn(async () => ({ status: "ready" as const, revision: "1", values }));
   const rename = vi.fn(async () => ({ ok: true, error: null as string | null }));
@@ -57,7 +58,7 @@ async function fixture() {
   const state = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "status", mode }, api);
   const start = (mode: "apply" | "preview" = "apply") => service.request({ agentId: "source", action: "start", mode }, api);
   const settle = async (mode: "apply" | "preview" = "apply") => { await expect.poll(() => state(mode).state).not.toBe("running"); return state(mode); };
-  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, setTitle, timeline, listModels, snapshot, values, read, rename, canRename, deleteHelper, delay, state, start, settle };
+  return { api, service, directory, run, archive, create, live, subscribe, workspace, original, refresh, refreshWorkspace, setTitle, timeline, listModels, listModes, snapshot, values, read, rename, canRename, deleteHelper, delay, state, start, settle };
 }
 
 describe("background title generation", () => {
@@ -770,5 +771,45 @@ describe("title when the first message starts", () => {
     registerTitleGeneration({ registerSettings: vi.fn(() => ({ read: async () => ({ status: "ready", revision: "1", values: titleGenerationSettingsSchema.parse({}) }) })), handle: vi.fn(), on } as unknown as Parameters<typeof registerTitleGeneration>[0], vi.fn(), () => true, vi.fn());
     expect(on.mock.calls.map(([name]) => name)).toEqual(["agent.turn_started"]);
     expect(on.mock.calls[0]![1]({ agent: { id: "a", cwd: "/x", provider: "codex" }, turnId: "t1" }, { paseo: {} })).toBeUndefined();
+  });
+});
+
+describe("title helper permission mode", () => {
+  const claudeModes = [
+    { id: "plan", label: "Plan Mode", colorTier: "planning" },
+    { id: "default", label: "Always Ask", colorTier: "safe" },
+    { id: "bypassPermissions", label: "Bypass", colorTier: "dangerous" },
+  ];
+  const helperConfig = (f: Awaited<ReturnType<typeof fixture>>) =>
+    (f.create.mock.calls[0] as unknown as [{ config: Record<string, unknown> }])[0].config;
+
+  it("starts a Claude title helper in plan mode", async () => {
+    const f = await fixture();
+    f.snapshot.mockResolvedValue({ entries: [{ provider: "claude", enabled: true, status: "ready", modes: claudeModes }] });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(helperConfig(f).modeId).toBe("plan");
+    expect(f.listModes).not.toHaveBeenCalled();
+  });
+
+  it("starts an inherited Codex title helper in its least permissive mode", async () => {
+    const f = await fixture();
+    f.values.customModel = false;
+    f.listModes.mockResolvedValue({ error: null, modes: [
+      { id: "auto", label: "Default Permissions", colorTier: "moderate" },
+      { id: "full-access", label: "Full Access", colorTier: "dangerous" },
+    ] });
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(helperConfig(f).modeId).toBe("auto");
+    expect(f.listModes).toHaveBeenCalledExactlyOnceWith("codex");
+  });
+
+  it("still generates a title when the modes cannot be read", async () => {
+    const f = await fixture();
+    f.listModes.mockRejectedValue(new Error("offline"));
+    f.start();
+    expect(await f.settle()).toMatchObject({ state: "done" });
+    expect(helperConfig(f)).not.toHaveProperty("modeId");
   });
 });

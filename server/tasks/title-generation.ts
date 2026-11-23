@@ -5,6 +5,7 @@ import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from
 import type { PluginHookEvents, PluginServerContext, PluginSettings } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, TITLE_HELPER_LABEL, TITLE_HELPER_PURPOSE, titleGenerationSettingsSchema, titleLanguageRpc, titleModelsRpc, titleUndoRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";
+import { resolveHelperModeId } from "../helper-mode";
 import { pluginDataDir } from "../plugin-data";
 import { taskIssueError, taskUpdateIssue } from "./availability";
 import { onHookEvent } from "../hooks";
@@ -125,7 +126,8 @@ export function createTitleGenerator(deps: Dependencies) {
     const provider = config.customModel ? config.provider : original.agent.provider;
     const model = config.customModel ? config.model : original.agent.model;
     const providers = await paseo.providers.snapshot();
-    if (!providers.entries.some((entry) => entry.provider === provider && entry.enabled && entry.status === "ready")) {
+    const providerEntry = providers.entries.find((entry) => entry.provider === provider && entry.enabled && entry.status === "ready");
+    if (!providerEntry) {
       throw new Error(taskIssueError({ code: "provider_unavailable", detail: provider }));
     }
     let thinkingOptionId = config.customModel ? config.thinkingOptionId : original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId;
@@ -153,6 +155,7 @@ export function createTitleGenerator(deps: Dependencies) {
         .sort((a, b) => a.seq - b.seq).map(({ role, text }) => ({ role, text }));
     }
     if (messages.length === 0) throw new Error("This agent has no conversation to summarize.");
+    const modeId = await resolveHelperModeId(paseo, provider, providerEntry.modes);
 
     // A neutral directory avoids running the source project's workspace setup or loading its instructions.
     await mkdir(deps.directory, { recursive: true });
@@ -166,6 +169,8 @@ export function createTitleGenerator(deps: Dependencies) {
     try {
       const helper = await workspace.agents.create({
         config: { provider: `${provider}/${model}`, systemPrompt: SYSTEM_PROMPT,
+          // The least permissive mode keeps the helper from running tools.
+          ...(modeId ? { modeId } : {}),
           ...(thinkingOptionId ? { thinkingOptionId } : {}),
         },
         title: "Title generator", labels: { [TITLE_HELPER_LABEL]: TITLE_HELPER_PURPOSE },

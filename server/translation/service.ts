@@ -5,6 +5,7 @@ import type { PluginServerContext, PluginSettings } from "@getpaseo/plugin/serve
 import type { PaseoAgentRefetchResult, PaseoAgentTimelineEvent, PaseoApi } from "../paseo-types";
 import { pluginDataDir } from "../plugin-data";
 import { connectHostDaemon } from "../tasks/provider-subagents";
+import { resolveHelperModeId } from "../helper-mode";
 import {
   isRealThinkingOffId,
   resolveThinkingCapability,
@@ -159,7 +160,8 @@ export function createTimelineTranslator(deps: Dependencies) {
     const provider = config.customModel ? config.provider : original.agent.provider;
     const model = config.customModel ? config.model : original.agent.model;
     const providers = await paseo.providers.snapshot();
-    if (!providers.entries.some((entry) => entry.provider === provider && entry.enabled && entry.status === "ready")) {
+    const providerEntry = providers.entries.find((entry) => entry.provider === provider && entry.enabled && entry.status === "ready");
+    if (!providerEntry) {
       throw new Error(`Translation provider "${provider}" is unavailable.`);
     }
     if (!model) {
@@ -173,6 +175,7 @@ export function createTimelineTranslator(deps: Dependencies) {
       model,
       original,
     );
+    const modeId = await resolveHelperModeId(paseo, provider, providerEntry.modes);
     const target = resolveTranslationTarget(config.targetLanguage, input.interfaceLanguage);
 
     // Run in a neutral helper directory so source project instructions are never loaded.
@@ -197,6 +200,8 @@ export function createTimelineTranslator(deps: Dependencies) {
         config: {
           provider: `${provider}/${model}`,
           systemPrompt: SYSTEM_PROMPT,
+          // The least permissive mode keeps the helper from running tools.
+          ...(modeId ? { modeId } : {}),
           ...(thinkingOptionId ? { thinkingOptionId } : {}),
         },
         title: "Timeline translator",
