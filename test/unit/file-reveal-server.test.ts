@@ -298,3 +298,22 @@ describe("file.reveal on macOS", () => {
     settings.app = "system";
   });
 });
+
+it("reports a missing Linux system opener separately from a missing file", async () => {
+  const nativePlatform = Object.getOwnPropertyDescriptor(process, "platform")!;
+  Object.defineProperty(process, "platform", { ...nativePlatform, value: "linux" });
+  spawn.mockImplementationOnce(() => {
+    const child = new EventEmitter() as EventEmitter & { unref: () => void };
+    child.unref = vi.fn();
+    const error = Object.assign(new Error("spawn xdg-open ENOENT"), { code: "ENOENT", syscall: "spawn xdg-open", path: "xdg-open" });
+    queueMicrotask(() => child.emit("error", error));
+    return child;
+  });
+  try {
+    const reveal = await revealHandler();
+    await expect(reveal({ cwd: root, path: "notes.md" })).resolves.toMatchObject({ errorKind: "system_opener_unavailable", errorApp: "system" });
+    expect(spawn).toHaveBeenLastCalledWith("xdg-open", [root], expect.anything());
+  } finally {
+    Object.defineProperty(process, "platform", nativePlatform);
+  }
+});

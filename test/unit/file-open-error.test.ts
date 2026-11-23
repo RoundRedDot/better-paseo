@@ -4,6 +4,9 @@ import { getEnhancerPreferences, updateEnhancerPreferences } from "../../client/
 
 describe("file open errors", () => {
   it("localises known errors while retaining launcher details", () => {
+    expect(fileOpenError({ error: "spawn xdg-open ENOENT", errorKind: "system_opener_unavailable", errorApp: "system" }, "en")).toContain("xdg-open");
+    expect(fileOpenError({ error: "spawn xdg-open ENOENT", errorKind: "system_opener_unavailable", errorApp: "system" }, "zh")).toContain("xdg-open");
+    expect(fileOpenError({ error: "spawn xdg-open ENOENT", errorKind: "system_opener_unavailable", errorApp: "system" }, "en")).toContain("Plugin markdown for replies");
     expect(fileOpenError({ error: "unavailable", errorKind: "settings_unavailable" }, "zh")).toBe("文件打开设置不可用");
     expect(fileOpenError({ error: "not synchronized", errorKind: "settings_unsynced" }, "zh")).toBe("文件打开设置尚未同步，请稍后重试");
     expect(fileOpenError({ error: "missing", errorKind: "editor_unavailable", errorApp: "vscode" }, "zh")).toBe("VS Code 未安装或其命令不在 PATH 中");

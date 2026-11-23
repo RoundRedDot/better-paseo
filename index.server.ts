@@ -534,6 +534,9 @@ export default function contribute(server: PluginServerContext) {
       await (app === "system" ? openWithShell(target, entry, realTarget) : openInEditor(app, target));
       return { revealed: target, error: null };
     } catch (error) {
+      if (process.platform === "linux" && app === "system" && error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT" && (error as NodeJS.ErrnoException).path === "xdg-open") {
+        return revealFailure(error, "system_opener_unavailable", app);
+      }
       const kind = error instanceof EditorUnavailableError ? "editor_unavailable" : error instanceof LaunchUnconfirmedError ? "launch_unconfirmed" : "launch_failed";
       return revealFailure(error, kind, app);
     }

@@ -2,7 +2,7 @@ import { defineRpc } from "@getpaseo/plugin";
 import { z } from "zod";
 import { FILE_OPEN_APPS, FILE_OPEN_EDITOR_IDS } from "./file-open-apps";
 
-const FILE_OPEN_ERROR_KINDS = ["settings_unavailable", "settings_unsynced", "editor_unavailable", "launch_failed", "launch_unconfirmed"] as const;
+const FILE_OPEN_ERROR_KINDS = ["settings_unavailable", "settings_unsynced", "editor_unavailable", "system_opener_unavailable", "launch_failed", "launch_unconfirmed"] as const;
 export type FileOpenErrorKind = (typeof FILE_OPEN_ERROR_KINDS)[number];
 
 /**

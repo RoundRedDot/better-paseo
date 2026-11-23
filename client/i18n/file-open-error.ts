@@ -25,6 +25,11 @@ const names: Record<FileOpenApp, string> = { system: "System app", ...FILE_OPEN_
 /** Server details are retained for diagnosis, including with older servers. */
 export function fileOpenError(result: { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp }, language: SettingsLanguage = resolveLanguage(getEnhancerPreferences().language)): string {
   const detail = result.error ?? "";
+  if (result.errorKind === "system_opener_unavailable") {
+    return language === "zh"
+      ? "Linux 主机找不到 xdg-open。要在 Paseo 中打开回复里的文件链接，请在「聊天展示」中关闭「回复使用插件 Markdown」。"
+      : "The Linux host could not find xdg-open. To open reply links in Paseo, turn off ‘Plugin markdown for replies’ under Chat presentation.";
+  }
   if (language !== "zh" || !result.errorKind) return detail;
   if (result.errorKind === "settings_unavailable") return "文件打开设置不可用";
   if (result.errorKind === "settings_unsynced") return "文件打开设置尚未同步，请稍后重试";
