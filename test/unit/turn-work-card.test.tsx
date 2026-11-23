@@ -91,16 +91,29 @@ describe("turn work card", () => {
     expect(shown).not.toContain("+7");
   });
 
-  it("opens to the intent and verb summary, then to the steps, and unmounts them on close", () => {
+  it("opens the desktop work steps in details rather than expanding the timeline", () => {
     pressText("用时 9秒");
     expect(texts()).toContain("Check the root first, then fix the path.");
     expect(texts()).toContain("读取了文件 · 编辑了文件 · 运行了命令");
     expect(byType("ToolCallout")).toHaveLength(0);
     pressText("读取了文件 · 编辑了文件 · 运行了命令");
-    expect(byType("ToolCallout")).toHaveLength(7);
+    expect(openId).toBe("agent:work:r:10000:done:steps");
+    expect(byType("ToolCallout")).toHaveLength(0);
+    const block = getBlock("agent", openId!);
+    const body = block!.render() as React.ReactElement<{ children: React.ReactElement<{ steps: unknown[] }> }>;
+    expect(body.props.children.props.steps).toHaveLength(7);
     pressText("用时 9秒");
     expect(byType("ToolCallout")).toHaveLength(0);
     expect(texts()).not.toContain("读取了文件 · 编辑了文件 · 运行了命令");
+  });
+
+  it("opens work steps when ordinary block details are disabled", () => {
+    act(() => { updateEnhancerPreferences({ blockDetails: false }); });
+    pressText("用时 9秒");
+    pressText("读取了文件 · 编辑了文件 · 运行了命令");
+    expect(openId).toBe("agent:work:r:10000:done:steps");
+    expect(byType("ToolCallout")).toHaveLength(0);
+    expect(getEnhancerPreferences().blockDetails).toBe(false);
   });
 
   it("opens the complete work steps in the phone drawer", () => {

@@ -79,6 +79,8 @@ export interface BlockEntry {
 
 export interface DetailsState {
   openId: string | null;
+  /** Keep the host available for a panel explicitly opened outside block details. */
+  independent: boolean;
   form: DetailsForm;
   detent: Detent;
   /** Drawer / floating at full height, or the side panel widened. */
@@ -89,6 +91,8 @@ export interface DetailsState {
 
 export interface OpenOptions {
   detent?: Detent;
+  /** Open even when ordinary block details are disabled. */
+  independent?: boolean;
   /** False for a code block: no ‹ ›, not counted. */
   navigable?: boolean;
   /** Force a form (the desktop hover's "open in panel" asks for side). */

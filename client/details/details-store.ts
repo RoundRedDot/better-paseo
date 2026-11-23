@@ -5,7 +5,7 @@ import { orderBlocks } from "./navigation";
 
 export const MARKER_LINGER_MS = 1200;
 
-const CLOSED: DetailsState = { openId: null, form: "drawer", detent: "fit", fullscreen: false, lingerId: null };
+const CLOSED: DetailsState = { openId: null, independent: false, form: "drawer", detent: "fit", fullscreen: false, lingerId: null };
 
 interface AgentDetailsStore {
   state: DetailsState;
@@ -49,7 +49,7 @@ function updateState(agentId: string, next: DetailsState, nextLingerUntil: numbe
   const previousUntil = store.lingerUntil;
   if (
     previous.openId === next.openId && previous.form === next.form && previous.detent === next.detent &&
-    previous.fullscreen === next.fullscreen && previous.lingerId === next.lingerId &&
+    previous.fullscreen === next.fullscreen && previous.lingerId === next.lingerId && previous.independent === next.independent &&
     previousUntil === nextLingerUntil
   ) return;
 
@@ -80,7 +80,7 @@ function scheduleLinger(agentId: string, id: string, until: number): void {
   store.lingerTimer = setTimeout(() => {
     store.lingerTimer = null;
     if (store.state.lingerId !== id) return;
-    updateState(agentId, { ...store.state, lingerId: null }, 0);
+    updateState(agentId, { ...store.state, lingerId: null, independent: store.state.openId !== null && store.state.independent }, 0);
   }, Math.max(0, until - Date.now()));
 }
 
@@ -112,6 +112,7 @@ export const detailsApi: DetailsApi = {
     if (previous.openId === id) {
       updateState(agentId, {
         ...previous,
+        independent: options?.independent ?? previous.independent,
         form: options?.form ?? previous.form,
         detent: options?.detent ?? previous.detent,
       }, store.lingerUntil);
@@ -134,6 +135,7 @@ export const detailsApi: DetailsApi = {
     updateState(agentId, {
       ...previous,
       openId: id,
+      independent: options?.independent ?? false,
       form: options?.form ?? previous.form,
       detent: options?.detent ?? (previous.openId === null ? "fit" : previous.detent),
       fullscreen: previous.openId === null ? false : previous.fullscreen,
@@ -193,6 +195,13 @@ function subscribeMarker(agentId: string, id: string, listener: () => void): () 
 export function useDetails(agentId: string): DetailsState {
   const subscribe = useCallback((listener: () => void) => subscribeDetails(agentId, listener), [agentId]);
   const snapshot = useCallback(() => stores.get(agentId)?.state ?? CLOSED, [agentId]);
+  return useSyncExternalStore(subscribe, snapshot, snapshot);
+}
+
+/** Subscribe only to whether an explicitly opened panel needs a host. */
+export function useIndependentDetails(agentId: string): boolean {
+  const subscribe = useCallback((listener: () => void) => subscribeDetails(agentId, listener), [agentId]);
+  const snapshot = useCallback(() => stores.get(agentId)?.state.independent ?? false, [agentId]);
   return useSyncExternalStore(subscribe, snapshot, snapshot);
 }
 

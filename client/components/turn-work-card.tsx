@@ -14,13 +14,12 @@
  * added up, not the file's net change, and are measured once per call.
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { space } from "./theme-tokens";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-header";
 import { useHover } from "../ui/use-hover";
-import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { hairline } from "../ui/tokens/platform";
 import { RunningDot } from "../ui/running-dot";
 import { FadeIn } from "../ui/fade-in";
@@ -112,9 +111,7 @@ interface CardProps {
 export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, store, tokens, compact }: CardProps) {
   const { language } = useEnhancerPreferences();
   const text = STRINGS[resolveLanguage(language)] ?? STRINGS.en;
-  const [level, setLevel] = useState<"closed" | "summary" | "steps">("closed");
-  const { width } = useWindowDimensions();
-  const input = useInputCapabilities(compact);
+  const [open, setOpen] = useState(false);
   const registration = useRef<BlockRegistration | null>(null);
   const lang = resolveLanguage(language);
   const label = !work.running && work.complete && work.durationMs !== null
@@ -131,25 +128,20 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   useEffect(() => { registration.current?.update(entry); }, [entry]);
   useEffect(() => () => { registration.current?.release(); registration.current = null; }, [agentId, work.key]);
   const toggleSteps = () => {
-    if (width < 600 && input.touch && !input.hover) {
-      if (registration.current) registration.current.update(entry);
-      else registration.current = registerBlock(entry);
-      detailsApi.open(agentId, entry.id, { form: "drawer", navigable: false });
-      return;
-    }
-    setLevel((current) => current === "steps" ? "summary" : "steps");
+    if (registration.current) registration.current.update(entry);
+    else registration.current = registerBlock(entry);
+    detailsApi.open(agentId, entry.id, { independent: true, navigable: false });
   };
   return (
     <View style={styles.card}>
       {work.steps.length ? (
         <BlockPlacementContext.Provider value={null}>
-          <DisclosureHeader expanded={level !== "closed"} onToggle={() => setLevel((current) => current === "closed" ? "summary" : "closed")}
+          <DisclosureHeader expanded={open} onToggle={() => setOpen((current) => !current)}
             tokens={tokens} compact={compact} icon={<RowIcon name="ListCollapse" />} verb={label} keepVerb />
-          {level !== "closed" ? (
+          {open ? (
             <FadeIn style={styles.indent}>
               <WorkSummary work={work} text={text} tokens={tokens} compact={compact}
-                open={level === "steps"} onToggle={toggleSteps} />
-              {level === "steps" ? <WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /> : null}
+                onToggle={toggleSteps} />
             </FadeIn>
           ) : null}
         </BlockPlacementContext.Provider>
@@ -166,8 +158,8 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   );
 });
 
-function WorkSummary({ work, text, tokens, compact, open, onToggle }: {
-  work: TurnWork; text: (typeof STRINGS)["en"]; tokens: ExtendedThemeTokens; compact: boolean; open: boolean; onToggle(): void;
+function WorkSummary({ work, text, tokens, compact, onToggle }: {
+  work: TurnWork; text: (typeof STRINGS)["en"]; tokens: ExtendedThemeTokens; compact: boolean; onToggle(): void;
 }) {
   const styles = useCardStyles(tokens);
   const intent = useMemo(() => firstLine(work.intent), [work.intent]);
@@ -175,7 +167,7 @@ function WorkSummary({ work, text, tokens, compact, open, onToggle }: {
   return (
     <>
       {intent ? <Text style={styles.intent} numberOfLines={2}>{intent}</Text> : null}
-      <DisclosureHeader expanded={open} onToggle={onToggle} tokens={tokens} compact={compact}
+      <DisclosureHeader expanded={false} onToggle={onToggle} tokens={tokens} compact={compact}
         icon={<RowIcon name="List" />} verb={summary} keepVerb />
     </>
   );

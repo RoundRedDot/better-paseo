@@ -66,7 +66,7 @@ const fake = vi.hoisted(() => {
   const listeners = new Set<() => void>();
   const emit = () => listeners.forEach((listener) => listener());
   const box = {
-    state: { openId: null, form: "drawer", detent: "fit", fullscreen: false, lingerId: null } as State,
+    state: { openId: null, independent: false, form: "drawer", detent: "fit", fullscreen: false, lingerId: null } as State,
     blocks: [] as Entry[],
   };
   const set = (patch: Partial<State>) => {
@@ -112,7 +112,7 @@ const fake = vi.hoisted(() => {
       return () => listeners.delete(listener);
     },
     reset() {
-      box.state = { openId: null, form: "drawer", detent: "fit", fullscreen: false, lingerId: null };
+      box.state = { openId: null, independent: false, form: "drawer", detent: "fit", fullscreen: false, lingerId: null };
       box.blocks = [];
       queue.length = 0;
     },
@@ -124,6 +124,7 @@ vi.mock("../../client/details/details-store", async () => {
   return {
     detailsApi: fake.api,
     useDetails: () => useSyncExternalStore(fake.subscribe, () => fake.box.state, () => fake.box.state),
+    useIndependentDetails: () => useSyncExternalStore(fake.subscribe, () => fake.box.state.independent, () => fake.box.state.independent),
     useMarkerPhase: () => "off",
     claimHostLease: fake.claim,
   };
@@ -439,6 +440,18 @@ describe("DetailsHostSlot", () => {
 });
 
 describe("form", () => {
+  it.each([[1440, 1000, "details-side"], [1280, 1000, "details-floating"]] as const)(
+    "shows independent work in %s px layout with ordinary details disabled", async (width, contentRight, panel) => {
+      webDesktop();
+      screen.width = width;
+      web.pane = { left: 240, right: width, contentRight };
+      updateEnhancerPreferences({ blockDetails: false });
+      const renderer = render(slot());
+      await act(async () => fake.set({ openId: "a", independent: true }));
+      expect(byTestId(renderer, panel)).not.toBeNull();
+      expect(byTestId(renderer, "content-a")).not.toBeNull();
+    },
+  );
   it("exposes the resize handle on an iPad side panel but not on an iPhone", () => {
     (globalThis as { __rnMockIsPad?: boolean }).__rnMockIsPad = true;
     screen.width = 1194;

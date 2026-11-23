@@ -5,20 +5,25 @@
  * open panel with it, to the next mounted row (`DetailsShell` takes it over
  * without an entrance).
  *
- * With block details off it draws nothing and claims nothing.
+ * With block details off it only hosts panels explicitly opened independently.
  */
 import React, { useMemo, useSyncExternalStore } from "react";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { useEnhancerPreferences } from "../../preferences";
-import { claimHostLease } from "../details-store";
+import { claimHostLease, useIndependentDetails } from "../details-store";
 import { DetailsShell } from "./details-shell";
 
 type Lease = ReturnType<typeof claimHostLease>;
 
 export function DetailsHostSlot(props: { agentId: string; itemKey: string; tokens: ExtendedThemeTokens; compact: boolean }) {
   const { blockDetails } = useEnhancerPreferences();
-  if (!blockDetails) return null;
+  if (!blockDetails) return <IndependentSlot {...props} />;
   return <LeasedSlot {...props} />;
+}
+
+function IndependentSlot(props: { agentId: string; itemKey: string; tokens: ExtendedThemeTokens; compact: boolean }) {
+  const independent = useIndependentDetails(props.agentId);
+  return independent ? <LeasedSlot {...props} /> : null;
 }
 
 function LeasedSlot({ agentId, itemKey, tokens }: { agentId: string; itemKey: string; tokens: ExtendedThemeTokens; compact: boolean }) {
