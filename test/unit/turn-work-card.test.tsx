@@ -25,6 +25,8 @@ import { detailsApi, useDetails } from "../../client/details/details-store";
 import { getBlock } from "../../client/details/block-registry";
 import { timelineEntry as entry } from "./helpers/turn-timeline";
 import { Dimensions } from "react-native";
+import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
+import { PreviewChromeContext } from "../../client/ui/hover-preview";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
@@ -99,9 +101,6 @@ describe("turn work card", () => {
     pressText("读取了文件 · 编辑了文件 · 运行了命令");
     expect(openId).toBe("agent:work:r:10000:done:steps");
     expect(byType("ToolCallout")).toHaveLength(0);
-    const block = getBlock("agent", openId!);
-    const body = block!.render() as React.ReactElement<{ children: React.ReactElement<{ steps: unknown[] }> }>;
-    expect(body.props.children.props.steps).toHaveLength(7);
     pressText("用时 9秒");
     expect(byType("ToolCallout")).toHaveLength(0);
     expect(texts()).not.toContain("读取了文件 · 编辑了文件 · 运行了命令");
@@ -116,6 +115,36 @@ describe("turn work card", () => {
     expect(getEnhancerPreferences().blockDetails).toBe(false);
   });
 
+  it.each([["side", true], ["side", false], ["drawer", true], ["drawer", false]] as const)(
+    "shows the work title and a working close button in %s when block details are %s", (form, enabled) => {
+    act(() => { updateEnhancerPreferences({ blockDetails: enabled }); });
+    if (form === "drawer") {
+      vi.spyOn(Dimensions, "get").mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 1 });
+      const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+      act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact /></>); });
+    }
+    pressText("用时 9秒");
+    pressText("读取了文件 · 编辑了文件 · 运行了命令");
+    const block = getBlock("agent", openId!)!;
+    const shell: DetailsShellValue = {
+      agentId: "agent", entry: block, form, detent: "fit", fullscreen: false,
+      pointer: form === "side", index: 0, count: 0, canStep: { previous: false, next: false },
+      step() {}, close: () => detailsApi.close("agent"),
+    };
+    let panel!: TestRenderer.ReactTestRenderer;
+    act(() => { panel = TestRenderer.create(<DetailsShellContext.Provider value={shell}>
+      <PreviewChromeContext.Provider value="details">{block.render()}</PreviewChromeContext.Provider>
+    </DetailsShellContext.Provider>); });
+    const title = panel.root.findByProps({ testID: "details-header-title" });
+    expect(title.props.accessibilityLabel).toBe("读取了文件 · 编辑了文件 · 运行了命令");
+    expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
+    const close = panel.root.findAll((node) => node.props?.accessibilityLabel === "关闭详情" && typeof node.props.onPress === "function").at(-1)!;
+    expect(close).toBeDefined();
+    act(() => { close.props.onPress(); });
+    expect(openId).toBeNull();
+    act(() => panel.unmount());
+  });
+
   it("opens the complete work steps in the phone drawer", () => {
     vi.spyOn(Dimensions, "get").mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 1 });
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
@@ -126,8 +155,6 @@ describe("turn work card", () => {
     expect(byType("ToolCallout")).toHaveLength(0);
     const block = getBlock("agent", openId!);
     expect(block?.title).toBe("读取了文件 · 编辑了文件 · 运行了命令");
-    const body = block!.render() as React.ReactElement<{ children: React.ReactElement<{ steps: unknown[] }> }>;
-    expect(body.props.children.props.steps).toHaveLength(7);
   });
 
   it("shows more paths only on request, and opens one file's changes in the details panel", () => {

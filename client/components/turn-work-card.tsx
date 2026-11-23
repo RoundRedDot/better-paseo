@@ -23,7 +23,7 @@ import { useHover } from "../ui/use-hover";
 import { hairline } from "../ui/tokens/platform";
 import { RunningDot } from "../ui/running-dot";
 import { FadeIn } from "../ui/fade-in";
-import { HoverPreviewBody } from "../ui/hover-preview";
+import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
 import { PathContext, usePathContextValue } from "../ui/path-text";
 import { formatPath } from "../paths/format-path";
 import { formatDuration } from "../ui/time";
@@ -122,7 +122,10 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
     id: `${agentId}:work:${work.key}:steps`, agentId, at, kind: "tool", seq: 0,
     mounted: true, navigable: false, hasBody: true, title: summary, titleMono: false,
     subtitle: [], icon: "List", readsImage: false,
-    render: () => <HoverPreviewBody><WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>,
+    render: () => <>
+      <HoverPreviewHeader tokens={tokens} />
+      <HoverPreviewBody><WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>
+    </>,
     copies: () => [],
   }), [agentId, at, compact, summary, tokens, work.key, work.steps]);
   useEffect(() => { registration.current?.update(entry); }, [entry]);
