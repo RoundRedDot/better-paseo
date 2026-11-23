@@ -559,6 +559,13 @@ only their whole names, so `github` and `timeline` stay out.
 - Every local image in a reply is drawn, not only the first.
 - Completed `mermaid` code blocks use Paseo’s diagram renderer, including its source and
   fullscreen controls. The plugin shows source while an unfinished fence is streaming.
+- **Blocks handled by Paseo** is a list of case-insensitive regular expressions, empty by
+  default. Each is tested against the first language label of a fenced block, so `^drawio$`
+  matches ` ```drawio ` and ` ```DRAWIO title `; use `^` and `$` for a whole label. Fences inside
+  another code block or indented code do not count. A match hands the whole reply, including
+  its footer, to Paseo or another installed plugin, also while an unfinished fence is streaming.
+  Imported history checks reply prose, not tool output. Invalid patterns cannot be added and
+  are ignored if stored. With no entries, Mermaid keeps using Paseo’s renderer as above.
 - Turn **Plugin markdown for replies** off for Paseo’s own images and file links.
 
 | Table copy menu | Selected cell actions |
@@ -873,6 +880,7 @@ and hides the Tool calls, Spacing, Messages and Hover previews groups. The Tasks
 | Messages | Enhanced prompt bubble | Off | Keeps Copy visible and shows the newest turn's token usage. Readable pasted images are drawn; prompts with other attachments stay with Paseo. Changing it updates existing prompts too. |
 | Messages | Plugin markdown for replies | On | Off hands replies to Paseo, restoring its full footer and enabling host images and Paseo's file links. Mermaid diagrams work with plugin Markdown on. |
 | Messages | Let genui render interactive replies | Off | Hands replies with `ui` or `app` code blocks to another renderer. Without one, Paseo shows ordinary Markdown without the plugin reply footer. |
+| Messages | Blocks handled by Paseo | Empty | Case-insensitive regexes for the first fence language label; a matching reply and its footer go to Paseo or an installed plugin. Shared by clients on this host. |
 | Messages | Markdown style | Document | Document, Compact or Terminal (body in the code font). |
 | Messages | Selection toolbar | On | Web and desktop: Copy and Add to chat on selected text; the bar closes on scroll. |
 | Hover previews | Hover previews | On | Preview collapsed rows and paths on desktop hover; with block details off, long-press a collapsed row on a touch screen. |

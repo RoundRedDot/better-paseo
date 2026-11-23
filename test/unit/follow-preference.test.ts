@@ -1,4 +1,4 @@
-import { afterEach, expect, it } from "vitest";
+import { afterEach, expect, it, vi } from "vitest";
 import { followPreference } from "../../client/state/follow-preference";
 import { applyStoredPreferences, getEnhancerPreferences, storedPart, updateEnhancerPreferences } from "../../client/preferences";
 
@@ -26,4 +26,15 @@ it("registers again when its preference changes, and only then", () => {
   expect(log).toEqual(["add 1", "remove 1", "add 2", "remove 2"]);
   updateEnhancerPreferences({ enhancedUserBubble: false });
   expect(log).toHaveLength(4);
+});
+
+it("does not re-register an equal pattern list during another preference update", () => {
+  updateEnhancerPreferences({ nativeBlockLanguages: ["^mermaid$"] });
+  const register = vi.fn(() => vi.fn());
+  const stop = followPreference("nativeBlockLanguages", register);
+  updateEnhancerPreferences({ nativeBlockLanguages: ["^mermaid$"], accent: "rose" });
+  expect(register).toHaveBeenCalledTimes(1);
+  updateEnhancerPreferences({ nativeBlockLanguages: ["^drawio$"] });
+  expect(register).toHaveBeenCalledTimes(2);
+  stop();
 });
