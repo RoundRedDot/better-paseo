@@ -11,6 +11,7 @@ import {
   type ThinkingOptionInfo,
 } from "../../shared/timeline-translation";
 import { ModelSettingsControls } from "../model-settings-controls";
+import { providerBrand } from "../components/provider-logo";
 import { modelSelection } from "../../shared/model-catalog";
 import { radiusV2, space } from "../components/theme-tokens";
 import { resolveLanguage } from "../i18n/settings-strings";
@@ -41,6 +42,8 @@ export interface TranslationCatalogState {
   providers: string[];
   providerLabels: Record<string, string>;
   modelsByProvider: Record<string, TranslationModelEntry[]>;
+  /** A catalog read has answered: an empty provider list is the host's answer, not a pending one. */
+  loaded: boolean;
   loading: boolean;
   error: string | null;
 }
@@ -49,10 +52,12 @@ let catalogCache: {
   providers: string[];
   providerLabels: Record<string, string>;
   modelsByProvider: Record<string, TranslationModelEntry[]>;
+  loaded: boolean;
 } = {
   providers: [],
   providerLabels: {},
   modelsByProvider: {},
+  loaded: false,
 };
 
 /** The latest catalog read of any settings page: only it writes the cache and the shown state. */
@@ -64,6 +69,7 @@ export function resetTranslationSettingsCatalogForTests(): void {
     providers: [],
     providerLabels: {},
     modelsByProvider: {},
+    loaded: false,
   };
 }
 
@@ -168,6 +174,8 @@ const STRINGS = {
     targetEmpty: "No matching language",
     customModelTitle: "Choose provider and model",
     customModelDescription: "Off uses the current conversation's provider and model.",
+    noProviders: "No providers are enabled in Paseo.",
+    savedProviderUnavailable: (name: string) => `The saved provider ${name} is unavailable. Choose an enabled provider to change the saved selection.`,
     disableThinkingTitle: "Disable thinking when supported",
     disableThinkingDescription: "Applies only when the model exposes a genuine off, none, or disabled option.",
     promptTitle: "Translation prompt",
@@ -189,7 +197,7 @@ const STRINGS = {
       },
       {
         label: "Privacy",
-        text: "Translate sends the selected text or whole content, target language, and translation prompt to the provider through a helper agent. The helper uses the provider’s configured tool permissions; the instruction not to use tools is not a sandbox.",
+        text: "Translate sends the selected text or whole content, target language, and translation prompt to the provider through a helper agent. The helper can use tools allowed by the provider's configuration. The instruction to avoid tools does not enforce isolation.",
       },
       {
         label: "Session cache",
@@ -207,6 +215,8 @@ const STRINGS = {
     targetEmpty: "没有匹配的语言",
     customModelTitle: "指定 Provider 与模型",
     customModelDescription: "关闭时复用当前会话正在使用的 Provider 与模型。",
+    noProviders: "Paseo 中没有启用的 Provider。",
+    savedProviderUnavailable: (name: string) => `已保存的 Provider「${name}」当前不可用。可从列表中选择已启用的 Provider 来更改设置。`,
     disableThinkingTitle: "支持时关闭思考",
     disableThinkingDescription: "仅在模型明确支持 off / none / disabled 选项时生效，不静默降档。",
     promptTitle: "翻译 Prompt",
@@ -228,7 +238,7 @@ const STRINGS = {
       },
       {
         label: "隐私保护",
-        text: "点击「翻译」会通过辅助 Agent 将选中的文本或整段内容、目标语言和翻译提示词发送给 Provider。辅助 Agent 使用该 Provider 配置的工具权限，提示词中的禁用工具要求不能替代隔离。",
+        text: "点击「翻译」会通过辅助 Agent 将选中的文本或整段内容、目标语言和翻译提示词发送给 Provider。辅助 Agent 可以使用 Provider 配置允许的工具，提示词里的限制不提供隔离。",
       },
       {
         label: "会话缓存",
@@ -282,6 +292,7 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
         providers: res.providers,
         providerLabels: { ...catalogCache.providerLabels, ...res.providerLabels },
         modelsByProvider: nextModelsByProvider,
+        loaded: true,
       };
       setCatalog({ ...catalogCache, loading: false, error: res.error });
       return res.error ? null : { read, models: res.models };
@@ -329,8 +340,14 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
     }
   };
 
+  const answered = catalog.loaded && !catalog.loading;
+  const catalogNotice = answered && catalog.providers.length === 0 ? t.noProviders
+    : answered && settings.provider && !catalog.providers.includes(settings.provider)
+      ? t.savedProviderUnavailable(catalog.providerLabels[settings.provider] || providerBrand(settings.provider).displayName)
+      : catalog.error;
   const activeProvider = settings.provider || catalog.providers[0] || "";
-  const models = catalog.modelsByProvider[activeProvider] ?? [];
+  // A provider the host no longer lists offers none of its cached models; the saved model only names the control.
+  const models = catalog.providers.includes(activeProvider) ? catalog.modelsByProvider[activeProvider] ?? [] : [];
   const selectedModel = models.find((m) => m.id === settings.model);
   const thinkingStatus = describeThinkingStatus(settings, selectedModel, catalog.loading, lang);
 
@@ -400,11 +417,11 @@ export function TimelineTranslationSettings({ look }: { look: PageLook }) {
       {settings.customModel ? <>
         <ModelSettingsControls look={look} language={lang} provider={settings.provider} model={settings.model} thinkingOptionId={settings.thinkingOptionId}
           disableThinking={settings.disableThinking} disabledThinkingLabel={t.disableThinkingTitle} disabled={controlsDisabled || switchingProvider} loading={catalog.loading}
-          providers={catalog.providers} providerLabels={catalog.providerLabels} models={models}
+          providers={catalog.providers} providerLabels={catalog.providerLabels} models={models} offerSavedChoices={false}
           onProvider={(provider) => void selectProvider(provider)}
           onModel={(model) => void savePatch(modelSelection(models.find((entry) => entry.id === model), settings.thinkingOptionId))}
           onThinking={(thinkingOptionId) => void savePatch({ thinkingOptionId })} onRefresh={() => void loadModels(settings.provider)} />
-        {catalog.error ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={catalog.error} tone="danger" alert /></View> : null}
+        {catalogNotice ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}><RowNotice look={look} text={catalogNotice} tone="danger" alert /></View> : null}
       </> : null}
 
       <SettingRow

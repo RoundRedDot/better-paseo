@@ -21,7 +21,7 @@ import { radiusV2, space } from "../components/theme-tokens";
 import { settingsTextStyle, type PageLook } from "../settings-controls";
 
 /** The menu's chrome around its list: padding, border, search box and gap. */
-const MENU_CHROME = 8 * 2 + 1 * 2 + 34 + 8;
+const MENU_CHROME = 8 * 2 + 1 * 2 + 36 + 1 + 8;
 const MENU_GAP = 6;
 const MENU_EDGE = 8;
 const LIST_MAX = 340;
@@ -172,21 +172,14 @@ function LanguageOptionList({
 
   return (
     <View style={styles.listRoot}>
-      <View
-        style={[
-          styles.searchBox,
-          {
-            borderColor: tokens.v2.border,
-            backgroundColor: tokens.v2.surface0,
-          },
-        ]}
-      >
+      <View style={styles.searchBox}>
         <Icon name="Search" size={14} color={tokens.foregroundMuted} />
         <TextInput
           ref={inputRef}
           value={query}
           onChangeText={onQueryChange}
           placeholder={searchPlaceholder}
+          accessibilityLabel={searchPlaceholder}
           placeholderTextColor={tokens.foregroundSubtle ?? tokens.foregroundMuted}
           autoCapitalize="none"
           autoCorrect={false}
@@ -194,13 +187,14 @@ function LanguageOptionList({
             styles.searchInput,
             settingsTextStyle(tokens, -1),
             { color: tokens.foreground, fontFamily: tokens.fontUi },
+            Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null,
           ]}
         />
         {query ? (
           <Pressable
             accessibilityRole="button"
             accessibilityLabel="Clear search"
-            onPress={() => onQueryChange("")}
+            onPress={() => { onQueryChange(""); inputRef.current?.focus(); }}
             hitSlop={6}
             style={styles.clearButton}
           >
@@ -208,6 +202,7 @@ function LanguageOptionList({
           </Pressable>
         ) : null}
       </View>
+      <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: tokens.v2.border }} />
 
       {items.length === 0 ? (
         <View style={styles.emptyState}>
@@ -475,21 +470,19 @@ const styles = StyleSheet.create({
     padding: 8,
   },
   listRoot: {
-    gap: 8,
+    gap: 4,
   },
   searchBox: {
     flexDirection: "row",
     alignItems: "center",
-    gap: 6,
-    borderWidth: 1,
-    borderRadius: radiusV2.block,
+    gap: 8,
     paddingHorizontal: 8,
-    minHeight: 34,
+    minHeight: 36,
   },
   searchInput: {
     flex: 1,
     minWidth: 0,
-    paddingVertical: 6,
+    padding: 0,
   },
   clearButton: {
     padding: 2,

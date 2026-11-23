@@ -12,7 +12,7 @@ describe("translation model catalog", () => {
     };
     registerTimelineTranslation(server as never, async () => {});
     const listModels = vi.fn(async () => ({ error: null, models: [{ id: "m1", label: "Model 1" }] }));
-    const paseo = { providers: {
+    const paseo = { agents: {}, providers: {
       snapshot: async () => ({ entries: [
         { provider: "deepseek", label: "DeepSeek", enabled: true },
         { provider: "disabled", enabled: false },

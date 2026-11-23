@@ -250,6 +250,11 @@ describe("timeline translation settings", () => {
     expect(textsAfterFilter.some((t) => t.includes("Serbian (Latin)"))).toBe(true);
     expect(textsAfterFilter.some((t) => t.includes("Japanese"))).toBe(false);
 
+    const clear = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Clear search");
+    await act(async () => { clear.props.onPress(); });
+    expect(textValues(renderer!.root).some((t) => t.includes("Japanese"))).toBe(true);
+    await act(async () => { searchInput.props.onChangeText("sr-latn"); });
+
     const srLatnOption = renderer!.root.find(
       (n) =>
         n.props.accessibilityRole === "button" &&
@@ -266,7 +271,7 @@ describe("timeline translation settings", () => {
   });
 
   it("places the web language menu beside its control, sized to the side it opens on", () => {
-    const chrome = 60;
+    const chrome = 63;
     const viewport = { width: 1024, height: 768 };
     for (const top of [8, 100, 300, 420, 520, 600, 690, 724]) {
       const rect = { top, bottom: top + 36, right: 600, width: 200 };
@@ -281,7 +286,7 @@ describe("timeline translation settings", () => {
     }
     // Opening upward anchors the menu's bottom to the control, so a filtered, shorter list stays attached.
     expect(placeLanguageMenu({ top: 600, bottom: 636, right: 600, width: 200 }, viewport)).toEqual({ bottom: 174, left: 320, width: 280, listMaxHeight: 340 });
-    expect(placeLanguageMenu({ top: 212, bottom: 248, right: 600, width: 200 }, { width: 1024, height: 300 })).toMatchObject({ bottom: 94, listMaxHeight: 138 });
+    expect(placeLanguageMenu({ top: 212, bottom: 248, right: 600, width: 200 }, { width: 1024, height: 300 })).toMatchObject({ bottom: 94, listMaxHeight: 135 });
   });
 
   it("keeps the web language menu on its control while the page scrolls", async () => {
@@ -412,15 +417,80 @@ describe("timeline translation settings", () => {
       n.props.accessibilityLabel?.startsWith("Cursor")).length).toBeGreaterThan(0);
   });
 
-  it.each(["en", "zh"] as const)("offers configured providers and describes helper permissions (%s)", async (lang) => {
+  it("shows when no providers are enabled", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "", model: "" });
+    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error: null });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    expect(textValues(renderer!.root)).toContain("No providers are enabled in Paseo.");
+    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
+    expect(trigger.props.disabled).toBe(true);
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+  });
+
+  it.each(["en", "zh"] as const)("keeps the saved provider visible when the host lists no enabled providers (%s)", async (lang) => {
     updateEnhancerPreferences({ language: lang });
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "codex", model: "model-1" });
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "high" });
+    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error: "Provider unavailable" });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(false, lang) })); });
+    const texts = () => textValues(renderer!.root);
+    // The saved provider still names the control, but is not a choice.
+    expect(texts()).toContain("Oh My Pi");
+    for (const label of [lang === "zh" ? "Provider" : "Provider", lang === "zh" ? "模型" : "Model"]) {
+      const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
+      expect(trigger.props.disabled).toBe(true);
+    }
+    expect(texts()).toContain(lang === "zh"
+      ? "Paseo 中没有启用的 Provider。"
+      : "No providers are enabled in Paseo.");
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+  });
+
+  it.each(["en", "zh"] as const)("offers enabled providers when the saved one is unavailable (%s)", async (lang) => {
+    updateEnhancerPreferences({ language: lang });
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "high" });
+    const good = await mocks.modelsRpc({ provider: "claude" });
+    mocks.modelsRpc.mockReset().mockImplementation(async ({ provider }: { provider: string }) => provider === "omp"
+      ? { providers: ["claude"], providerLabels: { claude: "Claude" }, models: [], error: 'Provider "omp" is unavailable.' }
+      : { ...good, providers: ["claude"], providerLabels: { claude: "Claude" } });
     await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(false, lang) })); });
     const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
     await act(async () => { trigger.props.onPress(); });
-    const choices = renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel);
-    expect(choices).toContain("Codex");
-    expect(textValues(renderer!.root).some((text) => text.includes(lang === "zh" ? "工具权限" : "tool permissions"))).toBe(true);
+    expect([...new Set(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel))]).toEqual(["Claude"]);
+    expect(textValues(renderer!.root)).toContain(lang === "zh"
+      ? "已保存的 Provider「Oh My Pi」当前不可用。可从列表中选择已启用的 Provider 来更改设置。"
+      : "The saved provider Oh My Pi is unavailable. Choose an enabled provider to change the saved selection.");
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Claude");
+    await act(async () => { option.props.onPress(); });
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "claude", model: "claude-sonnet-4-5" }), "rev-1");
+  });
+
+  it("stops offering a provider's cached models once the host no longer lists that provider", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "" });
+    const ompModels = [{ id: "omp-model", label: "OMP Model", thinkingOptions: [], defaultThinkingOptionId: null }, { id: "omp-other", label: "OMP Other", thinkingOptions: [], defaultThinkingOptionId: null }];
+    let supported = ["claude", "omp"];
+    mocks.modelsRpc.mockReset().mockImplementation(async ({ provider }: { provider: string }) => supported.includes(provider) || !provider
+      ? { providers: supported, providerLabels: { claude: "Claude" }, models: provider === "omp" ? ompModels : [], error: null }
+      : { providers: supported, providerLabels: { claude: "Claude" }, models: [], error: `Provider "${provider}" is unavailable.` });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const radios = () => [...new Set(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel))];
+    const open = async (label: string) => {
+      const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
+      await act(async () => { trigger.props.onPress(); });
+    };
+    await open("Model");
+    expect(radios()).toEqual(["OMP Model", "OMP Other"]);
+    act(() => renderer!.unmount());
+
+    // The host stops reporting omp; its models are still in the page's cache.
+    supported = ["claude"];
+    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
+    const refresh = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
+    await act(async () => { refresh.props.onPress(); });
+    await open("Model");
+    expect(radios()).toEqual([]);
+    // The saved model still names the control; nothing was cleared or saved.
+    expect(textValues(renderer!.root)).toContain("omp-model");
     expect(mocks.saveSpy).not.toHaveBeenCalled();
   });
 

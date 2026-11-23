@@ -30,7 +30,7 @@ export const TRANSLATE_ICON: PluginIcon = {
 };
 
 export const SHOW_ORIGINAL_ICON: PluginIcon = {
-  svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 2h8l5 5v14a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V3a1 1 0 0 1 1-1zM14 2v6h5M9 12h6M9 16h6"/></svg>',
+  svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M15.5 7.5V5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/><path d="M6.5 7h6"/><path d="M6.5 10.5h5"/><path d="M6.5 14h3.5"/><path d="m12 21 4.5-10 4.5 10"/><path d="M13.5 18h6"/></svg>',
 };
 
 /**

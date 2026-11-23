@@ -47,6 +47,7 @@ function createMockEnv(options?: {
   runResult?: { status: string; lastMessage?: string | null; error?: string | null };
   streamChunks?: Array<{ text: string; messageId?: string }>;
   throwOnRun?: boolean;
+  createAgentError?: Error;
   archiveResult?: { error: string | null };
   providerEntries?: Array<{ provider: string; enabled: boolean; status: string }>;
 }) {
@@ -153,6 +154,7 @@ function createMockEnv(options?: {
           agents: {
             async create(agentInput: unknown) {
               captured.agentConfigs.push(agentInput);
+              if (options?.createAgentError) throw options.createAgentError;
               const handlers: Array<(event: unknown) => void> = [];
               return {
                 id: "helper-agent-1",
@@ -614,10 +616,38 @@ describe("ordinary translation helpers", () => {
 
   it("uses the chosen provider without silently switching models", async () => {
     const env = createMockEnv({ settings: { customModel: true, provider: "alt", model: "alt-model" },
-      providerEntries: [{ provider: "alt", enabled: true, status: "ready" }] });
+      providerEntries: [
+        { provider: "claude", enabled: true, status: "ready" },
+        { provider: "alt", enabled: true, status: "ready" },
+      ] });
     env.translator.request({ action: "start", jobId: "ordinary-custom", agentId: "source-agent-1", text: "Hello",
       sourceKind: "assistant_message", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo);
     expect(await waitForJob(env.translator, env.paseo, "ordinary-custom")).toMatchObject({ state: "done", provider: "alt", model: "alt-model" });
-    expect((env.captured.agentConfigs[0] as { config: { provider: string } }).config.provider).toBe("alt/alt-model");
+    const created = env.captured.agentConfigs[0] as { config: Record<string, unknown> };
+    expect(created.config.provider).toBe("alt/alt-model");
+    expect(created.config).not.toHaveProperty("toolPolicy");
+  });
+
+  it("reports an unavailable configured provider without sending text through the conversation provider", async () => {
+    const env = createMockEnv({ settings: { customModel: true, provider: "alt", model: "alt-model" } });
+    env.translator.request({ action: "start", jobId: "unavailable-provider", agentId: "source-agent-1", text: "Hello",
+      sourceKind: "assistant_message", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo);
+    expect(await waitForJob(env.translator, env.paseo, "unavailable-provider")).toEqual({
+      state: "error", error: 'Translation provider "alt" is unavailable.',
+    });
+    expect(env.captured.workspaceInputs).toEqual([]);
+    expect(env.captured.prompts).toEqual([]);
+  });
+
+  it("reports a helper creation error and archives the workspace", async () => {
+    const env = createMockEnv({ createAgentError: new Error("Provider could not start the helper.") });
+    env.translator.request({ action: "start", jobId: "create-failed", agentId: "source-agent-1", text: "Hello",
+      sourceKind: "assistant_message", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo);
+    expect(await waitForJob(env.translator, env.paseo, "create-failed")).toEqual({
+      state: "error", error: "Provider could not start the helper.",
+    });
+    expect(env.captured.prompts).toEqual([]);
+    expect(env.captured.archived).toBe(1);
+    expect(env.captured.deletedHelpers).toEqual([]);
   });
 });

@@ -84,7 +84,10 @@ function connection(capabilities: readonly string[]): ProviderConnection {
   const handle = async (input: ProviderInput) => {
     switch (input.type) {
       case "catalog":
-        emit({ type: "catalog", requestId: input.requestId, catalog: { models: [{ id: "lanes", label: "Lanes", isDefault: true }], modes: [{ id: "default", label: "Default" }], defaultModel: "lanes", defaultMode: "default" } });
+        emit({ type: "catalog", requestId: input.requestId, catalog: { models: [
+          { id: "lanes", label: "Lanes", isDefault: true },
+          { id: "translation", label: "Translation" },
+        ], modes: [{ id: "default", label: "Default" }], defaultModel: "lanes", defaultMode: "default" } });
         return;
       case "sessions":
         emit({ type: "sessions", requestId: input.requestId, sessions: [] });
