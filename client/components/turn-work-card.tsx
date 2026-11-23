@@ -14,15 +14,17 @@
  * added up, not the file's net change, and are measured once per call.
  */
 import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import { Pressable, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { space } from "./theme-tokens";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-header";
 import { useHover } from "../ui/use-hover";
+import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { hairline } from "../ui/tokens/platform";
 import { RunningDot } from "../ui/running-dot";
 import { FadeIn } from "../ui/fade-in";
+import { HoverPreviewBody } from "../ui/hover-preview";
 import { PathContext, usePathContextValue } from "../ui/path-text";
 import { formatPath } from "../paths/format-path";
 import { formatDuration } from "../ui/time";
@@ -111,10 +113,32 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   const { language } = useEnhancerPreferences();
   const text = STRINGS[resolveLanguage(language)] ?? STRINGS.en;
   const [level, setLevel] = useState<"closed" | "summary" | "steps">("closed");
+  const { width } = useWindowDimensions();
+  const input = useInputCapabilities(compact);
+  const registration = useRef<BlockRegistration | null>(null);
   const lang = resolveLanguage(language);
   const label = !work.running && work.complete && work.durationMs !== null
     ? text.worked.replace("{d}", formatDuration(work.durationMs, lang)) : text.work;
   const styles = useCardStyles(tokens);
+  const summary = workVerbs(work.steps).map((verb) => text[verb]).join(" · ");
+  const entry = useMemo<BlockEntry>(() => ({
+    id: `${agentId}:work:${work.key}:steps`, agentId, at, kind: "tool", seq: 0,
+    mounted: true, navigable: false, hasBody: true, title: summary, titleMono: false,
+    subtitle: [], icon: "List", readsImage: false,
+    render: () => <HoverPreviewBody><WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>,
+    copies: () => [],
+  }), [agentId, at, compact, summary, tokens, work.key, work.steps]);
+  useEffect(() => { registration.current?.update(entry); }, [entry]);
+  useEffect(() => () => { registration.current?.release(); registration.current = null; }, [agentId, work.key]);
+  const toggleSteps = () => {
+    if (width < 600 && input.touch && !input.hover) {
+      if (registration.current) registration.current.update(entry);
+      else registration.current = registerBlock(entry);
+      detailsApi.open(agentId, entry.id, { form: "drawer", navigable: false });
+      return;
+    }
+    setLevel((current) => current === "steps" ? "summary" : "steps");
+  };
   return (
     <View style={styles.card}>
       {work.steps.length ? (
@@ -124,7 +148,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
           {level !== "closed" ? (
             <FadeIn style={styles.indent}>
               <WorkSummary work={work} text={text} tokens={tokens} compact={compact}
-                open={level === "steps"} onToggle={() => setLevel((current) => current === "steps" ? "summary" : "steps")} />
+                open={level === "steps"} onToggle={toggleSteps} />
               {level === "steps" ? <WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /> : null}
             </FadeIn>
           ) : null}

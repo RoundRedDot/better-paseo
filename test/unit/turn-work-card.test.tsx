@@ -24,6 +24,7 @@ import { updateEnhancerPreferences, getEnhancerPreferences } from "../../client/
 import { detailsApi, useDetails } from "../../client/details/details-store";
 import { getBlock } from "../../client/details/block-registry";
 import { timelineEntry as entry } from "./helpers/turn-timeline";
+import { Dimensions } from "react-native";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
@@ -64,11 +65,12 @@ const pressText = (label: string) => {
 };
 
 beforeEach(() => {
+  vi.spyOn(Dimensions, "get").mockReturnValue({ width: 1000, height: 844, scale: 3, fontScale: 1 });
   updateEnhancerPreferences({ language: "zh", blockDetails: true });
   const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
   act(() => { renderer = TestRenderer.create(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
 });
-afterEach(() => { act(() => renderer.unmount()); detailsApi.close("agent"); });
+afterEach(() => { act(() => renderer.unmount()); detailsApi.close("agent"); vi.restoreAllMocks(); });
 
 describe("turn work card", () => {
   it("closed: the work row, the file header and three paths, nothing else", () => {
@@ -99,6 +101,20 @@ describe("turn work card", () => {
     pressText("用时 9秒");
     expect(byType("ToolCallout")).toHaveLength(0);
     expect(texts()).not.toContain("读取了文件 · 编辑了文件 · 运行了命令");
+  });
+
+  it("opens the complete work steps in the phone drawer", () => {
+    vi.spyOn(Dimensions, "get").mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 1 });
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact /></>); });
+    pressText("用时 9秒");
+    pressText("读取了文件 · 编辑了文件 · 运行了命令");
+    expect(openId).toBe("agent:work:r:10000:done:steps");
+    expect(byType("ToolCallout")).toHaveLength(0);
+    const block = getBlock("agent", openId!);
+    expect(block?.title).toBe("读取了文件 · 编辑了文件 · 运行了命令");
+    const body = block!.render() as React.ReactElement<{ children: React.ReactElement<{ steps: unknown[] }> }>;
+    expect(body.props.children.props.steps).toHaveLength(7);
   });
 
   it("shows more paths only on request, and opens one file's changes in the details panel", () => {
