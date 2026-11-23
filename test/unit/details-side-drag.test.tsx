@@ -158,6 +158,13 @@ it("keeps landscape phone sizing while allowing an iPad in a short window to res
   expect(sideWidth({ width: 1200, height: 400 }, false)).toBe(432);
 });
 
+it("widens beyond the empty gutter and restores the original width", () => {
+  const stage = { width: 1200, height: 900, sideSpace: 420 };
+  expect(sideWidth(stage, false)).toBe(420);
+  expect(sideWidth(stage, true)).toBe(720);
+  expect(sideWidth(stage, false)).toBe(420);
+});
+
 it("starts dragging from the visible expanded width and leaves expanded mode", () => {
   const docListeners = new Map<string, Listener>();
   const edgeListeners = new Map<string, Listener>();
@@ -183,9 +190,9 @@ it("starts dragging from the visible expanded width and leaves expanded mode", (
   expect(onResizeStart).not.toHaveBeenCalled();
   act(() => docListeners.get("pointermove")!(event(1050)));
   expect(onResizeStart).toHaveBeenCalledOnce();
-  expect(panelStyle.width).toBe("650px");
+  expect(panelStyle.width).toBe("910px");
   act(() => renderer!.update(panel(false)));
   act(() => docListeners.get("pointerup")!(event(1050)));
   const width = StyleSheet.flatten(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side").props.style).width;
-  expect(width).toBe(650);
+  expect(width).toBe(910);
 });

@@ -407,6 +407,23 @@ describe("details toolbar", () => {
     act(() => renderer!.update(details(content, shell({ fullscreen: true }))));
     expect(labels(byId(renderer!.root, "details-toolbar-end")).at(-1)).toBe("Exit full screen");
   });
+
+  it("offers desktop text size steps and reset in the toolbar", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const commit = vi.fn();
+    const value = shell({ pointer: true, zoom: { base: 14, current: () => 14, preview() {}, commit } });
+    const root = mount(details(rowPreview(callout(bash)), value));
+    const start = byId(root, "details-toolbar-start");
+    expect(labels(start).slice(0, 4)).toEqual(["Do not wrap lines", "Decrease text size", "Reset zoom", "Increase text size"]);
+    act(() => find(root, "Increase text size").props.onPress());
+    act(() => find(root, "Decrease text size").props.onPress());
+    act(() => find(root, "Reset zoom").props.onPress());
+    expect(commit.mock.calls).toEqual([[15], [13], [14]]);
+    act(() => updateEnhancerPreferences({ detailsFontSize: 12 }));
+    expect(find(root, "Decrease text size").props.disabled).toBe(true);
+    act(() => updateEnhancerPreferences({ detailsFontSize: 26 }));
+    expect(find(root, "Increase text size").props.disabled).toBe(true);
+  });
 });
 
 describe("copy overflow", () => {

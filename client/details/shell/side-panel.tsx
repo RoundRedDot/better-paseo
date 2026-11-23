@@ -38,7 +38,7 @@ export function sideWidth(stage: { width: number; height: number; sideSpace?: nu
   const base = sessionWidth === null
     ? Math.min(stage.sideSpace ?? stage.width, Math.round(sidePanelWidth(stage.width)))
     : Math.min(stage.width, Math.round(Math.max(SIDE.min, Math.min(stage.width * SIDE.max, sessionWidth))));
-  const expanded = Math.min(stage.sideSpace ?? stage.width, Math.round(stage.width * SIDE.max));
+  const expanded = Math.round(stage.width * SIDE.max);
   return wide ? Math.max(base, expanded) : base;
 }
 

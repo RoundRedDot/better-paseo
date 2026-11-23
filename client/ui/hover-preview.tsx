@@ -841,14 +841,14 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
   const shell = useContext(DetailsShellContext);
   const pulls = Boolean(report) && Platform.OS !== "web" && shell !== null && shell.form !== "side";
   // The phone drawer's pinch sets its text size.
-  const zoom = report ? shell?.zoom : undefined;
+  const zoom = report && Platform.OS !== "web" ? shell?.zoom : undefined;
   const pinch = usePinchZoom(zoom, report ? scroller.value : null);
   const [bodyTop, setBodyTop] = useState(true);
   const bodyTopRef = useRef(true);
   // iOS text sets its size only as it draws, so a new zoom mounts the content
   // again: text kept the old size's frame, and a command band cut its last line.
   const textZoom = useContext(TextZoomContext);
-  const redrawKey = Platform.OS === "ios" ? textZoom : undefined;
+  const redrawKey = Platform.OS === "ios" && typeof textZoom === "number" ? textZoom : undefined;
   const detailsScroll = useMemo(() => (report ? {
     ...scroller.props,
     onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {

@@ -345,10 +345,12 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const window = useWindowDimensions();
   const proseScale = Math.min(window.width, window.height) < DETAILS_BREAKPOINTS.drawerEnter ? 1 : 7 / 8;
   const textSize = liveZoom ?? detailsFontSize;
-  const textZoom = zooms ? Math.round(tokens.typography.content.size * proseScale * textSize / DETAILS_FONT_SIZE_DEFAULT) : 0;
+  const textZoom = useMemo(() => zooms ? Math.round(tokens.typography.content.size * proseScale * textSize / DETAILS_FONT_SIZE_DEFAULT)
+    : textSize === DETAILS_FONT_SIZE_DEFAULT ? 0 : { scale: textSize / DETAILS_FONT_SIZE_DEFAULT },
+  [zooms, tokens.typography.content.size, proseScale, textSize]);
   const zoomRef = useRef(textSize);
   zoomRef.current = textSize;
-  const zoom = useMemo<DetailsZoom | undefined>(() => (zooms ? {
+  const zoom = useMemo<DetailsZoom>(() => ({
     base: DETAILS_FONT_SIZE_DEFAULT,
     current: () => zoomRef.current,
     preview(next) {
@@ -360,7 +362,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
       if (getEnhancerPreferences().detailsFontSize !== next) updateEnhancerPreferences({ detailsFontSize: next });
       setLiveZoom(null);
     },
-  } : undefined), [zooms]);
+  }), []);
 
   // Web keys while the panel is open (`keyboard.ts`): only this lease holder's
   // layer, and only while its pane is shown. ← → take the panel's own step.

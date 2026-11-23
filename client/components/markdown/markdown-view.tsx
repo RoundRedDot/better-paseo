@@ -11,7 +11,7 @@ import { repairTail } from "./repair";
 import type { RenderContext } from "./render/context";
 import { MdBlock } from "./render/md-block";
 import { buildStyles, variantMetrics, type MarkdownVariant } from "./render/styles";
-import { useZoomedTokens } from "../../ui/text-zoom";
+import { TextZoomContext, useZoomedTokens } from "../../ui/text-zoom";
 import { dismissBlockSelection } from "./render/block-selection";
 import { SelectionTranslationContext, bindSelectionScopeElement, selectionScopeDataSet } from "../../translation/selection";
 
@@ -144,9 +144,11 @@ export function MarkdownView({
   // cached per input, so the context — and every finished block — stays put
   // while the reply streams.
   const timelineProse = useContext(TimelineProseContext) && size !== undefined;
+  const zoom = useContext(TextZoomContext);
+  const scaledSize = size !== undefined && typeof zoom !== "number" ? Math.round(size * zoom.scale) : size;
   const metrics = timelineProse
     ? variantMetrics(variant, tokens.typography.content.size, compact)
-    : variantMetrics(variant, size ?? tokens.typography.content.size, compact, quiet);
+    : variantMetrics(variant, scaledSize ?? tokens.typography.content.size, compact, quiet);
   const styles = useMemo(() => buildStyles(tokens, variant, metrics, quiet), [tokens, variant, metrics, quiet]);
   // iOS only: elsewhere prose is the same `Text` either way, and the context
   // must stay put when the reply settles so finished blocks are not redrawn.

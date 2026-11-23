@@ -154,7 +154,7 @@ import { hasActiveDetailsKeyboard } from "../../client/details/keyboard";
 import { useDetailsBodyScroll, type DetailsBodyReport } from "../../client/details/shell/body-handover";
 import { claimContentTouch, contentOwnsTouch, resetContentTouches } from "../../client/details/touch-claim";
 import { CONTENT_HOLD_MS } from "../../client/details/shell/gestures";
-import { HoverPreviewBody } from "../../client/ui/hover-preview";
+import { HoverPreviewBody, HoverPreviewHeader } from "../../client/ui/hover-preview";
 import { ProseRedrawContext } from "../../client/ui/prose-text";
 import { useLineSelection } from "../../client/ui/line-selection";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
@@ -455,7 +455,7 @@ describe("form", () => {
     expect(byTestId(phone, "details-side")).not.toBeNull();
     expect(byTestId(phone, "details-side-native-edge")).toBeNull();
   });
-  it.each([1280, 1400, 1560, 1799, 1800, 1920])("uses only measured empty space for a side panel at %i px", async (width) => {
+  it.each([1280, 1400, 1560, 1799, 1800, 1920])("starts in empty space and widens on request at %i px", async (width) => {
     webDesktop();
     screen.width = width;
     web.pane = { left: 240, right: width, contentRight: (width + 240 + 720) / 2 };
@@ -468,9 +468,12 @@ describe("form", () => {
       return;
     }
     const panelWidth = () => Number(flat(byTestId(renderer, "details-side")!.props.style).width);
-    expect(panelWidth()).toBeLessThanOrEqual(space);
+    const initial = panelWidth();
+    expect(initial).toBeLessThanOrEqual(space);
     act(() => seen.shell!.toggleFullscreen!());
-    expect(panelWidth()).toBeLessThanOrEqual(space);
+    expect(panelWidth()).toBe(Math.max(initial, Math.round((width - 240) * 0.6)));
+    act(() => seen.shell!.toggleFullscreen!());
+    expect(panelWidth()).toBe(initial);
   });
 
   it("remeasures the pane and column without a window resize and releases its observer", async () => {
@@ -1839,7 +1842,7 @@ describe("iOS text after the slide in", () => {
 
 describe("a pinch in the phone drawer", () => {
   type Handlers = Record<string, (...args: unknown[]) => unknown>;
-  const zooms: number[] = [];
+  const zooms: (number | { scale: number })[] = [];
   let zoomMounts = 0;
   function ZoomProbe() {
     const zoom = useContext(TextZoomContext);
@@ -2032,7 +2035,7 @@ describe("a pinch in the phone drawer", () => {
     expect(fake.api.close).not.toHaveBeenCalled();
   });
 
-  it("draws the saved size in the drawer, and leaves web unchanged", () => {
+  it("draws the saved size in the drawer and scales web details", () => {
     updateEnhancerPreferences({ detailsFontSize: 19 });
     const { panel, shown } = drawer("pinch-saved");
     expect(shown()).toBe("22");
@@ -2042,8 +2045,31 @@ describe("a pinch in the phone drawer", () => {
     fake.box.blocks = [block("pinch-side", 1, { render: zoomed })];
     const side = render(slot());
     open("pinch-side");
-    expect(byTestId(side, "zoom-probe")!.props.children).toBe("0");
+    expect(zooms.at(-1)).toEqual({ scale: 19 / 14 });
+    act(() => updateEnhancerPreferences({ detailsFontSize: 14 }));
+    expect(zooms.at(-1)).toBe(0);
     expect(byTestId(side, "details-body")!.props.onTouchStart).toBeUndefined();
+  });
+
+  it("applies desktop toolbar changes and keeps the size when changing blocks", () => {
+    webDesktop();
+    const renderBlock = () => createElement(React.Fragment, null,
+      createElement(HoverPreviewHeader, { tokens, icon: "FileText" }), zoomed());
+    fake.box.blocks = [block("zoom-a", 1, { render: renderBlock }), block("zoom-b", 2, { render: renderBlock })];
+    const renderer = render(slot());
+    open("zoom-a");
+    const button = (label: string) => renderer.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
+    act(() => button("Increase text size").props.onPress());
+    expect(getEnhancerPreferences().detailsFontSize).toBe(15);
+    expect(zooms.at(-1)).toEqual({ scale: 15 / 14 });
+    act(() => fake.api.open(AGENT, "zoom-b"));
+    expect(zooms.at(-1)).toEqual({ scale: 15 / 14 });
+    act(() => button("Decrease text size").props.onPress());
+    expect(zooms.at(-1)).toBe(0);
+    act(() => button("Increase text size").props.onPress());
+    act(() => button("Reset zoom").props.onPress());
+    expect(getEnhancerPreferences().detailsFontSize).toBe(14);
+    expect(zooms.at(-1)).toBe(0);
   });
 
   it.each([

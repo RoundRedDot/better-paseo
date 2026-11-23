@@ -9,10 +9,14 @@
  * header above names the block.
  */
 import { useState, type ReactNode } from "react";
-import { StyleSheet, View, useWindowDimensions, type LayoutChangeEvent } from "react-native";
+import { Platform, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent } from "react-native";
+import type { PluginIcon } from "@getpaseo/plugin/client";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { space } from "../../components/theme-tokens";
-import { CopyOverflowContext, SpokenLabelsContext, ToolbarButton, ToolbarMetricsContext, TooltipAlignContext } from "../../ui/toolbar-button";
+import { CopyOverflowContext, SpokenLabelsContext, ToolbarButton, ToolbarItem, ToolbarMetricsContext, TooltipAlignContext } from "../../ui/toolbar-button";
+import { useEnhancerPreferences } from "../../preferences";
+import { DETAILS_FONT_SIZE_MIN, DETAILS_FONT_SIZE_MAX } from "../../../shared/preferences-settings";
 import type { DetailsShellValue } from "../contracts";
 import { DETAILS_BREAKPOINTS } from "../layout-model";
 import { HEADER_BUTTONS } from "./details-header";
@@ -23,6 +27,12 @@ const PADDING = space.md;
 const GAP = space.xs;
 /** Between the left group and the copies. */
 const SPLIT = space.sm;
+const TEXT_SMALLER: PluginIcon = {
+  svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19 8 5l5 14M5 14h6"/><path d="M16 9h5"/></svg>',
+};
+const TEXT_LARGER: PluginIcon = {
+  svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19 8 5l5 14M5 14h6"/><path d="M16 9h5m-2.5-2.5v5"/></svg>',
+};
 
 export interface DetailsWrap {
   on: boolean;
@@ -43,6 +53,7 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
   const metrics = HEADER_BUTTONS[shell.pointer ? "pointer" : "touch"];
   const [width, setWidth] = useState<number | null>(null);
   const [leftWidth, setLeftWidth] = useState(0);
+  const { detailsFontSize } = useEnhancerPreferences();
   const window = useWindowDimensions();
   const fullscreen = Math.min(window.width, window.height) < DETAILS_BREAKPOINTS.drawerEnter
     ? null : fullscreenButton(shell);
@@ -71,6 +82,19 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
                 tokens={tokens}
               />
             ) : null}
+            {Platform.OS === "web" && shell.pointer && shell.zoom ? <>
+              <ToolbarItem label="Decrease text size" disabled={detailsFontSize <= DETAILS_FONT_SIZE_MIN}
+                onPress={() => shell.zoom!.commit(detailsFontSize - 1)} tokens={tokens} iconSize={metrics.icon}>
+                <Icon icon={TEXT_SMALLER} size={metrics.icon} color={tokens.foregroundMuted} />
+              </ToolbarItem>
+              <ToolbarItem label="Reset zoom" onPress={() => shell.zoom!.commit(shell.zoom!.base)} tokens={tokens}>
+                <Text selectable={false} style={{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 12 }}>{detailsFontSize}</Text>
+              </ToolbarItem>
+              <ToolbarItem label="Increase text size" disabled={detailsFontSize >= DETAILS_FONT_SIZE_MAX}
+                onPress={() => shell.zoom!.commit(detailsFontSize + 1)} tokens={tokens} iconSize={metrics.icon}>
+                <Icon icon={TEXT_LARGER} size={metrics.icon} color={tokens.foregroundMuted} />
+              </ToolbarItem>
+            </> : null}
             {left}
           </TooltipAlignContext.Provider>
         </View>

@@ -75,6 +75,14 @@ describe("pinchZoom", () => {
 });
 
 describe("zoomTokens", () => {
+  it("scales desktop prose and code from their own sizes", () => {
+    const scaled = zoomTokens(tokens, { scale: 1.5 });
+    expect(scaled.typography.content.size).toBe(Math.round(tokens.typography.content.size * 1.5));
+    expect(scaled.typography.mono.size).toBe(Math.round(tokens.typography.mono.size * 1.5));
+    expect(zoomTokens(tokens, { scale: 1.5 })).toBe(scaled);
+    expect(zoomTextStyle({ fontSize: 12, lineHeight: 18 }, { scale: 1.5 }))
+      .toEqual([{ fontSize: 12, lineHeight: 18 }, { fontSize: 18, lineHeight: 27 }]);
+  });
   it("sets body and code to one independent size, and returns stable tokens", () => {
     const up = zoomTokens(tokens, 18);
     expect(up.typography.content.size).toBe(18);

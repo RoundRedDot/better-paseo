@@ -117,7 +117,7 @@ export interface BlockPlacement {
 }
 export const BlockPlacementContext = createContext<BlockPlacement | null>(null);
 
-/** Independent native details text size, in points (`detailsFontSize`). */
+/** Independent details text size (`detailsFontSize`). */
 export interface DetailsZoom {
   /** The fixed default size used by Reset. */
   base: number;
@@ -152,7 +152,7 @@ export interface DetailsShellValue {
   toggleFullscreen?(): void;
   /** Spread on the header: vertical drag moves the drawer, horizontal swipe steps (touch only). */
   headerHandlers?: Record<string, unknown>;
-  /** Native details text zoom, set by a body pinch or the badge's buttons; absent on web. */
+  /** Details text zoom, set by native pinch or desktop toolbar controls. */
   zoom?: DetailsZoom;
 }
 export const DetailsShellContext = createContext<DetailsShellValue | null>(null);
