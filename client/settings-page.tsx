@@ -662,6 +662,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
   const brand = providerBrand(entry.provider);
   const executable = entry.server ? t.agentOpenCodeServer : entry.executable ? tildePath(entry.executable) : t.agentUnknownExecutable;
   let source = t.agentLatestSource;
+  if (entry.releaseSource === "antigravity") source = t.agentAntigravitySource;
   if (entry.releasePackage) source = entry.status === "reference" ? t.agentReferencePackage(entry.releasePackage) : t.agentLatestPackage(entry.releasePackage);
   return <View testID={`agent-version-${entry.provider}`} style={{ borderTopWidth: 1, borderTopColor: tokens.v2.border }}>
     <Pressable

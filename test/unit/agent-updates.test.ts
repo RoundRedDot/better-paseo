@@ -3,7 +3,7 @@ import { mkdtemp, mkdir, realpath, rm, symlink, writeFile } from "node:fs/promis
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { createServer } from "node:http";
-import { createAgentUpdateCheck, customReleasePackage, identifyInstallation, parseAgentDiagnostic, openCodeServerVersion } from "../../server/agent-updates";
+import { createAgentUpdateCheck, customReleasePackage, identifyInstallation, parseAgentDiagnostic, openCodeServerVersion, antigravityLatest } from "../../server/agent-updates";
 import { hasAgentUpdate, agentUpdatesRpc, retainAgentUpdates } from "../../shared/agent-updates";
 
 const directories: string[] = [];
@@ -19,6 +19,35 @@ function api(entries = [entry("codex")], read = async () => ({ diagnostic: diagn
 }
 const fetchVersion = vi.fn(async () => new Response(JSON.stringify({ latest: "1.2.0" }))) as unknown as typeof fetch;
 const identify = vi.fn(async () => ({ method: "unknown" as const, command: null }));
+
+it.each([["1.5.14", "current", false], ["1.5.15", "available", true]])("checks a verified official Antigravity against manifest %s", async (latest, status, available) => {
+  const paseo = api([entry("antigravity", true, "custom")], async () => ({ diagnostic: diagnostic("/opt/agy", "1.5.14") }));
+  const fetchManifest = vi.fn(async () => new Response(JSON.stringify({ version: latest }))) as unknown as typeof fetch;
+  const check = createAgentUpdateCheck({ fetchVersion: fetchManifest, identify, officialAgy: async () => true, agyLatest: (fetcher) => antigravityLatest(fetcher, "darwin", "arm64") });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ current: "1.5.14", latest, status, updateAvailable: available, method: "native", releaseSource: "antigravity", command: "'/opt/agy' update", issue: null });
+});
+
+it("does not treat an unverified Antigravity command as official, including an override", async () => {
+  const paseo = api([entry("antigravity")], async () => ({ diagnostic: diagnostic("/opt/agy", "1.5.14") }));
+  const fetchManifest = vi.fn(fetchVersion);
+  const officialAgy = vi.fn(async () => false);
+  const check = createAgentUpdateCheck({ fetchVersion: fetchManifest as unknown as typeof fetch, identify, officialAgy, customSource: async () => null });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ latest: null, status: "unknown", issue: "release_source_unknown" });
+  vi.mocked(paseo.config.get).mockResolvedValue({ config: { providers: { antigravity: { command: ["/opt/agy"] } } } } as never);
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ latest: null, status: "unknown" });
+  expect(officialAgy).toHaveBeenCalledTimes(2);
+  expect(fetchManifest).not.toHaveBeenCalled();
+});
+
+it("reports an official manifest failure without claiming a version", async () => {
+  const paseo = api([entry("antigravity")], async () => ({ diagnostic: diagnostic("/opt/agy", "1.5.14") }));
+  const check = createAgentUpdateCheck({ fetchVersion: vi.fn(async () => new Response("invalid")) as unknown as typeof fetch, identify, officialAgy: async () => true, agyLatest: (fetcher) => antigravityLatest(fetcher, "darwin", "arm64") });
+  check("check", paseo);
+  expect((await finish(check, paseo)).entries[0]).toMatchObject({ latest: null, status: "error", issue: "latest_fetch_failed" });
+});
 
 it.each([["gemini", "@google/gemini-cli"], ["claude", "@anthropic-ai/claude-code"]])("verifies an inherited %s installation from its parent package", async (parent, packageName) => {
   const dir = await mkdtemp(join(tmpdir(), "better-paseo-inherited-owner-")); directories.push(dir);

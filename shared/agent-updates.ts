@@ -4,6 +4,7 @@ import { z } from "zod";
 const agentUpdate = z.object({
   provider: z.string(), label: z.string(), executable: z.string().nullable(),
   releasePackage: z.string().nullable().optional(),
+  releaseSource: z.enum(["antigravity"]).optional(),
   server: z.boolean().optional(),
   current: z.string().nullable(), latest: z.string().nullable(),
   method: z.enum(["npm", "homebrew", "native", "unknown"]),

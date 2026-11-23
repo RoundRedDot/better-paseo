@@ -1,6 +1,8 @@
 import { readFile, realpath, stat } from "node:fs/promises";
 import { basename, isAbsolute, join } from "node:path";
 import { homedir } from "node:os";
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
 import { z } from "zod";
 import type { PaseoApi } from "./paseo-types";
 import type { AgentUpdate, AgentUpdates } from "../shared/agent-updates";
@@ -12,6 +14,27 @@ const packages: Record<string, string> = {
 };
 const stableVersion = /^(0|[1-9]\d*)\.(0|[1-9]\d*)\.(0|[1-9]\d*)$/;
 const quote = (value: string) => `'${value.replace(/'/g, "'\\''")}'`;
+const execFileAsync = promisify(execFile);
+
+export async function officialAntigravity(executable: string): Promise<boolean> {
+  if (process.platform !== "darwin" || basename(executable) !== "agy") return false;
+  try {
+    await execFileAsync("/usr/bin/codesign", ["--verify", "--strict", "-R", '=anchor apple generic and identifier "cli" and certificate leaf[subject.OU] = "EQHXZ8M8AV"', executable], { timeout: 10000 });
+    return true;
+  } catch { return false; }
+}
+
+export async function antigravityLatest(fetchVersion: typeof fetch, platform = process.platform, architecture = process.arch): Promise<string> {
+  const arch = architecture === "arm64" ? "arm64" : architecture === "x64" ? "amd64" : null;
+  if (platform !== "darwin" || !arch) throw new Error("Unsupported platform");
+  const response = await fetchVersion(`https://antigravity-cli-auto-updater-974169037036.us-central1.run.app/manifests/darwin_${arch}.json`, { signal: AbortSignal.timeout(10000), redirect: "error" });
+  if (!response.ok) throw new Error("Manifest request failed");
+  const length = Number(response.headers.get("content-length"));
+  if (length > 65536) throw new Error("Manifest too large");
+  const body = await response.text();
+  if (body.length > 65536) throw new Error("Manifest too large");
+  return z.object({ version: z.string().regex(stableVersion) }).parse(JSON.parse(body)).version;
+}
 
 /** The discovered service file provides credentials only for its own loopback endpoint. */
 export async function openCodeServerVersion(url: string, file = join(process.env.XDG_STATE_HOME ?? join(homedir(), ".local/state"), "opencode/service.json"), fetchInfo: typeof fetch = fetch): Promise<string | null> {
@@ -136,7 +159,7 @@ function releasePackage(provider: string, current: string | null): string | null
   return Object.hasOwn(packages, provider) ? packages[provider]! : null;
 }
 
-export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; identify: typeof identifyInstallation; customSource?: typeof customReleasePackage; serverVersion?: typeof openCodeServerVersion } = { fetchVersion: fetch, identify: identifyInstallation }) {
+export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; identify: typeof identifyInstallation; customSource?: typeof customReleasePackage; serverVersion?: typeof openCodeServerVersion; officialAgy?: typeof officialAntigravity; agyLatest?: (fetchVersion: typeof fetch) => Promise<string> } = { fetchVersion: fetch, identify: identifyInstallation }) {
   let state: AgentUpdates = { state: "idle", entries: [], error: null };
   let running: Promise<void> | null = null;
   let lastAttempt = 0;
@@ -181,6 +204,18 @@ export function createAgentUpdateCheck(deps: { fetchVersion: typeof fetch; ident
         stage = "config_failed";
         const config = await providerConfig();
         const custom = entry.source === "custom" || (!server && config.get(entry.provider)?.overridden === true);
+        if (entry.provider === "antigravity" && result.executable && result.current && await (deps.officialAgy ?? officialAntigravity)(result.executable)) {
+          result.method = "native";
+          result.command = `${quote(result.executable)} update`;
+          result.issue = null;
+          result.releaseSource = "antigravity";
+          stage = "latest_fetch_failed";
+          result.latest = await (deps.agyLatest ?? antigravityLatest)(deps.fetchVersion);
+          result.updateAvailable = isNewerVersion(result.current, result.latest, 0, 0);
+          result.status = result.updateAvailable ? "available" : "current";
+          state = { ...state, entries: [...state.entries.filter((row) => row.provider !== result.provider), result].sort((a, b) => entries.findIndex((entry) => entry.provider === a.provider) - entries.findIndex((entry) => entry.provider === b.provider)) };
+          return;
+        }
         let parentPackage = entry.source === "custom" ? null : releasePackage(entry.provider, result.current);
         if (entry.source === "custom") {
           const seen = new Set([entry.provider]);
