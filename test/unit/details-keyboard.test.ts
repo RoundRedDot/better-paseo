@@ -128,6 +128,23 @@ describe("details keyboard routing", () => {
     dropActions();
   });
 
+  it("routes font size shortcuts without stealing typing or modified shortcuts", () => {
+    const { key, target } = setup();
+    const changeFontSize = vi.fn();
+    const drop = registerDetailsKeyboardActions("agent-1", { changeFontSize });
+    const release = bindDetailsKeys("agent-1", () => true);
+    expect(key("+", { shiftKey: true }).defaultPrevented).toBe(true);
+    expect(key("-").defaultPrevented).toBe(true);
+    expect(key("0").defaultPrevented).toBe(true);
+    expect(changeFontSize.mock.calls).toEqual([[1], [-1], [0]]);
+    expect(key("+", { metaKey: true }).defaultPrevented).toBe(false);
+    target.closest.mockReturnValue({} as never);
+    expect(key("0").defaultPrevented).toBe(false);
+    expect(changeFontSize).toHaveBeenCalledTimes(3);
+    release();
+    drop();
+  });
+
   it("yields arrows to inputs and horizontally scrollable code", () => {
     const { target, key } = setup();
     const step = vi.spyOn(detailsApi, "step");

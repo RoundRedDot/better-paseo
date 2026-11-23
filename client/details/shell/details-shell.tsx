@@ -53,7 +53,7 @@ import { BottomDrawer } from "./bottom-drawer";
 import { FloatingPanel } from "./floating-panel";
 import { SidePanel, sideWidth } from "./side-panel";
 import type { Entrance } from "./bottom-panel";
-import { DETAILS_FONT_SIZE_DEFAULT } from "../../../shared/preferences-settings";
+import { clampDetailsFontSize, DETAILS_FONT_SIZE_DEFAULT } from "../../../shared/preferences-settings";
 
 /** Where the open block sits among the navigable blocks: 1-based, 0 when it is not one. */
 export function navigationOf(list: readonly BlockEntry[], id: string): { index: number; count: number; first: string | null } {
@@ -376,14 +376,18 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   // Web keys while the panel is open (`keyboard.ts`): only this lease holder's
   // layer, and only while its pane is shown. ← → take the panel's own step.
   const { copy } = useCopy();
-  const keys = useRef({ step, toggleWrap, toggleFullscreen, copy });
-  keys.current = { step, toggleWrap, toggleFullscreen, copy };
+  const keys = useRef({ step, toggleWrap, toggleFullscreen, copy, zoom });
+  keys.current = { step, toggleWrap, toggleFullscreen, copy, zoom };
   useEffect(() => {
     if (Platform.OS !== "web" || leaving) return;
     const unregister = registerDetailsKeyboardActions(agentId, {
       step: (direction) => keys.current.step(direction),
       toggleWrap: () => keys.current.toggleWrap(),
       toggleFullscreen: () => keys.current.toggleFullscreen(),
+      changeFontSize: (change) => {
+        const zoom = keys.current.zoom;
+        zoom.commit(change === 0 ? zoom.base : clampDetailsFontSize(zoom.current() + change));
+      },
       copyPrimary: () => {
         const primary = latest.current.entry.copies()[0];
         if (primary?.text) void keys.current.copy(primary.text, { label: primary.label });

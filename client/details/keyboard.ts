@@ -14,6 +14,7 @@ export interface DetailsKeyboardActions {
   toggleRender?(): void;
   toggleFullscreen?(): void;
   copyPrimary?(): void;
+  changeFontSize?(change: -1 | 0 | 1): void;
 }
 
 type ActivePane = (event?: KeyboardEvent) => boolean;
@@ -87,7 +88,13 @@ export function bindDetailsKeys(agentId: string, isActivePane: ActivePane): () =
     }
 
     const key = event.key.toLowerCase();
-    if (event.key === "[") {
+    if (event.key === "+" || event.key === "-" || event.key === "0") {
+      const changeFontSize = actions.get(agentId)?.changeFontSize;
+      if (changeFontSize) {
+        consume(event);
+        changeFontSize(event.key === "+" ? 1 : event.key === "-" ? -1 : 0);
+      }
+    } else if (event.key === "[") {
       const previous = pagers.get(agentId)?.prev;
       if (previous) {
         consume(event);

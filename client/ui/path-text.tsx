@@ -122,6 +122,8 @@ export interface PathTextProps {
   grow?: boolean;
   /** Show the hover copy icon. Off when the surrounding row has its own. */
   copyOnHover?: boolean;
+  /** Emphasize the final path segment. */
+  boldName?: boolean;
   /** Text style overrides (size, colour). */
   style?: TextStyle;
 }
@@ -147,6 +149,7 @@ export function PathText({
   onReveal,
   budget,
   copyOnHover = true,
+  boldName = false,
   style,
   fit = false,
   grow = false,
@@ -213,6 +216,7 @@ export function PathText({
     : shownPath(formatted, limit, strict);
   const label = shownParts.label;
   const shown = shownParts.text;
+  const nameStart = shown.lastIndexOf("/") + 1;
   const textStyle = [
     styles.text,
     { color: palette?.target ?? tokens.foreground, fontFamily: tokens.fontMono },
@@ -255,7 +259,7 @@ export function PathText({
           style={[...textStyle, unselectable, hovered && styles.hovered]}
         >
           {label ? <Text style={{ color: palette?.meta ?? tokens.foregroundMuted }}>{`${label}/`}</Text> : null}
-          {shown}
+          {boldName ? <>{shown.slice(0, nameStart)}<Text style={{ fontWeight: "700" }}>{shown.slice(nameStart)}</Text></> : shown}
         </Text>
         {copyOnHover && capabilities.hover ? (
           // Space is always reserved, so the icon appearing never shifts layout.

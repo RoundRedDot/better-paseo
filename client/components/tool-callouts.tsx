@@ -760,6 +760,7 @@ function MetaPath({
       compact={compact}
       copyOnHover={false}
       budget={compact ? 20 : 32}
+      boldName
       style={{ fontSize: tokens.typography.block.meta.size, color: palette?.meta ?? tokens.foregroundMuted }}
     />
   );

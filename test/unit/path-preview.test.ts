@@ -90,6 +90,24 @@ describe("home path display", () => {
   });
 });
 
+describe("path name emphasis", () => {
+  it("bolds only the final segment while keeping the original path action", () => {
+    const reveal = vi.fn();
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(PathText, {
+      path: "/tmp/project/.worktrees/work-details-dismiss", tokens, boldName: true, onReveal: reveal,
+    })); });
+    const button = renderer.root.find((node) => (node.type as unknown) === "Pressable" &&
+      node.props.accessibilityLabel === "/tmp/project/.worktrees/work-details-dismiss");
+    const bold = button.find((node) => (node.type as unknown) === "Text" && node.props.style?.fontWeight === "700");
+    expect(bold.children).toEqual(["work-details-dismiss"]);
+    expect(JSON.stringify(renderer.toJSON())).toContain("/tmp/project/.worktrees/");
+    act(() => button.props.onPress());
+    expect(reveal).toHaveBeenCalledWith("/tmp/project/.worktrees/work-details-dismiss");
+    act(() => renderer.unmount());
+  });
+});
+
 describe("a path's desktop preview", () => {
   it("has the preview toolbar: copy the path, and maximize", async () => {
     let renderer!: ReturnType<typeof TestRenderer.create>;

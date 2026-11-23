@@ -2124,6 +2124,28 @@ describe("a pinch in the phone drawer", () => {
     expect(zooms.at(-1)).toBe(0);
   });
 
+  it("changes and resets desktop text size from the keyboard within its bounds", async () => {
+    const keys = webDesktop();
+    fake.box.blocks = [block("keyboard-zoom", 1, { render: zoomed })];
+    render(slot());
+    open("keyboard-zoom");
+    await act(async () => {});
+    keys.press("+");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(15);
+    expect(zooms.at(-1)).toEqual({ scale: 15 / 14 });
+    keys.press("-");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(14);
+    act(() => updateEnhancerPreferences({ detailsFontSize: 26 }));
+    keys.press("+");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(26);
+    act(() => updateEnhancerPreferences({ detailsFontSize: 12 }));
+    keys.press("-");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(12);
+    keys.press("0");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(14);
+    expect(zooms.at(-1)).toBe(0);
+  });
+
   it.each([
     { os: "ios", width: 1194, height: 834, form: "side", hover: false },
     { os: "ios", width: 834, height: 1194, form: "floating", hover: false },
