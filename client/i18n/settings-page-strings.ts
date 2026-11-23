@@ -173,6 +173,9 @@ const en = {
   markdownDocument: "Document",
   markdownCompact: "Compact",
   markdownTerminal: "Terminal",
+  tableTextTitle: "Select text in table cells",
+  tableTextDescription:
+    "On a phone, a long press in a cell selects its text like a paragraph. Selecting whole cells with a hold or a double tap is off then.",
   selectionTitle: "Selection toolbar",
   selectionDescription:
     "Selecting text in a card shows Copy and Add to chat. Add to chat quotes the selection in the composer, or fences it when it came from code.",
@@ -441,6 +444,8 @@ const zh: SettingsStrings = {
   markdownDocument: "文档",
   markdownCompact: "紧凑",
   markdownTerminal: "终端",
+  tableTextTitle: "选择表格单元格中的文字",
+  tableTextDescription: "在手机上长按单元格可像段落一样选择文字。此时长按或双击选择整个单元格的功能将关闭。",
   selectionTitle: "选中文字工具栏",
   selectionDescription: "在卡片里选中文字后显示“复制”和“添加到对话”。添加到对话会把选中内容作为引用放进输入框，选自代码时放成代码块。",
 
