@@ -52,7 +52,7 @@ afterAll(async () => {
   await rm(root, { recursive: true, force: true });
 });
 
-async function revealHandler(): Promise<Handler> {
+async function revealHandler(name = "file.reveal"): Promise<Handler> {
   const { default: contribute } = await import("../../index.server");
   const handlers = new Map<string, Handler>();
   const server = new Proxy({}, {
@@ -61,8 +61,13 @@ async function revealHandler(): Promise<Handler> {
       : () => () => {},
   }) as PluginServerContext;
   contribute(server);
-  return handlers.get("file.reveal")!;
+  return handlers.get(name)!;
 }
+
+it("reports the daemon home directory", async () => {
+  const readHome = await revealHandler("file.home");
+  expect(await readHome({})).toEqual({ home: root });
+});
 
 describe("file.reveal on macOS", () => {
   const nativePlatform = Object.getOwnPropertyDescriptor(process, "platform")!;

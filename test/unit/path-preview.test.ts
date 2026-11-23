@@ -37,7 +37,7 @@ vi.mock("../../client/web", () => ({
   pinTooltipLayer: () => () => {},
 }));
 import { buildThemeTokens } from "../../client/components/theme-tokens";
-import { PathText } from "../../client/ui/path-text";
+import { PathContext, PathText } from "../../client/ui/path-text";
 import { PREVIEW_OPEN_MS } from "../../client/ui/hover-preview";
 import { resetEnhancerPreferences } from "../../client/preferences";
 
@@ -66,6 +66,26 @@ describe("path action accessibility", () => {
     act(() => { renderer = TestRenderer.create(React.createElement(PathText, { path: "/tmp/project/a.ts", tokens, onReveal() {} })); });
     const path = renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "/tmp/project/a.ts");
     expect(path.props.accessibilityHint).toBe("Opens or reveals the path");
+    act(() => renderer.unmount());
+  });
+});
+
+describe("home path display", () => {
+  it("shows the shortened path while opening and copying the absolute path", async () => {
+    const reveal = vi.fn();
+    const path = "/home/alice/project/a.ts";
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(PathContext.Provider,
+      { value: { roots: [], mode: "absolute", home: "/home/alice", reveal } },
+      React.createElement(PathText, { path, tokens }))); });
+    expect(JSON.stringify(renderer.toJSON())).toContain("~/project/a.ts");
+    const button = renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === path);
+    act(() => button.props.onPress());
+    expect(reveal).toHaveBeenCalledWith(path);
+    act(() => pointer.rowEnter?.());
+    const copy = button.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "Copy path");
+    await act(async () => copy.props.onPress());
+    expect(clipboard.copyText).toHaveBeenCalledWith(path);
     act(() => renderer.unmount());
   });
 });

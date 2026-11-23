@@ -1,3 +1,4 @@
+import { useHomeDirectory } from "../../state/home-directory";
 import { useTodoSummary } from "../data/todo-summary";
 import { selectionWithoutComposer } from "../../components/selection-actions";
 import { PreferenceSyncSlot } from "../../state/preference-sync-slot";
@@ -533,6 +534,7 @@ interface GroupRow {
  * while `board.showEmptyGroups` is on.
  */
 function GroupCard(props: { board: BoardController; options: ShownFilterOptions; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
+  const home = useHomeDirectory();
   const { board, options, tokens } = props;
   const strings = board.strings.sidebar;
   const scale = useTasksFontScale();
@@ -584,11 +586,11 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
         ...pick(project),
         lead: <ProjectIcon location={project.group} size={16} hostId={board.hostId} />,
         iconFor: project.group.projectIcon === null ? project.id : undefined,
-        detail: project.group.projectPath ? tildePath(project.group.projectPath) : undefined,
+        detail: project.group.projectPath ? tildePath(project.group.projectPath, home) : undefined,
         toggle: () => board.setParams((params) => toggleProject(params, project)),
       }))
       .sort(byCount);
-  }, [kind, options, board, tokens]);
+  }, [kind, options, board, tokens, home]);
   const words = searchWords(query);
   const visibleRows = rows.filter((row) => matchesSearch([row.label, row.detail], words));
   useRequestProjectIcons([...new Set(rows.flatMap((row) => (row.iconFor ? [row.iconFor] : [])))], board.tasks.requestProjectIcon);

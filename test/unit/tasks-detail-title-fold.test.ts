@@ -1,3 +1,4 @@
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => undefined }));
 /**
  * A card's title at a sidebar's width, laid out by Yoga as Fabric lays it out
  * (`helpers/yoga-host-layout`): a long title shows five lines at most, the

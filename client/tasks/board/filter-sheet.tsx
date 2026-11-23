@@ -1,3 +1,5 @@
+import { useHomeDirectory } from "../../state/home-directory";
+import { shortenHome } from "../../paths/format-path";
 import { TextUpdateDot } from "../../ui/text-update-dot";
 import React, { useEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Platform, Pressable, View, type LayoutChangeEvent, type ScrollView as NativeScrollView } from "react-native";
@@ -85,7 +87,8 @@ export function FilterSheetBody(props: {
   // The scroller's height.
   const [viewport, setViewport] = useState(0);
   const groups = searchWorkspaceGroups(shown.workspaceGroups, query);
-  const projects = shown.projects.filter((project) => matchesSearch([project.label, project.group.projectPath], searchWords(projectQuery)));
+  const home = useHomeDirectory();
+  const projects = shown.projects.filter((project) => matchesSearch([project.label, project.group.projectPath, project.group.projectPath ? shortenHome(project.group.projectPath, home) : null], searchWords(projectQuery)));
   // While searching, the workspaces fill the scroller at least, so their field
   // can stay at its top above the keyboard however few rows match.
   const holdTop = searching || query.trim() !== "";

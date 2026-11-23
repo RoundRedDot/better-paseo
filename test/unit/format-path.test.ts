@@ -17,6 +17,19 @@ describe("formatPath", () => {
     expect(formatPath("~/../notes.md", { ...app, mode: "absolute" }).absolutePath).toBe("~/../notes.md");
     expect(formatPath("~other/a.md", app).absolutePath).toBe("/projects/app/~other/a.md");
   });
+  it("shortens only the daemon home in displayed absolute paths", () => {
+    const ctx: FormatPathContext = { roots: [], cwd: "/home/alice/project", home: "/home/alice", mode: "absolute" };
+    expect(formatPath("/home/alice/project/a.ts:12", ctx)).toMatchObject({
+      displayPath: "~/project/a.ts", absolutePath: "/home/alice/project/a.ts", suffix: ":12",
+    });
+    expect(formatPath("src/a.ts", ctx).displayPath).toBe("~/project/src/a.ts");
+    expect(formatPath("/home/alice", ctx).displayPath).toBe("~");
+    expect(formatPath("/home/alice-other/a.ts", ctx).displayPath).toBe("/home/alice-other/a.ts");
+    expect(formatPath("/home/bob/a.ts", ctx).displayPath).toBe("/home/bob/a.ts");
+    expect(formatPath("/home/alice/a.ts", { ...ctx, mode: "relative", roots: [{ path: "/home/alice" }] }).displayPath).toBe("a.ts");
+    expect(formatPath("C:\\Users\\Alice\\a.ts", { ...ctx, home: "c:/users/alice" }).displayPath).toBe("~/a.ts");
+  });
+
   it("shows a path inside the root relative to it", () => {
     expect(formatPath("/projects/app/src/a.ts", app)).toEqual({
       absolutePath: "/projects/app/src/a.ts",

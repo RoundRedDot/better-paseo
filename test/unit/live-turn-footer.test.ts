@@ -16,6 +16,7 @@ const runtime = vi.hoisted(() => ({
 }));
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => "/home/test" }));
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: (_id: string, selector: (agent: typeof runtime.agent) => unknown) => React.useSyncExternalStore(
     (listener) => { runtime.listeners.add(listener); return () => { runtime.listeners.delete(listener); }; },

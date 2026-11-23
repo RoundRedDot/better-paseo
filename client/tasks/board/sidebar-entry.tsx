@@ -1,3 +1,4 @@
+import { useHomeDirectory } from "../../state/home-directory";
 import React, { useLayoutEffect, useMemo, useRef, useSyncExternalStore, type ReactNode } from "react";
 import { Platform, Pressable, View } from "react-native";
 import type { PaseoApi } from "@getpaseo/client";
@@ -80,6 +81,7 @@ function TasksRow(props: PluginSidebarItemProps & { label: string; trailing?: Re
  * prompts loaded already, and follows them as they land.
  */
 function useBoardCountScope(paseo: PaseoApi, hostId: string, settings: TasksSettings): CountScope {
+  const home = useHomeDirectory();
   const params = useSyncExternalStore(subscribeBoardParams, () => lastBoardParams(hostId), () => lastBoardParams(hostId));
   const shared = useSettings(TASKS_SETTINGS);
   const device = useDeviceTasksPreferences(shared.status === "ready" ? shared.values : null);
@@ -99,14 +101,14 @@ function useBoardCountScope(paseo: PaseoApi, hostId: string, settings: TasksSett
   // A new scope (`promptsVersion` included) counts again.
   return useMemo(() => {
     const { filters } = resolveBoardParams(params, { hideSubtasks: board.hideSubtasks, doneWindow: board.doneWindow });
-    if (!searching) return { filters };
+    if (!searching) return { filters, home };
     const firstMessage = (card: TaskCard) => {
       if (conversations.query() === params.query.trim().toLowerCase()) return conversations.messages().get(card.id);
       const prompt = (card.subagent ? subagentFirstPrompts : prompts).read(card.id);
       return prompt.state === "ready" ? prompt.text : undefined;
     };
-    return { filters, firstMessage };
-  }, [params, board.hideSubtasks, board.doneWindow, searching, prompts, promptsVersion, conversations, conversationVersion]);
+    return { filters, firstMessage, home };
+  }, [params, board.hideSubtasks, board.doneWindow, searching, prompts, promptsVersion, conversations, conversationVersion, home]);
 }
 
 /** Needs input, running and review, in the board's lane order, as the board's filters leave them; needs input in the warning colour. */

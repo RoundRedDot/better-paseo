@@ -1,3 +1,4 @@
+import { shortenHome } from "../../paths/format-path";
 import type { TaskCard } from "../model";
 
 // Reuse text across queries, but invalidate it when the card's title changes.
@@ -21,8 +22,8 @@ export function taskSearchText(card: TaskCard): string {
 }
 
 /** `query` is already trimmed and lower-cased, as in `filterLanes`. */
-export function matchesTaskSearch(card: TaskCard, query: string, firstMessage?: string): boolean {
-  const text = taskSearchText(card);
+export function matchesTaskSearch(card: TaskCard, query: string, firstMessage?: string, home?: string): boolean {
+  const text = `${taskSearchText(card)} ${shortenHome(card.location.cwd, home).toLowerCase()}`;
   const message = firstMessage?.toLowerCase() ?? "";
   return query.split(/\s+/).filter(Boolean).every((word) => text.includes(word) || message.includes(word));
 }

@@ -1,3 +1,4 @@
+import { useHomeDirectory } from "../../state/home-directory";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore, type RefObject } from "react";
 import type { PluginScreenProps } from "@getpaseo/plugin/client";
 import { usePaseo, useSettings } from "@getpaseo/plugin/client";
@@ -223,6 +224,7 @@ export function useBoard(
   handlers: RefObject<BoardLayoutHandlers | null>,
   compact: boolean,
 ): BoardController {
+  const home = useHomeDirectory();
   const hostId = props.host.id;
   const language = useTasksLanguage();
   const strings = BOARD_STRINGS[language];
@@ -394,7 +396,7 @@ export function useBoard(
   const firstPrompts = useSearchFirstPrompts(paseo, unfiltered, filters.query, !searchCancelled && !fullConversationSearch);
   const conversations = useSearchConversations(paseo, unfiltered, fullConversationSearch ? filters.query : "", !searchCancelled);
   const search = fullConversationSearch ? conversations : firstPrompts;
-  const filtered = useMemo(() => filterLanes(unfiltered, filters, search.messages), [unfiltered, filters, search.messages]);
+  const filtered = useMemo(() => filterLanes(unfiltered, filters, search.messages, home), [unfiltered, filters, search.messages, home]);
   // The order is taken when the sort or the cards change, never on a clock
   // tick, so a duration sort does not reshuffle every second.
   const sort = params.sort;
@@ -409,8 +411,8 @@ export function useBoard(
   const hidden = useMemo(() => keepSameCounts(hiddenRef.current, hiddenCounts(unfiltered, filtered)), [unfiltered, filtered]);
   hiddenRef.current = hidden;
   const hiddenSubtasks = useMemo(
-    () => (filters.hideSubtasks ? hiddenSubtaskCount(unfiltered, filtered, filters, search.messages) : 0),
-    [unfiltered, filtered, filters, search.messages],
+    () => (filters.hideSubtasks ? hiddenSubtaskCount(unfiltered, filtered, filters, search.messages, home) : 0),
+    [unfiltered, filtered, filters, search.messages, home],
   );
   const total = laneOrder.reduce((sum, id) => sum + lanes[id].cards.length, 0);
   // Switching the archived lane rearranges the lanes as a filter does, twice when it turns on: at once, and when the list with archived agents lands.
@@ -655,10 +657,10 @@ const PENDING_LANES: readonly LaneId[] = ["needs_input", "running", "review"];
  * with subtasks shown, less what shows. The gap between the sidebar's
  * numbers and the lanes' while the switch is off.
  */
-export function hiddenSubtaskCount(all: Record<LaneId, LaneModel>, shown: Record<LaneId, LaneModel>, filters: BoardFilters, firstMessages?: ReadonlyMap<string, string>): number {
+export function hiddenSubtaskCount(all: Record<LaneId, LaneModel>, shown: Record<LaneId, LaneModel>, filters: BoardFilters, firstMessages?: ReadonlyMap<string, string>, home?: string): number {
   const pending = {} as Record<LaneId, LaneModel>;
   for (const id of LANE_ORDER) pending[id] = PENDING_LANES.includes(id) ? all[id] : { ...all[id], cards: [] };
-  const withSubtasks = filterLanes(pending, { ...filters, hideSubtasks: false }, firstMessages);
+  const withSubtasks = filterLanes(pending, { ...filters, hideSubtasks: false }, firstMessages, home);
   return PENDING_LANES.reduce((sum, id) => sum + Math.max(0, withSubtasks[id].cards.length - shown[id].cards.length), 0);
 }
 

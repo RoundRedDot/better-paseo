@@ -62,6 +62,7 @@ export interface TasksOptions {
 export interface CountScope {
   filters: BoardFilters;
   firstMessage?: (card: TaskCard) => string | undefined;
+  home?: string;
 }
 
 /** The sidebar row's numbers. */
@@ -4149,7 +4150,7 @@ function createStore(api: PaseoApi): TaskStore {
           for (const sub of subagentCardsOf(card)) add(sub);
         }
       }
-      const shown = scope ? filterLanes(lanes, scope.filters, scope.firstMessage && scope.filters.query.trim() ? firstMessagesOf(lanes, scope.firstMessage) : undefined) : lanes;
+      const shown = scope ? filterLanes(lanes, scope.filters, scope.firstMessage && scope.filters.query.trim() ? firstMessagesOf(lanes, scope.firstMessage) : undefined, scope.home) : lanes;
       const questions = shown.needs_input.cards.filter((card) => card.permission?.kind === "question" || card.permission?.kind === "other").sort(laneCompare("needs_input"));
       if (countQuestions.length !== questions.length || questions.some((card, index) => countQuestions[index] !== card)) countQuestions = questions;
       const needsInput = shown.needs_input.cards.length;
@@ -4779,10 +4780,10 @@ function firstMessagesOf(lanes: Record<LaneId, LaneModel>, read: (card: TaskCard
  * one needs a person, so it keeps its own card unless its parent's card is in
  * the same lane and already shows it.
  */
-export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilters, firstMessages?: ReadonlyMap<string, string>): Record<LaneId, LaneModel> {
+export function filterLanes(lanes: Record<LaneId, LaneModel>, filters: BoardFilters, firstMessages?: ReadonlyMap<string, string>, home?: string): Record<LaneId, LaneModel> {
   const query = filters.query.trim().toLowerCase();
   const matches = (card: TaskCard) => {
-    return matchesTaskSearch(card, query, firstMessages?.get(card.id)) &&
+    return matchesTaskSearch(card, query, firstMessages?.get(card.id), home) &&
       (filters.workspaceIds.length === 0 || (card.location.workspaceId !== null && filters.workspaceIds.includes(card.location.workspaceId))) &&
       (filters.providers.length === 0 || filters.providers.includes(card.provider)) &&
       (filters.labels.length === 0 || card.labels.some((label) => filters.labels.includes(label.name)));

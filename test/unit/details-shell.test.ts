@@ -45,6 +45,8 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({
   },
 }));
 const clipboard = vi.hoisted(() => ({ copyText: vi.fn(async (_text: string) => {}) }));
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => "/home/test" }));
+
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,

@@ -15,6 +15,12 @@ export type FileOpenErrorKind = (typeof FILE_OPEN_ERROR_KINDS)[number];
  * path against the agent's working directory and asks the platform shell
  * (`server/open-path.ts`). The name stays `file.reveal` for older clients.
  */
+export const homeDirectoryRpc = defineRpc({
+  name: "file.home",
+  input: z.object({}),
+  output: z.object({ home: z.string() }),
+});
+
 /** Editors this daemon host can launch. `system` is always offered by the client. */
 export const installedEditorsRpc = defineRpc({
   name: "file.editors",

@@ -1,3 +1,4 @@
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => "/Users/luke" }));
 /**
  * On web, React Native Web draws `role="button"` as a `<button>`, and a
  * button inside another is invalid HTML that the host turns into an error

@@ -1,10 +1,12 @@
-import React, { useMemo, type ReactNode } from "react";
+import React, { useContext, useMemo, type ReactNode } from "react";
 import { StyleSheet, View, type StyleProp, type ViewStyle } from "react-native";
 import { radiusV2, space } from "../components/theme-tokens";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { selectionCodeText } from "../components/selection-actions";
 import { SelectableText } from "./prose-text";
 import { useZoomedTokens } from "./text-zoom";
+import { PathContext } from "./path-text";
+import { shortenHome } from "../paths/format-path";
 
 /**
  * The band a shell or git call's command sits on: one line on its own fill,
@@ -33,6 +35,7 @@ export function CommandBand({ tokens, style, children }: {
 /** The whole path at the top of a preview, on the command's band. */
 export function PreviewPath({ path, tokens: given }: { path: string; tokens: ExtendedThemeTokens }) {
   const tokens = useZoomedTokens(given);
+  const { home } = useContext(PathContext);
   return (
     <CommandBand tokens={tokens}>
       <SelectableText
@@ -47,7 +50,7 @@ export function PreviewPath({ path, tokens: given }: { path: string; tokens: Ext
           },
         ]}
       >
-        {path}
+        {shortenHome(path, home)}
       </SelectableText>
     </CommandBand>
   );

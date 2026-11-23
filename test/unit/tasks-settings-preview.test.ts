@@ -1,3 +1,4 @@
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => undefined }));
 /**
  * The settings page's preview of the Tasks board: the real cards over the
  * sample agents, sideways-scrolling lanes and phone-only tabs, the

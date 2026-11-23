@@ -1,4 +1,4 @@
-import React, { useMemo, useState } from "react";
+import React, { useContext, useMemo, useState } from "react";
 import { Image, View, Text, Pressable, StyleSheet } from "react-native";
 import type { ImageStyle, TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
@@ -7,6 +7,8 @@ import type { ExtendedThemeTokens } from "./theme-tokens";
 import { selectableSurface, unselectable } from "./selection";
 import { selectionSurface, selectionCodeText } from "./selection-actions";
 import { renderTerminalOutput } from "./syntax-highlight";
+import { PathContext } from "../ui/path-text";
+import { shortenHome } from "../paths/format-path";
 import { RunningDot } from "../ui/running-dot";
 import { exitMark } from "../ui/exit-mark";
 import { codeSurface } from "./host-font-escape";
@@ -912,6 +914,7 @@ function AgentRow({
 }
 
 function ProcessView({ data, text, tokens, styles }: HubViewProps<HubProcessData>) {
+  const { home } = useContext(PathContext);
   const daemons = data.daemons;
   const logs = data.logs ?? [];
   const spec = data.spec;
@@ -965,7 +968,7 @@ function ProcessView({ data, text, tokens, styles }: HubViewProps<HubProcessData
           <View style={styles.rowHead}>
             {spec.cwd ? (
               <Text selectable style={styles.figure}>
-                cwd {spec.cwd}
+                cwd {shortenHome(spec.cwd, home)}
               </Text>
             ) : null}
             {spec.restart ? (

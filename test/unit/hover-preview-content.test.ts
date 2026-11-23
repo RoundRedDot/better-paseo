@@ -16,6 +16,7 @@ vi.mock("@getpaseo/plugin/client", () => ({
   useRpc: () => () => Promise.resolve(null), usePaseo: () => ({}),
   useSettings: () => ({ status: "loading" }),
 }));
+import { PathContext } from "../../client/ui/path-text";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ToolCallout, ToolPreviewContent } from "../../client/components/tool-callouts";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
@@ -74,6 +75,19 @@ function previewOf(element: React.ReactElement) {
   return text;
 }
 describe("full hover preview content", () => {
+  it("shortens the preview path while the toolbar copies the original", async () => {
+    const path = "/Users/alice/projects/Some Project/file.ts";
+    const data = classifyTool({ name: "Edit", status: "completed", detail: { type: "edit", filePath: path, oldString: "old", newString: "new" } });
+    let view!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { view = TestRenderer.create(React.createElement(PathContext.Provider,
+      { value: { roots: [], mode: "absolute", home: "/Users/alice" } },
+      React.createElement(ToolPreviewContent, { data, tokens, compact: false, resolvePath: (value) => value }))); });
+    expect(textOf(view.toJSON())).toContain("~/projects/Some Project/file.ts");
+    await press(view, "Copy path");
+    expect(clipboard.copyText).toHaveBeenCalledWith(path);
+    act(() => view.unmount());
+  });
+
   it.each(["md", "markdown", "MD"])("toggles a Write .%s preview with one button and copies the source in both modes", async (extension) => {
     const content = "# Title\n\n**bold**\n\n| A | B |\n| --- | --- |\n| one | two |";
     const data = classifyTool({ name: "Write", status: "completed", detail: {

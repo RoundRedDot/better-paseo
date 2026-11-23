@@ -1,3 +1,4 @@
+import { useHomeDirectory } from "../../state/home-directory";
 import React, { memo, useMemo, useEffect, useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Animated, Modal, Platform, Pressable, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewProps, type ViewStyle } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -584,6 +585,7 @@ function ErrorDismissButton(props: { label: string; size: number; iconSize: numb
 // --- The card -----------------------------------------------------------------
 
 function TaskCardViewImpl(given: TaskCardViewProps) {
+  const home = useHomeDirectory();
   // An archived task has no Open, here or on its subtasks: Paseo would show another tab.
   // A provider subagent's card is read-only: no Stop, Mark read or Archive. It
   // shows its details as any card; Open opens its parent's tab (the board's `onOpen`).
@@ -622,7 +624,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
   const layout = cardLayout(card, fields, compact);
   const query = props.searchQuery ?? "";
   const titleClip = useSearchClip(shownTitle, updatingTitle ? "" : query, 2);
-  const searchHits = useMemo(() => taskSearchHits(card, query, { ...cardLayout(card, fields, compact), path: layout.path && tildePath(card.location.cwd).toLowerCase().includes(query), title: !updatingTitle && titleClip.visible }, props.searchPrompt?.state === "ready" ? props.searchPrompt.text : undefined, props.searchPrompt?.field), [card, card.title, fields, compact, query, props.searchPrompt, updatingTitle, titleClip.visible]);
+  const searchHits = useMemo(() => taskSearchHits(card, query, { ...cardLayout(card, fields, compact), path: layout.path && tildePath(card.location.cwd, home).toLowerCase().includes(query), title: !updatingTitle && titleClip.visible }, props.searchPrompt?.state === "ready" ? props.searchPrompt.text : undefined, props.searchPrompt?.field, home), [card, card.title, fields, compact, query, props.searchPrompt, updatingTitle, titleClip.visible, home]);
   const hasHiddenHits = searchHits.some((hit) => !hit.visible);
   const minimalSummary = densityOf(fields) === "minimal" && hasHiddenHits;
   const promptNote = query && props.searchPrompt && props.searchPrompt.state !== "ready" && props.searchPrompt.state !== "none"
@@ -936,7 +938,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
                   lines(
                     layout.project && location.projectName && pair(strings.hint.project, location.projectName),
                     layout.workspace && location.workspaceName && pair(strings.hint.workspace, location.workspaceName),
-                    location.cwd && pair(strings.hint.path, tildePath(location.cwd)),
+                    location.cwd && pair(strings.hint.path, tildePath(location.cwd, home)),
                   ),
                 ),
               )}
@@ -1159,10 +1161,10 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         {...pill}
         testID="pill-path"
         icon="FolderOpen"
-        label={tildePath(location.cwd)}
+        label={tildePath(location.cwd, home)}
         copy={copyOf(location.cwd, "Copy path")}
         onLongPress={longPress}
-        hint={hint("path", () => pair(strings.hint.path, tildePath(location.cwd)))}
+        hint={hint("path", () => pair(strings.hint.path, tildePath(location.cwd, home)))}
       />,
     );
   } else if (layout.folder && location.folder) {
@@ -1175,7 +1177,7 @@ function TaskCardViewImpl(given: TaskCardViewProps) {
         label={location.folder}
         copy={copyOf(location.folder, "Copy folder name")}
         onLongPress={longPress}
-        hint={hint("folder", () => lines(pair(strings.hint.folder, location.folder!), tildePath(location.cwd)))}
+        hint={hint("folder", () => lines(pair(strings.hint.folder, location.folder!), tildePath(location.cwd, home)))}
       />,
     );
   }

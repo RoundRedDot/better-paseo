@@ -1,3 +1,4 @@
+import { useHomeDirectory } from "../../state/home-directory";
 import { UPDATE_INDICATOR_COLOR } from "../../ui/update-indicator";
 import React, { memo, useCallback, useContext, useEffect, useRef, useState, type ReactNode, type Ref } from "react";
 import { Animated, Platform, Pressable, View, useWindowDimensions, type LayoutChangeEvent, type TextInput as NativeTextInput } from "react-native";
@@ -544,6 +545,7 @@ function DesktopFilterBarView(props: {
   emptyLanes?: EmptyLanes;
 }) {
   const { board, theme, options, menu, setMenu } = props;
+  const home = useHomeDirectory();
   const tablet = Platform.OS !== "web";
   const scale = useTasksFontScale();
   const window = useWindowDimensions();
@@ -655,7 +657,7 @@ function DesktopFilterBarView(props: {
           </MenuButton>
           <MenuButton icon={FILTER_ICONS.project} label={words.project} compact={compact} tip={tip(words.project, strings.tips.project)} open={menu === "project"} onPress={() => toggle("project")} theme={theme}>
             <CascadeMenu
-              sections={withEmptyGroups(projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project))))}
+              sections={withEmptyGroups(projectMenuSections(shown, strings, board.hostId, (project) => setParams((p) => toggleProject(p, project)), home))}
               theme={theme}
               width={menuWidth(PROJECT_MENU_WIDTH, scale, window.width - MENU_EDGE * 2)}
               top={toolbarButtonSize(scale) + 6}

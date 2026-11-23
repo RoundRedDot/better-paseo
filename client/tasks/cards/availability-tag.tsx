@@ -1,3 +1,4 @@
+import { useHomeDirectory } from "../../state/home-directory";
 import React, { useEffect, useRef, useState } from "react";
 import { Platform, Pressable, View, type ViewStyle } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
@@ -83,6 +84,7 @@ export function AvailabilityCorner(props: {
   onOpenChange?(open: boolean): void;
 }) {
   const { issue, language, hit } = props;
+  const home = useHomeDirectory();
   const [pinned, setPinned] = useState(false);
   const [focusShown, setFocusShown] = useState(false);
   const [hoverShown, setHoverShown] = useState(false);
@@ -122,7 +124,7 @@ export function AvailabilityCorner(props: {
     };
   }, [open]);
   const label = labels[language][issue.code];
-  const detail = issue.detail ? tildePath(issue.detail) : null;
+  const detail = issue.detail ? tildePath(issue.detail, home) : null;
   const accessibilityLabel = [label, detail, NOTE[language]].filter(Boolean).join("\n");
   // The rotated square's lower-left half, inside the clip, is the hit triangle.
   const diamond = hit * Math.SQRT2;

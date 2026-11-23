@@ -1,4 +1,6 @@
-import React from "react";
+import React, { useContext } from "react";
+import { PathContext } from "../ui/path-text";
+import { shortenHome } from "../paths/format-path";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import {
@@ -35,6 +37,7 @@ export function SendAgentPromptView({ data, tokens, raw = false, compact = false
 
 export function AgentOperationView({ data, tokens, raw = false, compact = false, error }: Appearance & { data: PaseoAgentOperationData }) {
   const mobile = useCardMobile(compact);
+  const { home } = useContext(PathContext);
   const live = useLiveAgent(data.agentId);
   const fact = (label: string) => data.facts.find((entry) => entry.label === label)?.value;
   const fields: AgentField[] = [];
@@ -43,7 +46,7 @@ export function AgentOperationView({ data, tokens, raw = false, compact = false,
   const mode = fact("Mode");
   if (mode) fields.push({ key: "mode", icon: "SlidersHorizontal", label: mode });
   const cwd = fact("Directory");
-  if (cwd) fields.push({ key: "cwd", icon: "Folder", label: shortenHome(cwd) });
+  if (cwd) fields.push({ key: "cwd", icon: "Folder", label: shortenHome(cwd, home) });
   const updates = fact("Updates");
   const extra = data.facts.filter((entry) => !["Provider", "Model", "Directory", "Mode", "Updates"].includes(entry.label));
   const listing = data.agents !== undefined || data.permissions !== undefined;
@@ -66,12 +69,13 @@ export function AgentOperationView({ data, tokens, raw = false, compact = false,
 
 /** A compact two-line list: title and short ID, then the identity strip. */
 function AgentList({ agents, tokens, mobile }: { agents: NonNullable<PaseoAgentOperationData["agents"]>; tokens: ExtendedThemeTokens; mobile: boolean }) {
+  const { home } = useContext(PathContext);
   if (agents.length === 0) return <Text style={[styles.empty, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>No agents returned</Text>;
   return <View>{agents.map((agent, index) => <View key={agent.id} testID={`agent-list-${agent.id}`}
     style={[styles.listItem, index > 0 && { borderTopWidth: 1, borderTopColor: tokens.border }]}>
     <Text selectable numberOfLines={1} style={[styles.listTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{agent.title}</Text>
     <AgentIdentityStrip testID={`agent-list-${agent.id}`} provider={agent.provider} state={agent.status}
-      fields={agent.cwd ? [{ key: "cwd", icon: "Folder", label: shortenHome(agent.cwd) }] : []}
+      fields={agent.cwd ? [{ key: "cwd", icon: "Folder", label: shortenHome(agent.cwd, home) }] : []}
       agentId={agent.id} tokens={tokens} mobile={mobile} />
   </View>)}</View>;
 }
@@ -193,11 +197,6 @@ export function SubAgentView({ data, tokens, raw = false, compact = false }: App
     {agent.log ? <AgentSection label="Result" tokens={tokens}><AgentMarkdown text={agent.log} tokens={tokens} mobile={mobile} /></AgentSection> : null}
     </>}
   </View>;
-}
-
-/** `$HOME` reads as `~`. */
-export function shortenHome(path: string): string {
-  return path.replace(/^\/(?:Users|home)\/[^/]+(?=\/|$)/, "~");
 }
 
 function firstLine(text: string): string {

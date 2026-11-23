@@ -1,3 +1,4 @@
+import { useHomeDirectory } from "./state/home-directory";
 import { UPDATE_INDICATOR_COLOR } from "./ui/update-indicator";
 import { useRpc } from "@getpaseo/plugin/client";
 import { updateCheckRpc } from "../shared/update-check";
@@ -651,6 +652,7 @@ function UpdateDot() {
 }
 
 function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }) {
+  const home = useHomeDirectory();
   const [expanded, setExpanded] = useState(false);
   const { copied, copy } = useCopy();
   const { t, tokens, compact } = look;
@@ -660,7 +662,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
   const status = statuses[entry.status].replace(/[.\u3002]+$/, "");
   const statusColor = entry.status === "available" ? tokens.danger : entry.status === "error" || entry.status === "unknown" ? tokens.warning : tokens.foregroundMuted;
   const brand = providerBrand(entry.provider);
-  const executable = entry.server ? t.agentOpenCodeServer : entry.executable ? tildePath(entry.executable) : t.agentUnknownExecutable;
+  const executable = entry.server ? t.agentOpenCodeServer : entry.executable ? tildePath(entry.executable, home) : t.agentUnknownExecutable;
   let source = t.agentLatestSource;
   if (entry.releaseSource === "antigravity") source = t.agentAntigravitySource;
   if (entry.releasePackage) source = entry.status === "reference" ? t.agentReferencePackage(entry.releasePackage) : t.agentLatestPackage(entry.releasePackage);

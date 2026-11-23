@@ -1,3 +1,4 @@
+import { useHomeDirectory } from "../../state/home-directory";
 import React, { useCallback, useMemo, useEffect, useLayoutEffect, useReducer, useRef, useState, useSyncExternalStore } from "react";
 import { createDetailChrome, useDetailChrome, type DetailChrome, type DetailChromeState } from "./detail-chrome";
 import { Animated, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions, type GestureResponderEvent, type LayoutChangeEvent, type TextStyle, type ViewStyle } from "react-native";
@@ -324,9 +325,10 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     chrome.set({ tabsPinned: offset > 0 && offset >= chrome.get().tabTop });
     restore.pending = false;
   };
+  const home = useHomeDirectory();
   const query = props.searchQuery?.trim().toLowerCase() ?? "";
   const prompt = props.firstPrompt?.prompt;
-  const metadataHits = taskSearchHits(card, query, { title: true, project: true, workspace: true, branch: true, folder: true, path: true, modelPill: true, model: true, pullRequest: true, labels: card.labels.length, labelLimit: Infinity });
+  const metadataHits = taskSearchHits(card, query, { title: true, project: true, workspace: true, branch: true, folder: true, path: true, modelPill: true, model: true, pullRequest: true, labels: card.labels.length, labelLimit: Infinity }, undefined, "prompt", home);
   const matching: DetailSection[] = [];
   if (metadataHits.some((hit) => hit.field !== "title" && hit.field !== "label")) matching.push("properties");
   if (prompt?.state === "ready" && searchRanges(prompt.text, query).length) matching.push("prompt");
@@ -1383,6 +1385,7 @@ function SectionChevron(props: { closed: boolean; color: string }) {
  * cutting off.
  */
 function Properties(props: Inner) {
+  const home = useHomeDirectory();
   const { card, m, tokens } = props;
   const words = props.strings.property;
   const cardText = cardStrings(props.language);
@@ -1455,7 +1458,7 @@ function Properties(props: Inner) {
       key="cwd"
       label={words.cwd}
       icon="Folder"
-      value={props.searchQuery ? location.cwd : tildePath(location.cwd)}
+      value={tildePath(location.cwd, home)}
       mono="path"
       lines={2}
       action={canOpenFolder ? { icon: "FolderOpen", label: details.openFolder, onPress: () => void openFolder() } : undefined}

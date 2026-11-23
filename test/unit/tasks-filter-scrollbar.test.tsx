@@ -1,3 +1,4 @@
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => undefined }));
 import React from "react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act } from "react-test-renderer";

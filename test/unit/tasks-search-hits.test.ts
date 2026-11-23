@@ -51,6 +51,14 @@ const hidden = (card: TaskCard, query = "sche", prompt?: string, view = visible)
   hits(card, query, prompt, view).filter((hit) => !hit.visible);
 
 describe("search hit design examples", () => {
+  it("reports a matching displayed path without exposing the original home", () => {
+    const card = { ...base, location: { ...base.location, cwd: "/Users/dev/work/app" } };
+    const home = "/Users/dev";
+    for (const query of ["~/work", "/users/dev", "app"]) {
+      const path = taskSearchHits(card, query, { ...visible, path: true }, undefined, "prompt", home).find((hit) => hit.field === "path");
+      expect(path?.text).toBe("~/work/app");
+    }
+  });
   it("highlights literal substrings of the visible title with original case", () => {
     const result = hits({ ...base, title: "Schedule 发版工单 RRD-11930 创建并通知邹东旭" });
     expect(result).toMatchObject([{ field: "title", visible: true, ranges: [{ start: 0, end: 4 }] }]);

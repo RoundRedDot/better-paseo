@@ -49,6 +49,9 @@ vi.mock("react-native", async () => {
 const opened = vi.hoisted(() => ({ openLink: vi.fn() }));
 vi.mock("../../client/components/open-link", () => opened);
 
+const daemonHome = vi.hoisted(() => ({ value: "/Users/dev" }));
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => daemonHome.value }));
+
 const folder = vi.hoisted(() => ({
   reveal: vi.fn<(_input: { cwd: string; path: string }) => Promise<{ revealed: string | null; error: string | null }>>(),
   paseo: {},
@@ -216,6 +219,7 @@ describe("unavailable task operations", () => {
   });
 
   it("names a home folder as ~ in the hint and keeps the task's own path and copies unchanged", async () => {
+    daemonHome.value = "/Users/luke";
     const raw = "/Users/luke/workspace/rrd/beautiful-chat/.worktrees/bench-013";
     const card = { ...sampleCards(NOW)[0]!, availability: unavailableTask({ code: "workspace_unavailable", detail: raw }) };
     const tree = await render(cardElement(card));
@@ -722,6 +726,7 @@ function byLabel(root: ReactTestInstance, label: string): ReactTestInstance {
 }
 
 beforeEach(() => {
+  daemonHome.value = "/Users/dev";
   motion.reduced = false;
   motion.layouts.mockClear();
   motion.loops.length = 0;
@@ -5198,14 +5203,13 @@ describe("formatters", () => {
     expect([12_000, 32_000_000, 32_500_000, 10_000_000].map(formatTokenTotal)).toEqual(["12k", "32M", "32.5M", "10M"]);
   });
 
-  it("shows the home directory as ~", () => {
-    expect(tildePath("/Users/dev/code/app")).toBe("~/code/app");
-    expect(tildePath("/Users/dev")).toBe("~");
-    expect(tildePath("/home/luke/src")).toBe("~/src");
-    expect(tildePath("C:\\Users\\Luke\\code\\app")).toBe("~\\code\\app");
-    expect(tildePath("/Users/devs-shared")).toBe("~");
-    expect(tildePath("/tmp/tasks-qa")).toBe("/tmp/tasks-qa");
-    expect(tildePath("/opt/Users/dev/x")).toBe("/opt/Users/dev/x");
+  it("shortens only the daemon home directory", () => {
+    expect(tildePath("/Users/dev/code/app", "/Users/dev")).toBe("~/code/app");
+    expect(tildePath("/Users/dev", "/Users/dev")).toBe("~");
+    expect(tildePath("/Users/devs-shared/x", "/Users/dev")).toBe("/Users/devs-shared/x");
+    expect(tildePath("/home/luke/src", "/home/luke")).toBe("~/src");
+    expect(tildePath("C:\\Users\\Luke\\code\\app", "c:/users/luke")).toBe("~\\code\\app");
+    expect(tildePath("/Users/dev/code/app")).toBe("/Users/dev/code/app");
   });
 
   it("summarises subtasks", () => {

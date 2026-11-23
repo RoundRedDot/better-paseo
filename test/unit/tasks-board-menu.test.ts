@@ -156,10 +156,10 @@ describe("menu geometry and keys", () => {
     const projects = [
       project("beautiful-chat", "/Users/luke/workspace/rrd/beautiful-chat"),
       project("srv", "/srv/app"),
-      project("deep", "/home/luke/workspace/clients/acme/services/billing"),
+      project("deep", "/Users/luke/workspace/clients/acme/services/billing"),
       project("none", null),
     ];
-    const [section] = projectMenuSections({ workspaceGroups: [], projects, agents: [], labels: [] }, BOARD_STRINGS.en, "host", () => {});
+    const [section] = projectMenuSections({ workspaceGroups: [], projects, agents: [], labels: [] }, BOARD_STRINGS.en, "host", () => {}, "/Users/luke");
     expect(section!.items.map((item) => item.detail)).toEqual(["~/workspace/…/beautiful-chat", "/srv/app", "~/workspace/…/billing", undefined]);
   });
 

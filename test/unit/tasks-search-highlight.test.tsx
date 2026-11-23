@@ -1,3 +1,4 @@
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => "/Users/scheduler" }));
 import React from "react";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -183,7 +184,7 @@ describe("card search rendering", () => {
       />,
     );
     expect(text(host(root, "task-search-summary-trigger"))).toContain("路径");
-    expect(text(host(root, "task-search-summary-trigger"))).toContain("scheduler");
+    expect(text(host(root, "task-search-summary-trigger"))).toContain("~/work/App");
   });
 
   it("folds a long visible path around its match instead of losing the match to the trailing ellipsis", async () => {

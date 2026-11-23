@@ -13,7 +13,7 @@ import { createUpdateCheck, startAutomaticUpdateCheck } from "./server/update-ch
 import { pluginDataDir } from "./server/plugin-data";
 import { openSystemTerminal } from "./server/open-terminal";
 import { PREFERENCES_SETTINGS, type FileOpenApp } from "./shared/preferences-settings";
-import { installedEditorsRpc, revealPathRpc, type FileOpenErrorKind } from "./shared/file-rpc";
+import { homeDirectoryRpc, installedEditorsRpc, revealPathRpc, type FileOpenErrorKind } from "./shared/file-rpc";
 import { embeddedFontsRpc } from "./shared/font-rpc";
 import { type HighlightLine, type HighlightToken, highlightRpc } from "./shared/highlight-rpc";
 import { imageRpc } from "./shared/image-rpc";
@@ -499,6 +499,7 @@ export default function contribute(server: PluginServerContext) {
   // Each turn's token usage, kept on disk for the turn details.
   registerTurnUsageServer(server);
 
+  server.handle(homeDirectoryRpc, () => ({ home: homedir() }));
   server.handle(installedEditorsRpc, async () => ({ apps: await installedEditors() }));
   server.handle(revealPathRpc, async (input) => {
     const resolved = await resolveSelector(input.path, input.cwd);

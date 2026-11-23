@@ -71,6 +71,13 @@ describe("task search fields", () => {
     expect(matchesTaskSearch(unknown, "#987")).toBe(false);
   });
 
+  it("searches both the original and displayed path using the daemon home", () => {
+    const home = "/Users/dev";
+    expect(filterLanes(lanesFor(card), { ...EMPTY_FILTERS, query: "~/projects/hiddenfolder" }, undefined, home)[card.lane].cards).toEqual([card]);
+    expect(filterLanes(lanesFor(card), { ...EMPTY_FILTERS, query: "/users/dev/projects" }, undefined, home)[card.lane].cards).toEqual([card]);
+    expect(filterLanes(lanesFor(card), { ...EMPTY_FILTERS, query: "~/projects/hiddenfolder" }, undefined, "/Users/other")[card.lane].cards).toEqual([]);
+  });
+
   it("matches the full first message while retaining the other filters", () => {
     const messages = new Map([[card.id, "First line\nOnly this first message mentions Dragonfruit."]]);
     const filters = { ...EMPTY_FILTERS, query: "DRAGONFRUIT", providers: ["omp"], labels: ["Needs QA"], workspaceIds: [card.location.workspaceId!] };

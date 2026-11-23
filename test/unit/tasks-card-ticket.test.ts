@@ -1,3 +1,4 @@
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => undefined }));
 /**
  * A scheduled task's card is a ticket: two half-circle notches cut into its
  * sides between the title and the rows below, joined by a dashed rule. The

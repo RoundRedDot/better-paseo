@@ -1,3 +1,4 @@
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => "/Users/example" }));
 import { measureHostTree } from "./helpers/yoga-host-layout";
 import { ProviderLogo } from "../../client/components/provider-logo";
 import type { AgentUpdate } from "../../shared/agent-updates";

@@ -7,10 +7,12 @@ import { radiusV2, space } from "../components/theme-tokens";
 import { codeSurface } from "../components/host-font-escape";
 import { unselectable } from "../components/selection";
 import { ProseSpan } from "./prose-text";
+import { useHomeDirectory } from "../state/home-directory";
 import { useEnhancerPreferences } from "../preferences";
 import {
   formatPath,
   pathRootsFor,
+  shortenHome,
   type PathDisplayMode,
   type PathRoot,
 } from "../paths/format-path";
@@ -29,6 +31,7 @@ import { useContainerButton } from "./container-button";
 export interface PathContextValue {
   roots: readonly PathRoot[];
   cwd?: string;
+  home?: string;
   mode: PathDisplayMode;
   /** `file.reveal` with an absolute path; absent where the renderer has none. */
   reveal?(absolutePath: string): void;
@@ -57,14 +60,16 @@ export function usePathContextValue(
     (workspace) => workspace.projectDisplayName,
   );
   const mode = useEnhancerPreferences().pathDisplay;
+  const home = useHomeDirectory();
   return useMemo(
     () => ({
       roots: pathRootsFor({ directory, projectRootPath, projectDisplayName, cwd }),
       cwd,
+      home,
       mode,
       reveal,
     }),
-    [cwd, directory, projectRootPath, projectDisplayName, mode, reveal],
+    [cwd, directory, projectRootPath, projectDisplayName, mode, reveal, home],
   );
 }
 
@@ -283,7 +288,7 @@ export function PathText({
             selectable={false}
             style={[styles.tooltipText, { color: tokens.foreground, fontFamily: tokens.fontMono }]}
           >
-            {formatted.absolutePath}
+            {shortenHome(formatted.absolutePath, context.home)}
             {formatted.suffix}
           </Text>
         </View>
@@ -296,7 +301,7 @@ export function PathText({
         </HoverPreviewHeader>
         <HoverPreviewBody>
           <Text {...(codeSurface as object)} selectable style={[styles.tooltipText, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
-            {formatted.absolutePath}{formatted.suffix}
+            {shortenHome(formatted.absolutePath, context.home)}{formatted.suffix}
           </Text>
         </HoverPreviewBody>
       </HoverPreview> : null}

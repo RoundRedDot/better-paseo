@@ -1,3 +1,4 @@
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => undefined }));
 /**
  * A phone card's action bar, laid out by Yoga as Fabric lays it out on a
  * phone (`helpers/yoga-host-layout`), with each label's measured width fed

@@ -1,3 +1,4 @@
+vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => "/Users/dev" }));
 import React from "react";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
@@ -312,7 +313,7 @@ describe("sidebar action tips", () => {
     };
     await act(async () => host(root, "sidebar-group-tab-FolderKanban").props.onPress());
     expectLines(rows()[0]!, "Payments", "~/code/payments");
-    expectLines(rows()[1]!, "Website", "~/code/website");
+    expectLines(rows()[1]!, "Website", "/home/dev/code/website");
     expectLines(rows()[2]!, "Server", "/srv/server");
     expect(rows()[3]!.props.style.height).toBe(touch ? 44 : 36);
     await act(async () => rows()[0]!.props.onPress());

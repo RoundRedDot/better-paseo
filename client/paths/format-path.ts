@@ -23,6 +23,7 @@ export interface FormatPathContext {
   roots: readonly PathRoot[];
   /** Base for relative input, the same one the daemon resolves against. */
   cwd?: string;
+  home?: string;
   mode: PathDisplayMode;
 }
 
@@ -109,6 +110,17 @@ function relativeTo(path: string, root: string, ignoreCase: boolean): string | n
   return a.startsWith(prefix) ? path.slice(prefix.length) : null;
 }
 
+/** Shorten only the daemon's home, retaining the original path spelling. */
+export function shortenHome(path: string, home?: string): string {
+  if (!home || !isAbsolutePath(home)) return path;
+  const base = normalizePath(home);
+  const slashed = path.replace(/\\/g, "/");
+  const rest = relativeTo(slashed, base, isWindowsPath(slashed));
+  if (rest === null) return path;
+  if (!rest) return "~";
+  return base.endsWith("/") ? `~/${path.slice(base.length)}` : `~${path.slice(base.length)}`;
+}
+
 export function formatPath(raw: string, ctx: FormatPathContext): FormattedPath {
   const { path, suffix } = splitSelector(raw);
   const unmatched = (absolutePath: string, displayPath: string): FormattedPath => ({
@@ -119,6 +131,10 @@ export function formatPath(raw: string, ctx: FormatPathContext): FormattedPath {
     suffix,
   });
 
+  const displayAbsolute = (absolutePath: string) => {
+    return shortenHome(absolutePath, ctx.home);
+  };
+
   if (!path) return unmatched(raw.trim(), raw.trim());
 
   // Only the daemon knows its home directory; retain this spelling for RPCs and copy.
@@ -128,11 +144,11 @@ export function formatPath(raw: string, ctx: FormatPathContext): FormattedPath {
   // the model typed. Only the absolute form is resolved, for reveal and copy.
   if (!isAbsolutePath(path)) {
     const absolutePath = ctx.cwd ? normalizePath(`${ctx.cwd}/${path}`) : path;
-    return unmatched(absolutePath, ctx.mode === "absolute" && ctx.cwd ? absolutePath : path);
+    return unmatched(absolutePath, ctx.mode === "absolute" && ctx.cwd ? displayAbsolute(absolutePath) : path);
   }
 
   const absolutePath = normalizePath(path);
-  if (ctx.mode === "absolute") return unmatched(absolutePath, absolutePath);
+  if (ctx.mode === "absolute") return unmatched(absolutePath, displayAbsolute(absolutePath));
 
   const ignoreCase = isWindowsPath(absolutePath);
   for (const root of ctx.roots) {
@@ -146,7 +162,7 @@ export function formatPath(raw: string, ctx: FormatPathContext): FormattedPath {
   }
   // Outside every root, or a symlinked spelling of one: no realpath here, so
   // the absolute path is the honest answer.
-  return unmatched(absolutePath, absolutePath);
+  return unmatched(absolutePath, displayAbsolute(absolutePath));
 }
 
 /** Last segment of a normalised path; the path itself when it has none. */

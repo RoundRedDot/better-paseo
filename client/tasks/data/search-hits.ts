@@ -1,3 +1,4 @@
+import { shortenHome } from "../../paths/format-path";
 import type { TaskCard, TaskLabel } from "../model";
 
 export type SearchField = "title" | "prompt" | "conversation" | "pr" | "label" | "branch" | "folder" | "project" | "workspace" | "path" | "model" | "id";
@@ -143,7 +144,7 @@ export function searchBreadcrumb(project: string, workspace: string, query: stri
 }
 
 /** One entry per field (labels per value); matching aliases in the same field share a row. */
-export function taskSearchHits(card: TaskCard, query: string, visibility: SearchVisibility, prompt?: string, messageField: "prompt" | "conversation" = "prompt"): SearchHit[] {
+export function taskSearchHits(card: TaskCard, query: string, visibility: SearchVisibility, prompt?: string, messageField: "prompt" | "conversation" = "prompt", home?: string): SearchHit[] {
   if (!query.trim()) return [];
   const location = card.location;
   const pr = location.pullRequest;
@@ -182,7 +183,12 @@ export function taskSearchHits(card: TaskCard, query: string, visibility: Search
   add("project", [location.projectName], visibility.project ? [location.projectName] : []);
   add("workspace", [location.workspaceName, location.workspaceTitle], visibility.workspace ? [location.workspaceName] : []);
   // A path match already highlighted inside the visible folder needs no duplicate summary.
-  add("path", [location.cwd], visibility.path ? [location.cwd] : visibility.folder ? [location.folder] : [], true);
+  const displayPath = shortenHome(location.cwd, home);
+  if (searchRanges(displayPath, query).length > 0) {
+    add("path", [displayPath], visibility.path ? [displayPath] : visibility.folder ? [location.folder] : [], true);
+  } else if (searchRanges(location.cwd, query).length > 0) {
+    hits.push({ field: "path", text: displayPath, ranges: [], snippet: displayPath, preview: displayPath, visible: false, mono: true });
+  }
   add(
     "model",
     [card.provider, card.providerLabel, card.model, card.modelLabel],

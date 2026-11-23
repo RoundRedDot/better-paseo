@@ -40,7 +40,7 @@ import { CommandBand, PreviewPath } from "../ui/command-band";
 import { CommandFontProbe } from "../debug/font-probe";
 import { FadeIn } from "../ui/fade-in";
 import { SelectableSpan, SelectableText } from "../ui/prose-text";
-import { formatPath } from "../paths/format-path";
+import { formatPath, shortenHome } from "../paths/format-path";
 import { lineRangeLabel, summarizeTool } from "../tools/summarize";
 import { TYPE, UI_SCALE, blockProseBase } from "../ui/tokens/typography";
 import { codeSurface } from "./host-font-escape";
@@ -370,8 +370,8 @@ export function ToolCallout({
       pressPreview={!viewsImage}
       previewKey={previewKey}
       detailsTitle={{ text: summary.agent ? [verb, agentTarget.text].filter(Boolean).join(" · ")
-        : groupCalls ? [summary.verb, summary.target].filter(Boolean).join(" ")
-        : data.shell?.command || data.command || (summary.targetIsPath ? data.filePath : undefined) || summary.target || verb,
+        : groupCalls ? [summary.verb, summary.targetIsPath && summary.target ? shortenHome(summary.target, pathContext.home) : summary.target].filter(Boolean).join(" ")
+        : data.shell?.command || data.command || (summary.targetIsPath && data.filePath ? shortenHome(data.filePath, pathContext.home) : undefined) || summary.target || verb,
         mono: !summary.agent && Boolean(summary.targetIsPath || data.command || data.shell?.command) }}
       detailsSubtitle={drawsImage ? imageMenuSubtitle(imageFile, filePath) : [data.status, ...summaryMeta]}
       detailsTone={running ? "accent" : failed ? "danger" : summary.tone === "warning" ? "warning" : "muted"}
