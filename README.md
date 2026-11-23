@@ -556,10 +556,15 @@ only their whole names, so `github` and `timeline` stay out.
   and output tokens. The model name copies when pressed and confirms with a toast; completed-turn
   footers remain during a later run. Turn **Plugin markdown for replies** off to restore Paseo's
   full footer, including its Fork action.
-- Every local image in a reply is drawn, not only the first.
 - Completed `mermaid` code blocks use Paseo’s diagram renderer, including its source and
   fullscreen controls. The plugin shows source while an unfinished fence is streaming.
-- Turn **Plugin markdown for replies** off for Paseo’s own images and file links.
+- **Use Paseo's file viewer** is off by default, keeping Better Paseo's
+  plugin rendering; desktop reply links open on the daemon's computer and touch copies the path.
+  Turning it on hands replies with local file links, path-like inline code or local images to the
+  standard viewer, including its native footer, because plugins cannot open its file panel directly.
+  In this mode, completed imported history checks prose only; tool-only paths keep their cards.
+  A prose match hands back the entire message, so import markers may appear.
+- Turn **Plugin markdown for replies** off for remote images.
 
 | Table copy menu | Selected cell actions |
 | --- | --- |
@@ -577,9 +582,8 @@ only their whole names, so `github` and `timeline` stay out.
   Esc or Android's back button. The viewer's file button opens the image in its default app on a
   desktop, on the daemon's machine (**Open in default app**, see [Opening files](#opening-files)); on
   a touch device it reads **Copy path** and copies the file's absolute path instead, since the file
-  lives on the daemon's machine. The same holds for every image the viewer opens, from a read card
-  or from a reply. On desktop and web, hover a toolbar button to see its name; viewer button names
-  follow the plugin's language setting.
+  lives on the daemon's machine. This viewer serves plugin images, including replies in Better Paseo mode. On desktop and web, hover
+  a toolbar button to see its name; viewer button names follow the plugin's language setting.
 - On a touch device, a tap on an image row opens the viewer. A long press on the image card's
   header opens it on iOS and Android.
 - Bytes come from the daemon (`file.image`) the first time a row is opened, previewed or
@@ -871,8 +875,9 @@ and hides the Tool calls, Spacing, Messages and Hover previews groups. The Tasks
 | Spacing | Tight rows | On | Reduces the gap under a plugin row from 16pt to 4pt when another row follows. Rows Paseo already stacks are left alone. Turn off if rows overlap. |
 | Spacing | Tight reply | On | Reduces the gap from 16pt to 4pt when a finished reply is followed by a plugin row, including a checklist. Turn off if they overlap. |
 | Messages | Enhanced prompt bubble | Off | Keeps Copy visible and shows the newest turn's token usage. Readable pasted images are drawn; prompts with other attachments stay with Paseo. Changing it updates existing prompts too. |
-| Messages | Plugin markdown for replies | On | Off hands replies to Paseo, restoring its full footer and enabling host images and Paseo's file links. Mermaid diagrams work with plugin Markdown on. |
+| Messages | Plugin markdown for replies | On | Off hands replies to Paseo, restoring its full footer and enabling remote images. Mermaid diagrams work with plugin Markdown on. |
 | Messages | Let genui render interactive replies | Off | Hands replies with `ui` or `app` code blocks to another renderer. Without one, Paseo shows ordinary Markdown without the plugin reply footer. |
+| Messages | Use Paseo's file viewer | Off | Off keeps plugin reply rendering and daemon-side file opening; on uses Paseo's standard viewer and footer for local-file replies. Shared by clients on this host. |
 | Messages | Markdown style | Document | Document, Compact or Terminal (body in the code font). |
 | Messages | Selection toolbar | On | Web and desktop: Copy and Add to chat on selected text; the bar closes on scroll. |
 | Hover previews | Hover previews | On | Preview collapsed rows and paths on desktop hover; with block details off, long-press a collapsed row on a touch screen. |
@@ -952,7 +957,8 @@ plugin.
 
 ## Opening files
 
-A file name in a read, write, edit or code block is a link. On desktop it asks the daemon to open
+In Better Paseo mode, reply file links use the same behavior as plugin tool and code-block controls.
+On desktop they ask the daemon to open
 the path, resolved against the agent's working directory, on the daemon's machine:
 
 - **macOS:** `open` shows a file in its default app and a folder in Finder. An app, a script, an
@@ -962,7 +968,7 @@ the path, resolved against the agent's working directory, on the daemon's machin
 - **Other systems:** `xdg-open` opens the file's directory, or the folder itself.
 
 On a touch device the same press copies the absolute path, with a toast, since a phone cannot reach
-the daemon machine's screen. Paseo's own file panel is out of reach for now; see
+the daemon machine's screen. These plugin controls cannot open Paseo's file panel; see
 [What a plugin cannot do](docs/limitations.md).
 
 Better Paseo never reads a path that names a network share or a Windows device. `\\host\share`,

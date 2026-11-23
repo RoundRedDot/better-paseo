@@ -156,6 +156,8 @@ export interface EnhancerPreferences {
   assistantMarkdown: boolean;
   /** Leave replies containing UI fences to another renderer. */
   liveUiReplies: boolean;
+  /** Which renderer handles replies containing local files. */
+  fileOpeningMode: StoredPreferences["fileOpeningMode"];
   /** Which look the markdown renderer uses. */
   markdownVariant: MarkdownVariantPreference;
   /**
@@ -242,6 +244,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   selectionActions: true,
   assistantMarkdown: true,
   liveUiReplies: false,
+  fileOpeningMode: "better-paseo",
   markdownVariant: "document",
   rowLabelStyle: "icon",
   compactRowSpacing: true,

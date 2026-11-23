@@ -12,7 +12,7 @@ Better Paseo 只能画 Paseo 插件 SDK 允许插件画的东西。下面列出�
 
 | 做不到 | 现在的做法 | 等待 |
 | --- | --- | --- |
-| 点文件时在 Paseo 的文件面板中打开。插件拿不到跳转到文件的导航；0.13 允许插件添加文件查看器，但仍不能打开文件。 | 桌面上用默认应用打开，或在访达、资源管理器中显示；触控设备上复制路径（见[打开文件](../README-zh.md#打开文件)）。 | [getpaseo/paseo#7318](https://github.com/getpaseo/paseo/pull/7318)，未合并 |
+| 点文件时在 Paseo 的文件面板中打开。插件拿不到跳转到文件的导航；0.13 允许插件添加文件查看器，但仍不能打开文件。 | 开启“使用 Paseo 文件查看器”可对含本地文件的回复使用原生查看器。插件文件控件仍在桌面上打开或定位 daemon 上的文件，在触控设备上复制路径（见[打开文件](../README-zh.md#打开文件)）。 | [getpaseo/paseo#7318](https://github.com/getpaseo/paseo/pull/7318)，未合并 |
 | 显示粘贴在提问里的图片。Paseo 交给插件的条目里没有这些图片。 | 「增强提问气泡」默认关闭，提问和图片由 Paseo 绘制；打开后，带有插件画不了的附件的提问仍交给 Paseo。 | [#6736](https://github.com/getpaseo/paseo/pull/6736)，草稿，未合并 |
 | 在插件的提问气泡上提供 Paseo 的回退菜单，在插件的回复信息栏上提供 Fork 操作。插件只能整行替换，借不到宿主的菜单。 | 需要回退时关闭「增强提问气泡」，需要 Fork 时关闭「回复使用插件 Markdown」。 | [#6677](https://github.com/getpaseo/paseo/pull/6677)（回退）、[#7462](https://github.com/getpaseo/paseo/pull/7462)（Fork），未合并 |
 | 让 Paseo 的 Ctrl/Cmd+F 定位到插件画的行。 | 插件自己的查找栏，搜索已加载的消息（见[查找文字](../README-zh.md#查找文字)）。 | 尚无上游提案 |

@@ -165,8 +165,13 @@ const en = {
   liveUiTitle: "Let genui render interactive replies",
   liveUiDescription: "Replies with ui or app code blocks are handed to genui or another renderer. Without one, Paseo shows ordinary Markdown without the plugin reply footer.",
   markdownDescription:
-    "Headings, lists and highlighted code blocks drawn by the plugin. Completed Mermaid blocks use Paseo's diagram renderer. Turn this off for host images or Paseo's file-path links.",
-  markdownTips: [{ label: "Supported", text: "Headings, lists and highlighted code blocks drawn by the plugin; completed Mermaid blocks use Paseo’s diagram renderer." }, { label: "Limitations", text: "Turn this off for host images or Paseo’s file-path links." }],
+    "Headings, lists and highlighted code blocks drawn by the plugin. Completed Mermaid blocks use Paseo's diagram renderer. Use Paseo's file viewer to open local-file replies in Paseo. Turn this off for remote images.",
+  markdownTips: [{ label: "Supported", text: "Headings, lists and highlighted code blocks drawn by the plugin; completed Mermaid blocks use Paseo’s diagram renderer." }, { label: "Limitations", text: "Use Paseo's file viewer to open local-file replies in Paseo. Turn this off for remote images." }],
+  fileOpeningTitle: "Use Paseo's file viewer",
+  fileOpeningTips: [
+    { label: "Off (default)", text: "Keep plugin rendering. Desktop links open on the daemon's computer; touch copies the path." },
+    { label: "On", text: "Local-file replies use the standard viewer and native footer. The whole reply is handed back because plugins cannot open Paseo's file panel directly." },
+  ],
   markdownStyleTitle: "Markdown style",
   markdownStyleDescription:
     "Document is airy, for long answers. Compact is tighter, for short ones. Terminal sets the text in the code font.",
@@ -433,8 +438,13 @@ const zh: SettingsStrings = {
   markdownTitle: "回复使用插件 Markdown",
   liveUiTitle: "交给 genui 渲染交互式回复",
   liveUiDescription: "包含 ui 或 app 代码块的回复会交给 genui 等渲染器。未安装这类插件时，Paseo 会显示普通 Markdown，且没有插件的回复信息栏。",
-  markdownDescription: "由插件绘制标题、列表和语法高亮代码块；完整的 Mermaid 代码块由 Paseo 绘图。需要宿主图片或 Paseo 的文件路径链接时请关闭。",
-  markdownTips: [{ label: "支持内容", text: "由插件绘制标题、列表和语法高亮代码块；完整的 Mermaid 代码块由 Paseo 绘图。" }, { label: "使用限制", text: "需要宿主图片或 Paseo 的文件路径链接时请关闭。" }],
+  markdownDescription: "由插件绘制标题、列表和语法高亮代码块；完整的 Mermaid 代码块由 Paseo 绘图。开启“使用 Paseo 文件查看器”可在 Paseo 中打开含本地文件的回复。需要远程图片时请关闭。",
+  markdownTips: [{ label: "支持内容", text: "由插件绘制标题、列表和语法高亮代码块；完整的 Mermaid 代码块由 Paseo 绘图。" }, { label: "使用限制", text: "开启“使用 Paseo 文件查看器”可在 Paseo 中打开含本地文件的回复。需要远程图片时请关闭。" }],
+  fileOpeningTitle: "使用 Paseo 文件查看器",
+  fileOpeningTips: [
+    { label: "关闭（默认）", text: "保留插件渲染。桌面链接在 daemon 那台电脑上打开；触控设备上复制路径。" },
+    { label: "开启", text: "含本地文件的回复使用标准查看器和原生信息栏。插件无法直接打开 Paseo 的文件面板，因此整条回复会交给 Paseo。" },
+  ],
   markdownStyleTitle: "Markdown 样式",
   markdownStyleDescription: "“文档”排版舒展，适合长回答；“紧凑”间距更小，适合短回复；“终端”正文使用代码字体。",
   markdownDocument: "文档",

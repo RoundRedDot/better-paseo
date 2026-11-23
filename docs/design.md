@@ -393,8 +393,9 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   `OctagonX` at weight 500; error and fatal add a 2 pt left rule. Long or technical text opens in
   a mono block on `surfaceCode`. The host's own background-job notice and error item both transform
   into this row; nothing about a notice is drawn as a tinted card.
-- **Turn footer**: one line 24 high, 8 above and 16 below: Copy, the model with its provider logo,
-  the clock, the duration. On a phone it drops the clock, then the model, rather than wrap.
+- **Plugin turn footer**: one line 24 high, 8 above and 16 below: Copy, the model with its provider
+  logo, the clock, the duration. On a phone it drops the clock, then the model, rather than wrap.
+  With Use Paseo's file viewer on, matching local-file replies use its native footer instead.
 - Rows take back 12 of the host's 16 between timeline items (`ROW_GAP_COMPENSATION`).
 
 ### Markdown
@@ -421,11 +422,16 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   scrolling. The copy control sits at the top left: on the web the expandable 30 pt frame
   has radius 12 and opens to Copy as Markdown and Copy as image; the standalone 30 pt
   control is circular. Their action feedback follows the icon and row rules below.
-- Paths (`PathText`): a pointer press reveals the file, and hovering shows the full path after
-  400 ms with an underline; a tap copies the absolute path with a toast.
-- Images: a `surfaceCode` card with a 28 header and a show/hide toggle, the canvas on `surface0`,
-  at most 480 tall inline; chips give the dimensions and size. The viewer is a 90% black backdrop,
-  zoom 0.25 to 8; a double tap resets, and a 96 pt drag, a flick, Escape or back closes it.
+- Plugin paths (`PathText`, including tool controls): a pointer press opens or reveals the file
+  on the daemon's machine, and hovering shows the full path after 400 ms with an underline; a tap
+  copies the absolute path with a toast. Use Paseo's file viewer is off by default for replies;
+  turning it on hands replies with local file links or path-like inline code to its native
+  rendering and file-opening behavior instead.
+- Plugin image cards, including tool reads: a `surfaceCode` card with a 28 header and a show/hide
+  toggle, the canvas on `surface0`, at most 480 tall inline; chips give the dimensions and size.
+  The viewer is a 90% black backdrop, zoom 0.25 to 8; a double tap resets, and a 96 pt drag, a
+  flick, Escape or back closes it. Reply images keep this behavior by default; with Use Paseo's file viewer
+  on, local-image replies use its native rendering and viewer instead.
 - Selected text on the web raises a floating Copy / Add to chat bar; native uses the platform
   menu.
 - The desktop web translation popup uses the same floating bar for timeline selections and Tasks

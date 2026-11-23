@@ -9,7 +9,7 @@
 | Symptom | What to do |
 | --- | --- |
 | Rows overlap, or a reply overlaps the row below | Turn off **Tight rows** or **Tight reply**. |
-| A reply needs a host image or Paseo's file links | Turn off **Plugin markdown for replies**. |
+| A reply needs a remote image | Turn off **Plugin markdown for replies**. |
 | A selected table cell has no **Add to chat** action on a phone | Paseo does not yet let plugins write into the composer; **Copy selected** is always available. |
 | A prompt with an attachment should use Paseo's renderer | Turn off **Enhanced prompt bubble**. Attachments the plugin cannot render stay with Paseo automatically. |
 | Ctrl/Cmd+F misses old messages | Scroll up to load them, or hand replies back to Paseo as above. |
