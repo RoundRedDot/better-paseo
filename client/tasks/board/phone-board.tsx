@@ -1041,7 +1041,7 @@ const PhoneLane = memo(function PhoneLane(props: {
     return (
       <View style={{ padding: 12, gap: 12 }}>
         {[0, 1, 2].map((index) => (
-          <SkeletonCard key={index} index={index} theme={theme} opacity={props.breathing} />
+          <SkeletonCard key={index} index={index} theme={theme} opacity={props.breathing} compact />
         ))}
       </View>
     );

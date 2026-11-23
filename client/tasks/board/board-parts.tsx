@@ -23,6 +23,7 @@ import { useCardMotion } from "./lane-motion";
 import { useFlash } from "./breathing";
 import { useNewCardOutline } from "./new-cards";
 import { withAlpha } from "../../components/theme-tokens";
+import { CARD_RADIUS } from "../../ui/tokens/card";
 
 const nativeDriver = Platform.OS !== "web";
 
@@ -176,20 +177,34 @@ export { useBreathing } from "./breathing";
 
 const SKELETON_WIDTHS = ["78%", "62%", "70%"] as const;
 
-/** A first-load placeholder card (prototype 05 D). */
-export function SkeletonCard({ theme, opacity, index }: { theme: PluginTheme; opacity: Animated.Value; index: number }) {
+/** A first-load placeholder matching the card's metadata, title, pills and footer. */
+export function SkeletonCard({ theme, opacity, index, compact = false }: { theme: PluginTheme; opacity: Animated.Value; index: number; compact?: boolean }) {
   const colors = theme.colors;
+  const scale = useTasksFontScale();
   const bar = { borderRadius: 2, backgroundColor: colors.surface2 };
+  const icon = compact ? 18 : 14;
+  const pill = Math.round((compact ? 24 : 20) * scale);
+  const rowGap = compact ? 12 : 10;
   return (
     <Animated.View
-      style={{ opacity, padding: 10, gap: 9, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: 6, backgroundColor: colors.surface0 }}
+      style={{ opacity, paddingHorizontal: compact ? 14 : 12, paddingTop: compact ? 12 : 10, paddingBottom: compact ? 14 : 12, borderWidth: HAIRLINE, borderColor: colors.border, borderRadius: CARD_RADIUS, backgroundColor: colors.surface0 }}
     >
-      <View style={[bar, { height: 10, width: SKELETON_WIDTHS[index % SKELETON_WIDTHS.length] }]} />
-      <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}>
-        <View style={[bar, { width: 16, height: 16, borderRadius: 4 }]} />
-        <View style={[bar, { height: 8, width: "45%" }]} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, height: Math.round(HOST_LINE.sm * scale) }}>
+        <View style={[bar, { width: icon, height: icon, borderRadius: 4 }]} />
+        <View style={[bar, { height: 8, width: "48%" }]} />
       </View>
-      <View style={[bar, { height: 8, width: "30%" }]} />
+      <View style={{ flexDirection: "row", alignItems: "center", gap: 6, marginTop: compact ? 6 : 5, height: Math.round(HOST_LINE.base * scale) }}>
+        <View style={[bar, { width: icon, height: icon, borderRadius: icon / 2 }]} />
+        <View style={[bar, { height: 10, width: SKELETON_WIDTHS[index % SKELETON_WIDTHS.length] }]} />
+      </View>
+      <View style={{ flexDirection: "row", gap: 4, marginTop: rowGap }}>
+        <View style={[bar, { height: pill, width: "42%", borderRadius: pill / 2 }]} />
+        <View style={[bar, { height: pill, width: "16%", borderRadius: pill / 2 }]} />
+        <View style={[bar, { height: pill, width: "14%", borderRadius: pill / 2 }]} />
+      </View>
+      <View style={{ height: Math.round(HOST_LINE.sm * scale), justifyContent: "center", marginTop: rowGap }}>
+        <View style={[bar, { height: 8, width: "24%" }]} />
+      </View>
     </Animated.View>
   );
 }
