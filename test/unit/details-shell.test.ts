@@ -123,6 +123,7 @@ vi.mock("../../client/details/details-store", async () => {
   const { useSyncExternalStore } = await import("react");
   return {
     detailsApi: fake.api,
+    closeDetailsIfCurrent: (_agent: string, id: string) => { if (fake.box.state.openId === id) fake.api.close(); },
     useDetails: () => useSyncExternalStore(fake.subscribe, () => fake.box.state, () => fake.box.state),
     useIndependentDetails: () => useSyncExternalStore(fake.subscribe, () => fake.box.state.independent, () => fake.box.state.independent),
     useMarkerPhase: () => "off",
@@ -201,6 +202,7 @@ function block(id: string, at: number, patch: Partial<Entry> = {}): Entry {
 // Web: every host node is this element; the layer binds Escape on its window.
 const web = {
   keydown: [] as ((event: unknown) => void)[],
+  outside: new Map<string, Set<(event: unknown) => void>>(),
   openPreviews: [] as unknown[],
   hidden: false,
   /** Where a native body was scrolled to. */
@@ -243,7 +245,13 @@ function fakeElement(testID?: string): unknown {
     overflowY: element === scroller ? "auto" : "visible",
     maxWidth: element === column ? "720px" : "none",
   })) as typeof view.getComputedStyle;
-  const doc = { defaultView: view, querySelectorAll: () => web.openPreviews, addEventListener() {}, removeEventListener() {} };
+  const doc = { defaultView: view, querySelectorAll: () => web.openPreviews,
+    addEventListener(type: string, listener: (event: unknown) => void) {
+      if (!web.outside.has(type)) web.outside.set(type, new Set());
+      web.outside.get(type)!.add(listener);
+    },
+    removeEventListener(type: string, listener: (event: unknown) => void) { web.outside.get(type)?.delete(listener); },
+  };
   scroller.ownerDocument = doc;
   column.ownerDocument = doc;
   return {
@@ -365,6 +373,7 @@ beforeEach(() => {
   caps.touch = true;
   motion.reduced = false;
   web.keydown = [];
+  web.outside.clear();
   web.openPreviews = [];
   web.hidden = false;
   web.pane = null;
@@ -388,6 +397,22 @@ afterEach(() => {
 });
 
 describe("DetailsHostSlot", () => {
+  it("closes a work side panel on an outside click and detaches its listener", async () => {
+    vi.useFakeTimers();
+    webDesktop();
+    web.pane = { left: 240, right: 1440, contentRight: 1000 };
+    fake.box.blocks = [block("work", 1, { dismissOnOutside: true })];
+    const renderer = render(slot());
+    await act(async () => fake.set({ openId: "work", independent: true }));
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    const event = { button: 0, clientX: 10, clientY: 10, target: {}, composedPath: () => [] };
+    act(() => { web.outside.get("pointerdown")?.forEach((fn) => fn(event)); web.outside.get("click")?.forEach((fn) => fn(event)); });
+    expect(fake.api.close).not.toHaveBeenCalled();
+    act(() => { vi.advanceTimersByTime(0); });
+    expect(fake.api.close).toHaveBeenCalledOnce();
+    expect(fake.box.state.openId).toBeNull();
+    expect(web.outside.get("click")?.size ?? 0).toBe(0);
+  });
   it("lets translation settings close the containing details drawer", () => {
     render(slot());
     open("a");

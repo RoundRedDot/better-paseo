@@ -121,7 +121,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   const entry = useMemo<BlockEntry>(() => ({
     id: `${agentId}:work:${work.key}:steps`, agentId, at, kind: "tool", seq: 0,
     mounted: true, navigable: false, hasBody: true, title: summary, titleMono: false,
-    subtitle: [], icon: "List", readsImage: false,
+    subtitle: [], icon: "List", readsImage: false, dismissOnOutside: true,
     render: () => <>
       <HoverPreviewHeader tokens={tokens} />
       <HoverPreviewBody><WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>

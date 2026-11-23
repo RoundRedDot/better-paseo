@@ -509,6 +509,7 @@ export function DisclosureHeader({
             <RowLongPressContext.Provider value={detailsEnabled ? openMenu : pressPreview ? preview.press : longPress}>
               <Pressable
                 ref={button.ref}
+                {...(Platform.OS === "web" && detailsMarker ? { dataSet: { bcworkdetails: detailsMarker.id } } : {})}
                 accessibilityRole={button.accessibilityRole}
                 accessibilityLabel={label}
                 accessibilityState={inert ? undefined : { expanded }}

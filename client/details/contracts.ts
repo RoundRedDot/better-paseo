@@ -68,6 +68,8 @@ export interface BlockEntry {
   iconColor?: string;
   /** The row reads an image: a tap opens the viewer instead of the panel. */
   readsImage: boolean;
+  /** A desktop side panel opened for this entry closes on a click outside. */
+  dismissOnOutside?: boolean;
   /** The preview content, the same tree the hover panel draws. */
   render(): ReactNode;
   copies(): readonly CopyItem[];
@@ -101,7 +103,7 @@ export interface OpenOptions {
 
 export interface DetailsApi {
   open(agentId: string, id: string, options?: OpenOptions): void;
-  close(agentId: string): void;
+  close(agentId: string, options?: { clearMarker?: boolean }): void;
   /** Previous (-1) or next (1) navigable block. */
   step(agentId: string, direction: -1 | 1): void;
   setDetent(agentId: string, detent: Detent): void;

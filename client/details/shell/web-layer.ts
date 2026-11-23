@@ -59,6 +59,35 @@ export function bindDetailsLayer(node: unknown): () => void {
   };
 }
 
+/** Dismiss a work side panel after an outside click without taking that click from the timeline. */
+export function bindWorkOutsideClick(node: unknown, id: string, close: () => void): () => void {
+  if (Platform.OS !== "web") return () => {};
+  const layer = node as HTMLElement | null;
+  if (!layer) return () => {};
+  const doc = layer.ownerDocument;
+  let start: { x: number; y: number } | null = null;
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  const down = (event: PointerEvent) => {
+    start = event.button === 0 ? { x: event.clientX, y: event.clientY } : null;
+  };
+  const click = (event: MouseEvent) => {
+    const origin = start;
+    start = null;
+    if (event.button !== 0 || layer.getClientRects().length === 0 || layer.contains(event.target as Node)) return;
+    if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) >= 4) return;
+    if (event.composedPath().some((item) => (item as Element).getAttribute?.("data-bcworkdetails") === id)) return;
+    if (timer !== null) clearTimeout(timer);
+    timer = setTimeout(() => { timer = null; close(); }, 0);
+  };
+  doc.addEventListener("pointerdown", down, true);
+  doc.addEventListener("click", click, true);
+  return () => {
+    doc.removeEventListener("pointerdown", down, true);
+    doc.removeEventListener("click", click, true);
+    if (timer !== null) clearTimeout(timer);
+  };
+}
+
 /**
  * Keeps the window's title bar drag off `node`; returns what gives it back.
  * Paseo desktop sets `-webkit-app-region: initial !important` on everything

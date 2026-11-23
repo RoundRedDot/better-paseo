@@ -145,10 +145,15 @@ export const detailsApi: DetailsApi = {
     if (previous.openId !== id) getBlock(agentId, id)?.onOpen?.();
   },
 
-  close(agentId) {
+  close(agentId, options) {
     const store = storeFor(agentId);
     const previous = store.state;
     if (previous.openId === null) return;
+    if (options?.clearMarker) {
+      clearLingerTimer(store);
+      updateState(agentId, { ...previous, openId: null, lingerId: null, independent: false }, 0);
+      return;
+    }
     const lingerUntil = Date.now() + MARKER_LINGER_MS;
     updateState(agentId, { ...previous, openId: null, lingerId: previous.openId }, lingerUntil);
     scheduleLinger(agentId, previous.openId, lingerUntil);
@@ -171,6 +176,11 @@ export const detailsApi: DetailsApi = {
     updateState(agentId, { ...store.state, form }, store.lingerUntil);
   },
 };
+
+/** Do not close a different block opened by the same outside click. */
+export function closeDetailsIfCurrent(agentId: string, id: string): void {
+  if (stores.get(agentId)?.state.openId === id) detailsApi.close(agentId, { clearMarker: true });
+}
 
 function subscribeDetails(agentId: string, listener: () => void): () => void {
   const listeners = storeFor(agentId).listeners;

@@ -21,7 +21,7 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
 import { updateEnhancerPreferences, getEnhancerPreferences } from "../../client/preferences";
-import { detailsApi, MARKER_LINGER_MS, useDetails } from "../../client/details/details-store";
+import { closeDetailsIfCurrent, detailsApi, MARKER_LINGER_MS, useDetails } from "../../client/details/details-store";
 import { getBlock } from "../../client/details/block-registry";
 import { timelineEntry as entry } from "./helpers/turn-timeline";
 import { Dimensions } from "react-native";
@@ -115,6 +115,17 @@ describe("turn work card", () => {
     expect(getEnhancerPreferences().blockDetails).toBe(false);
   });
 
+  it("marks the selected work row for outside-click handling on web", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
+    pressText("用时 9秒");
+    const row = renderer.root.find((node) => (node.type as unknown) === "Pressable" &&
+      node.props.accessibilityLabel === "读取了文件 · 编辑了文件 · 运行了命令");
+    expect(row.props.dataSet).toEqual({ bcworkdetails: "agent:work:r:10000:done:steps" });
+    delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  });
+
   it.each([true, false])("marks the work row while selected with block details %s", (enabled) => {
     vi.useFakeTimers();
     act(() => { updateEnhancerPreferences({ blockDetails: enabled }); });
@@ -140,6 +151,11 @@ describe("turn work card", () => {
     act(() => { detailsApi.close(agentId); });
     expect(markers()).toHaveLength(1);
     act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(markers()).toHaveLength(0);
+    pressText("读取了文件 · 编辑了文件 · 运行了命令");
+    expect(markers()).toHaveLength(1);
+    act(() => { closeDetailsIfCurrent(agentId, `${agentId}:work:r:10000:done:steps`); });
     act(() => { vi.advanceTimersByTime(200); });
     expect(markers()).toHaveLength(0);
     vi.useRealTimers();

@@ -25,7 +25,7 @@ import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { DetailsShellContext, type BlockEntry, type Detent, type DetailsForm, type DetailsShellValue, type DetailsZoom } from "../contracts";
 import { TranslationSettingsParentCloseContext } from "../../translation/navigation";
 import { useBlock, useBlockList } from "../block-registry";
-import { detailsApi, useDetails } from "../details-store";
+import { closeDetailsIfCurrent, detailsApi, useDetails } from "../details-store";
 import { DETAILS_BREAKPOINTS, floatingWidth } from "../layout-model";
 import { SWIPE_DISTANCE_RATIO, swipeDecision } from "../gesture-model";
 import { HoverPreviewContext, PreviewActionsContext, PreviewChromeContext, usePanelWrap, type PreviewActions } from "../../ui/hover-preview";
@@ -44,7 +44,7 @@ import { DETAILS_MOTION, animate } from "./motion";
 import { OVERDRAG, panelResponder, type DragTarget } from "./gestures";
 import { useSafeInsets } from "./safe-area";
 import { useDetailsLayout } from "./use-details-layout";
-import { bindDetailsLayer, keepOffWindowDrag, layerTakesKey, webBodyAtTop } from "./web-layer";
+import { bindDetailsLayer, bindWorkOutsideClick, keepOffWindowDrag, layerTakesKey, webBodyAtTop } from "./web-layer";
 import { bindDetailsKeys, registerDetailsKeyboardActions } from "../keyboard";
 import { useCopy } from "../../ui/use-copy";
 import { canProbeOlder, noteNavigation, stepDetails, syncTimeline, useHostList } from "./timeline-sync";
@@ -190,6 +190,10 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   }, [agentId, storeForm, form]);
 
   const close = useCallback(() => detailsApi.close(agentId), [agentId]);
+  useEffect(() => {
+    if (!entry.dismissOnOutside || form !== "side" || openId !== entry.id) return;
+    return bindWorkOutsideClick(layerRef.current, entry.id, () => closeDetailsIfCurrent(agentId, entry.id));
+  }, [agentId, entry.id, entry.dismissOnOutside, form, openId]);
 
   // ‹ › and the header swipe.
   const list = useBlockList(agentId);
