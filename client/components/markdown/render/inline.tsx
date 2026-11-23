@@ -1,4 +1,5 @@
 import React from "react";
+import { Platform, type TextStyle } from "react-native";
 import { INCOMPLETE_IMAGE_PLACEHOLDER } from "remend";
 import type { Token, Tokens } from "../../../vendor/marked";
 import { openLink } from "../../open-link";
@@ -11,6 +12,7 @@ import { localPath } from "./local-path";
 import { LocalLink } from "./local-link";
 import { ProseSpan } from "../../../ui/prose-text";
 import { citationLabel, codexPath, type CodexToken } from "../codex";
+import { useCopy } from "../../../ui/use-copy";
 
 /** The visible text of an inline run, for measuring and summaries. */
 export function inlineText(tokens: readonly Token[] | undefined, literalCodex = false): string {
@@ -192,13 +194,19 @@ function renderLink(
   // a View there would break the line box and drop the text out of the
   // paragraph's selection range. No `href`: React Native Web would render a
   // real anchor and the click would navigate the app window itself.
+  return <LinkSpan key={key} href={href} style={context.styles.link}>{children}</LinkSpan>;
+}
+
+/** A link. A tap opens it; on a phone a hold copies it. */
+function LinkSpan({ href, style, children }: { href: string; style: TextStyle; children: React.ReactNode[] }) {
+  const { copy } = useCopy();
   return (
     <ProseSpan
-      key={key}
       selectable
       accessibilityRole="link"
       onPress={() => openLink(href)}
-      style={context.styles.link}
+      onLongPress={Platform.OS === "web" ? undefined : () => void copy(href, { feedback: "toast", label: "Copy link" })}
+      style={style}
     >
       {children}
     </ProseSpan>

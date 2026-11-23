@@ -197,6 +197,32 @@ describe("iOS Markdown prose", () => {
     expect(reveal).toHaveBeenCalledWith("/tmp/Better Paseo Icon.html");
     await act(async () => renderer.unmount());
   });
+  it("copies a web link on a hold on Android and opens it on a tap", async () => {
+    os.__rnMockOS = "android";
+    const open = vi.spyOn(Linking, "openURL");
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(MarkdownProse,
+      { context, tokens: inline("[docs](https://example.com)") }));
+    });
+    const link = renderer.root.findAll((node) => node.props.accessibilityRole === "link" && node.props.onPress)[0]!;
+    await act(async () => link.props.onLongPress());
+    expect(copy).toHaveBeenCalledWith("https://example.com", expect.objectContaining({ label: "Copy link" }));
+    expect(open).not.toHaveBeenCalled();
+    link.props.onPress();
+    expect(open).toHaveBeenCalledWith("https://example.com");
+    await act(async () => renderer.unmount());
+  });
+  it("leaves a hold on a web link to the browser on desktop", async () => {
+    os.__rnMockOS = "web";
+    input.hover = true;
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(MarkdownProse,
+      { context, tokens: inline("[docs](https://example.com)") }));
+    });
+    const link = renderer.root.findAll((node) => node.props.accessibilityRole === "link" && node.props.onPress)[0]!;
+    expect(link.props.onLongPress).toBeUndefined();
+    await act(async () => renderer.unmount());
+  });
   for (const platform of ["web", "android"]) it(`keeps ${platform} on the existing inline renderer`, async () => {
     os.__rnMockOS = platform;
     const renderer = await render("See **bold**.");

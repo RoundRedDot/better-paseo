@@ -56,6 +56,7 @@ function nativeProse(): boolean {
 interface Run {
   style: TextStyle;
   onPress?: TextProps["onPress"];
+  onLongPress?: TextProps["onLongPress"];
 }
 
 /** The run a nested span inherits from; `null` outside a native root. */
@@ -139,6 +140,7 @@ function fragments(children: ReactNode, run: Run): ReactNode[] {
         text: String(child),
         style: run.style,
         onPress: run.onPress,
+        onLongPress: run.onLongPress,
       });
     }
     return isValidElement(child) ? child : null;
@@ -264,7 +266,7 @@ export function SelectableSpan(props: TextProps) {
  * `Text` it replaces, with the props it is given. A run inherits its parent's
  * press handler, so the bold words of a link still open it.
  */
-export function ProseSpan({ style, onPress, children, ...rest }: TextProps) {
+export function ProseSpan({ style, onPress, onLongPress, children, ...rest }: TextProps) {
   const parent = useContext(RunContext);
   const run = useMemo<Run | null>(
     () =>
@@ -273,12 +275,13 @@ export function ProseSpan({ style, onPress, children, ...rest }: TextProps) {
         : {
             style: fragmentStyle(parent.style, style),
             onPress: onPress ?? parent.onPress,
+            onLongPress: onLongPress ?? parent.onLongPress,
           },
-    [parent, style, onPress],
+    [parent, style, onPress, onLongPress],
   );
   if (run === null) {
     return (
-      <Text style={[style, contentTextStyle()]} onPress={onPress} {...rest} {...contentTextProps()}>
+      <Text style={[style, contentTextStyle()]} onPress={onPress} onLongPress={onLongPress} {...rest} {...contentTextProps()}>
         {children}
       </Text>
     );
