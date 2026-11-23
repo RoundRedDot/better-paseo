@@ -1,7 +1,7 @@
 import { mkdtempSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import {
   DEFAULT_TRANSLATION_PROMPT,
   PREVIOUS_DEFAULT_TRANSLATION_PROMPTS,
@@ -19,6 +19,10 @@ import {
 } from "../../server/translation/service";
 import type { PaseoApi } from "../../server/paseo-types";
 import { createTranslationStore } from "../../client/translation/store";
+
+// Codex helpers read the user's Codex config; keep tests off the real one.
+beforeEach(() => { vi.stubEnv("CODEX_HOME", "/nonexistent/better-paseo-test-codex-home"); });
+afterEach(() => { vi.unstubAllEnvs(); });
 
 vi.mock("@getpaseo/plugin/client", () => ({ useRpc: vi.fn() }));
 
@@ -51,6 +55,7 @@ function createMockEnv(options?: {
   archiveResult?: { error: string | null };
   providerEntries?: Array<{ provider: string; enabled: boolean; status: string; modes?: unknown[] }>;
   listModes?: (provider: string) => Promise<{ modes?: unknown[]; error?: string | null }>;
+  firstRunResult?: { status: string; final?: unknown; lastMessage?: string | null; error?: string | null };
 }) {
   const dir = makeTempDir();
   const parsed = timelineTranslationSettingsSchema.parse({
@@ -72,6 +77,7 @@ function createMockEnv(options?: {
     deletedHelpers: string[];
     touchedSourceTimeline: boolean;
     listModesCalls: string[];
+    permissionResponses: unknown[];
   } = {
     prompts: [],
     workspaceInputs: [],
@@ -80,6 +86,7 @@ function createMockEnv(options?: {
     deletedHelpers: [],
     touchedSourceTimeline: false,
     listModesCalls: [],
+    permissionResponses: [],
   };
 
   const paseo = {
@@ -120,7 +127,7 @@ function createMockEnv(options?: {
       },
       async listModes(reqProvider: string) {
         captured.listModesCalls.push(reqProvider);
-        return options?.listModes?.(reqProvider) ?? { modes: [], error: null };
+        return options?.listModes?.(reqProvider) ?? { modes: [{ id: "ask", label: "Always Ask", colorTier: "safe" }], error: null };
       },
       async listModels(reqProvider: string) {
         return {
@@ -165,6 +172,15 @@ function createMockEnv(options?: {
               const handlers: Array<(event: unknown) => void> = [];
               return {
                 id: "helper-agent-1",
+                async waitForFinish() {
+                  return options?.runResult ?? { status: "idle", lastMessage: "你好世界" };
+                },
+                async respondToPermission(input: unknown) {
+                  captured.permissionResponses.push(input);
+                },
+                async refresh() {
+                  return null;
+                },
                 timeline: {
                   subscribe(cb: (event: unknown) => void) {
                     handlers.push(cb);
@@ -190,6 +206,7 @@ function createMockEnv(options?: {
                   if (options?.throwOnRun) {
                     throw new Error("model crashed");
                   }
+                  if (options?.firstRunResult) return options.firstRunResult;
                   return options?.runResult ?? {
                     status: "idle",
                     lastMessage: "你好世界",
@@ -667,7 +684,7 @@ const CLAUDE_MODES = [
   { id: "bypassPermissions", label: "Bypass", colorTier: "dangerous" },
 ];
 
-describe("translation helper permission mode", () => {
+describe("translation helper restrictions", () => {
   async function createdConfig(env: ReturnType<typeof createMockEnv>, jobId: string) {
     env.translator.request({ action: "start", jobId, agentId: "source-agent-1", text: "Hello",
       sourceKind: "assistant_message", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo);
@@ -675,10 +692,41 @@ describe("translation helper permission mode", () => {
     return (env.captured.agentConfigs[0] as { config: Record<string, unknown> }).config;
   }
 
-  it("starts a Claude helper in plan mode", async () => {
-    const env = createMockEnv({ providerEntries: [{ provider: "claude", enabled: true, status: "ready", modes: CLAUDE_MODES }] });
-    expect((await createdConfig(env, "mode-claude")).modeId).toBe("plan");
+  it.each(["claude", "pi"])("leaves a helper that follows the %s conversation unrestricted", async (provider) => {
+    const env = createMockEnv({ provider, model: "claude-sonnet-4-5", providerEntries: [{ provider, enabled: true, status: "ready", modes: provider === "pi" ? [] : CLAUDE_MODES }] });
+    const config = await createdConfig(env, `follow-${provider}`);
+    expect(config).not.toHaveProperty("modeId");
+    expect(config).not.toHaveProperty("options");
+    expect(config).not.toHaveProperty("mcpServers");
     expect(env.captured.listModesCalls).toEqual([]);
+  });
+
+  it("returns a following helper's permission stop as an error, as before", async () => {
+    const env = createMockEnv({ firstRunResult: { status: "permission", lastMessage: null, error: null, final: { pendingPermissions: [{ id: "perm-1", name: "Bash" }] } } });
+    env.translator.request({ action: "start", jobId: "follow-permission", agentId: "source-agent-1", text: "Hello",
+      sourceKind: "assistant_message", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo);
+    expect(await waitForJob(env.translator, env.paseo, "follow-permission")).toEqual({ state: "error", error: "Translation ended with status: permission." });
+    expect(env.captured.permissionResponses).toEqual([]);
+  });
+
+  it("starts a custom Claude helper in plan mode with tools denied and a sandbox", async () => {
+    const env = createMockEnv({ settings: { customModel: true, provider: "claude", model: "claude-sonnet-4-5" }, providerEntries: [{ provider: "claude", enabled: true, status: "ready", modes: CLAUDE_MODES }] });
+    const config = await createdConfig(env, "mode-claude");
+    expect(config.modeId).toBe("plan");
+    expect(config.options).toMatchObject({
+      disallowedTools: expect.arrayContaining(["Bash", "Read", "mcp__paseo"]),
+      extraArgs: { "strict-mcp-config": null },
+      sandbox: { enabled: true },
+    });
+    expect(env.captured.listModesCalls).toEqual([]);
+  });
+
+  it("starts a custom Codex helper in the read-only sandbox without Paseo tools", async () => {
+    const env = createMockEnv({ provider: "codex", model: "gpt-5.5", settings: { customModel: true, provider: "codex", model: "gpt-5.5" }, providerEntries: [{ provider: "codex", enabled: true, status: "ready", modes: [
+      { id: "auto", colorTier: "moderate" }, { id: "auto-review", colorTier: "moderate" }, { id: "full-access", colorTier: "dangerous" },
+    ] }] });
+    const config = await createdConfig(env, "mode-codex");
+    expect(config).toMatchObject({ modeId: "auto", options: { sandbox_mode: "read-only", approval_policy: "never" }, mcpServers: { paseo: expect.any(Object) } });
   });
 
   it("starts a custom provider helper in its least permissive mode", async () => {
@@ -697,18 +745,27 @@ describe("translation helper permission mode", () => {
   });
 
   it("reads the modes when the snapshot does not list them", async () => {
-    const env = createMockEnv({ listModes: async () => ({ modes: CLAUDE_MODES, error: null }) });
-    expect((await createdConfig(env, "mode-fallback")).modeId).toBe("plan");
-    expect(env.captured.listModesCalls).toEqual(["claude"]);
+    const env = createMockEnv({ settings: { customModel: true, provider: "alt", model: "alt-model" },
+      providerEntries: [{ provider: "claude", enabled: true, status: "ready" }, { provider: "alt", enabled: true, status: "ready" }] });
+    expect((await createdConfig(env, "mode-fallback")).modeId).toBe("ask");
+    expect(env.captured.listModesCalls).toEqual(["alt"]);
   });
 
-  it("leaves the mode unset when the provider offers none", async () => {
-    const env = createMockEnv({ providerEntries: [{ provider: "claude", enabled: true, status: "ready", modes: [] }] });
-    expect(await createdConfig(env, "mode-none")).not.toHaveProperty("modeId");
+  it("refuses a custom provider that cannot be kept from running tools before creating a helper", async () => {
+    const env = createMockEnv({ provider: "pi", model: "pi-model", settings: { customModel: true, provider: "pi", model: "pi-model" }, providerEntries: [{ provider: "pi", enabled: true, status: "ready", modes: [] }] });
+    env.translator.request({ action: "start", jobId: "mode-pi", agentId: "source-agent-1", text: "Hello",
+      sourceKind: "assistant_message", interfaceLanguage: "en", configSignature: env.configSignature }, env.paseo);
+    expect(await waitForJob(env.translator, env.paseo, "mode-pi")).toEqual({
+      state: "error", error: 'Translation provider "pi" cannot be kept from running tools. Choose another translation model in settings.',
+    });
+    expect(env.captured.workspaceInputs).toEqual([]);
   });
 
-  it("still translates when the modes cannot be read", async () => {
-    const env = createMockEnv({ listModes: async () => { throw new Error("offline"); } });
-    expect(await createdConfig(env, "mode-unreadable")).not.toHaveProperty("modeId");
+  it("denies a custom helper's tool request and keeps the translation", async () => {
+    const env = createMockEnv({ settings: { customModel: true, provider: "claude", model: "claude-sonnet-4-5" }, firstRunResult: { status: "permission", lastMessage: null, error: null,
+      final: { pendingPermissions: [{ id: "perm-1", name: "Bash" }] } } });
+    await createdConfig(env, "mode-deny");
+    expect(env.captured.permissionResponses).toEqual([{ requestId: "perm-1", response: expect.objectContaining({ behavior: "deny" }) }]);
+    expect(await env.translator.request({ action: "status", jobId: "mode-deny" }, env.paseo)).toMatchObject({ translation: "你好世界" });
   });
 });

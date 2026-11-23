@@ -5,6 +5,7 @@ import type { PluginSettings } from "@getpaseo/plugin/server";
 import { type TaskAvailability, type TaskIssue, unavailableTask } from "../../shared/task-availability";
 import { titleGenerationSettingsSchema } from "../../shared/title-generation";
 import type { HostDaemon } from "./provider-subagents";
+import { helperRestrictionsFor } from "../helper-restrictions";
 
 export async function taskDirectoryIssue(cwd: string): Promise<TaskIssue | null> {
   try {
@@ -139,8 +140,12 @@ export function createTaskAvailability(settings: PluginSettings<typeof titleGene
         } else {
           const provider = config.values.customModel ? config.values.provider : source.agent.provider;
           const model = config.values.customModel ? config.values.model : source.agent.model;
-          if (!providers.entries.some((entry) => entry.provider === provider && entry.enabled && entry.status === "ready")) {
+          const entry = providers.entries.find((candidate) => candidate.provider === provider && candidate.enabled && candidate.status === "ready");
+          if (!entry) {
             blocked.autoTitle = { code: "provider_unavailable", detail: provider };
+          } else if (config.values.customModel && entry.modes && !helperRestrictionsFor(provider, entry.modes).supported) {
+            // Without listed modes the generator reads them itself and reports the same code.
+            blocked.autoTitle = { code: "provider_unrestricted", detail: provider };
           } else if (!model) {
             blocked.autoTitle = { code: "model_unavailable", detail: null };
           } else {

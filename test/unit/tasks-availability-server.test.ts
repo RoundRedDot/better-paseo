@@ -21,7 +21,7 @@ async function fixture() {
   const directoryApi = fakeWorkspaceDirectory(workspaces);
   const workspace = directoryApi.fetchWorkspaces;
   const timeline = vi.fn();
-  const providers = [{ provider: "codex", enabled: true, status: "ready" }, { provider: "claude", enabled: true, status: "ready" }];
+  const providers: Array<{ provider: string; enabled: boolean; status: string; modes?: unknown[] }> = [{ provider: "codex", enabled: true, status: "ready" }, { provider: "claude", enabled: true, status: "ready" }];
   const snapshot = vi.fn(async () => ({ entries: providers }));
   const listModels = vi.fn(async () => ({ error: null as string | null, models: [{ id: "gpt-5.5", isSelectable: true }] }));
   const api = { agents: { ref: () => ({ refresh, timeline: { refetch: timeline } }) }, workspaces: directoryApi.api, providers: { snapshot, listModels } } as unknown as PaseoApi;
@@ -164,6 +164,25 @@ describe("task operation availability", () => {
     Object.assign(f.values, { customModel: true, provider: "claude", model: "gpt-5.5" });
     expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.autoTitle).toBeUndefined();
     expect(f.listModels).toHaveBeenCalledWith("claude");
+  });
+
+  it("blocks automatic titles on a provider that cannot be kept from running tools", async () => {
+    const f = await fixture();
+    f.providers.push({ provider: "grok", enabled: true, status: "ready", modes: [] });
+    Object.assign(f.values, { customModel: true, provider: "grok", model: "gpt-5.5" });
+    const state = (await f.read(f.api, ["a"])).entries[0]!.availability;
+    expect(state.blocked.autoTitle).toEqual({ code: "provider_unrestricted", detail: "grok" });
+    expect(state.blocked.rename).toBeUndefined();
+    f.providers[2]!.modes = [{ id: "ask", colorTier: "safe" }];
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.autoTitle).toBeUndefined();
+  });
+
+  it("does not block titles that follow the card's agent, whatever its provider", async () => {
+    const f = await fixture();
+    f.providers.push({ provider: "grok", enabled: true, status: "ready", modes: [] });
+    Object.assign(f.source.agent, { provider: "grok" });
+    Object.assign(f.values, { customModel: false });
+    expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.autoTitle?.code).not.toBe("provider_unrestricted");
   });
 
   it("keeps metadata writable when only the model catalog request fails", async () => {

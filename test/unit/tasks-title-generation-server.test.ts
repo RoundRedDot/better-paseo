@@ -2,11 +2,22 @@ import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import type { PaseoApi } from "@getpaseo/client";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { createTitleGenerator, registerTitleGeneration } from "../../server/tasks/title-generation";
+import { helperRestrictionsFor, restrictedHelperConfig } from "../../server/helper-restrictions";
 import { DEFAULT_TITLE_PROMPT, titleGenerationSettingsSchema, titleModelsRpc } from "../../shared/title-generation";
 
+// Codex helpers read the user's Codex config; keep tests off the real one.
+beforeEach(() => { vi.stubEnv("CODEX_HOME", "/nonexistent/better-paseo-test-codex-home"); });
+afterEach(() => { vi.unstubAllEnvs(); });
+
 const directories: string[] = [];
+// The restriction fields every helper config carries; the fixture lists no modes.
+const restricted = (provider: string) => {
+  const restrictions = helperRestrictionsFor(provider, []);
+  if (!restrictions.supported) throw new Error(`${provider} is not restricted`);
+  return restrictedHelperConfig(restrictions);
+};
 afterEach(async () => {
   for (const directory of directories.splice(0)) await rm(directory, { recursive: true, force: true });
 });
@@ -21,7 +32,7 @@ async function fixture() {
     live.handler = handler;
     return Object.assign(live.unsubscribe, { ready: Promise.resolve() });
   });
-  const create = vi.fn(async () => ({ id: "helper", run, timeline: { subscribe } }));
+  const create = vi.fn(async () => ({ id: "helper", run, timeline: { subscribe }, waitForFinish: run, respondToPermission: vi.fn(async () => {}), refresh: vi.fn(async () => null) }));
   const workspace = vi.fn(async () => ({ agents: { create }, archive }));
   const original = { project: { projectKey: "source-project" } as { projectKey: string } | null, agent: { title: "Original", cwd: directory, workspaceId: "source-ws", archivedAt: null as string | null,
     provider: "codex", model: "gpt-5.5" as string | null, thinkingOptionId: "high" as string | null, effectiveThinkingOptionId: "xhigh" as string | null } };
@@ -204,7 +215,7 @@ describe("background title generation", () => {
     expect(await f.settle()).toMatchObject({ state: "done" });
     expect(f.listModels).toHaveBeenCalledExactlyOnceWith("claude");
     expect(f.create).toHaveBeenCalledWith(expect.objectContaining({ config: {
-      provider: "claude/claude-haiku-5-5", systemPrompt: expect.any(String), ...(expected ? { thinkingOptionId: expected } : {}),
+      ...restricted("claude"), provider: "claude/claude-haiku-5-5", systemPrompt: expect.any(String), ...(expected ? { thinkingOptionId: expected } : {}),
     } }));
   });
 
@@ -309,7 +320,7 @@ describe("background title generation", () => {
     expect(f.start()).toEqual({ state: "running" });
     expect(await f.settle()).toEqual({ state: "done", title: "Updated 中文 title", previousTitle: "Original" });
     expect(f.workspace).toHaveBeenCalledExactlyOnceWith({ source: { kind: "directory", path: f.directory, projectId: "source-project" }, background: true, title: "Title generation" });
-    expect(f.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ config: { provider: "claude/claude-haiku-5-5", systemPrompt: expect.stringContaining("Do not use tools") } }));
+    expect(f.create).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({ config: { ...restricted("claude"), provider: "claude/claude-haiku-5-5", systemPrompt: expect.stringContaining("Do not use tools") } }));
     expect(f.run.mock.calls[0]).toEqual([expect.stringContaining("Use an actionable title"), { timeoutMs: 60_000 }]);
     expect(f.run.mock.calls[0]?.[0]).toContain("Fix the card title");
     expect(f.run.mock.calls[0]?.[0]).not.toContain("PRIVATE_TOOL_OUTPUT");
@@ -774,7 +785,7 @@ describe("title when the first message starts", () => {
   });
 });
 
-describe("title helper permission mode", () => {
+describe("title helper restrictions", () => {
   const claudeModes = [
     { id: "plan", label: "Plan Mode", colorTier: "planning" },
     { id: "default", label: "Always Ask", colorTier: "safe" },
@@ -783,33 +794,48 @@ describe("title helper permission mode", () => {
   const helperConfig = (f: Awaited<ReturnType<typeof fixture>>) =>
     (f.create.mock.calls[0] as unknown as [{ config: Record<string, unknown> }])[0].config;
 
-  it("starts a Claude title helper in plan mode", async () => {
+  it("starts a Claude title helper in plan mode with tools denied and a sandbox", async () => {
     const f = await fixture();
     f.snapshot.mockResolvedValue({ entries: [{ provider: "claude", enabled: true, status: "ready", modes: claudeModes }] });
     f.start();
     expect(await f.settle()).toMatchObject({ state: "done" });
-    expect(helperConfig(f).modeId).toBe("plan");
+    expect(helperConfig(f)).toMatchObject({ modeId: "plan", options: { disallowedTools: expect.arrayContaining(["Bash"]), sandbox: { enabled: true } } });
     expect(f.listModes).not.toHaveBeenCalled();
   });
 
-  it("starts an inherited Codex title helper in its least permissive mode", async () => {
+  it("starts a custom Codex title helper in the read-only sandbox", async () => {
     const f = await fixture();
-    f.values.customModel = false;
+    Object.assign(f.values, { provider: "codex", model: "gpt-5.5" });
     f.listModes.mockResolvedValue({ error: null, modes: [
       { id: "auto", label: "Default Permissions", colorTier: "moderate" },
+      { id: "auto-review", label: "Auto-review", colorTier: "moderate" },
       { id: "full-access", label: "Full Access", colorTier: "dangerous" },
     ] });
     f.start();
     expect(await f.settle()).toMatchObject({ state: "done" });
-    expect(helperConfig(f).modeId).toBe("auto");
+    expect(helperConfig(f)).toMatchObject({ modeId: "auto", options: { sandbox_mode: "read-only", approval_policy: "never", web_search: "disabled" } });
     expect(f.listModes).toHaveBeenCalledExactlyOnceWith("codex");
   });
 
-  it("still generates a title when the modes cannot be read", async () => {
+  it("leaves a title helper that follows the card's agent unrestricted, Pi included", async () => {
     const f = await fixture();
-    f.listModes.mockRejectedValue(new Error("offline"));
+    f.values.customModel = false;
+    f.original.agent.provider = "pi";
+    f.snapshot.mockResolvedValue({ entries: [{ provider: "pi", enabled: true, status: "ready", modes: [] }] });
     f.start();
     expect(await f.settle()).toMatchObject({ state: "done" });
     expect(helperConfig(f)).not.toHaveProperty("modeId");
+    expect(helperConfig(f)).not.toHaveProperty("options");
+    expect(f.listModes).not.toHaveBeenCalled();
+  });
+
+  it("refuses a custom Pi model before reading the conversation or creating a helper", async () => {
+    const f = await fixture();
+    Object.assign(f.values, { provider: "pi", model: "pi-model" });
+    f.snapshot.mockResolvedValue({ entries: [{ provider: "pi", enabled: true, status: "ready", modes: [] }] });
+    f.start();
+    expect(await f.settle()).toEqual({ state: "error", error: "Task operation unavailable (provider_unrestricted): pi" });
+    expect(f.timeline).not.toHaveBeenCalled();
+    expect(f.workspace).not.toHaveBeenCalled();
   });
 });

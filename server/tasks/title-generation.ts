@@ -5,7 +5,7 @@ import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoApi } from
 import type { PluginHookEvents, PluginServerContext, PluginSettings } from "@getpaseo/plugin/server";
 import { z } from "zod";
 import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, TITLE_HELPER_LABEL, TITLE_HELPER_PURPOSE, titleGenerationSettingsSchema, titleLanguageRpc, titleModelsRpc, titleUndoRpc, titleUpdateRpc, type TitleUpdateState } from "../../shared/title-generation";
-import { resolveHelperModeId } from "../helper-mode";
+import { resolveHelperRestrictions, restrictedHelperConfig, runRestrictedHelper } from "../helper-restrictions";
 import { pluginDataDir } from "../plugin-data";
 import { taskIssueError, taskUpdateIssue } from "./availability";
 import { onHookEvent } from "../hooks";
@@ -130,6 +130,9 @@ export function createTitleGenerator(deps: Dependencies) {
     if (!providerEntry) {
       throw new Error(taskIssueError({ code: "provider_unavailable", detail: provider }));
     }
+    // A custom model runs restricted; following the card's agent keeps its own permissions.
+    const restrictions = config.customModel ? await resolveHelperRestrictions(paseo, provider, providerEntry.modes) : null;
+    if (restrictions && !restrictions.supported) throw new Error(taskIssueError({ code: "provider_unrestricted", detail: provider }));
     let thinkingOptionId = config.customModel ? config.thinkingOptionId : original.agent.effectiveThinkingOptionId ?? original.agent.thinkingOptionId;
     if (!model) throw new Error("The original agent has no model to use for title generation.");
     if (config.disableThinking) {
@@ -155,7 +158,6 @@ export function createTitleGenerator(deps: Dependencies) {
         .sort((a, b) => a.seq - b.seq).map(({ role, text }) => ({ role, text }));
     }
     if (messages.length === 0) throw new Error("This agent has no conversation to summarize.");
-    const modeId = await resolveHelperModeId(paseo, provider, providerEntry.modes);
 
     // A neutral directory avoids running the source project's workspace setup or loading its instructions.
     await mkdir(deps.directory, { recursive: true });
@@ -169,8 +171,8 @@ export function createTitleGenerator(deps: Dependencies) {
     try {
       const helper = await workspace.agents.create({
         config: { provider: `${provider}/${model}`, systemPrompt: SYSTEM_PROMPT,
-          // The least permissive mode keeps the helper from running tools.
-          ...(modeId ? { modeId } : {}),
+          // A custom model gets its sandbox or least permissive mode.
+          ...(restrictions ? restrictedHelperConfig(restrictions) : {}),
           ...(thinkingOptionId ? { thinkingOptionId } : {}),
         },
         title: "Title generator", labels: { [TITLE_HELPER_LABEL]: TITLE_HELPER_PURPOSE },
@@ -193,7 +195,10 @@ export function createTitleGenerator(deps: Dependencies) {
       const prompt = language && config.prompt === DEFAULT_TITLE_PROMPT
         ? config.prompt.replace("Use the language of the first user message.", `Prefer ${language === "zh" ? "Chinese" : "English"}, the user's interface language.`)
         : language ? `Prefer ${language === "zh" ? "Chinese" : "English"}, the user's interface language, unless the following custom instructions specify a language.\n\n${config.prompt}` : config.prompt;
-      const result = await helper.run(`${prompt}\n\n${JSON.stringify({ messages })}`, { timeoutMs: 60_000 });
+      const helperPrompt = `${prompt}\n\n${JSON.stringify({ messages })}`;
+      const result = restrictions
+        ? await runRestrictedHelper(helper, helperPrompt, 60_000)
+        : await helper.run(helperPrompt, { timeoutMs: 60_000 });
       if (result.status !== "idle") throw new Error(result.error || `Title generation ended with status: ${result.status}.`);
       const parsed = generatedTitle.safeParse(result.lastMessage);
       if (!parsed.success) throw new Error("The model must return one title between 1 and 80 characters, without explanations or line breaks.");

@@ -12,7 +12,7 @@
 import type { PluginHandlerContext } from "@getpaseo/plugin/server";
 
 export type PaseoApi = PluginHandlerContext["paseo"];
-type PaseoAgentHandle = ReturnType<PaseoApi["agents"]["ref"]>;
+export type PaseoAgentHandle = ReturnType<PaseoApi["agents"]["ref"]>;
 export type PaseoAgentTimelineHandle = PaseoAgentHandle["timeline"];
 export type PaseoAgentTimelineEvent = Parameters<Parameters<PaseoAgentTimelineHandle["subscribe"]>[0]>[0];
 export type PaseoAgentRefetchResult = NonNullable<Awaited<ReturnType<PaseoAgentHandle["refresh"]>>>;

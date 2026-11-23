@@ -5,7 +5,7 @@ import type { PluginServerContext, PluginSettings } from "@getpaseo/plugin/serve
 import type { PaseoAgentRefetchResult, PaseoAgentTimelineEvent, PaseoApi } from "../paseo-types";
 import { pluginDataDir } from "../plugin-data";
 import { connectHostDaemon } from "../tasks/provider-subagents";
-import { resolveHelperModeId } from "../helper-mode";
+import { resolveHelperRestrictions, restrictedHelperConfig, runRestrictedHelper } from "../helper-restrictions";
 import {
   isRealThinkingOffId,
   resolveThinkingCapability,
@@ -175,7 +175,11 @@ export function createTimelineTranslator(deps: Dependencies) {
       model,
       original,
     );
-    const modeId = await resolveHelperModeId(paseo, provider, providerEntry.modes);
+    // A custom model runs restricted; following the conversation keeps its own permissions.
+    const restrictions = config.customModel ? await resolveHelperRestrictions(paseo, provider, providerEntry.modes) : null;
+    if (restrictions && !restrictions.supported) {
+      throw new Error(`Translation provider "${provider}" cannot be kept from running tools. Choose another translation model in settings.`);
+    }
     const target = resolveTranslationTarget(config.targetLanguage, input.interfaceLanguage);
 
     // Run in a neutral helper directory so source project instructions are never loaded.
@@ -200,8 +204,8 @@ export function createTimelineTranslator(deps: Dependencies) {
         config: {
           provider: `${provider}/${model}`,
           systemPrompt: SYSTEM_PROMPT,
-          // The least permissive mode keeps the helper from running tools.
-          ...(modeId ? { modeId } : {}),
+          // A custom model gets its sandbox or least permissive mode.
+          ...(restrictions ? restrictedHelperConfig(restrictions) : {}),
           ...(thinkingOptionId ? { thinkingOptionId } : {}),
         },
         title: "Timeline translator",
@@ -229,7 +233,10 @@ export function createTimelineTranslator(deps: Dependencies) {
         input.sourceKind,
         input.text,
       );
-      const result = await helper.run(fullPrompt, { timeoutMs: deps.timeoutMs ?? TRANSLATION_TIMEOUT_MS });
+      const timeoutMs = deps.timeoutMs ?? TRANSLATION_TIMEOUT_MS;
+      const result = restrictions
+        ? await runRestrictedHelper(helper, fullPrompt, timeoutMs)
+        : await helper.run(fullPrompt, { timeoutMs });
       if (result.status !== "idle") {
         throw new Error(result.error || `Translation ended with status: ${result.status}.`);
       }
