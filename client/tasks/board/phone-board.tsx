@@ -700,7 +700,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
   const { card, board, theme, index } = props;
   const colors = theme.colors;
   useParentTitle(board, card);
-  const { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext } = useDetailReads(board, card);
+  const { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext, todo } = useDetailReads(board, card);
   const step = (delta: number) => {
     const next = delta < 0 ? props.previousId : props.nextId;
     if (next) props.onShow(next);
@@ -753,6 +753,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
           onPermission={onPermission}
           onJumpWithScroll={(id, offsets) => props.navigate({ type: "jump", id, offsets })}
           titleUpdates={board.callbacks.titleUpdates}
+          todo={todo}
           firstPrompt={firstPrompt}
           humanMessage={humanMessage}
           lastMessage={lastMessage}

@@ -1,7 +1,7 @@
 import React from "react";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { Animated, StyleSheet } from "react-native";
+import { Animated, Dimensions, StyleSheet } from "react-native";
 import "./helpers/quiet-renderer";
 
 const motion = vi.hoisted(() => ({ reduced: false }));
@@ -88,6 +88,24 @@ function order(root: ReactTestInstance) {
 }
 
 describe("details columns", () => {
+  it.each([{ tabs: true, columns: false }, { tabs: false, columns: true }, { tabs: false, columns: false }])("shows and updates the plan in details ($tabs, $columns)", async (layout) => {
+    const todo = { completed: 1, total: 2, items: [{ text: "First step", completed: true }, { text: "A long second step", status: "in_progress" }] };
+    const base = { ...props(false), ...layout, todo, initialTab: "info" as const };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...base} />); });
+    const plan = host(renderer!.root, "detail-plan");
+    expect(texts(plan)).toEqual(expect.arrayContaining(["Plan steps", "1/2 tasks", "First step", "A long second step"]));
+    expect(host(plan, "todo-row-completed")).toBeDefined();
+    expect(host(plan, "todo-row-in_progress")).toBeDefined();
+    const heading = plan.find((node) => node.props.accessibilityLabel === "Collapse Plan steps");
+    await act(async () => heading.props.onPress());
+    expect(plan.find((node) => node.props.accessibilityLabel === "Expand Plan steps")).toBeDefined();
+    await act(async () => heading.props.onPress());
+    await act(async () => renderer!.update(<TaskDetailCards {...base} todo={{ ...todo, completed: 2, items: todo.items.map((item) => ({ ...item, completed: true })) }} />));
+    expect(texts(host(renderer!.root, "detail-plan"))).toContain("2/2 tasks");
+    await act(async () => renderer!.update(<TaskDetailCards {...base} todo={null} />));
+    expect(renderer!.root.findAll((node) => node.props.testID === "detail-plan")).toHaveLength(0);
+  });
+
   it("matches the translation button's icon and hover feedback to copy", async () => {
     const message = { prompt: { state: "ready" as const, text: "Reply" }, load() {} };
     await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} lastMessage={message} translationAgentId="session-1" columns={false} tabs />); });
@@ -748,6 +766,24 @@ describe("detail message typography", () => {
       }
       await act(async () => renderer!.unmount());
       renderer = undefined;
+    }
+  });
+
+  it.each([
+    ["android", 1200, 800, true, true, 1],
+    ["ios", 800, 1200, true, true, 1],
+    ["android", 844, 390, true, true, 0.9],
+    ["ios", 1200, 800, true, false, 0.9],
+    ["web", 1200, 800, false, true, 0.9],
+  ] as const)("sizes %s messages at %ix%i with touch=%s tabs=%s", async (os, width, height, touch, tabs, scale) => {
+    vi.stubGlobal("__rnMockOS", os);
+    vi.spyOn(Dimensions, "get").mockReturnValue({ width, height, scale: 2, fontScale: 1 });
+    const message = (text: string) => ({ prompt: { state: "ready" as const, text }, load() {} });
+    const theme = { ...THEME, typography: { fontSize: { ui: 14, content: 20 } } };
+    await act(async () => { renderer = TestRenderer.create(<TaskDetailCards {...props(false)} theme={theme} touch={touch} tabs={tabs} columns={false}
+      firstPrompt={message("First")} humanMessage={message("Follow-up")} lastMessage={message("Reply")} />); });
+    for (const id of ["detail-prompt", "detail-human", "detail-message"]) {
+      expect(host(renderer!.root, id).findByType(MarkdownView).props.size).toBe(Math.round(20 * scale));
     }
   });
 

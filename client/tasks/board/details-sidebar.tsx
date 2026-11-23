@@ -1,3 +1,4 @@
+import { useTodoSummary } from "../data/todo-summary";
 import { selectionWithoutComposer } from "../../components/selection-actions";
 import { PreferenceSyncSlot } from "../../state/preference-sync-slot";
 import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
@@ -245,7 +246,7 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
   const notice: DetailNotice | null = props.shown
     ? null
     : { icon: "EyeOff", text: strings.hidden, action: { label: board.strings.clearFilters, onPress: () => board.setParams((params) => ({ ...clearedParams(params), hideSubtasks: false })) } };
-  const { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext } = useDetailReads(board, card);
+  const { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext, todo } = useDetailReads(board, card);
   return (<>
     <PreferenceSyncSlot />
     <TaskDetailCards
@@ -269,6 +270,7 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
       }}
       onSubtaskMenu={props.onMenu}
       titleUpdates={board.callbacks.titleUpdates}
+      todo={todo}
       firstPrompt={firstPrompt}
       sessionTokens={sessionTokens}
       humanMessage={humanMessage}
@@ -323,6 +325,7 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
   const subagent = card?.subagent ? card : undefined;
   const agent = card && !card.subagent ? card : undefined;
   const shown = agent !== undefined;
+  const todo = useTodoSummary(board.paseo, agent?.id ?? "", shown && board.visible);
   const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", shown);
   const live = board.visible && agent !== undefined && turnRunning(agent) && agent.closed !== true;
   const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
@@ -341,7 +344,7 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
   const asking = agent?.lane === "needs_input" && agent.permission?.kind === "question" ? agent.permission : null;
   const questionRead = useQuestionContext(board.paseo, agent?.id ?? "", asking);
   const questionContext = asking && detailsShowNote(questionRead.context, lastMessage.prompt) ? questionRead : null;
-  return subagent ? { ...subagentReads, humanMessage: null, sessionTokens: null, questionContext: null } : { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext };
+  return subagent ? { ...subagentReads, humanMessage: null, sessionTokens: null, questionContext: null, todo: null } : { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext, todo };
 }
 
 /**

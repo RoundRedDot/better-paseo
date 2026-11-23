@@ -9,7 +9,7 @@ import type { DetailSection } from "./detail-model";
 type Choices = Partial<Record<DetailSection, boolean>>;
 
 const STORAGE_KEY = "paseo/better-chat/tasks/detail-sections/v2";
-const SECTIONS: readonly DetailSection[] = ["prompt", "human", "message", "properties", "subtasks", "usage", "activity"];
+const SECTIONS: readonly DetailSection[] = ["prompt", "human", "message", "properties", "plan", "subtasks", "usage", "activity"];
 let remembered: Choices | null = null;
 const listeners = new Set<() => void>();
 

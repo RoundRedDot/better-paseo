@@ -9,6 +9,7 @@ import { revealPathRpc } from "../../../shared/file-rpc";
 import { fileOpenError } from "../../i18n/file-open-error";
 import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
+import { DETAILS_BREAKPOINTS } from "../../details/layout-model";
 import { useSelectionActions } from "../../components/selection-actions";
 import { SyncedLoader } from "../../ui/synced-loader";
 import { SelectionTranslationScope } from "../../translation/ui";
@@ -30,6 +31,8 @@ import type { SessionTokens } from "../../../shared/tasks-rpc";
 import { opensInPaseo, parentOpensInPaseo, turnRunning, type PermissionKind, type TaskCard, type TaskChild } from "../model";
 import type { PermissionButton, StopPhase } from "../actions";
 import { useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
+import type { TodoSummary } from "../data/todo-summary";
+import { TodoRow } from "./todo-row";
 import type { FirstPrompt } from "../data/first-prompt";
 import type { LastHumanMessage } from "../data/last-human-message";
 import type { LastMessage } from "../data/last-message";
@@ -182,6 +185,7 @@ export type DetailScrollOffsets = { info: number; messages: number };
 
 export interface TaskDetailCardsProps extends TimeSource {
   searchQuery?: string;
+  todo?: TodoSummary | null;
   card: TaskCard;
   theme: PluginTheme;
   language: TasksLanguage;
@@ -337,8 +341,9 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
   const replyStreaming = turnRunning(card) && (props.lastMessage?.prompt.state !== "ready" || !props.humanMessage || comparison === false);
   const waitingAfterHuman = turnRunning(card) && comparison === true;
   const { order, closed } = detailSections(card, !!props.firstPrompt, !!props.lastMessage, !!props.humanMessage, replyFirst);
+  if (props.todo?.items.length) order.splice(1, 0, "plan");
   // Two columns: properties precede subtasks under the header; the other sections sit on the right.
-  const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "properties" || section === "subtasks") : [];
+  const leftSections: DetailSection[] = props.columns ? order.filter((section) => section === "properties" || section === "plan" || section === "subtasks") : [];
   const rightOrder = order.filter((section) => !leftSections.includes(section));
   // A scroller's content gives its scrollbar the right edge of its padding (`detail-scrollbar.ts`).
   const gutter = props.columns || props.scrollBody || props.tabs ? detailGutter("inset") : 0;
@@ -400,7 +405,7 @@ export function TaskDetailCards(given: TaskDetailCardsProps) {
     // hidden page took about a third of a touch card's render on an Android
     // foldable, at its opening and at every board update after it.
     const info: DetailSection[] = tabState.infoVisited
-      ? (["properties", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section))
+      ? (["properties", "plan", "subtasks", "usage", "activity"] as const).filter((section) => order.includes(section))
       : [];
     const TabPages = props.touch ? React.Fragment : View;
     const tabBar = (
@@ -1222,7 +1227,7 @@ function SectionContent(props: SectionProps & { translation?: InlineTranslationS
   const words = cardStrings(props.language).details;
   const reducedMotion = useReducedMotion();
   const { copied, copy } = useCopy();
-  const title = { prompt: words.prompt, human: words.human, message: words.message, properties: words.properties, subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
+  const title = { prompt: words.prompt, human: words.human, message: words.message, properties: words.properties, plan: props.language === "zh" ? "计划步骤" : "Plan steps", subtasks: words.subtasks, usage: words.usage, activity: words.activity }[section];
   // A narrow card abbreviates the subtasks heading; its rows keep their shared metadata.
   const [narrow, setNarrow] = useState(false);
   const onLayout =
@@ -1243,6 +1248,7 @@ function SectionContent(props: SectionProps & { translation?: InlineTranslationS
     human: messageTime,
     message: messageTime,
     properties: "",
+    plan: props.todo ? (props.todo.source === "plan" ? (props.language === "zh" ? `${props.todo.total} 项计划` : `${props.todo.total} plan ${props.todo.total === 1 ? "step" : "steps"}`) : (props.language === "zh" ? `${props.todo.completed}/${props.todo.total} 项任务` : `${props.todo.completed}/${props.todo.total} tasks`)) : "",
     subtasks: heading && heading.parts.length > 0 ? <SubtaskSummaryText parts={heading.parts} tokens={tokens} /> : "",
     usage: usageSummary(card, props.language),
     activity: created !== null ? words.createdAgo(formatRelative(created, props.language)) : "",
@@ -1250,7 +1256,7 @@ function SectionContent(props: SectionProps & { translation?: InlineTranslationS
   const messageSection = section === "prompt" || section === "human" || section === "message";
   const copyLabel = section === "prompt" ? words.copyPrompt : section === "human" ? words.copyHuman : words.copyMessage;
   const copyToast = section === "prompt" ? "Copy prompt" : section === "human" ? "Copy sent message" : "Copy message";
-  const testID = { prompt: "detail-prompt", human: "detail-human", message: "detail-message", properties: "detail-location", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
+  const testID = { prompt: "detail-prompt", human: "detail-human", message: "detail-message", properties: "detail-location", plan: "detail-plan", subtasks: "detail-subtasks", usage: "detail-usage", activity: "detail-activity" }[section];
   // The last subtask row keeps 8 (touch 10) above the next hairline.
   const bottom = section === "subtasks" && m === TOUCH_CARD ? 10 : 8;
   const toggle = () => { if (!reducedMotion) prepareSubtaskToggle(props.closed); props.onToggleSection(!props.closed); };
@@ -1291,6 +1297,10 @@ function SectionContent(props: SectionProps & { translation?: InlineTranslationS
           <TimelineTextBody {...props} translation={props.translation} read={props.lastMessage} id="detail-message" none={words.messageNone} error={words.messageError} copyLabel={words.copyMessage} copyToast="Copy message" streaming={props.replyStreaming} flash />
           ) : section === "properties" ? (
             <Properties {...props} />
+          ) : section === "plan" && props.todo ? (
+            <View style={{ paddingHorizontal: 6, paddingTop: 4 }}>
+              {props.todo.items.map((item, index) => <TodoRow key={item.id ?? index} item={item} last={index === props.todo!.items.length - 1} compact={props.compact === true} theme={props.theme} tokens={tokens} background={tokens.card.background} fullText />)}
+            </View>
           ) : section === "subtasks" ? (
             <Subtasks {...props} />
           ) : section === "usage" ? (
@@ -1897,6 +1907,7 @@ function TimelineTextBody(props: Inner & {
   const prose = useThemeTokens(props.theme, preferences);
   useSelectionActions(prose, !!props.translationAgentId && preferences.selectionActions);
   const adjustment = useTasksFontAdjustment();
+  const window = useWindowDimensions();
   const first = props.read;
   const breathing = useBreathing(first?.prompt.state === "loading");
   const streaming = props.streaming === true;
@@ -1920,7 +1931,8 @@ function TimelineTextBody(props: Inner & {
   }, []);
   const renderText = useMemo(() => query ? (text: string) => highlightText(text, query, tokens.isDark) : undefined, [query, tokens.isDark]);
   if (!first) return null;
-  const font = Math.round(prose.typography.content.size * 0.9 * adjustment);
+  const tabletSidebar = props.touch === true && props.tabs === true && Math.min(window.width, window.height) >= DETAILS_BREAKPOINTS.drawerEnter;
+  const font = Math.round(prose.typography.content.size * (tabletSidebar ? 1 : 0.9) * adjustment);
   const line = variantMetrics(preferences.markdownVariant, font, props.touch === true).bodyLineHeight;
   const small = F.sm;
   const prompt = first.prompt;

@@ -17,7 +17,7 @@ const MINUTE = 60_000;
 /** The block under the header, by what the card needs first. */
 export type DetailHero = "turn" | "permission" | "error" | "summary";
 
-export type DetailSection = "prompt" | "human" | "message" | "properties" | "subtasks" | "usage" | "activity";
+export type DetailSection = "prompt" | "human" | "message" | "properties" | "plan" | "subtasks" | "usage" | "activity";
 
 export function detailHero(card: TaskCard): DetailHero {
   if (card.lane === "needs_input" && card.permission) return "permission";

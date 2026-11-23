@@ -87,7 +87,7 @@ describe("detail timeline reads", () => {
     seen[parent.id] = [];
     await act(async () => renderer.update(<Probe card={parent} />));
     expect(seen[parent.id]!.every((states) => states.every((state) => state === "none"))).toBe(true);
-    expect(pending).toHaveLength(3);
+    expect(pending).toHaveLength(4);
     await act(async () => { for (const resolve of pending.splice(0)) resolve(PAGE); });
     expect(seen[parent.id]!.at(-1)).toEqual(["ready", "ready", "ready"]);
     seen[child.id] = [];
@@ -115,13 +115,13 @@ describe("detail timeline reads", () => {
     expect(refetch).not.toHaveBeenCalled();
 
     await act(async () => { renderer.update(<Probe card={card("closed-1", true)} />); });
-    expect(refetch.mock.calls.map(([options]) => options.direction)).toEqual(["after", "tail", "tail", "tail"]);
+    expect(refetch.mock.calls.map(([options]) => options.direction)).toEqual(["after", "tail", "tail", "tail", "tail"]);
     expect(reads!.firstPrompt?.prompt).toEqual({ state: "ready", text: "First prompt", timestamp: "2026-10-25T08:13:00Z" });
     expect(reads!.humanMessage?.prompt).toEqual({ state: "ready", text: "Last sent", timestamp: "2026-10-25T09:00:00Z", position: { epoch: "history", seq: 2 } });
     expect(reads!.lastMessage?.prompt).toEqual({ state: "ready", text: "Last reply", timestamp: "2026-10-25T09:01:00Z", position: { epoch: "history", seq: 3 } });
 
     await act(async () => { renderer.update(<Probe card={undefined} />); });
-    expect(refetch).toHaveBeenCalledTimes(4);
+    expect(refetch).toHaveBeenCalledTimes(5);
     act(() => renderer.unmount());
   });
 
@@ -174,7 +174,7 @@ describe("detail timeline reads", () => {
     }
     let renderer!: ReactTestRenderer;
     await act(async () => { renderer = TestRenderer.create(<Probe />); });
-    expect(refetch.mock.calls.map(([options]) => options.direction)).toEqual(["after", "tail", "tail", "tail"]);
+    expect(refetch.mock.calls.map(([options]) => options.direction)).toEqual(["after", "tail", "tail", "tail", "tail"]);
     act(() => renderer.unmount());
   });
 });
