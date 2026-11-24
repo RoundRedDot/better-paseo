@@ -36,6 +36,8 @@ export interface TurnWork {
   steps: readonly WorkStep[];
   /** Every tool call of the turn, folded into a step or still drawn as its own row. */
   toolCalls: number;
+  /** Those calls as last seen, in turn order; the opened card counts them by kind. */
+  calls: readonly ToolCallTimelineItem[];
   files: readonly WorkFile[];
   /**
    * The newest call still running that will fold once it succeeds (a
@@ -156,6 +158,7 @@ export function collectTurnWork(entries: readonly Entry[], span: TurnSpan, key: 
     durationMs: Number.isFinite(duration) && duration >= 0 ? duration : null,
     steps,
     toolCalls: calls.size,
+    calls: [...calls.values()],
     files: [...files].map(([path, callIds]) => ({ path, callIds })),
     current,
     latest: steps.at(-1) ?? null,

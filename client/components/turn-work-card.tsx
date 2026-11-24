@@ -46,13 +46,13 @@ import { lineNumberWidth } from "./syntax-highlight";
 import type { LineCount, TurnFooterStore } from "../state/turn-footers";
 import type { TurnWork, WorkFile, WorkStep } from "../state/turn-work";
 import type { WorkVerb } from "../tools/standard-fold";
-import { useWorkFilter, type WorkFilter } from "../state/work-filter-store";
+import { useWorkFilter, type CallKind, type WorkFilter } from "../state/work-filter-store";
 
 const STRINGS: Record<SettingsLanguage, {
   work: string; read: string; edited: string; ran: string; files: (count: number) => string;
   someFiles: string; view: string; more: (count: number) => string; fewer: string;
   steps: (count: number) => string; calls: (count: number) => string; thinking: string;
-  /** The opened card's filter groups (`stepKinds`). */
+  /** The opened card's filter groups (`callKinds`). */
   kinds: Record<WorkFilter, string>;
   /** The status line's verb for a call still running, and for the newest finished one. */
   doing: Record<WorkVerb, string>; done: Record<WorkVerb, string>;
@@ -63,7 +63,8 @@ const STRINGS: Record<SettingsLanguage, {
     view: "View changes", more: (count) => `Show ${count} more ${count === 1 ? "file" : "files"}`, fewer: "Show fewer files",
     steps: (count) => `${count} ${count === 1 ? "step" : "steps"}`, thinking: "Thinking",
     calls: (count) => `${count} ${count === 1 ? "tool call" : "tool calls"}`,
-    kinds: { all: "All", read: "Read", edit: "Edit", command: "Command" },
+    kinds: { all: "All", read: "Read", edit: "Edit", command: "Command", search: "Search", fetch: "Fetch", mcp: "MCP",
+      agent: "Agent", other: "Other", failed: "Failed" },
     doing: { command: "Running command", read: "Reading", edit: "Editing", write: "Writing" },
     done: { command: "Ran command", read: "Read", edit: "Edited", write: "Wrote" },
   },
@@ -73,34 +74,43 @@ const STRINGS: Record<SettingsLanguage, {
     view: "查看变更", more: (count) => `再显示 ${count} 个文件`, fewer: "收起文件",
     steps: (count) => `${count} 步`, thinking: "正在思考",
     calls: (count) => `${count} 次工具调用`,
-    kinds: { all: "全部", read: "读取", edit: "编辑", command: "命令" },
+    kinds: { all: "全部", read: "读取", edit: "编辑", command: "命令", search: "搜索", fetch: "抓取", mcp: "MCP",
+      agent: "子 agent", other: "其他", failed: "失败" },
     doing: { command: "正在运行命令", read: "正在读取", edit: "正在编辑", write: "正在写入" },
     done: { command: "运行了命令", read: "读取了", edit: "编辑了", write: "写入了" },
   },
 };
 
-/** The groups the opened card filters its steps by, in display order. */
-export type StepKind = Exclude<WorkFilter, "all">;
-const STEP_KINDS: readonly StepKind[] = ["read", "edit", "command"];
+const CALL_KINDS: readonly CallKind[] = ["read", "edit", "command", "search", "fetch", "mcp", "agent", "other", "failed"];
 
-/** A step's group: an edit and a write are both edits. */
-export function stepKind(step: WorkStep): StepKind {
-  return step.verb === "write" ? "edit" : step.verb;
+/** One call's kind: a failed or canceled call counts as failed, whatever it did. */
+export function callKind(item: ToolCallTimelineItem): CallKind {
+  if (item.status !== "completed" && item.status !== "running") return "failed";
+  switch (viewOf(item).tool) {
+    case "read": return "read";
+    case "edit": case "write": return "edit";
+    case "bash": case "shell": case "git": return "command";
+    case "search": case "ast_grep": case "lsp": return "search";
+    case "fetch": return "fetch";
+    case "mcp": return "mcp";
+    case "sub_agent": return "agent";
+    default: return "other";
+  }
 }
 
-/** The turn's steps counted by group, groups with no steps left out. */
-export function stepKinds(steps: readonly WorkStep[]): Array<{ kind: StepKind; count: number }> {
-  const counts = new Map<StepKind, number>();
-  for (const step of steps) { const kind = stepKind(step); counts.set(kind, (counts.get(kind) ?? 0) + 1); }
-  return STEP_KINDS.filter((kind) => counts.has(kind)).map((kind) => ({ kind, count: counts.get(kind)! }));
+/** Every call of the turn counted by kind, kinds with no calls left out. */
+export function callKinds(calls: readonly ToolCallTimelineItem[]): Array<{ kind: CallKind; count: number }> {
+  const counts = new Map<CallKind, number>();
+  for (const item of calls) { const kind = callKind(item); counts.set(kind, (counts.get(kind) ?? 0) + 1); }
+  return CALL_KINDS.filter((kind) => counts.has(kind)).map((kind) => ({ kind, count: counts.get(kind)! }));
 }
 
 /**
- * The work details panel's filter key: the turn's first step, which the
+ * The work details panel's filter key: the turn's first call, which the
  * running card and its settled card share, so a choice survives the settle.
  */
-export function workFilterKey(agentId: string, work: Pick<TurnWork, "key" | "steps">): string {
-  return `${agentId}:work-filter:${work.steps[0]?.callId ?? work.key}`;
+export function workFilterKey(agentId: string, work: Pick<TurnWork, "key" | "calls">): string {
+  return `${agentId}:work-filter:${work.calls[0]?.callId ?? work.key}`;
 }
 
 /** A folded call as its own row would read it. */
@@ -179,9 +189,9 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
     id: `${agentId}:work:${work.key}:steps`, agentId, at, kind: "tool", seq: 0,
     mounted: true, navigable: false, hasBody: true, title: `${label} · ${summary}`, titleMono: false,
     subtitle: [], icon: "Hammer", readsImage: false, dismissOnOutside: true, reserveTimeline: true,
-    render: () => <WorkDetails agentId={agentId} at={at} workKey={work.key} steps={work.steps} intent={intent} text={text} tokens={tokens} compact={compact} />,
+    render: () => <WorkDetails agentId={agentId} at={at} workKey={work.key} calls={work.calls} intent={intent} text={text} tokens={tokens} compact={compact} />,
     copies: () => [],
-  }), [agentId, at, compact, intent, label, summary, text, tokens, work.key, work.steps]);
+  }), [agentId, at, compact, intent, label, summary, text, tokens, work.calls, work.key, work.steps]);
   const phase = useMarkerPhase(agentId, entry.id);
   // A step list open in the details panel stays attached to the card drawn
   // under the next row: it registers before the previous card releases. The
@@ -260,23 +270,23 @@ function activityTarget(step: WorkStep): string | null {
  * offers Copy and Translate as it does on a thought row.
  */
 /**
- * The opened steps under a filter bar that stays atop the panel: 全部 and
- * each group the turn's steps fall in, with its count. A group narrows the
- * list below to its steps, which keep their numbers in the whole list.
+ * Every call of the turn under a filter bar that stays atop the panel: 全部
+ * and each kind the calls fall in, with its count, adding up to the card's
+ * tool calls. A kind narrows the list below to its calls, numbered from 1.
  */
-function WorkDetails({ agentId, at, workKey, steps, intent, text, tokens, compact }: {
-  agentId: string; at: number; workKey: string; steps: readonly WorkStep[]; intent: string | null; text: typeof STRINGS.en;
+function WorkDetails({ agentId, at, workKey, calls, intent, text, tokens, compact }: {
+  agentId: string; at: number; workKey: string; calls: readonly ToolCallTimelineItem[]; intent: string | null; text: typeof STRINGS.en;
   tokens: ExtendedThemeTokens; compact: boolean;
 }) {
   const styles = useCardStyles(tokens);
-  const [chosen, choose] = useWorkFilter(workFilterKey(agentId, { key: workKey, steps }));
-  const kinds = useMemo(() => stepKinds(steps), [steps]);
-  // A group with no steps (yet) shows them all.
+  const [chosen, choose] = useWorkFilter(workFilterKey(agentId, { key: workKey, calls }));
+  const kinds = useMemo(() => callKinds(calls), [calls]);
+  // A kind with no calls (any more: a running call may fail) shows them all.
   const filter = kinds.some(({ kind }) => kind === chosen) ? chosen : "all";
-  const groups = useMemo(() => [{ kind: "all" as const, count: steps.length }, ...kinds], [kinds, steps.length]);
+  const groups = useMemo(() => [{ kind: "all" as const, count: calls.length }, ...kinds], [kinds, calls.length]);
   return <>
     <HoverPreviewHeader tokens={tokens} />
-    {steps.length ? (
+    {calls.length ? (
       <View testID="work-filter" accessibilityRole="tablist" style={styles.filterBar}>
         {groups.map(({ kind, count }) => (
           <FilterChip key={kind} label={`${text.kinds[kind]} ${count}`} kind={kind} selected={filter === kind}
@@ -286,7 +296,7 @@ function WorkDetails({ agentId, at, workKey, steps, intent, text, tokens, compac
     ) : null}
     <HoverPreviewBody fullBleed stickySteps>
       {intent ? <WorkIntent agentId={agentId} text={intent} style={[styles.intent, { paddingHorizontal: space.md }]} /> : null}
-      <WorkSteps agentId={agentId} at={at} steps={steps} filter={filter} tokens={tokens} compact={compact} />
+      <WorkSteps agentId={agentId} at={at} calls={calls} filter={filter} tokens={tokens} compact={compact} />
     </HoverPreviewBody>
   </>;
 }
@@ -324,11 +334,10 @@ function IntentText({ text, style }: { text: string; style: StyleProp<TextStyle>
 }
 
 /** Mounted only while the steps are open; each command can open its output. */
-function WorkSteps({ agentId, at, steps, filter, tokens, compact }: {
-  agentId: string; at: number; steps: readonly WorkStep[]; filter: WorkFilter; tokens: ExtendedThemeTokens; compact: boolean;
+function WorkSteps({ agentId, at, calls, filter, tokens, compact }: {
+  agentId: string; at: number; calls: readonly ToolCallTimelineItem[]; filter: WorkFilter; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
-  const shown = useMemo(() => steps.flatMap((step, index) =>
-    filter === "all" || stepKind(step) === filter ? [{ step, number: index + 1 }] : []), [steps, filter]);
+  const shown = useMemo(() => filter === "all" ? calls : calls.filter((item) => callKind(item) === filter), [calls, filter]);
   const pathContext = usePathContextValue(agentId);
   const placement = useMemo(() => ({ agentId, at, kind: "tool" as const }), [agentId, at]);
   const sticky = useMemo(() => ({
@@ -339,13 +348,13 @@ function WorkSteps({ agentId, at, steps, filter, tokens, compact }: {
     <PathContext.Provider value={pathContext}>
       <BlockPlacementContext.Provider value={placement}>
         <View testID="work-step-list">
-          {shown.map(({ step, number }, index) => {
+          {shown.map((item, index) => {
             const stripe = index % 2 === 1 ? sticky.striped.stripe : undefined;
-            return <View key={step.callId} testID="work-step-cell"
+            return <View key={item.callId} testID="work-step-cell"
               style={{ paddingVertical: space.xs, paddingHorizontal: space.md, backgroundColor: stripe }}>
               {/* An opened step pins its row under the toolbar while its output scrolls past. */}
               <StickyStepContext.Provider value={stripe ? sticky.striped : sticky.plain}>
-                <WorkStepRow agentId={agentId} step={step} number={number} total={steps.length} tokens={tokens} compact={compact} />
+                <WorkStepRow agentId={agentId} item={item} number={index + 1} total={shown.length} tokens={tokens} compact={compact} />
               </StickyStepContext.Provider>
             </View>;
           })}
@@ -355,20 +364,20 @@ function WorkSteps({ agentId, at, steps, filter, tokens, compact }: {
   );
 }
 
-const WorkStepRow = memo(function WorkStepRow({ agentId, step, number, total, tokens, compact }: {
-  agentId: string; step: WorkStep; number: number; total: number; tokens: ExtendedThemeTokens; compact: boolean;
+const WorkStepRow = memo(function WorkStepRow({ agentId, item, number, total, tokens, compact }: {
+  agentId: string; item: ToolCallTimelineItem; number: number; total: number; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
-  const view = useMemo(() => viewOf(step.item), [step.item]);
+  const view = useMemo(() => viewOf(item), [item]);
   // Outlives the body's remount: iOS mounts it again at each text size step.
-  const [expanded, setExpanded] = useDisclosure(`${agentId}:work:${step.callId}:step`, false);
+  const [expanded, setExpanded] = useDisclosure(`${agentId}:work:${item.callId}:step`, false);
   const width = lineNumberWidth(total, tokens.typography.mono.size);
   const leading = { width, content: <Text testID="work-step-number" selectable={false} style={{
     color: tokens.syntax.comment, fontFamily: tokens.fontMono, fontSize: tokens.typography.mono.size - 2,
     lineHeight: compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop,
     textAlign: "right", paddingRight: space.sm, fontVariant: ["tabular-nums"],
   }}>{number}</Text> };
-  return <SelectionTranslationScope agentId={agentId} kind="tool_output" streaming={false}>
-    <ToolCallout data={view} previewKey={`${agentId}:work:${step.callId}:preview`} tokens={tokens} compact={compact} leading={leading}
+  return <SelectionTranslationScope agentId={agentId} kind="tool_output" streaming={item.status === "running"}>
+    <ToolCallout data={view} previewKey={`${agentId}:work:${item.callId}:preview`} tokens={tokens} compact={compact} leading={leading}
       expanded={expanded} onExpandedChange={setExpanded} />
   </SelectionTranslationScope>;
 });

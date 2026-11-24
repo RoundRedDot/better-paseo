@@ -7,7 +7,9 @@
  */
 import { useCallback, useSyncExternalStore } from "react";
 
-export type WorkFilter = "all" | "read" | "edit" | "command";
+/** The kinds the work details groups a turn's calls by, in display order. */
+export type CallKind = "read" | "edit" | "command" | "search" | "fetch" | "mcp" | "agent" | "other" | "failed";
+export type WorkFilter = "all" | CallKind;
 
 export const WORK_FILTER_LIMIT = 200;
 

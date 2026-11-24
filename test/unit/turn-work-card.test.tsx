@@ -23,7 +23,7 @@ vi.mock("../../client/components/tool-callouts", () => ({
   }),
 }));
 
-import { TurnWorkCard, stepKinds } from "../../client/components/turn-work-card";
+import { TurnWorkCard, callKinds } from "../../client/components/turn-work-card";
 import { buildThemeTokens, radiusV2, withAlpha } from "../../client/components/theme-tokens";
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
@@ -48,7 +48,7 @@ const tool = (callId: string, detail: ToolCallTimelineItem["detail"], name = "Ed
   ({ type: "tool_call", name, callId, status: "completed", error: null, detail }) as ToolCallTimelineItem;
 const edit = (callId: string, path: string) => tool(callId, { type: "edit", filePath: path, unifiedDiff: "@@\n-a\n+b\n+c" });
 
-function turn() {
+function turn(extra: ToolCallTimelineItem[] = []) {
   const entries = [
     entry({ type: "user_message", text: "fix" }, 1),
     entry({ type: "reasoning", text: "**Check the root first**, then fix the path.\nMore." }, 2),
@@ -59,6 +59,7 @@ function turn() {
     entry(tool("e4", { type: "edit", filePath: "c.ts" }), 7),
     entry(tool("w1", { type: "write", filePath: "d.ts", content: "x\n" }, "Write"), 8),
     entry(tool("c1", { type: "shell", command: "npm test", output: "SECRET OUTPUT", exitCode: 0 }, "Bash"), 9),
+    ...extra.map((item, index) => entry(item, 9.1 + index * 0.1)),
     entry({ type: "assistant_message", text: "done" }, 10),
   ];
   const span = splitTurns(entries, { running: false, activeTurnId: null, fromStart: true })[0]!;
@@ -457,15 +458,35 @@ describe("turn work card", () => {
   });
 });
 
-describe("step kinds", () => {
-  it("counts the turn's steps by group, a write as an edit", () => {
-    expect(stepKinds(turn().steps)).toEqual([{ kind: "read", count: 1 }, { kind: "edit", count: 5 }, { kind: "command", count: 1 }]);
+describe("call kinds", () => {
+  it("counts every call of the turn by kind, a failed call as failed whatever it did", () => {
+    const call = (callId: string, name: string, detail: Record<string, unknown>, status = "completed") =>
+      ({ type: "tool_call", name, callId, status, error: status === "failed" ? "boom" : null, detail }) as unknown as ToolCallTimelineItem;
+    expect(callKinds([
+      call("r1", "Read", { type: "read", filePath: "a.ts" }),
+      call("s1", "Grep", { type: "search", query: "foo" }),
+      call("s2", "Glob", { type: "search", query: "*.ts" }),
+      call("f1", "WebFetch", { type: "fetch", url: "https://example.com" }),
+      call("m1", "mcp__linear__get_issue", { type: "unknown", input: {}, output: null }),
+      call("c1", "Bash", { type: "shell", command: "npm test", exitCode: 1 }, "failed"),
+      call("c2", "Bash", { type: "shell", command: "ls", exitCode: 0 }),
+    ])).toEqual([{ kind: "read", count: 1 }, { kind: "command", count: 1 }, { kind: "search", count: 2 },
+      { kind: "fetch", count: 1 }, { kind: "mcp", count: 1 }, { kind: "failed", count: 1 }]);
   });
 });
 
 describe("work details filter", () => {
+  // Two calls that fold into no step: a failed command and a search. They still count, and list.
+  const unfolded = [
+    { ...tool("x1", { type: "shell", command: "npm run lint", output: "boom", exitCode: 1 }, "Bash"), status: "failed", error: "boom" } as ToolCallTimelineItem,
+    tool("s1", { type: "search", query: "foo" } as ToolCallTimelineItem["detail"], "Grep"),
+  ];
+  beforeEach(() => {
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn(unfolded)} store={store} tokens={tokens} compact={false} /></>); });
+  });
   function openPanel() {
-    pressText("工作过程 · 7 步 · 7 次工具调用");
+    pressText("工作过程 · 7 步 · 9 次工具调用");
     const block = getBlock("agent", openId!)!;
     let panel!: TestRenderer.ReactTestRenderer;
     act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
@@ -474,6 +495,17 @@ describe("work details filter", () => {
   const numbers = (panel: TestRenderer.ReactTestRenderer) => panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")
     .map((node) => node.props.data.callId);
   const chip = (panel: TestRenderer.ReactTestRenderer, kind: string) => panel.root.findByProps({ testID: `work-filter:${kind}` });
+
+  it("groups every tool call, adding up to the card's count", () => {
+    const panel = openPanel();
+    const chipLabels = panel.root.findByProps({ testID: "work-filter" }).findAll((node) => (node.type as unknown) === "Text")
+      .map((node) => node.children.join(""));
+    expect(chipLabels).toEqual(["全部 9", "读取 1", "编辑 5", "命令 1", "搜索 1", "失败 1"]);
+    expect(numbers(panel)).toEqual(["r1", "e1", "e2", "e3", "e4", "w1", "c1", "x1", "s1"]);
+    act(() => chip(panel, "failed").props.onPress());
+    expect(numbers(panel)).toEqual(["x1"]);
+    act(() => panel.unmount());
+  });
 
   it("sits outside the scrolling body, so it stays atop the panel", () => {
     const panel = openPanel();
@@ -485,7 +517,7 @@ describe("work details filter", () => {
     act(() => panel.unmount());
   });
 
-  it("narrows the steps to a group, keeping their numbers, and 全部 shows them all again", () => {
+  it("narrows the steps to a group, numbered from 1, and 全部 shows them all again", () => {
     const panel = openPanel();
     expect(chip(panel, "all").props.accessibilityState).toEqual({ selected: true });
     act(() => chip(panel, "edit").props.onPress());
@@ -494,11 +526,11 @@ describe("work details filter", () => {
     expect(numbers(panel)).toEqual(["e1", "e2", "e3", "e4", "w1"]);
     const shownNumbers = panel.root.findAll((node) => node.props?.testID === "work-step-number" && (node.type as unknown) === "Text")
       .map((node) => node.children.join(""));
-    expect(shownNumbers).toEqual(["2", "3", "4", "5", "6"]);
+    expect(shownNumbers).toEqual(["1", "2", "3", "4", "5"]);
     act(() => chip(panel, "command").props.onPress());
     expect(numbers(panel)).toEqual(["c1"]);
     act(() => chip(panel, "all").props.onPress());
-    expect(numbers(panel)).toEqual(["r1", "e1", "e2", "e3", "e4", "w1", "c1"]);
+    expect(numbers(panel)).toEqual(["r1", "e1", "e2", "e3", "e4", "w1", "c1", "x1", "s1"]);
     act(() => panel.unmount());
   });
 
