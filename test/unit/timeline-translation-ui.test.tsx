@@ -487,7 +487,7 @@ describe("selection translation", () => {
     job.dispose();
 
     publishTranslationSettings(CONFIGURED, "on");
-    const streaming = selection("Partial", { streaming: true, kind: "reasoning" });
+    const streaming = selection("Partial", { streaming: true, kind: "reasoning", waitForStreaming: true });
     streaming.start();
     expect(streaming.view()).toEqual({ status: "streaming", kind: "reasoning" });
     await settle();
@@ -1122,7 +1122,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     }
   });
 
-  it("waits for a streaming reply and shows errors with retry", async () => {
+  it("translates a selection from a streaming reply and shows errors with retry", async () => {
     mocks.rpc.mockRejectedValueOnce(new Error("provider down")).mockResolvedValue(doneState("好的"));
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
@@ -1130,11 +1130,10 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     });
     select(0);
     await act(async () => button("Translate selected block")[0]!.props.onPress());
-    expect(panelText()).toContain("Wait until the reply finishes streaming");
-    await settle();
-    expect(mocks.rpc).not.toHaveBeenCalled();
+    await vi.waitFor(() => expect(panelText()).toContain("provider down"));
+    expect(mocks.rpc).toHaveBeenCalledOnce();
 
-    // The reply settles: the press stands and the selected block is sent.
+    // Settling the reply does not resend the selected block.
     await act(async () => {
       renderer!.update(React.createElement(LiveAssistantRenderer,
         assistantProps({ text: "Done part.\n\nStill writing", phase: "complete" }, platform) as never));

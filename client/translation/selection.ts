@@ -33,7 +33,7 @@ import {
 export interface SelectionTranslationScopeValue {
   agentId: string;
   kind: TranslationSourceKind;
-  /** The source is still streaming: translation waits until it settles. */
+  /** Whether the source is still streaming. */
   streaming: boolean;
   /**
    * Web only: the RPC caller and Paseo API of the React tree that drew this
@@ -150,6 +150,8 @@ export interface SelectionTranslationOptions {
   text: string;
   streaming: boolean;
   translator: SelectionTranslator | undefined;
+  /** Whole-block translations wait for the source to finish. */
+  waitForStreaming?: boolean;
   /** The host the text came from (its `PaseoApi`); part of the cache key. */
   host?: object;
   /** Distinguishes repeated text in separate blocks of the same selection. */
@@ -238,7 +240,7 @@ export function createSelectionTranslation(options: SelectionTranslationOptions)
     if (settingsState.status === "error") return { status: "settings-error", error: settingsState.error };
     const settings = settingsState.values;
     if (!settings.enabled) return { status: "disabled" };
-    if (streaming) return { status: "streaming", kind: options.kind };
+    if (streaming && options.waitForStreaming) return { status: "streaming", kind: options.kind };
     if (!translator) return { status: "unavailable" };
     if (settings.mode === "openai" && (!settings.endpoint || !settings.endpointModel)) return { status: "unconfigured" };
     const lang = interfaceLanguage();
@@ -364,7 +366,7 @@ export function useLentTranslator(enabled: boolean): LentTranslator | undefined 
 }
 
 /** A native menu's translation for the block it selected; idle until `start()`. */
-export function useSelectionTranslation(scope: SelectionTranslationScopeValue, text: string | null) {
+export function useSelectionTranslation(scope: SelectionTranslationScopeValue, text: string | null, waitForStreaming = false) {
   const caller = useTranslateCaller();
   const paseo = usePaseo();
   const translation = useMemo(() => text === null ? null : createSelectionTranslation({
@@ -372,9 +374,10 @@ export function useSelectionTranslation(scope: SelectionTranslationScopeValue, t
     kind: scope.kind,
     text,
     streaming: scope.streaming,
+    waitForStreaming,
     translator: caller,
     host: paseo ?? undefined,
-  }), [scope.agentId, scope.kind, text, paseo]);
+  }), [scope.agentId, scope.kind, text, paseo, waitForStreaming]);
   useEffect(() => {
     translation?.setStreaming(scope.streaming);
   }, [translation, scope.streaming]);

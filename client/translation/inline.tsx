@@ -32,7 +32,7 @@ function InlineTranslationSession({ agentId, kind, text, streaming, children }: 
 }) {
   const caller = useTranslateCaller();
   const paseo = usePaseo();
-  const translation = useMemo(() => createSelectionTranslation({ agentId, kind, text, streaming, translator: caller,
+  const translation = useMemo(() => createSelectionTranslation({ agentId, kind, text, streaming, waitForStreaming: true, translator: caller,
     host: paseo ?? undefined }), [agentId, kind, text, paseo]);
   useEffect(() => { translation.setStreaming(streaming); }, [translation, streaming]);
   useEffect(() => { translation.setTranslator(caller); }, [translation, caller]);

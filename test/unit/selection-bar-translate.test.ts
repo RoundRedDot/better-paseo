@@ -296,7 +296,7 @@ describe("selection bar Translate", () => {
     expect(display()).toBe("none");
   });
 
-  it("waits until every selected block has finished streaming", async () => {
+  it("translates each selected block while streaming", async () => {
     call.mockResolvedValue(done("译文"));
     const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: true };
     const first = surface(scope); const second = surface(scope);
@@ -305,9 +305,6 @@ describe("selection bar Translate", () => {
     selected = { text: "text text", node: a, focus: b, textNodes: [a, b] };
     doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
     button("Translate")!.click(); await flush();
-    bindSelectionScopeElement(first.parentElement!, { ...scope, streaming: false, lent: lent(call) });
-    await flush(); expect(call).not.toHaveBeenCalled();
-    bindSelectionScopeElement(second.parentElement!, { ...scope, streaming: false, lent: lent(call) });
     await flush(); expect(call).toHaveBeenCalledTimes(2);
   });
 
@@ -835,7 +832,7 @@ describe("selection bar Translate", () => {
     expect(button("Translate")!.hidden).toBe(true);
   });
 
-  it("sends once the selected reply settles, from the binding alone with no selection event", async () => {
+  it("sends the selected text while streaming and does not resend when it settles", async () => {
     call.mockResolvedValue(done("好了"));
     const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: true };
     const text = surface(scope);
@@ -843,7 +840,7 @@ describe("selection bar Translate", () => {
     select("settling words", text);
     button("Translate")!.click();
     await flush();
-    expect(panel().textContent).toContain("Wait until the reply finishes streaming");
+    expect(call).toHaveBeenCalledOnce();
     // What MarkdownView's ref does when the reply completes: rebind the same
     // element (cleanup, then the new scope). No selectionchange follows.
     bindSelectionScopeElement(root, null);
@@ -854,14 +851,8 @@ describe("selection bar Translate", () => {
     expect(panel().textContent).toContain("好了");
   });
 
-  it("waits for streaming, explains a missing translator, and retries errors", async () => {
+  it("explains a missing translator and retries errors", async () => {
     call.mockRejectedValueOnce(new Error("quota")).mockResolvedValue(done("好"));
-    select("still streaming", surface({ agentId: "agent-1", kind: "assistant_message", streaming: true }));
-    button("Translate")!.click();
-    await flush();
-    expect(panel().textContent).toContain("Wait until the reply finishes streaming");
-    expect(call).not.toHaveBeenCalled();
-
     select("no translator", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }, null));
     button("Translate")!.click();
     await flush();

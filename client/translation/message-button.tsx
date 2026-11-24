@@ -37,7 +37,7 @@ function MessageTranslationButton(props: Props) {
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(props.theme, preferences);
   const [text, setText] = useState<string | null>(null);
-  const { view, start } = useSelectionTranslation(props, text);
+  const { view, start } = useSelectionTranslation(props, text, true);
   const loading = text !== null && (!view || selectionViewLoading(view));
   // Once shown, the translation stays open through Retry; closing ends it.
   const [opened, setOpened] = useState(false);
