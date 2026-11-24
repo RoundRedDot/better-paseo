@@ -12,7 +12,9 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({ noteHover() {}, useIn
 vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => undefined }));
 // The rows and diffs the card mounts on demand, as markers.
 vi.mock("../../client/components/tool-callouts", () => ({
-  ToolCallout: (props: Record<string, unknown>) => React.createElement("ToolCallout", props),
+  ToolCallout: (props: Record<string, unknown>) => React.createElement("ToolCallout", {
+    ...props, translationScope: React.useContext(SelectionTranslationContext),
+  }),
   FileEditsPreview: (props: Record<string, unknown>) => React.createElement("FileEditsPreview", props),
 }));
 
@@ -29,6 +31,7 @@ import { DetailsShellContext, type DetailsShellValue } from "../../client/detail
 import { PreviewChromeContext } from "../../client/ui/hover-preview";
 import { resetDisclosureStore } from "../../client/state/disclosure-store";
 import { FadeIn } from "../../client/ui/fade-in";
+import { SelectionTranslationContext } from "../../client/translation/selection";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
@@ -123,6 +126,20 @@ describe("turn work card", () => {
     expect(openId).toBe("agent:work:r:10000:done:steps");
     expect(byType("ToolCallout")).toHaveLength(0);
     expect(getEnhancerPreferences().blockDetails).toBe(false);
+  });
+
+  it("gives every work step in the independent details the original conversation's tool-output scope", () => {
+    pressText("用时 9秒");
+    pressText("读取了文件 · 编辑了文件 · 运行了命令");
+    const block = getBlock("agent", openId!)!;
+    let panel!: TestRenderer.ReactTestRenderer;
+    act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
+    const callouts = panel.root.findAll((node) => (node.type as unknown) === "ToolCallout");
+    expect(callouts).toHaveLength(7);
+    for (const callout of callouts) {
+      expect(callout.props.translationScope).toMatchObject({ agentId: "agent", kind: "tool_output", streaming: false });
+    }
+    act(() => panel.unmount());
   });
 
   it("marks the selected work row for outside-click handling on web", () => {

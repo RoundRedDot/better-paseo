@@ -38,6 +38,7 @@ import { FileEditsPreview, ToolCallout } from "./tool-callouts";
 import { BlockPlacementContext, type BlockEntry } from "../details/contracts";
 import { getBlock, registerBlock, type BlockRegistration } from "../details/block-registry";
 import { detailsApi, useMarkerPhase } from "../details/details-store";
+import { SelectionTranslationScope } from "../translation/ui";
 import type { LineCount, TurnFooterStore } from "../state/turn-footers";
 import type { TurnWork, WorkFile, WorkStep } from "../state/turn-work";
 import type { WorkVerb } from "../tools/standard-fold";
@@ -255,7 +256,9 @@ const WorkStepRow = memo(function WorkStepRow({ agentId, step, tokens, compact }
   agentId: string; step: WorkStep; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
   const view = useMemo(() => viewOf(step.item), [step.item]);
-  return <ToolCallout data={view} previewKey={`${agentId}:work:${step.callId}:preview`} tokens={tokens} compact={compact} />;
+  return <SelectionTranslationScope agentId={agentId} kind="tool_output" streaming={false}>
+    <ToolCallout data={view} previewKey={`${agentId}:work:${step.callId}:preview`} tokens={tokens} compact={compact} />
+  </SelectionTranslationScope>;
 });
 
 function FileCard({ agentId, at, work, store, text, tokens, compact }: {
