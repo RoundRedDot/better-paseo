@@ -1,6 +1,6 @@
 /**
  * The details panel's header (https://github.com/RoundRedDot/better-paseo/blob/f2ab453297c4ccb88a08e2129af0cb3528c4e628/docs/prototypes/block-details-sheet.md, "头部";
- * table 5.2): the block's icon in a 28 tile, its full title and a subtitle of
+ * table 5.2): the block's icon in a compact tile, its full title and a subtitle of
  * status, duration and place, then ‹ › × at the right. 52 tall on touch, 44
  * with a pointer. The shell's header handlers ride on it: a vertical drag
  * moves the drawer, a horizontal swipe steps.
@@ -24,7 +24,7 @@ export const HEADER_BUTTONS: Readonly<Record<"touch" | "pointer", ToolbarMetrics
   touch: { button: 36, icon: 18 },
   pointer: { button: 28, icon: 16 },
 };
-const ICON_TILE = 28;
+const ICON_TILE = 20;
 const TILE_ICON = 16;
 
 export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, streaming = false }: {
@@ -143,12 +143,12 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: 10,
-    paddingLeft: space.lg,
+    paddingLeft: space.sm,
     paddingRight: space.sm,
     paddingVertical: space.xs,
     flexShrink: 0,
   },
-  tile: { width: ICON_TILE, height: ICON_TILE, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  tile: { width: ICON_TILE, height: ICON_TILE, marginRight: -4, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   text: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 },
   titleContainer: { flex: 1, minWidth: 0 },
   title: { fontWeight: "600" },
