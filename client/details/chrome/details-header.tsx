@@ -58,19 +58,20 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
       ? { fontFamily: tokens.fontMono, fontSize: 13, lineHeight: 18 }
       : { fontFamily: tokens.fontUi, fontSize: 14, lineHeight: 20 },
     { color: tokens.foreground },
+    desktopSide && { lineHeight: 18 },
   ];
   return (
     <View
       testID="details-header"
       {...(shell.headerHandlers ?? {})}
       style={[styles.header, { minHeight: desktopSide ? 36 : DETAILS_HEADER[pointer ? "pointer" : "touch"] },
-        desktopSide && { paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: tokens.v2.borderSubtle }]}
+        desktopSide && { paddingVertical: 0, borderBottomWidth: 1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
       <View testID="details-header-icon" style={styles.tile}>
         {entry.icon ? <TileIcon name={entry.icon} color={entry.iconColor ?? tokens.foregroundMuted} />
           : typeof icon === "string" ? <TileIcon name={icon} color={tokens.foregroundMuted} /> : icon}
       </View>
-      <View style={styles.text}>
+      <View style={[styles.text, desktopSide && { gap: 0 }]}>
         {text ? (
           <Pressable
             testID="details-header-title"

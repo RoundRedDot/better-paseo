@@ -17,7 +17,7 @@ vi.mock("../../client/components/tool-callouts", () => ({
 }));
 
 import { TurnWorkCard } from "../../client/components/turn-work-card";
-import { buildThemeTokens } from "../../client/components/theme-tokens";
+import { buildThemeTokens, withAlpha } from "../../client/components/theme-tokens";
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
 import { updateEnhancerPreferences, getEnhancerPreferences } from "../../client/preferences";
@@ -194,6 +194,12 @@ describe("turn work card", () => {
     const title = panel.root.findByProps({ testID: "details-header-title" });
     expect(title.props.accessibilityLabel).toBe("读取了文件 · 编辑了文件 · 运行了命令");
     expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
+    const cells = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-cell");
+    expect(cells.map((cell) => cell.props.style?.backgroundColor)).toEqual([
+      undefined, withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
+      withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
+      withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
+    ]);
     const close = panel.root.findAll((node) => node.props?.accessibilityLabel === "关闭详情" && typeof node.props.onPress === "function").at(-1)!;
     expect(close).toBeDefined();
     act(() => { close.props.onPress(); });

@@ -220,6 +220,22 @@ describe("details header", () => {
     expect(byId(root, "details-toolbar").props.style).toEqual(expect.arrayContaining([expect.objectContaining({ minHeight: 36 })]));
   });
 
+  it.each([true, false])("fits a desktop side header with titleMono=%s into the host's 36-point header", (titleMono) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const root = mount(h(DetailsHeader, { shell: shell({ form: "side", pointer: true, entry: entry({ titleMono }) }), tokens }));
+    const header = StyleSheet.flatten(byId(root, "details-header").props.style);
+    const title = byId(root, "details-header-title").findByType("Text" as never);
+    const subtitle = byId(root, "details-header-subtitle").findAllByType("Text" as never)[0]!;
+    const titleStyle = StyleSheet.flatten(title.props.style);
+    const subtitleStyle = StyleSheet.flatten(subtitle.props.style);
+    expect(header).toMatchObject({ minHeight: 36, paddingVertical: 0, borderBottomWidth: 1 });
+    expect(titleStyle.lineHeight).toBe(18);
+    expect(subtitleStyle.lineHeight).toBe(16);
+    expect(StyleSheet.flatten(byId(root, "details-header-title").parent!.props.style).gap).toBe(0);
+    act(() => byId(root, "details-header-title").props.onPress());
+    expect(title.props.numberOfLines).toBe(4);
+  });
+
   it("leaves out ‹ › and the place for a block outside the sequence (a code block)", () => {
     const root = mount(details(rowPreview(callout(bash)), shell({ index: 0, count: 15 })));
     expect(labels(byId(root, "details-header"))).not.toContain("Previous block");

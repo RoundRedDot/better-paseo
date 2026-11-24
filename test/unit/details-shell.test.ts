@@ -492,7 +492,7 @@ describe("form", () => {
     expect(byTestId(renderer, "details-side")).not.toBeNull();
     expect(byTestId(renderer, "details-floating")).toBeNull();
     expect(web.timelinePadding).toBe("calc(16px + 420px)");
-    expect(flat(byTestId(renderer, "details-header")!.props.style)).toMatchObject({ minHeight: 36, paddingVertical: 3, borderBottomWidth: 1 });
+    expect(flat(byTestId(renderer, "details-header")!.props.style)).toMatchObject({ minHeight: 36, paddingVertical: 0, borderBottomWidth: 1 });
     expect(flat(byTestId(renderer, "details-toolbar")!.props.style).minHeight).toBe(36);
     expect(flat(byTestId(renderer, "hover-preview-body")!.props.style).marginTop).toBe(0);
     act(() => seen.shell!.toggleFullscreen!());
