@@ -5,8 +5,9 @@ import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
+const translate = vi.hoisted(() => ({ rpc: (() => Promise.resolve(null)) as (...args: unknown[]) => Promise<unknown> }));
 vi.mock("@getpaseo/plugin/client", () => ({ useAgent: () => undefined, useWorkspace: () => undefined,
-  useRpc: () => () => Promise.resolve(null), usePaseo: () => null, useSettings: () => ({ data: undefined, status: "loading" }) }));
+  useRpc: () => translate.rpc, usePaseo: () => null, useSettings: () => ({ data: undefined, status: "loading" }) }));
 vi.mock("@getpaseo/plugin/client/ui", () => ({ Icon: "Icon", useToast: () => ({ show() {}, error() {} }) }));
 const caps = vi.hoisted(() => ({ hover: false }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({ noteHover() {},
@@ -39,6 +40,8 @@ import { resetDisclosureStore } from "../../client/state/disclosure-store";
 import { resetWorkFilterStore } from "../../client/state/work-filter-store";
 import { SELECTION_SCOPE_ATTRIBUTES, SelectionTranslationContext } from "../../client/translation/selection";
 import { DetailsStickySourceContext, StickyStepContext } from "../../client/details/sticky-step";
+import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
+import { resetTranslationStoreForTests } from "../../client/translation/store";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
@@ -88,6 +91,7 @@ beforeEach(() => {
 afterEach(() => {
   act(() => renderer.unmount()); detailsApi.close("agent"); resetDisclosureStore(); resetWorkFilterStore(); vi.restoreAllMocks();
   caps.hover = false; delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  translate.rpc = () => Promise.resolve(null); resetTranslationSettingsStoreForTests(); resetTranslationStoreForTests();
 });
 
 /** The form the details shell settles on for a window, written back to the store as the shell does. */
@@ -359,6 +363,50 @@ describe("turn work card", () => {
     expect(intent.props.dataSet).toMatchObject({ bcselection: true, [SELECTION_SCOPE_ATTRIBUTES.agent]: "agent",
       [SELECTION_SCOPE_ATTRIBUTES.kind]: "reasoning", [SELECTION_SCOPE_ATTRIBUTES.streaming]: "0" });
     act(() => panel.unmount());
+  });
+
+  describe.each(["web", "ios", "android"] as const)("%s intent translation", (platform) => {
+    const INTENT = "Check the root first, then fix the path.";
+    const openPanel = () => {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+      pressText("工作过程 · 7 步 · 7 次工具调用");
+      let panel!: TestRenderer.ReactTestRenderer;
+      act(() => { panel = TestRenderer.create(<PreviewChromeContext.Provider value="details">{getBlock("agent", openId!)!.render()}</PreviewChromeContext.Provider>); });
+      return panel;
+    };
+    const button = (panel: TestRenderer.ReactTestRenderer) => panel.root.findAll((node) => (node.type as unknown) === "Pressable" && node.props.testID === "work-intent-translate");
+    const intentText = (panel: TestRenderer.ReactTestRenderer) => panel.root.findAll((node) => (node.type as unknown) === "Text" && node.props.selectable === true)[0]!;
+
+    it("translates the intent in place from its own button and restores the source", async () => {
+      publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, mode: "openai",
+        endpoint: "https://api.example.test/v1", endpointModel: "test-model" }, "intent-on");
+      let resolve!: (value: unknown) => void;
+      const calls: unknown[] = [];
+      translate.rpc = (input) => { calls.push(input); return new Promise((done) => { resolve = done; }); };
+      const panel = openPanel();
+      const slot = panel.root.find((node) => (node.type as unknown) === "View" && node.props.testID === "work-intent-translation-slot");
+      // Touch shows the button without a hover, as beside a reply's block.
+      expect(StyleSheet.flatten(slot.props.style).opacity).toBe(1);
+      expect(calls).toHaveLength(0);
+      await act(async () => button(panel)[0]!.props.onPress({ stopPropagation() {} }));
+      await vi.waitFor(() => expect(calls).toHaveLength(1));
+      expect(calls[0]).toMatchObject({ agentId: "agent", sourceKind: "reasoning", text: INTENT });
+      expect(intentText(panel).children.join("")).toBe(INTENT);
+      await act(async () => resolve({ state: "done", translation: "先检查根目录，再修路径。", targetLanguageCode: "zh-CN",
+        origin: "https://api.example.test", model: "test-model" }));
+      await vi.waitFor(() => expect(intentText(panel).children.join("")).toBe("先检查根目录，再修路径。"));
+      await act(async () => button(panel)[0]!.props.onPress({ stopPropagation() {} }));
+      expect(intentText(panel).children.join("")).toBe(INTENT);
+      act(() => panel.unmount());
+    });
+
+    it("offers no button when translation is off", () => {
+      publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, "intent-off");
+      const panel = openPanel();
+      expect(button(panel)).toHaveLength(0);
+      expect(panel.root.findAll((node) => node.props.testID === "work-intent-translation-slot")).toHaveLength(0);
+      act(() => panel.unmount());
+    });
   });
 
   it("keeps one status line while the turn runs: what runs, then a thought, then the newest finished step", () => {

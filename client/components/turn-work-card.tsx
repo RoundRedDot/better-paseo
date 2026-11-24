@@ -38,7 +38,9 @@ import { getBlock, registerBlock, type BlockRegistration } from "../details/bloc
 import { detailsApi, readDetails, useMarkerPhase } from "../details/details-store";
 import { rowPressAction } from "../details/click-model";
 import { SelectionTranslationScope } from "../translation/ui";
-import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationContext } from "../translation/selection";
+import { InlineTranslation, InlineTranslateButtonWithTokens, InlineTranslationNoticeWithTokens, type InlineTranslationState } from "../translation/inline";
+import { useTranslationSettingsState } from "../translation/settings-store";
+import { bindSelectionScopeElement, selectionScopeDataSet, selectionViewLoading, SelectionTranslationContext } from "../translation/selection";
 import { selectionSurface } from "./selection-actions";
 import { selectableTextStyle } from "./selection";
 import { surfaceProps } from "./view-props";
@@ -265,11 +267,6 @@ function activityTarget(step: WorkStep): string | null {
 }
 
 /**
- * The turn's first thought atop the opened steps. Selectable, and on web a
- * selection surface scoped as the turn's reasoning, so the selection bar
- * offers Copy and Translate as it does on a thought row.
- */
-/**
  * Every call of the turn under a filter bar that stays atop the panel: 全部
  * and each kind the calls fall in, with its count, adding up to the card's
  * tool calls. A kind narrows the list below to its calls, numbered from 1.
@@ -295,7 +292,7 @@ function WorkDetails({ agentId, at, workKey, calls, intent, text, tokens, compac
       </View>
     ) : null}
     <HoverPreviewBody fullBleed stickySteps>
-      {intent ? <WorkIntent agentId={agentId} text={intent} style={[styles.intent, { paddingHorizontal: space.md }]} /> : null}
+      {intent ? <WorkIntent agentId={agentId} text={intent} tokens={tokens} compact={compact} /> : null}
       <WorkSteps agentId={agentId} at={at} calls={calls} filter={filter} tokens={tokens} compact={compact} />
     </HoverPreviewBody>
   </>;
@@ -314,10 +311,51 @@ function FilterChip({ label, kind, selected, onPress, tokens }: {
   );
 }
 
-function WorkIntent({ agentId, text, style }: { agentId: string; text: string; style: StyleProp<TextStyle> }) {
-  return <SelectionTranslationScope agentId={agentId} kind="reasoning" streaming={false}>
-    <IntentText text={text} style={style} />
-  </SelectionTranslationScope>;
+// The intent's right gutter, which the translate button sits in, as beside a reply's block.
+const INTENT_TRANSLATE_GUTTER = 32;
+
+/**
+ * The turn's first thought atop the opened steps, translatable in place as a
+ * reply's block is: a Translate button in its right gutter, centred on the
+ * first line, shown on hover (always on touch, and while a translation is
+ * on); the text dims while it translates and a wait or failure shows above.
+ * Selectable, and on web a selection surface scoped as the turn's
+ * reasoning, so the selection bar offers Copy and Translate too.
+ */
+function WorkIntent({ agentId, text, tokens, compact }: { agentId: string; text: string; tokens: ExtendedThemeTokens; compact: boolean }) {
+  return <InlineTranslation agentId={agentId} kind="reasoning" text={text} streaming={false}>
+    {(inline) => <IntentBlock agentId={agentId} text={text} inline={inline} tokens={tokens} compact={compact} />}
+  </InlineTranslation>;
+}
+
+function IntentBlock({ agentId, text, inline, tokens, compact }: {
+  agentId: string; text: string; inline: InlineTranslationState; tokens: ExtendedThemeTokens; compact: boolean;
+}) {
+  const styles = useCardStyles(tokens);
+  const { hovered, hoverProps } = useHover();
+  const input = useInputCapabilities(compact);
+  const settings = useTranslationSettingsState();
+  const enabled = settings.status !== "ready" || settings.values.enabled;
+  const shown = inline.active && inline.view?.status === "done" ? inline.view.result.translation : text;
+  const loading = inline.active && selectionViewLoading(inline.view);
+  const visible = hovered || input.touch || inline.active;
+  const line = tokens.typography.block.label.lineHeight;
+  // The slot is placed in the text's own box, so a notice above does not move it.
+  const top = space.xs / 2 + line / 2 - INTENT_TRANSLATE_GUTTER / 2;
+  return <View testID="work-intent" onPointerEnter={hoverProps.onHoverIn} onPointerLeave={hoverProps.onHoverOut}>
+    <View style={{ paddingHorizontal: space.md - 6 }}><InlineTranslationNoticeWithTokens state={inline} tokens={tokens} /></View>
+    <View style={{ position: "relative", paddingRight: enabled ? INTENT_TRANSLATE_GUTTER : 0 }}>
+      <View style={loading ? { opacity: 0.55 } : undefined}>
+        <SelectionTranslationScope agentId={agentId} kind="reasoning" streaming={false}>
+          <IntentText text={shown} style={[styles.intent, { paddingHorizontal: space.md }]} />
+        </SelectionTranslationScope>
+      </View>
+      {enabled ? <View testID="work-intent-translation-slot" pointerEvents={visible ? "auto" : "none"}
+        style={{ position: "absolute", right: space.md - 4, top, opacity: visible ? 1 : 0 }}>
+        <InlineTranslateButtonWithTokens state={inline} tokens={tokens} testID="work-intent-translate" timeline />
+      </View> : null}
+    </View>
+  </View>;
 }
 
 function IntentText({ text, style }: { text: string; style: StyleProp<TextStyle> }) {
