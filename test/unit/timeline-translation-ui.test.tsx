@@ -22,6 +22,7 @@ import {
 import { clearTranslationSettingsTarget, registerTranslationSettingsOpener, translationSettingsTarget, TranslationSettingsParentCloseContext } from "../../client/translation/navigation";
 import {
   createSelectionTranslation,
+  SelectionTranslationContext,
   selectionScopeForElement,
   selectionScopeFromDataset,
   selectionSourceKey,
@@ -151,6 +152,8 @@ import { ToolbarMetricsContext } from "../../client/ui/toolbar-button";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { segmentReasoning } from "../../client/reasoning/segment";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
+import { BlockPlacementContext } from "../../client/details/contracts";
+import { getBlock } from "../../client/details/block-registry";
 import { SelectionTranslationPanel, SHOW_ORIGINAL_ICON, TRANSLATE_ICON } from "../../client/translation/ui";
 import * as pluginClient from "@getpaseo/plugin/client";
 
@@ -890,6 +893,29 @@ describe("timeline translation", () => {
   });
 });
 
+it("binds detached details to their own web host while preserving the source scope", async () => {
+  updateEnhancerPreferences({ blockDetails: true });
+  const secondHost = createMockAgentApi();
+  const observed = vi.fn();
+  await act(async () => {
+    renderer = TestRenderer.create(<HostContext.Provider value={{ api: agentApi.api, rpc: mocks.rpc }}>
+      <SelectionTranslationScope agentId="source-agent" kind="reasoning" streaming>
+        <BlockPlacementContext.Provider value={{ agentId: "source-agent", at: 100, kind: "tool" }}>
+          <DisclosureHeader expanded={false} onToggle={() => {}} tokens={makeTokens()} verb="Details"
+            previewKey="web:detached" previewContent={() => <SelectionTranslationContext.Consumer>{(scope) => { observed(scope); return null; }}</SelectionTranslationContext.Consumer>} />
+        </BlockPlacementContext.Provider>
+      </SelectionTranslationScope>
+    </HostContext.Provider>);
+  });
+  const entry = getBlock("source-agent", "web:detached")!;
+  await act(async () => {
+    renderer!.unmount();
+    renderer = TestRenderer.create(<HostContext.Provider value={{ api: secondHost.api, rpc: mocks.rpc }}>{entry.render()}</HostContext.Provider>);
+  });
+  expect(observed).toHaveBeenLastCalledWith(expect.objectContaining({ agentId: "source-agent", kind: "reasoning", streaming: true,
+    lent: expect.objectContaining({ paseo: secondHost.api }) }));
+});
+
 describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platform) => {
   const frames = () => renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-selection");
   const button = (label: string) => renderer!.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === label);
@@ -905,6 +931,46 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
   beforeEach(() => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
     mocks.hover = false;
+  });
+
+  it.each(["tool_output", "reasoning"] as const)("translates a quoted selection in detached %s details", async (kind) => {
+    updateEnhancerPreferences({ blockDetails: true });
+    mocks.rpc.mockResolvedValue(doneState("译文"));
+    await act(async () => {
+      renderer = TestRenderer.create(<SelectionTranslationScope agentId="agent-1" kind={kind} streaming={false}>
+        <BlockPlacementContext.Provider value={{ agentId: "agent-1", at: 100, kind: "tool" }}>
+          <DisclosureHeader expanded={false} onToggle={() => {}} tokens={makeTokens("ios")} verb="Details"
+            previewKey={`detached:${kind}`} previewContent={() => <MarkdownView text={"> Selected **quote**."} tokens={makeTokens("ios")} variant="document" />} />
+        </BlockPlacementContext.Provider>
+      </SelectionTranslationScope>);
+    });
+    const entry = getBlock("agent-1", `detached:${kind}`)!;
+    expect(entry).not.toBeNull();
+    await act(async () => { renderer!.unmount(); renderer = TestRenderer.create(<>{entry.render()}</>); });
+    select(0);
+    expect(button("Copy selected block")).toHaveLength(1);
+    expect(button("Translate selected block")).toHaveLength(1);
+    await act(async () => button("Translate selected block")[0]!.props.onPress());
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    expect(mocks.rpc.mock.calls[0]![0]).toMatchObject({ text: "Selected quote.", agentId: "agent-1", sourceKind: kind });
+  });
+
+  it.each(["unscoped", "disabled"] as const)("does not offer translation in detached %s details", async (mode) => {
+    updateEnhancerPreferences({ blockDetails: true });
+    if (mode === "disabled") publishTranslationSettings({ ...CONFIGURED, enabled: false }, "off");
+    const header = <DisclosureHeader expanded={false} onToggle={() => {}} tokens={makeTokens("ios")} verb="Details"
+      previewKey={`detached:${mode}`} previewContent={() => <MarkdownView text={"> Quote."} tokens={makeTokens("ios")} variant="document" />} />;
+    await act(async () => {
+      renderer = TestRenderer.create(<BlockPlacementContext.Provider value={{ agentId: "agent-1", at: 100, kind: "tool" }}>
+        {mode === "unscoped" ? header : <SelectionTranslationScope agentId="agent-1" kind="tool_output" streaming={false}>{header}</SelectionTranslationScope>}
+      </BlockPlacementContext.Provider>);
+    });
+    const entry = getBlock("agent-1", `detached:${mode}`)!;
+    await act(async () => { renderer!.unmount(); renderer = TestRenderer.create(<>{entry.render()}</>); });
+    select(0);
+    expect(button("Copy selected block")).toHaveLength(1);
+    expect(button("Translate selected block")).toHaveLength(0);
+    expect(mocks.rpc).not.toHaveBeenCalled();
   });
 
   it("translates exactly the selected block in a popup and closes with the selection", async () => {

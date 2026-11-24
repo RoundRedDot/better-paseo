@@ -24,6 +24,8 @@ import { rowPressAction } from "../details/click-model";
 import { CurrentMarker } from "../details/current-marker";
 import { RowMenu, type RowMenuAnchor } from "../details/row-menu";
 import { toolbarLabel } from "../i18n/toolbar-strings";
+import { SelectionTranslationContext } from "../translation/selection";
+import { SelectionTranslationScope } from "../translation/ui";
 
 /**
  * Row geometry (S7 design spec §2.5, F0 "Row heights and hit areas").
@@ -304,6 +306,7 @@ export function DisclosureHeader({
 }: DisclosureHeaderProps) {
   const preferences = useEnhancerPreferences();
   const placement = useContext(BlockPlacementContext);
+  const selectionScope = useContext(SelectionTranslationContext);
   const previewOwner = useContext(HoverPreviewContext);
   const detailsEnabled = Boolean(preferences.blockDetails && placement && previewKey && !previewOwner);
   const details = useDetails(detailsEnabled ? placement!.agentId : "");
@@ -385,7 +388,11 @@ export function DisclosureHeader({
     subtitle: (detailsSubtitle ?? meta?.filter((part): part is string => typeof part === "string") ?? [])
       .map((part) => toolbarLabel(part, preferences.language)),
     tone: detailsTone, icon: detailsIcon ?? "FileText", readsImage,
-    render: previewContent ?? (() => null), copies: copyItems ?? (() => []), onOpen: onPreviewOpen,
+    render: previewContent && selectionScope ? () => <SelectionTranslationScope
+      agentId={selectionScope.agentId} kind={selectionScope.kind} streaming={selectionScope.streaming}>
+      {previewContent()}
+    </SelectionTranslationScope> : previewContent ?? (() => null),
+    copies: copyItems ?? (() => []), onOpen: onPreviewOpen,
     measure: () => new Promise((resolve) => {
       const node = anchorRef.current;
       if (!node) return resolve(null);

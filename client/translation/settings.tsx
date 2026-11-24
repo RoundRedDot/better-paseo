@@ -286,6 +286,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
       setKeyBusy(false);
     }
   };
+  const inputTextStyle = Platform.OS === "web" ? settingsTextStyle(tokens, -1) : { fontSize: settingsTextStyle(tokens, -1).fontSize, textAlignVertical: "center" as const };
   const apiEndpoint = endpointDraft ?? settings.endpoint;
   const apiModel = modelDraft ?? settings.endpointModel;
   const test = async () => {
@@ -413,7 +414,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
           placeholder={t.endpointPlaceholder} placeholderTextColor={tokens.foregroundSubtle} maxLength={TRANSLATION_ENDPOINT_MAX_LENGTH}
           autoCapitalize="none" autoCorrect={false} editable={!formDisabled}
           onFocus={() => setFocused("endpoint")} onBlur={() => setFocused(null)}
-          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: focused === "endpoint" ? tokens.foregroundMuted : tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
+          style={[styles.input, inputTextStyle, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null, { color: tokens.foreground, borderColor: focused === "endpoint" ? tokens.foregroundMuted : tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
         />}
         look={look} disabled={formDisabled} below={endpointDraft === null ? notice(endpointLine) : null}
       />
@@ -427,7 +428,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
               onFocus={() => setFocused("key")} onBlur={() => setFocused(null)}
               placeholder={savedKey ? (keyVisible && shownKey ? shownKey : savedKey.masked) : t.keyPlaceholder} placeholderTextColor={savedKey ? tokens.foreground : tokens.foregroundSubtle} maxLength={TRANSLATION_API_KEY_MAX_LENGTH}
               autoCapitalize="none" autoCorrect={false} autoComplete="off" textContentType="none" editable={!formDisabled}
-              style={[styles.keyField, settingsTextStyle(tokens, -1), { color: tokens.foreground, fontFamily: tokens.fontMono }]}
+              style={[styles.keyField, inputTextStyle, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null, { color: tokens.foreground, fontFamily: tokens.fontMono }]}
             />
             <Pressable accessibilityRole="button" accessibilityLabel={keyVisible ? t.hideKey : t.showKey} disabled={formDisabled}
               onPress={() => void toggleKey()} style={[styles.eye, { borderColor: tokens.v2.border }]}>
@@ -446,7 +447,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
           placeholder={t.modelPlaceholder} placeholderTextColor={tokens.foregroundSubtle} maxLength={TRANSLATION_MODEL_MAX_LENGTH}
           autoCapitalize="none" autoCorrect={false} editable={!formDisabled}
           onFocus={() => setFocused("model")} onBlur={() => setFocused(null)}
-          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: focused === "model" ? tokens.foregroundMuted : tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
+          style={[styles.input, inputTextStyle, Platform.OS === "web" ? ({ outlineStyle: "none" } as object) : null, { color: tokens.foreground, borderColor: focused === "model" ? tokens.foregroundMuted : tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
         />}
         look={look} disabled={formDisabled}
       />
