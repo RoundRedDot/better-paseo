@@ -320,7 +320,8 @@ function FileCard({ agentId, at, work, store, text, tokens, compact }: {
     const entry: BlockEntry = {
       id, agentId, at, kind: "tool", seq: 0, mounted: true, navigable: false, hasBody: true,
       title: file.path, titleMono: true, subtitle: count ? [`+${count.added} −${count.removed}`] : [],
-      icon: "Pencil", readsImage: false,
+      // As the step list: a desktop side panel beside the timeline, not the drawer.
+      icon: "Pencil", readsImage: false, dismissOnOutside: true, reserveTimeline: true,
       render: () => <FileChanges agentId={agentId} calls={calls} tokens={tokens} compact={compact} />,
       copies: () => [],
     };

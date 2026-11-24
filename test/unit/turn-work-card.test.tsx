@@ -379,6 +379,8 @@ describe("turn work card", () => {
     pressText("查看变更");
     expect(openId).toBe("agent:work:r:10000:done:file:a.ts");
     expect(texts()).not.toContain("a.ts");
+    // A desktop side panel like the step list's, not the drawer.
+    expect(getBlock("agent", openId!)).toMatchObject({ reserveTimeline: true, dismissOnOutside: true });
   });
 
   it("gives detached file changes their conversation's tool-output scope", () => {
