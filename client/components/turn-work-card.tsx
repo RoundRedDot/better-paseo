@@ -184,7 +184,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   const entry = useMemo<BlockEntry>(() => ({
     id: `${agentId}:work:${work.key}:steps`, agentId, at, kind: "tool", seq: 0,
     mounted: true, navigable: false, hasBody: true, title: `${label} · ${summary}`, titleMono: false,
-    subtitle: [], icon: "List", readsImage: false, dismissOnOutside: true, reserveTimeline: true,
+    subtitle: [], icon: "Hammer", readsImage: false, dismissOnOutside: true, reserveTimeline: true,
     render: () => <>
       <HoverPreviewHeader tokens={tokens} />
       <HoverPreviewBody fullBleed stickySteps><WorkKinds calls={work.calls} text={text} style={[styles.intent, { paddingHorizontal: space.md }]} />
@@ -228,7 +228,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
         <BlockPlacementContext.Provider value={null}>
           <DisclosureHeader expanded={false} onToggle={toggleSteps}
             detailsMarker={{ agentId, id: entry.id, selected: phase === "on" }}
-            tokens={tokens} compact={compact} icon={<RowIcon name="Footprints" />} verb={label} keepVerb />
+            tokens={tokens} compact={compact} icon={<RowIcon name="Hammer" />} verb={label} keepVerb />
         </BlockPlacementContext.Provider>
       ) : null}
       {work.files.length ? <FileCard agentId={agentId} at={at} work={work} store={store} text={text} tokens={tokens} compact={compact} /> : null}
