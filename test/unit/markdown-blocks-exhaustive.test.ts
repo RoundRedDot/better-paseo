@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { type BlockCache, createBlockCache, splitBlocks } from "../../client/components/markdown/blocks";
-import { fixtureNames, type StreamText, streamTexts } from "./helpers/stream-texts";
+import { fixtureNames, type StreamText, sweepTexts } from "./helpers/stream-texts";
 
-const texts = fixtureNames().flatMap((name) => streamTexts(name)).filter((t) => t.text.trim() !== "");
+const texts = sweepTexts();
 
 /** One text's stream: the cache and the next prefix length it has not seen. */
 interface Sweep {

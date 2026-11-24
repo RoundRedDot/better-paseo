@@ -3,9 +3,9 @@ import type { Token, Tokens } from "../../client/vendor/marked";
 import { createBlockCache, splitBlocks } from "../../client/components/markdown/blocks";
 import { blockKind, lexBlock } from "../../client/components/markdown/lex";
 import { repairTail } from "../../client/components/markdown/repair";
-import { fixtureNames, streamTexts } from "./helpers/stream-texts";
+import { sweepTexts } from "./helpers/stream-texts";
 
-const texts = fixtureNames().flatMap((name) => streamTexts(name)).filter((t) => t.text.trim() !== "");
+const texts = sweepTexts();
 
 function drawn(prefix: string, cache: ReturnType<typeof createBlockCache>): Token[][] {
   const blocks = splitBlocks(prefix, cache);
@@ -57,6 +57,6 @@ describe("streamed tail exhaustive prefixes", () => {
       });
     }
     expect(flips).toEqual([]);
-    // history-long-load #399 is 59427 characters and exceeded 60 s on a busy CI runner.
+    // The full 59427-character history-long-load #399 exceeded 60 s on a busy CI runner.
   }, 180_000);
 });
