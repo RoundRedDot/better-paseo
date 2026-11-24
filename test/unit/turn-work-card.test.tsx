@@ -212,6 +212,14 @@ describe("turn work card", () => {
     expect(title.props.accessibilityLabel).toBe("读取了文件 · 编辑了文件 · 运行了命令");
     expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
     const cells = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-cell");
+    const list = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-list");
+    expect(list).toHaveLength(1);
+    expect(cells.every((cell) => {
+      let parent = cell.parent;
+      while (parent && typeof parent.type !== "string") parent = parent.parent;
+      return parent === list[0];
+    })).toBe(true);
+    expect(list[0]!.props.style?.gap ?? 0).toBe(0);
     expect(cells.map((cell) => cell.props.style?.backgroundColor)).toEqual([
       undefined, withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
       withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
