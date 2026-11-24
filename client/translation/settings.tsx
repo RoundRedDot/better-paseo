@@ -57,7 +57,7 @@ const STRINGS = {
     showKey: "Show API key",
     hideKey: "Hide API key",
     endpointTitle: "API Base URL",
-    endpointDescription: "An OpenAI-compatible chat completions API you set up for translation, separate from the conversation: it does not use the conversation's provider, model or account. Enter its base URL. Remote endpoints need https://; http:// works only for localhost, 127.0.0.1 and ::1.",
+    endpointDescription: "Enter the API address from your service. Remote endpoints require HTTPS.",
     endpointPlaceholder: "https://api.example.com/v1",
     endpointEmpty: "No endpoint set: nothing is translated or sent.",
     endpointTarget: (url: string) => `The Paseo daemon sends selected text to POST ${url}.`,
@@ -75,7 +75,7 @@ const STRINGS = {
     modelPlaceholder: "model-id",
     modelMissing: "Set a model: nothing is sent without one.",
     keyTitle: "API key",
-    keyDescription: "Optional; local servers often need none. Stored unencrypted in a file on the daemon machine, protected by that machine’s file permissions; not in the Keychain. Sent only to the origin it was saved for, and never shown again.",
+    keyDescription: "Used to connect to your translation service. Optional for local servers.",
     keyPlaceholder: "Paste a new key",
     saveKey: "Save key",
     clearKey: "Clear key",
@@ -106,6 +106,10 @@ const STRINGS = {
         text: "Translate sends the selected text, target language and translation prompt from the Paseo daemon directly to the endpoint above as one chat completions request. The request offers no tools, and Better Paseo never runs a tool call; a reply with one is refused. What the service does with the text is up to that service and its policies.",
       },
       {
+        label: "API key",
+        text: "Stored unencrypted on the daemon host, protected by its file permissions; not in the Keychain. Sent only to the saved origin and never shown again. Translation does not use the conversation's provider, model or account.",
+      },
+      {
         label: "Session cache",
         text: "Translations stay in memory for this client session; selecting the same text again reuses one until the translation settings change.",
       },
@@ -130,7 +134,7 @@ const STRINGS = {
     showKey: "显示 API Key",
     hideKey: "隐藏 API Key",
     endpointTitle: "API Base URL",
-    endpointDescription: "单独为翻译配置的 OpenAI 兼容 chat completions 接口，与当前会话无关：不使用会话的 Provider、模型或账号。填写其 Base URL。远程端点必须使用 https://；http:// 仅限 localhost、127.0.0.1 和 ::1。",
+    endpointDescription: "填写服务商提供的 API 地址。远程服务需要使用 HTTPS。",
     endpointPlaceholder: "https://api.example.com/v1",
     endpointEmpty: "未设置端点：不会翻译，也不会发送任何内容。",
     endpointTarget: (url: string) => `Paseo daemon 会把选中的文本发送到 POST ${url}。`,
@@ -148,7 +152,7 @@ const STRINGS = {
     modelPlaceholder: "model-id",
     modelMissing: "请设置模型：未设置时不会发送。",
     keyTitle: "API Key",
-    keyDescription: "可选，本机服务通常不需要。以明文保存在 daemon 所在机器的文件中，受主机文件权限保护，不是钥匙串。只发送给保存时绑定的 origin，保存后不再显示。",
+    keyDescription: "用于连接翻译服务，本机服务可不填。",
     keyPlaceholder: "粘贴新的 Key",
     saveKey: "保存 Key",
     clearKey: "清除 Key",
@@ -177,6 +181,10 @@ const STRINGS = {
       {
         label: "数据去向",
         text: "点击「翻译」时，Paseo daemon 会把选中的文本、目标语言和翻译提示词作为一次 chat completions 请求直接发送到上方端点。请求不提供任何工具，Better Paseo 也不会执行工具调用，带工具调用的回复会被拒绝。服务方如何处理这些文本取决于该服务及其政策。",
+      },
+      {
+        label: "API Key",
+        text: "以明文保存在 daemon 所在机器的文件中，受主机文件权限保护，不是钥匙串。只发送给保存时绑定的 origin，保存后不再显示。翻译不使用会话的 Provider、模型或账号。",
       },
       {
         label: "会话缓存",
@@ -364,14 +372,14 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
           onChangeText={(value) => { setEndpointDraft(value); setNoticeLine(null); }}
           placeholder={t.endpointPlaceholder} placeholderTextColor={tokens.foregroundSubtle} maxLength={TRANSLATION_ENDPOINT_MAX_LENGTH}
           autoCapitalize="none" autoCorrect={false} editable={!formDisabled}
-          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono }]}
+          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
         />}
         look={look} disabled={formDisabled} below={endpointDraft === null ? notice(endpointLine) : null}
       />
 
       <SettingRow
         stacked title={t.keyTitle} description={t.keyDescription}
-        control={<View style={[styles.keyRow, { width: look.compact ? "100%" : 220, maxWidth: "100%" }]}>
+        control={<View style={[styles.keyRow, { width: look.compact ? "100%" : 380, maxWidth: "100%" }]}>
           <View style={[styles.keyInput, { borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0 }]}>
             <TextInput accessibilityLabel={t.keyTitle} value={keyDraft}
               onChangeText={(value) => { setKeyDraft(value); setNoticeLine(null); }} secureTextEntry={!keyVisible}
@@ -395,13 +403,13 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
           onChangeText={(value) => { setModelDraft(value); setNoticeLine(null); }}
           placeholder={t.modelPlaceholder} placeholderTextColor={tokens.foregroundSubtle} maxLength={TRANSLATION_MODEL_MAX_LENGTH}
           autoCapitalize="none" autoCorrect={false} editable={!formDisabled}
-          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono }]}
+          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
         />}
         look={look} disabled={formDisabled}
       />
 
       <SettingRow title={t.testConnection}
-        control={<View style={[styles.keyRow, { width: look.compact ? "100%" : 220, maxWidth: "100%" }]}>
+        control={<View style={[styles.keyRow, { width: look.compact ? "100%" : 380, maxWidth: "100%" }]}>
           <PlainButton label={t.testConnection} look={look} loading={testing} disabled={formDisabled} onPress={() => void test()} />
           <PlainButton label={t.saveConfiguration} look={look} loading={keyBusy} disabled={formDisabled} onPress={() => void saveConfiguration()} />
         </View>}
