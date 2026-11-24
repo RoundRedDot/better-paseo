@@ -43,6 +43,7 @@ vi.mock("../../client/components/markdown/markdown-view", async () => {
 import { LiveAssistantRenderer, LiveUserMessageRenderer, type LiveAssistantPayload, type LiveUserMessagePayload } from "../../client/live-renderers";
 import { TurnWorkCard } from "../../client/components/turn-work-card";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
+import { resetTimelineTailsForTests } from "../../client/timeline-tail";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -68,13 +69,16 @@ function setup(initial: TimelineEntry[]) {
   let entries = initial;
   let handler: Parameters<PaseoAgentTimelineHandle["subscribe"]>[0] | null = null;
   const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
-  const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page(entries));
+  let gate: Promise<void> | null = null;
+  const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => { if (gate) await gate; return page(entries); });
   const subscribe = vi.fn<PaseoAgentTimelineHandle["subscribe"]>((next) => { handler = next; return release; });
   runtime.api = { agents: { ref: () => ({ timeline: { refetch, subscribe } }) }, providers: { listModels: async () => catalog } };
   const emit = (event: PaseoAgentTimelineEvent["event"]) => handler?.({ agentId, event } as PaseoAgentTimelineEvent);
   return {
     agentId,
     setEntries(next: TimelineEntry[]) { entries = next; },
+    /** Reads wait until the returned function runs. */
+    holdReads() { let open!: () => void; gate = new Promise((resolve) => { open = resolve; }); return () => { gate = null; open(); }; },
     live: (item: ToolCallTimelineItem, turnId: string) =>
       emit({ type: "timeline", provider: "codex", item, turnId } as PaseoAgentTimelineEvent["event"]),
     emit,
@@ -107,7 +111,7 @@ function setStatus(status: "running" | "idle") {
   for (const listener of runtime.listeners) listener();
 }
 
-beforeEach(() => { runtime.agent = { ...runtime.agent, status: "running" }; });
+beforeEach(() => { runtime.agent = { ...runtime.agent, status: "running" }; resetTimelineTailsForTests(); });
 afterEach(() => { expect(runtime.listeners.size).toBe(0); });
 
 describe("standard level work card while a turn runs", () => {
@@ -198,6 +202,82 @@ describe("standard level work card while a turn runs", () => {
       // The card now sits on the reply, not the prompt.
       const reply = renderer.root.findAllByType(LiveAssistantRenderer)[0]!;
       expect(reply.findAllByType((TurnWorkCard as unknown as { type: React.ComponentType }).type)).toHaveLength(1);
+    } finally { await act(async () => renderer.unmount()); }
+  });
+});
+
+const cardType = (TurnWorkCard as unknown as { type: React.ComponentType }).type;
+/** Per reply row, top to bottom: "card" and "text" in the order they are drawn. */
+function layoutOf(renderer: TestRenderer.ReactTestRenderer) {
+  return renderer.root.findAllByType(LiveAssistantRenderer).map((row) =>
+    row.findAll((node) => node.type === cardType || (typeof node.type === "string" && node.props?.testID === "reply-markdown"))
+      .map((node) => node.type === cardType ? "card" : "text"));
+}
+
+describe("standard level running card under the newest row", () => {
+  it("draws the running card under the streaming reply, so the reply's text above it never moves", async () => {
+    const harness = setup([prompt(1, "t"), call(edit("e1", "a.ts"), 2, "t")]);
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(replyRow(harness.agentId, 3, "Fix", "streaming")); });
+    await act(flush);
+    try {
+      expect(layoutOf(renderer)).toEqual([["text", "card"]]);
+      // The reply's opening grows, so its tail key changes chunk by chunk: the card stays, not remounted.
+      const card = cards(renderer)[0]!;
+      await act(async () => renderer.update(replyRow(harness.agentId, 3, "Fix the path", "streaming")));
+      expect(cards(renderer)[0]).toBe(card);
+      // The card grows as steps finish: below the text, which stays where it is.
+      await act(async () => { harness.live(shell("c1", "running"), "t"); });
+      expect(layoutOf(renderer)).toEqual([["text", "card"]]);
+      expect(cards(renderer)[0]!.props.work.current).toEqual({ callId: "c1", command: "npm test" });
+    } finally { await act(async () => renderer.unmount()); }
+  });
+
+  it("passes the card to a newer reply without taking any off the reply above it", async () => {
+    const harness = setup([prompt(1, "t"), call(edit("e1", "a.ts"), 2, "t")]);
+    let renderer!: TestRenderer.ReactTestRenderer;
+    const rows = (...children: React.ReactElement[]) => React.createElement(React.Fragment, null, ...children);
+    await act(async () => { renderer = TestRenderer.create(rows(replyRow(harness.agentId, 3, "Looking", "streaming"))); });
+    await act(flush);
+    try {
+      // A live call delivered over the subscription, not yet in any read.
+      await act(async () => { harness.live(edit("e2", "b.ts"), "t"); });
+      await act(async () => renderer.update(rows(replyRow(harness.agentId, 3, "Looking at it.", "complete"),
+        replyRow(harness.agentId, 6, "Now", "streaming"))));
+      await act(flush);
+      // Above a reply the card moved down the list with each newer reply; now
+      // the older reply never held one above its text.
+      expect(layoutOf(renderer)).toEqual([["text"], ["text", "card"]]);
+      // The row that took the card still has the live call: the store kept it.
+      expect(cards(renderer)[0]!.props.work.files.map((file: { path: string }) => file.path)).toEqual(["a.ts", "b.ts"]);
+    } finally { await act(async () => renderer.unmount()); }
+  });
+
+  it("moves the card above the final reply as the agent stops, and settles it there in place", async () => {
+    const turn = [prompt(1, "t"), call(edit("e1", "a.ts"), 2, "t")];
+    const harness = setup(turn);
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(replyRow(harness.agentId, 3, "Fixed it.", "complete")); });
+    await act(flush);
+    try {
+      expect(layoutOf(renderer)).toEqual([["text", "card"]]);
+      harness.setEntries([...turn, reply(3, "Fixed it.", "t")]);
+      // The agent reports idle; the read of the ended turn has not landed yet.
+      const land = harness.holdReads();
+      await act(async () => { setStatus("idle"); });
+      expect(layoutOf(renderer)).toEqual([["card", "text"]]);
+      const pending = cards(renderer)[0]!;
+      expect(pending.props.work.running).toBe(true);
+      await act(async () => {
+        harness.emit({ type: "turn_completed", provider: "codex", turnId: "t" } as PaseoAgentTimelineEvent["event"]);
+        land();
+      });
+      await act(flush);
+      expect(layoutOf(renderer)).toEqual([["card", "text"]]);
+      const settled = cards(renderer)[0]!;
+      expect(settled.props.work.running).toBe(false);
+      // The same card, not a remount.
+      expect(settled).toBe(pending);
     } finally { await act(async () => renderer.unmount()); }
   });
 });

@@ -133,7 +133,8 @@ vi.mock("../../client/state/preference-sync-slot", () => ({ PreferenceSyncSlot: 
 vi.mock("../../client/details/shell/details-host-slot", () => ({ DetailsHostSlot: () => null }));
 vi.mock("../../client/components/hub-live", () => ({ TimelineTailHub: () => null }));
 vi.mock("../../client/components/turn-footer", () => ({ AssistantFooter: () => null }));
-vi.mock("../../client/timeline-tail", () => ({ useTextItemTailKey: () => "reply-tail" }));
+vi.mock("../../client/timeline-tail", () => ({ useTextItemTailKey: () => ({ key: "reply-tail", previous: null }),
+  useNoteTimelineItem: () => {}, useIsTimelineTail: () => false, useTimelineTailAt: () => null }));
 vi.mock("../../client/timeline-order", () => ({
   useHasEntryAfter: () => false,
   useNextEntryIsRow: () => false,

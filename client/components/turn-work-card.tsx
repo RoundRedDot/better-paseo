@@ -9,11 +9,11 @@
  *
  * Closed, the card is those rows and nothing else: steps, command output,
  * the file paths and every diff mount only when opened, and unmount when
- * closed. The file card's choice outlives a remount (`disclosure-store`). A diff opens in the details panel, one file at a time; with block
+ * closed. Both cards' choices outlive a remount (`disclosure-store`). A diff opens in the details panel, one file at a time; with block
  * details off it opens under the card. Line counts are the turn's edit events
  * added up, not the file's net change, and are measured once per call.
  */
-import React, { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Pressable, StyleSheet, Text, View } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
@@ -36,7 +36,7 @@ import { toolErrorText } from "../tools/error-text";
 import { countDiff, countLines } from "../tools/summarize";
 import { FileEditsPreview, ToolCallout } from "./tool-callouts";
 import { BlockPlacementContext, type BlockEntry } from "../details/contracts";
-import { registerBlock, type BlockRegistration } from "../details/block-registry";
+import { getBlock, registerBlock, type BlockRegistration } from "../details/block-registry";
 import { detailsApi, useMarkerPhase } from "../details/details-store";
 import type { LineCount, TurnFooterStore } from "../state/turn-footers";
 import type { TurnWork, WorkFile, WorkStep } from "../state/turn-work";
@@ -72,6 +72,15 @@ function viewOf(item: ToolCallTimelineItem): ToolCallView {
  */
 export function workFilesKey(agentId: string, work: Pick<TurnWork, "files">): string {
   return `${agentId}:work-files:${work.files[0]?.callIds[0] ?? ""}`;
+}
+
+/**
+ * Where the step list's open state is kept, by the turn's first folded step.
+ * The running card is redrawn under each newer row and turns into the settled
+ * card when the turn ends; the reader's choice goes with it.
+ */
+export function workStepsKey(agentId: string, work: Pick<TurnWork, "steps">): string {
+  return `${agentId}:work-steps:${work.steps[0]?.callId ?? ""}`;
 }
 
 /** Paths an opened file card lists before "show more". */
@@ -122,7 +131,9 @@ interface CardProps {
 export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, store, tokens, compact }: CardProps) {
   const { language } = useEnhancerPreferences();
   const text = STRINGS[resolveLanguage(language)] ?? STRINGS.en;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useDisclosure(workStepsKey(agentId, work), false);
+  // Only a list opened here fades in: one carried over from the previous row draws at once.
+  const [fade, setFade] = useState(false);
   const registration = useRef<BlockRegistration | null>(null);
   const lang = resolveLanguage(language);
   const label = !work.running && work.complete && work.durationMs !== null
@@ -139,6 +150,11 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
     </>,
     copies: () => [],
   }), [agentId, at, compact, summary, tokens, work.key, work.steps]);
+  // A step list open in the details panel stays attached to the card drawn
+  // under the next row: it registers before the previous card releases.
+  useLayoutEffect(() => {
+    if (!registration.current && getBlock(agentId, entry.id)) registration.current = registerBlock(entry);
+  }, [agentId, entry.id]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => { registration.current?.update(entry); }, [entry]);
   useEffect(() => () => { registration.current?.release(); registration.current = null; }, [agentId, work.key]);
   const toggleSteps = () => {
@@ -146,20 +162,20 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
     else registration.current = registerBlock(entry);
     detailsApi.open(agentId, entry.id, { independent: true, navigable: false });
   };
+  const steps = open ? <WorkSummary agentId={agentId} entryId={entry.id} work={work} text={text} tokens={tokens}
+    compact={compact} onToggle={toggleSteps} /> : null;
   return (
     <View style={styles.card}>
       {work.steps.length ? (
         <BlockPlacementContext.Provider value={null}>
-          <DisclosureHeader expanded={open} onToggle={() => setOpen((current) => !current)}
+          <DisclosureHeader expanded={open} onToggle={() => { setFade(true); setOpen(!open); }}
             tokens={tokens} compact={compact} icon={<RowIcon name="ListCollapse" />} verb={label} keepVerb />
-          {open ? (
-            <FadeIn style={styles.indent}>
-              <WorkSummary agentId={agentId} entryId={entry.id} work={work} text={text} tokens={tokens} compact={compact}
-                onToggle={toggleSteps} />
-            </FadeIn>
-          ) : null}
+          {open ? (fade ? <FadeIn style={styles.indent}>{steps}</FadeIn> : <View style={styles.indent}>{steps}</View>) : null}
         </BlockPlacementContext.Provider>
       ) : null}
+      {work.files.length ? <FileCard agentId={agentId} at={at} work={work} store={store} text={text} tokens={tokens} compact={compact} /> : null}
+      {/* Last: the running card sits under the newest row, so the line can come and go
+          without moving the card's other rows. A failed command's own row lands a frame later. */}
       {work.current ? (
         <View style={styles.current} accessibilityLabel={`${text.running} ${work.current.command}`}>
           <View style={styles.slot}><RunningDot color={tokens.accent} /></View>
@@ -167,7 +183,6 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
           <Text style={styles.command} numberOfLines={1}>{work.current.command}</Text>
         </View>
       ) : null}
-      {work.files.length ? <FileCard agentId={agentId} at={at} work={work} store={store} text={text} tokens={tokens} compact={compact} /> : null}
     </View>
   );
 });

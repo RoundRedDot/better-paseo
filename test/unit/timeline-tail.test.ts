@@ -78,4 +78,18 @@ describe("text item tail keys", () => {
     expect(getTimelineTail(AGENT)).toBe(reply);
     expect(getTimelineTail(OTHER)).toBe(row);
   });
+
+  it("gives a reply's tail to the item that closed it in the same millisecond", () => {
+    // The host restamps a closing reply with the arrival time of the item
+    // after it, so the two tie; the item below takes the tail.
+    const at = nextAt();
+    const reply = textItemTailKey("assistant", at, "I'll start by searching.");
+    noteTimelineItem(AGENT, reply, at, true);
+    noteTimelineItem(AGENT, `todo:${at}`, at);
+    expect(getTimelineTail(AGENT)).toBe(`todo:${at}`);
+    // A reply restamped to that moment afterwards does not take it back.
+    noteTimelineItem(AGENT, textItemTailKey("assistant", at, "I'll start by searching for it."), at, true);
+    expect(getTimelineTail(AGENT)).toBe(`todo:${at}`);
+  });
 });
+

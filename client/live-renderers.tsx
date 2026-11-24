@@ -29,8 +29,6 @@ import { PreferenceSyncSlot } from "./state/preference-sync-slot";
 import { useIsLatestPrompt } from "./state/latest-prompt";
 import { useCodexProvider } from "./state/provider-family";
 import { useTurnFooter, useTurnWork, type WorkAnchor } from "./state/turn-footers";
-import { useNewestReplyAt, useNoteReply } from "./state/newest-reply";
-import type { TurnWork } from "./state/turn-work";
 import { TurnWorkCard } from "./components/turn-work-card";
 import { standardFoldActive } from "./tools/standard-fold";
 import { setPromptUsage, usePromptUsage } from "./state/prompt-usage";
@@ -49,7 +47,7 @@ import { TimelineTailHub } from "./components/hub-live";
 import { AssistantFooter } from "./components/turn-footer";
 import { SystemCard } from "./components/system-card";
 import { parseSystemEnvelope } from "./system-envelope";
-import { useTextItemTailKey } from "./timeline-tail";
+import { useIsTimelineTail, useNoteTimelineItem, useTextItemTailKey, useTimelineTailAt } from "./timeline-tail";
 import { useHasEntryAfter, useNextEntryIsRow, useTimelineEntry, useTimelineToolGroup } from "./timeline-order";
 import { useHostStacksRows } from "./host-row-gap";
 import { BlockPlacementContext, type BlockKind } from "./details/contracts";
@@ -207,8 +205,9 @@ function LiveToolCallRendererBody(props: PluginTimelineItemProps<LiveToolCallPay
   }
   const at = arrivalRef.current.at;
   const itemKey = `tool:${data.callId ?? view.title}:${at}`;
-  // Not the tail: a thought takes no part in it, and a call with a thought
-  // below it kept its gap as if it were the newest row. A call already
+  const isTail = useTimelineTailSlot(agentId, itemKey, null, at, false);
+  // The gap does not follow the tail: a call with a thought below it kept
+  // its gap as if it were the newest row. A call already
   // finished as its row mounts is replayed history (see `timeline-order.ts`).
   const rootRef = useRef<View>(null);
   // Only a stacking host's compensation depends on whether a row comes next.
@@ -307,13 +306,7 @@ function LiveToolCallRendererBody(props: PluginTimelineItemProps<LiveToolCallPay
         </>
       ) : null}
       <DetailsHostSlot agentId={agentId} itemKey={itemKey} tokens={tokens} compact={layout.compact} />
-      <TimelineTailHub
-        agentId={agentId}
-        tokens={tokens}
-        itemKey={itemKey}
-        at={at}
-        kind="tool"
-      />
+      <TimelineTail agentId={agentId} tokens={tokens} compact={layout.compact} isTail={isTail} at={at} kind="tool" />
     </View>
   );
 }
@@ -372,6 +365,8 @@ function LiveReasoningRendererBody({
   observeReasoning(storeKey, streaming, timestamp.getTime());
   const durationMs = streaming ? null : observedDurationMs(storeKey);
   const hostSlotKey = useRef(`thought:${agentId}:${timestamp.getTime()}`).current;
+  const tailKey = useTextItemTailKey(agentId, "thought", at, text);
+  const isTail = useTimelineTailSlot(agentId, tailKey.key, tailKey.previous, at, false);
 
   // A thought gives up its gap once something of this agent's arrived below
   // it, whatever its phase: the host can mark a thought loading again while
@@ -404,6 +399,7 @@ function LiveReasoningRendererBody({
         />
       </SelectionTranslationScope>
       <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
+      <TimelineTail agentId={agentId} tokens={tokens} compact={layout.compact} isTail={isTail} at={at} kind="tool" />
     </View>
   );
 }
@@ -462,6 +458,8 @@ function LiveTodoRendererBody({
 
   const taskListData = useMemo(() => todoTaskListData(items), [items]);
   const hostSlotKey = `todo:${agentId}:${timestamp.getTime()}`;
+  // Only the item drawing the update takes part in the tail.
+  const isTail = useTimelineTailSlot(agentId, `todo:${timestamp.getTime()}`, null, timestamp.getTime(), false, role !== "hidden");
 
   // The checklist's panel lives here, not in the list: when the next update
   // arrives this item folds to a row and its list unmounts, but the item
@@ -507,6 +505,7 @@ function LiveTodoRendererBody({
       )}
       <TaskListPanel panel={panel} data={panelData} tokens={tokens} compact={layout.compact} />
       <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
+      <TimelineTail agentId={agentId} tokens={tokens} compact={layout.compact} isTail={isTail} at={timestamp.getTime()} kind="tool" />
     </View>
   );
 }
@@ -642,7 +641,9 @@ function LiveAssistantMessageRenderer({
 
   // The jobs hub still follows the conversation tail. Completed-turn footers
   // are independent: each turn keeps one under its last model reply.
-  const itemKey = useTextItemTailKey(agentId, "assistant", timestamp.getTime(), messageText);
+  const tailKey = useTextItemTailKey(agentId, "assistant", timestamp.getTime(), messageText);
+  const isTail = useTimelineTailSlot(agentId, tailKey.key, tailKey.previous, timestamp.getTime(), true);
+  const turnRunning = useAgent(agentId, (agent) => agent.status === "running") === true;
   const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}`).current;
 
   // Paseo's own reply sits 16pt above the tool row that follows it (its 12pt
@@ -690,8 +691,8 @@ function LiveAssistantMessageRenderer({
       {probe.node}
       <PreferenceSyncSlot />
       {/* A split reply draws the card on the block that carries the whole text, as its footer does. */}
-      {!envelope && standardFoldActive(preferences) && (item.data.blockIndex === undefined || item.data.messageText !== undefined) ? (
-        <ReplyTurnWork agentId={agentId} at={timestamp.getTime()} text={streaming ? null : messageText}
+      {!envelope && !streaming && standardFoldActive(preferences) && (item.data.blockIndex === undefined || item.data.messageText !== undefined) ? (
+        <ReplyTurnWork agentId={agentId} at={timestamp.getTime()} text={messageText} handover={isTail && !turnRunning}
           tokens={tokens} compact={layout.compact} />
       ) : null}
       {envelope ? (
@@ -725,13 +726,8 @@ function LiveAssistantMessageRenderer({
         />
       ) : null}
       <DetailsHostSlot agentId={agentId} itemKey={hostSlotKey} tokens={tokens} compact={layout.compact} />
-      <TimelineTailHub
-        agentId={agentId}
-        tokens={tokens}
-        itemKey={itemKey}
-        at={timestamp.getTime()}
-        kind="reply"
-      />
+      <TimelineTail agentId={agentId} tokens={tokens} compact={layout.compact} isTail={isTail} at={timestamp.getTime()} kind="reply"
+        drawWork={turnRunning} />
     </View>
   );
 }
@@ -744,7 +740,7 @@ const LIVE_ANCHOR: WorkAnchor = { kind: "live" };
  * The running turn's work, for a row that arrived during that turn, or null.
  * `since` is the turn's first item: a row from an earlier turn never draws it.
  *
- * Only a running agent's row subscribes: an idle chat's newest reply reads
+ * Only a running agent's row subscribes: an idle chat's newest row reads
  * nothing more than its footer does. The agent can report idle before the
  * store's read of the ended turn lands; a row showing the running card keeps
  * its subscription until that read takes the card away, so the settled card
@@ -763,41 +759,86 @@ function useLiveTurnWork(agentId: string, at: number, candidate: boolean) {
 }
 
 /**
- * The standard level's work card above an assistant reply
- * (`components/turn-work-card.tsx`).
+ * A settled turn's work card above its final reply
+ * (`components/turn-work-card.tsx`). The running turn's card is not drawn
+ * here but under the newest row (`TailTurnWork`): above a reply it moved down
+ * the list with each newer reply of the turn, and grew above text that was
+ * still streaming, so everything under it jumped.
  *
- * While the turn runs, the turn's newest reply draws it from the live anchor,
- * so successful steps show up as they finish instead of disappearing until the
- * turn ends. Each newer reply takes the card over. When the turn ends, the
- * final reply keeps the card in place and switches to its settled anchor: the
- * store publishes both in one update, so the card neither leaves nor moves.
- * `text` is null while the reply streams; its settled card needs the final text.
+ * `handover`: this reply is the newest row and the agent stopped. The turn's
+ * card moves up here at once, with the host folding the turn's rows, from
+ * the running work the row below still holds; the read of the ended turn then
+ * turns it into the settled card in place.
  */
-const ReplyTurnWork = memo(function ReplyTurnWork({ agentId, at, text, tokens, compact }: {
-  agentId: string; at: number; text: string | null; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
+const ReplyTurnWork = memo(function ReplyTurnWork({ agentId, at, text, handover, tokens, compact }: {
+  agentId: string; at: number; text: string; handover: boolean; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
 }) {
   const paseo = usePaseo();
-  useNoteReply(agentId, at);
-  const newestAt = useNewestReplyAt(agentId);
-  const live = useLiveTurnWork(agentId, at, newestAt === null || at >= newestAt);
-  const anchor = useMemo((): WorkAnchor | null => text === null ? null : { kind: "reply", at, text }, [at, text]);
+  const anchor = useMemo((): WorkAnchor => ({ kind: "reply", at, text }), [at, text]);
   const settled = useTurnWork(paseo, agentId, anchor, ownsAnyReply);
-  const shown: { work: TurnWork; store: typeof settled.store } | null = live.work ? { work: live.work, store: live.store }
-    : settled.work ? { work: settled.work, store: settled.store } : null;
-  return shown ? <TurnWorkCard agentId={agentId} at={at} work={shown.work} store={shown.store} tokens={tokens} compact={compact} /> : null;
+  const running = useTurnWork(paseo, agentId, handover ? LIVE_ANCHOR : null, ownsAnyReply, null, false);
+  const pending = !settled.work && running.work && running.work.running && at >= running.work.since ? running.work : null;
+  const work = settled.work ?? pending;
+  return work ? <TurnWorkCard agentId={agentId} at={at} work={work} store={settled.store} tokens={tokens} compact={compact} /> : null;
 });
 
 /**
- * The running turn's card under its prompt, until the turn's first reply
- * takes it (`ReplyTurnWork`). Only a prompt the plugin draws can hold it.
+ * Takes part in the timeline tail (`timeline-tail.ts`) and says whether this
+ * row is the newest one. `restamped`: a reply, whose timestamp the host moves.
+ * A row that is not drawn (`enabled` false) never takes the tail.
+ */
+function useTimelineTailSlot(agentId: string, key: string, previousKey: string | null, at: number, restamped: boolean,
+  enabled = true): boolean {
+  useNoteTimelineItem(agentId, enabled ? key : null, at, restamped);
+  return useIsTimelineTail(agentId, key, previousKey) && enabled;
+}
+
+/**
+ * What every row the plugin draws leaves under itself while it is the newest
+ * one: the running turn's work card at the standard level, then the
+ * running-jobs card. New rows arrive above these, so nothing already on
+ * screen moves when a card changes or passes to the next row. `drawWork`
+ * false: a reply drawing the card above itself (`ReplyTurnWork`).
+ */
+function TimelineTail({ agentId, tokens, compact, isTail, at, kind, drawWork = true }: {
+  agentId: string; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
+  isTail: boolean; at: number; kind: "tool" | "reply"; drawWork?: boolean;
+}) {
+  const fold = standardFoldActive(useEnhancerPreferences());
+  return (
+    <>
+      {fold && isTail ? <TailTurnWork agentId={agentId} at={at} draw={drawWork} tokens={tokens} compact={compact} /> : null}
+      <TimelineTailHub agentId={agentId} tokens={tokens} isTail={isTail} at={at} kind={kind} />
+    </>
+  );
+}
+
+/**
+ * The running turn's work card under the newest row of that turn, so
+ * successful steps show up as they finish instead of disappearing until the
+ * turn ends. When the turn ends the card moves above the final reply
+ * (`ReplyTurnWork`), in the same store update that folds the turn's rows.
+ */
+const TailTurnWork = memo(function TailTurnWork({ agentId, at, draw, tokens, compact }: {
+  agentId: string; at: number; draw: boolean; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
+}) {
+  // Keeps reading while a reply above draws the card (`draw` false), until the read of the ended turn lands.
+  const live = useLiveTurnWork(agentId, at, true);
+  return draw && live.work ? <TurnWorkCard agentId={agentId} at={at} work={live.work} store={live.store} tokens={tokens} compact={compact} /> : null;
+});
+
+/**
+ * The running turn's card under its prompt, until a row of that turn becomes
+ * the newest one and takes it (`TailTurnWork`). Only a prompt the plugin
+ * draws can hold it.
  */
 const PromptTurnWork = memo(function PromptTurnWork({ agentId, promptKey, at, tokens, compact }: {
   agentId: string; promptKey: string; at: number; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
 }) {
   const latest = useIsLatestPrompt(agentId, promptKey, at);
-  const newestReplyAt = useNewestReplyAt(agentId);
+  const tailAt = useTimelineTailAt(agentId);
   const live = useLiveTurnWork(agentId, at, latest);
-  const work = latest && live.work && (newestReplyAt === null || newestReplyAt < live.work.since) ? live.work : null;
+  const work = latest && live.work && (tailAt === null || tailAt < live.work.since) ? live.work : null;
   return work ? <TurnWorkCard agentId={agentId} at={at} work={work} store={live.store} tokens={tokens} compact={compact} /> : null;
 });
 

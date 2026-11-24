@@ -486,3 +486,30 @@ describe("turn footer timing after a reload", () => {
     } finally { stop(); }
   });
 });
+
+describe("running work handed from row to row", () => {
+  it("keeps the turn's live calls when one row releases the live read in the commit the next row retains it", async () => {
+    const harness = setup([prompt(1, "t")]);
+    const settle = async () => { for (let index = 0; index < 5; index++) await Promise.resolve(); await new Promise((resolve) => setTimeout(resolve, 0)); };
+    harness.store.setRunning(true);
+    const first = harness.store.retainLive();
+    const unsubscribeFirst = harness.store.subscribeWork({ kind: "live" }, () => {});
+    await settle();
+    const edit = { type: "tool_call", name: "Edit", callId: "e1", status: "completed", error: null,
+      detail: { type: "edit", filePath: "a.ts", unifiedDiff: "@@\n-a\n+b" } } as const;
+    harness.emit({ type: "timeline", provider: "codex", item: edit, turnId: "t" } as PaseoAgentTimelineEvent["event"]);
+    const owns = () => true;
+    expect(harness.store.work({ kind: "live" }, owns)?.files.map((file) => file.path)).toEqual(["a.ts"]);
+    const reads = harness.refetch.mock.calls.length;
+    // The card leaves one row and mounts under the next one in the same commit.
+    unsubscribeFirst();
+    first();
+    const second = harness.store.retainLive();
+    const unsubscribeSecond = harness.store.subscribeWork({ kind: "live" }, () => {});
+    await settle();
+    expect(harness.store.work({ kind: "live" }, owns)?.files.map((file) => file.path)).toEqual(["a.ts"]);
+    expect(harness.refetch.mock.calls.length).toBe(reads);
+    unsubscribeSecond();
+    second();
+  });
+});

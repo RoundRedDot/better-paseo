@@ -3,14 +3,13 @@ import { View, StyleSheet } from "react-native";
 import { HubCallout } from "./hub-callout";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { retireHubActivity, useHubActivity } from "../hub-activity";
-import { noteTimelineItem, useIsTimelineTail } from "../timeline-tail";
 import type { HubData } from "../../shared/contracts";
 
 interface TimelineTailHubProps {
   agentId: string;
   tokens: ExtendedThemeTokens;
-  /** The item drawing this, so only the newest one shows the card. */
-  itemKey: string;
+  /** The drawing item is the newest one (`TimelineTail` in `live-renderers.tsx`). */
+  isTail: boolean;
   /** That item's own timestamp: the tail is whichever arrived last. */
   at: number;
   /**
@@ -35,12 +34,7 @@ interface TimelineTailHubProps {
  * label in `providers/omp/system-notice.ts`). So this card never claims to
  * know more than the last hub call told it, and says how long ago that was.
  */
-export function TimelineTailHub({ agentId, tokens, itemKey, at, kind }: TimelineTailHubProps) {
-  useEffect(() => {
-    noteTimelineItem(agentId, itemKey, at);
-  }, [agentId, itemKey, at]);
-
-  const isTail = useIsTimelineTail(agentId, itemKey);
+export function TimelineTailHub({ agentId, tokens, isTail, at, kind }: TimelineTailHubProps) {
   const activity = useHubActivity(agentId);
 
   const styles = useMemo(

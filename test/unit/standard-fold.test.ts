@@ -21,10 +21,18 @@ describe("standard work card fold", () => {
     expect(rows(write, FOLDING)).toBe(0);
   });
 
-  it("keeps failures, running edits, patches, questions, plans and sub-tasks as rows", () => {
+  it("draws no row for an edit or write still running: it would vanish into the card once it succeeds", () => {
+    expect(rows(call("Edit", { type: "edit", filePath: "a.ts" }, "running"), FOLDING)).toBe(0);
+    expect(rows(call("Write", { type: "write", filePath: "b.ts", content: "" }, "running"), FOLDING)).toBe(0);
+    // Without a path it would not fold, so it keeps its row; so does a running patch.
+    expect(rows(call("Edit", { type: "edit", filePath: "" }, "running"), FOLDING)).toBe(1);
+    expect(rows(call("apply_patch", { type: "edit", filePath: "a.ts", unifiedDiff: "@@" }, "running"), FOLDING)).toBe(1);
+    expect(rows(call("Edit", { type: "edit", filePath: "a.ts" }, "running"), { ...FOLDING, timelineLevel: "detailed" })).toBe(1);
+  });
+
+  it("keeps failures, patches, questions, plans and sub-tasks as rows", () => {
     for (const item of [
       call("Edit", { type: "edit", filePath: "a.ts" }, "failed"),
-      call("Edit", { type: "edit", filePath: "a.ts" }, "running"),
       call("Edit", { type: "edit", filePath: "a.ts" }, "canceled"),
       call("Bash", { type: "shell", command: "npm test", exitCode: 1 }),
       call("Bash", { type: "shell", command: "npm test" }, "failed"),

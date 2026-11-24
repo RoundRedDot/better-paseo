@@ -54,7 +54,8 @@ vi.mock("../../client/components/hub-live", () => ({ TimelineTailHub: () => null
 vi.mock("../../client/components/turn-footer", () => ({ AssistantFooter: () => null }));
 vi.mock("../../client/components/system-card", () => ({ SystemCard: () => null }));
 vi.mock("../../client/components/markdown/markdown-view", () => ({ MarkdownView: () => null }));
-vi.mock("../../client/timeline-tail", () => ({ useTextItemTailKey: () => "reply-key" }));
+vi.mock("../../client/timeline-tail", () => ({ useTextItemTailKey: () => ({ key: "reply-key", previous: null }),
+  useNoteTimelineItem: () => {}, useIsTimelineTail: () => false, useTimelineTailAt: () => null }));
 vi.mock("../../client/timeline-order", () => ({
   useHasEntryAfter: () => false, useNextEntryIsRow: () => false, useTimelineEntry() {},
   useTimelineToolGroup: () => ({ group: null, anythingBelow: false, rowBelow: false, copiesBelow: 0, copiesBelowHeight: 0 }),

@@ -1,9 +1,9 @@
 /**
  * What the standard level folds into a turn's work card instead of a row.
  *
- * A transformer sees one item and nothing of its turn. The card is drawn on
- * a completed assistant reply, after that reply has settled. A streaming
- * reply does not read the timeline again. The user message is not an anchor,
+ * A transformer sees one item and nothing of its turn. While the turn runs
+ * the card sits under its newest row; once it ends, above its final assistant
+ * reply, after that reply has settled. The user message is not an anchor,
  * and the enhanced prompt bubble is not part of this fold. A turn that ends
  * with no assistant reply therefore has no card; failures, questions, plans
  * and sub-tasks stay on the list.
@@ -53,8 +53,17 @@ export function standardFoldActive(preferences: Pick<EnhancerPreferences,
     preferences.assistantMarkdown;
 }
 
-/** A successful edit or write the card lists in place of its row. */
+/**
+ * An edit or write the card lists in place of its row: a successful one, or
+ * one still running that will fold once it succeeds. A running row drawn
+ * until then stood for a moment and vanished as the card took the file in.
+ * A failed call keeps its row.
+ */
 export function foldsIntoFileCard(item: FoldInput): boolean {
+  if (item.status === "running") {
+    const pending = foldedWorkVerb({ ...item, status: "completed" });
+    return pending === "edit" || pending === "write";
+  }
   const verb = foldedWorkVerb(item);
   return verb === "edit" || verb === "write";
 }

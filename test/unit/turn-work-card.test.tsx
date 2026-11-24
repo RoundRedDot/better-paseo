@@ -28,6 +28,7 @@ import { Dimensions } from "react-native";
 import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
 import { PreviewChromeContext } from "../../client/ui/hover-preview";
 import { resetDisclosureStore } from "../../client/state/disclosure-store";
+import { FadeIn } from "../../client/ui/fade-in";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
@@ -210,6 +211,21 @@ describe("turn work card", () => {
     expect(byType("ToolCallout")).toHaveLength(0);
     const block = getBlock("agent", openId!);
     expect(block?.title).toBe("读取了文件 · 编辑了文件 · 运行了命令");
+  });
+
+  it("keeps the opened steps across the move to the next row: drawn at once, the details panel still attached", () => {
+    pressText("用时 9秒");
+    expect(renderer.root.findAllByType(FadeIn)).toHaveLength(1);
+    pressText("读取了文件 · 编辑了文件 · 运行了命令");
+    const id = openId!;
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    // The running card is redrawn under the newest row: a new mount, in the commit that drops the old one.
+    act(() => { renderer.update(<><Probe /><TurnWorkCard key="next-row" agentId="agent" at={11000} work={turn()} store={store}
+      tokens={tokens} compact={false} /></>); });
+    expect(texts()).toContain("Check the root first, then fix the path.");
+    expect(renderer.root.findAllByType(FadeIn)).toHaveLength(0);
+    expect(openId).toBe(id);
+    expect(getBlock("agent", id)?.mounted).toBe(true);
   });
 
   it("closes the file card again, and keeps the choice across a remount", () => {

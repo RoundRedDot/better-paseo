@@ -50,7 +50,7 @@ import { translateTimelineItemRpc } from "../../shared/timeline-translation";
 import { providerFamilyRpc } from "../../shared/provider-family-rpc";
 import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
 import { formatFooterStamp, formatFullStamp } from "../../client/ui/time";
-import { resetNewestRepliesForTests } from "../../client/state/newest-reply";
+import { resetTimelineTailsForTests } from "../../client/timeline-tail";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -59,7 +59,7 @@ const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", 
 const catalog: PaseoProviderModelsResult = { provider: "codex", fetchedAt: "now", requestId: "r",
   models: [{ provider: "codex", id: "sol", label: "GPT-6.1-Sol", thinkingOptions: [{ id: "medium", label: "Medium" }] }] };
 
-beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; runtime.agent.provider = "codex"; resetNewestRepliesForTests(); });
+beforeEach(() => { vi.clearAllMocks(); runtime.agent.status = "idle"; runtime.agent.provider = "codex"; resetTimelineTailsForTests(); });
 afterEach(() => {
   resetTranslationSettingsStoreForTests();
   expect(runtime.listeners.size).toBe(0);

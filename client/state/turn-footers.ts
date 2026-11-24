@@ -428,9 +428,19 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       liveRetains++;
       connect();
       if (!entries.length || needsOlder(entries, fromStart)) void request();
+      // The running card passes from row to row as rows arrive: the row
+      // giving it up releases in the same commit the next row retains. The
+      // release waits for that commit to finish, so the store neither drops
+      // the turn's live calls in between nor counts itself unretained while
+      // the commit's other rows report the agent's status.
+      let released = false;
       return () => {
-        liveRetains = Math.max(0, liveRetains - 1);
-        disconnect();
+        if (released) return;
+        released = true;
+        queueMicrotask(() => {
+          liveRetains = Math.max(0, liveRetains - 1);
+          disconnect();
+        });
       };
     },
     refresh,
@@ -487,14 +497,18 @@ export type TurnFooterStore = ReturnType<typeof createTurnFooterStore>;
  * the running turn, and the product card does not use it. A null anchor
  * subscribes to nothing.
  */
+/**
+ * `retain`: a live anchor keeps the store reading the running turn. A reader
+ * that only takes over a card another row still retains passes false.
+ */
 export function useTurnWork(paseo: PaseoApi, agentId: string, anchor: WorkAnchor | null, owns: (text: string) => boolean,
-  running: boolean | null = null) {
+  running: boolean | null = null, retain = true) {
   const store = useFooterStore(paseo, agentId);
   useLayoutEffect(() => { if (typeof running === "boolean") store.setRunning(running); }, [store, running]);
   const key = anchor ? workAnchorKey(anchor) : null;
   const anchorRef = useRef(anchor);
   anchorRef.current = anchor;
-  const live = anchor?.kind === "live";
+  const live = anchor?.kind === "live" && retain;
   useLayoutEffect(() => {
     if (live) return store.retainLive();
   }, [store, live]);
