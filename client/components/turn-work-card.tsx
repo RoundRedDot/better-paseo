@@ -13,7 +13,7 @@
  * added up, not the file's net change, and are measured once per call.
  */
 import React, { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
+import { Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { space, withAlpha } from "./theme-tokens";
@@ -21,7 +21,8 @@ import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-h
 import { useHover } from "../ui/use-hover";
 import { hairline } from "../ui/tokens/platform";
 import { RunningDot } from "../ui/running-dot";
-import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
+import { HoverPreviewBody, HoverPreviewHeader, PreviewActionsContext } from "../ui/hover-preview";
+import { TextZoomContext } from "../ui/text-zoom";
 import { PathContext, usePathContextValue } from "../ui/path-text";
 import { formatPath } from "../paths/format-path";
 import { useEnhancerPreferences } from "../preferences";
@@ -376,6 +377,16 @@ function WorkSteps({ agentId, at, calls, filter, tokens, compact }: {
   agentId: string; at: number; calls: readonly ToolCallTimelineItem[]; filter: WorkFilter; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
   const shown = useMemo(() => filter === "all" ? calls : calls.filter((item) => callKind(item) === filter), [calls, filter]);
+  // A group switch keeps the list as tall as it was, so a drawer fitted to its
+  // content does not jump; a text size or wrap change measures again.
+  const [measured, setMeasured] = useState(0);
+  const zoom = useContext(TextZoomContext);
+  const wrapOn = useContext(PreviewActionsContext)?.wrap?.on;
+  const layoutKey = `${zoom}:${wrapOn}`;
+  const [floor, setFloor] = useState({ filter, layoutKey, height: 0 });
+  if (floor.layoutKey !== layoutKey) setFloor({ filter, layoutKey, height: 0 });
+  else if (floor.filter !== filter) setFloor({ filter, layoutKey, height: measured });
+  const onListLayout = useCallback((event: LayoutChangeEvent) => setMeasured(event.nativeEvent.layout.height), []);
   const pathContext = usePathContextValue(agentId);
   const placement = useMemo(() => ({ agentId, at, kind: "tool" as const }), [agentId, at]);
   const sticky = useMemo(() => ({
@@ -385,7 +396,7 @@ function WorkSteps({ agentId, at, calls, filter, tokens, compact }: {
   return (
     <PathContext.Provider value={pathContext}>
       <BlockPlacementContext.Provider value={placement}>
-        <View testID="work-step-list">
+        <View testID="work-step-list" onLayout={onListLayout} style={floor.height ? { minHeight: floor.height } : undefined}>
           {shown.map((item, index) => {
             const stripe = index % 2 === 1 ? sticky.striped.stripe : undefined;
             return <View key={item.callId} testID="work-step-cell"

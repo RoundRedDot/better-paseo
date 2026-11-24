@@ -585,6 +585,20 @@ describe("work details filter", () => {
     act(() => panel.unmount());
   });
 
+  it("keeps the list as tall as before a group switch, so the drawer does not jump", () => {
+    const panel = openPanel();
+    const list = () => panel.root.findByProps({ testID: "work-step-list" });
+    expect(StyleSheet.flatten(list().props.style)?.minHeight).toBeUndefined();
+    act(() => list().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 540 } } }));
+    act(() => chip(panel, "failed").props.onPress());
+    expect(numbers(panel)).toEqual(["x1"]);
+    expect(StyleSheet.flatten(list().props.style).minHeight).toBe(540);
+    act(() => list().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 540 } } }));
+    act(() => chip(panel, "all").props.onPress());
+    expect(StyleSheet.flatten(list().props.style).minHeight).toBe(540);
+    act(() => panel.unmount());
+  });
+
   it("keeps the chosen group when the panel mounts again", () => {
     let panel = openPanel();
     act(() => chip(panel, "read").props.onPress());
