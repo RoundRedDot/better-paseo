@@ -30,6 +30,23 @@ beforeEach(() => { vi.useFakeTimers(); (globalThis as { __rnMockOS?: string })._
 afterEach(() => { vi.useRealTimers(); delete (globalThis as { __rnMockOS?: string }).__rnMockOS; });
 
 describe("work details outside click", () => {
+  it("keeps the sidebar open when using its selection translation bar, but closes for another bar", () => {
+    const ui = setup();
+    const close = vi.fn();
+    const release = bindWorkOutsideClick(ui.layer, "work-1", close);
+    const button = {};
+    const bar = { bcSelectionSource: () => ui.panel };
+    ui.fire("pointerdown", button);
+    ui.fire("click", button, 10, 10, 0, [button, bar]);
+    vi.runAllTimers();
+    expect(close).not.toHaveBeenCalled();
+    const otherBar = { bcSelectionSource: () => ({}) };
+    ui.fire("pointerdown", button);
+    ui.fire("click", button, 10, 10, 0, [button, otherBar]);
+    vi.runAllTimers();
+    expect(close).toHaveBeenCalledOnce();
+    release();
+  });
   it("keeps panel and selected row clicks, and closes after a click elsewhere without consuming it", () => {
     const ui = setup();
     const close = vi.fn();

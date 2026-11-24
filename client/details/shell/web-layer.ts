@@ -76,6 +76,11 @@ export function bindWorkOutsideClick(node: unknown, id: string, close: () => voi
     if (event.button !== 0 || layer.getClientRects().length === 0 || layer.contains(event.target as Node)) return;
     if (origin && Math.hypot(event.clientX - origin.x, event.clientY - origin.y) >= 4) return;
     if (event.composedPath().some((item) => (item as Element).getAttribute?.("data-bcworkdetails") === id)) return;
+    if (event.composedPath().some((item) => {
+      const bar = item as HTMLElement & { bcSelectionSource?: () => Element | null };
+      const source = bar.bcSelectionSource?.();
+      return source !== null && source !== undefined && layer.contains(source);
+    })) return;
     if (timer !== null) clearTimeout(timer);
     timer = setTimeout(() => { timer = null; close(); }, 0);
   };

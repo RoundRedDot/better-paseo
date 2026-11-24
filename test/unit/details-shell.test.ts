@@ -441,6 +441,18 @@ describe("DetailsHostSlot", () => {
     expect(fake.box.state.openId).toBeNull();
     expect(web.outside.get("click")?.size ?? 0).toBe(0);
   });
+  it("closes an ordinary block side panel on an outside click", async () => {
+    vi.useFakeTimers();
+    webDesktop();
+    web.pane = { left: 240, right: 1440, contentRight: 1000 };
+    fake.box.blocks = [block("a", 1)];
+    render(slot());
+    await act(async () => fake.set({ openId: "a" }));
+    const event = { button: 0, clientX: 10, clientY: 10, target: {}, composedPath: () => [] };
+    act(() => { web.outside.get("pointerdown")?.forEach((fn) => fn(event)); web.outside.get("click")?.forEach((fn) => fn(event)); });
+    act(() => { vi.advanceTimersByTime(0); });
+    expect(fake.box.state.openId).toBeNull();
+  });
   it("lets translation settings close the containing details drawer", () => {
     render(slot());
     open("a");

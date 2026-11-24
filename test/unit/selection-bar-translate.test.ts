@@ -391,7 +391,7 @@ describe("selection bar Translate", () => {
     expect(call.mock.calls.map((args) => args[0].text)).toEqual(["First", "Second", "First", "Second"]);
     expect(panel().querySelector(".panel-body")?.textContent).toBe("壱\n\n弐");
   });
-  it("offers copy and translate in a details sidebar and restores Add to chat in the conversation", () => {
+  it("offers copy and translate in a details sidebar and restores Add to chat in the conversation", async () => {
     const scope = { agentId: "agent-1", kind: "assistant_message" as const, streaming: false };
     const sidebar = new ElementMock();
     sidebar.dataset.bcnocomposer = "";
@@ -403,6 +403,8 @@ describe("selection bar Translate", () => {
     const chat = surface(scope);
 
     select("same reply", details);
+    const selectionSource = () => (host() as ElementMock & { bcSelectionSource(): ElementMock | null }).bcSelectionSource();
+    expect(selectionSource()).toBe(root);
     expect(button("Copy")!.hidden).toBe(false);
     expect(button("Translate")!.hidden).toBe(false);
     expect(button("Add to chat")!.hidden).toBe(true);
@@ -410,7 +412,14 @@ describe("selection bar Translate", () => {
     button("Add to chat")!.click();
     expect(copy).not.toHaveBeenCalled();
 
+    call.mockResolvedValue(done("译文"));
+    button("Translate")!.click();
+    await flush();
+    selected = null;
+    expect(selectionSource()).toBe(root);
+
     select("same reply", chat);
+    expect(selectionSource()).toBe(chat.parentElement);
     expect(button("Add to chat")!.hidden).toBe(false);
     expect(host().all((node) => node.className === "row-separator" && !node.hidden)).toHaveLength(2);
   });

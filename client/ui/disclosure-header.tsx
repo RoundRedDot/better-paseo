@@ -520,7 +520,7 @@ export function DisclosureHeader({
             <RowLongPressContext.Provider value={detailsEnabled ? openMenu : pressPreview ? preview.press : longPress}>
               <Pressable
                 ref={button.ref}
-                {...(Platform.OS === "web" && detailsMarker ? { dataSet: { bcworkdetails: detailsMarker.id } } : {})}
+                {...(Platform.OS === "web" && (detailsMarker || detailsEnabled) ? { dataSet: { bcworkdetails: detailsMarker?.id ?? previewKey } } : {})}
                 accessibilityRole={button.accessibilityRole}
                 accessibilityLabel={label}
                 // A row that only opens the details panel (`detailsMarker`) never

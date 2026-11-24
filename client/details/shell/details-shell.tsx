@@ -194,9 +194,9 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
 
   const close = useCallback(() => detailsApi.close(agentId), [agentId]);
   useEffect(() => {
-    if (!entry.dismissOnOutside || form !== "side" || openId !== entry.id) return;
+    if (form !== "side" || openId !== entry.id) return;
     return bindWorkOutsideClick(layerRef.current, entry.id, () => closeDetailsIfCurrent(agentId, entry.id));
-  }, [agentId, entry.id, entry.dismissOnOutside, form, openId]);
+  }, [agentId, entry.id, form, openId]);
 
   // ‹ › and the header swipe.
   const list = useBlockList(agentId);

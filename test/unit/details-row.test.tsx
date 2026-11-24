@@ -174,6 +174,7 @@ describe("details row press zones and registration", () => {
   it("expands on every pointer click, Cmd/Ctrl and the panel's current row included", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const toggle = vi.fn(); render(header({ onToggle: toggle }));
+    expect(row().props.dataSet).toEqual({ bcworkdetails: "call:preview" });
     act(() => row().props.onPress({ nativeEvent: { metaKey: true } })); expect(toggle).toHaveBeenCalledOnce();
     act(() => row().props.onPress({ nativeEvent: { ctrlKey: true } })); expect(toggle).toHaveBeenCalledTimes(2);
     // Opened on purpose from the menu, the panel marks this row; a click on it expands, the panel stays.

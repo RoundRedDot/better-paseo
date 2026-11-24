@@ -542,8 +542,9 @@ function readLanguage() {
 }
 
 function createBar(actions: BarActions, standalone = false, original = ""): Bar {
-  const host = document.createElement("div");
+  const host = document.createElement("div") as HTMLDivElement & { bcSelectionSource?: () => Element | null };
   host.setAttribute("data-bcselectionbar", "");
+  host.bcSelectionSource = () => actions.snapshot()?.surface ?? null;
   // Host-app rules can match a bare `div`, so the placement properties are set
   // as important; everything else lives inside the shadow root.
   const placement: Array<[string, string]> = [
