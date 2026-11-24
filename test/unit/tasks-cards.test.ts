@@ -2749,6 +2749,8 @@ describe("TaskCardView actions", () => {
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Drawn without a hover: the button is what tells it from a child with a tab of its own.
     expect(texts(hostByTestId(list, "subtask-session-label-sub-1"))).toEqual(["会话内"]);
+    expect(flat(hostByTestId(list, "subtask-title-row-sub-1").props.style).alignItems).toBe("center");
+    expect(flat(hostByTestId(list, "subtask-session-label-sub-1").props.style).alignSelf).toBeUndefined();
     expect(hostByTestId(list, "subtask-sub-1").props.accessibilityHint).toBe(cardStrings("zh").subagentCard);
     expect(hostByTestId(list, "subtask-title-sub-1").props.numberOfLines).toBe(1);
     expect(flat(hostByTestId(list, "subtask-title-sub-1").props.style)).toMatchObject({ flex: 1, minWidth: 0 });
