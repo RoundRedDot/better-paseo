@@ -20,7 +20,7 @@ export const unitTestOptions = {
   // the failures spread. 30 s still reports a test that hangs.
   testTimeout: 30_000,
   hookTimeout: 30_000,
-  setupFiles: ["test/unit/helpers/forget-carried.ts"],
+  setupFiles: ["test/unit/helpers/forget-carried.ts", "test/unit/helpers/no-free-translation-network.ts"],
 };
 
 export default defineConfig({

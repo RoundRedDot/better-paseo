@@ -10,6 +10,7 @@ import type {
 import { resolveTranslationTarget } from "../../shared/translation-languages";
 import { getEnhancerPreferences } from "../preferences";
 import { resolveLanguage } from "../i18n/settings-strings";
+import { freeServiceInfo } from "../../shared/free-translation";
 import { translationSettingsSync, type TranslationSettingsSnapshot } from "./settings-store";
 import {
   hashTranslationText,
@@ -135,7 +136,7 @@ export type SelectionTranslationView = (
   | { status: "disabled" }
   | { status: "streaming"; kind: TranslationSourceKind }
   | { status: "unavailable" }
-  /** Translation is on, but no endpoint or model is set: nothing is sent. */
+  /** OpenAI-compatible mode without an endpoint or model: nothing is sent. */
   | { status: "unconfigured" }
   /** The result this selection started under no longer matches the settings. */
   | { status: "stale" }
@@ -239,7 +240,7 @@ export function createSelectionTranslation(options: SelectionTranslationOptions)
     if (!settings.enabled) return { status: "disabled" };
     if (streaming) return { status: "streaming", kind: options.kind };
     if (!translator) return { status: "unavailable" };
-    if (!settings.endpoint || !settings.endpointModel) return { status: "unconfigured" };
+    if (settings.mode === "openai" && (!settings.endpoint || !settings.endpointModel)) return { status: "unconfigured" };
     const lang = interfaceLanguage();
     const targetCode = resolveTranslationTarget(settings.targetLanguage, lang).code;
     const entry = translationStore.readValid(sourceKey, options.text, settings, lang);
@@ -341,7 +342,9 @@ function viewOf(
   settings: TimelineTranslationSettings,
 ): SelectionTranslationView {
   // `provider` picks the logo: the endpoint names its service (`api.openai.com`, ...).
-  const modelInfo = { provider: settings.endpoint, model: settings.endpointModel };
+  const modelInfo = settings.mode === "free"
+    ? { provider: freeServiceInfo(settings.freeService).origin, model: freeServiceInfo(settings.freeService).name }
+    : { provider: settings.endpoint, model: settings.endpointModel };
   if (!entry || entry.state.state === "idle") return { status: "running", targetCode, modelInfo };
   switch (entry.state.state) {
     case "running": return { status: "running", text: entry.state.text || undefined, targetCode, modelInfo };

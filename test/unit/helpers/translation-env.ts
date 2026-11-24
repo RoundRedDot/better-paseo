@@ -27,6 +27,7 @@ export function removeTranslationDirs(): void {
 export function translationSettings(values: Partial<TimelineTranslationSettings> = {}): TimelineTranslationSettings {
   return timelineTranslationSettingsSchema.parse({
     enabled: true,
+    mode: "openai",
     endpoint: "https://api.example.test/v1",
     endpointModel: "test-model",
     targetLanguage: "zh-CN",

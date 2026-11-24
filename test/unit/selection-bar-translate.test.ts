@@ -173,7 +173,7 @@ beforeEach(() => {
   updateEnhancerPreferences({ language: "en" });
   resetTranslationSettingsStoreForTests();
   // A configured endpoint and model: the bar needs no conversation model read.
-  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "gpt-5" }, "custom");
+  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, mode: "openai", endpoint: "https://api.example.test/v1", endpointModel: "gpt-5" }, "custom");
   resetTranslationStoreForTests();
   call.mockReset();
   copy.mockClear();
@@ -385,7 +385,7 @@ describe("selection bar Translate", () => {
     doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
     button("Translate")!.click(); await flush();
     expect(call).toHaveBeenCalledTimes(2);
-    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "gpt-5", targetLanguage: "ja" }, "changed");
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, mode: "openai", endpoint: "https://api.example.test/v1", endpointModel: "gpt-5", targetLanguage: "ja" }, "changed");
     await flush(); expect(call).toHaveBeenCalledTimes(2);
     button("Retry")!.click(); await flush();
     expect(call.mock.calls.map((args) => args[0].text)).toEqual(["First", "Second", "First", "Second"]);

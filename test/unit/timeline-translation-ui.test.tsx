@@ -196,7 +196,7 @@ function collectTexts(root: ReactTestInstance): string[] {
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 let agentApi: ReturnType<typeof createMockAgentApi>;
 
-const CONFIGURED = { ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "test-model" };
+const CONFIGURED = { ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, mode: "openai", endpoint: "https://api.example.test/v1", endpointModel: "test-model" };
 
 beforeEach(() => {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
@@ -391,7 +391,7 @@ describe.each(["web", "ios", "android"] as const)("%s thought translation", (pla
 });
 
 it("uses each message's own host for whole-message translation", async () => {
-  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "model" }, "custom");
+  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, mode: "openai", endpoint: "https://api.example.test/v1", endpointModel: "model" }, "custom");
   const other = createMockAgentApi();
   const firstRpc = vi.fn().mockResolvedValue(doneState("first"));
   const secondRpc = vi.fn().mockResolvedValue(doneState("second"));

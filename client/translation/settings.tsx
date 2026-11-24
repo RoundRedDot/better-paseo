@@ -14,9 +14,13 @@ import {
   translationRevealKeyRpc,
   translationEndpointStatusRpc,
   translationTestRpc,
+  type FreeServiceChoice,
+  type FreeTranslationService,
   type TimelineTranslationSettings,
   type TranslationEndpointProblem,
 } from "../../shared/timeline-translation";
+import { autoFreeService, translateFree } from "../../shared/free-translation";
+import { resolveTranslationTarget } from "../../shared/translation-languages";
 import { radiusV2, space } from "../components/theme-tokens";
 import { TYPE } from "../ui/tokens/typography";
 import { resolveLanguage } from "../i18n/settings-strings";
@@ -24,6 +28,7 @@ import { useEnhancerPreferences } from "../preferences";
 import {
   PlainButton,
   Section,
+  Segmented,
   ResetRow,
   RowNotice,
   SectionFooter,
@@ -43,7 +48,31 @@ const STRINGS = {
     sectionTitle: "Translation",
     enableTitle: "Enable translation",
     enableDescription: "Translate selected text or a whole reply or thought. The original text stays as it is.",
-    targetTitle: "Target language",
+    modeTitle: "Translation method",
+    modeDescription: "Choose who translates. Switching keeps the other method's settings.",
+    modes: { free: "Free", openai: "OpenAI compatible", agent: "Agent" },
+    modeNotes: {
+      free: "Public machine translation services such as Microsoft and Google. No key; this device sends the text directly.",
+      openai: "Your OpenAI-compatible API: set its address, key and model. The prompt can be customized.",
+      agent: "Translate with a provider and model already signed in to Paseo, without a separate key.",
+    },
+    agentWaiting: "Needs a newer Paseo. Agent translation requires the host to start a helper agent without any tools (no files, commands or MCP), so the text being translated cannot make it act. That support is in an upstream Paseo pull request (getpaseo/paseo#10394); once it ships, this option becomes available. Until then, use Free or OpenAI compatible.",
+    serviceTitle: "Translation service",
+    serviceDescription: "These are the unofficial endpoints the vendors' web and browser translators use. They come with no guarantee and may be rate-limited or stop working; if one fails, switch to another or use OpenAI compatible.",
+    services: { microsoft: "Microsoft", google: "Google", tencent: "Tencent TranSmart" },
+    serviceNotes: {
+      microsoft: "Microsoft Edge's built-in translator. Usually reachable from mainland China.",
+      google: "The endpoint Chrome's page translation uses. Not reachable on some networks.",
+      tencent: "Tencent TranSmart. Good at Chinese and English; fewer target languages.",
+    },
+    serviceAuto: (name: string) => `Automatic: ${name} is the first service this device can reach. Pick a service to always use it.`,
+    serviceAutoSearching: "Automatic: finding the first service this device can reach...",
+    serviceUseAuto: "Choose automatically",
+    serviceTest: "Test service",
+    serviceTesting: "Testing...",
+    serviceTestIdle: "Send one sample sentence to check that this device can reach the service.",
+    serviceTestOk: (result: string, seconds: string) => `Connected: "Hello, world" -> "${result}" in ${seconds} s.`,
+    serviceTestFailed: (error: string) => `Could not use this service: ${error}`,    targetTitle: "Target language",
     targetDescription: "Follows the interface language by default. Search by language name or code.",
     targetPlaceholder: "Search language or code...",
     targetEmpty: "No matching language",
@@ -97,6 +126,20 @@ const STRINGS = {
     resetHint: "Restores translation settings only and clears the endpoint. A saved API key stays until you clear it.",
     resetConfirmHint: "Confirm to restore this section’s defaults.",
     unavailable: "Translation settings are currently unavailable from this host.",
+    freeTips: [
+      {
+        label: "Manual only",
+        text: "Nothing is translated until you press Translate on selected text or a whole reply or thought.",
+      },
+      {
+        label: "Where text goes",
+        text: "This device sends the selected text straight to the chosen service, not through the Paseo daemon, and no key is needed. Code blocks are never sent; inline code, links and URLs are swapped for placeholders and put back after translation. What the service does with the text is up to that service and its policies.",
+      },
+      {
+        label: "Session cache",
+        text: "Translations stay in memory for this client session; selecting the same text again reuses one until the service or target language changes.",
+      },
+    ],
     tips: [
       {
         label: "Manual only",
@@ -120,7 +163,31 @@ const STRINGS = {
     sectionTitle: "翻译",
     enableTitle: "启用翻译",
     enableDescription: "可翻译选中的文本，也可翻译整条回复或思考内容。原文保持不变。",
-    targetTitle: "目标语言",
+    modeTitle: "翻译方式",
+    modeDescription: "选择由谁来翻译。切换方式不会清除另一种方式已保存的配置。",
+    modes: { free: "免费翻译", openai: "OpenAI 兼容", agent: "Agent" },
+    modeNotes: {
+      free: "Google、微软等公开的机器翻译接口。无需 Key，由当前设备直接请求。",
+      openai: "填写 API 地址、Key 和模型，用大模型翻译，可自定义 Prompt。",
+      agent: "用 Paseo 已登录的 Provider 和模型翻译，不需要另配 Key。",
+    },
+    agentWaiting: "需要新版 Paseo。Agent 翻译要求宿主能启动一个不带任何工具的 helper agent（不读文件、不跑命令、不连 MCP），防止被翻译的文本诱导 agent 执行操作。这项能力在 Paseo 上游 PR（getpaseo/paseo#10394）中，合入并发布后这里会开放。在此之前，请使用免费翻译或 OpenAI 兼容方式。",
+    serviceTitle: "翻译服务",
+    serviceDescription: "这些是厂商网页或浏览器内置翻译使用的非公开接口，没有服务保证，可能限流或停用。失败时可换一个服务，或改用 OpenAI 兼容方式。",
+    services: { microsoft: "微软", google: "Google", tencent: "腾讯交互翻译" },
+    serviceNotes: {
+      microsoft: "Microsoft Edge 内置翻译接口，国内网络通常可直接访问。",
+      google: "Chrome 网页翻译所用接口，部分网络可能无法访问。",
+      tencent: "腾讯 TranSmart，中英互译表现较好，支持的目标语言较少。",
+    },
+    serviceAuto: (name: string) => `自动选择：${name}是当前设备第一个可用的服务。点选某个服务可固定使用它。`,
+    serviceAutoSearching: "自动选择：正在查找当前设备第一个可用的服务...",
+    serviceUseAuto: "自动选择",
+    serviceTest: "测试服务",
+    serviceTesting: "正在测试...",
+    serviceTestIdle: "用一句示例文本测试当前设备能否连上所选服务。",
+    serviceTestOk: (result: string, seconds: string) => `连接成功：「Hello, world」→「${result}」，用时 ${seconds} 秒。`,
+    serviceTestFailed: (error: string) => `无法使用该服务：${error}`,    targetTitle: "目标语言",
     targetDescription: "默认跟随当前界面语言，可在下拉菜单中按语言名或代码搜索。",
     targetPlaceholder: "搜索语言名称或代码...",
     targetEmpty: "没有匹配的语言",
@@ -174,6 +241,20 @@ const STRINGS = {
     resetHint: "只恢复本组设置并清空端点；已保存的 API Key 需单独清除。",
     resetConfirmHint: "再点一次「确认」恢复本组默认值。",
     unavailable: "当前无法从 Paseo 主机读取翻译设置。",
+    freeTips: [
+      {
+        label: "仅手动触发",
+        text: "只有对选中文本或整条回复、思考内容点击「翻译」时才会翻译，不会自动翻译时间线。",
+      },
+      {
+        label: "数据去向",
+        text: "选中的文本由当前设备直接发给所选服务，不经过 Paseo daemon，也不需要 Key。代码块不会发送；行内代码、链接和 URL 会先替换成占位符，译完再换回。服务方如何处理这些文本取决于该服务及其政策。",
+      },
+      {
+        label: "会话缓存",
+        text: "译文仅缓存在当前客户端会话内存中；再次选中相同文本时直接复用，换服务或目标语言后失效。",
+      },
+    ],
     tips: [
       {
         label: "仅手动触发",
@@ -254,6 +335,12 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   const [focused, setFocused] = useState<"endpoint" | "key" | "model" | null>(null);
   const [testing, setTesting] = useState(false);
   const [noticeLine, setNoticeLine] = useState<{ text: string; tone: "neutral" | "accent" | "danger" } | null>(null);
+  // Agent mode is not available yet: choosing it only shows why, nothing is saved.
+  const [agentPreview, setAgentPreview] = useState(false);
+  const [serviceTest, setServiceTest] = useState<{ service: FreeServiceChoice; tone: "neutral" | "accent" | "danger"; text: string } | null>(null);
+  /** With `auto`, the service this device settled on, once a test or translation found one. */
+  const [autoPick, setAutoPick] = useState<FreeTranslationService | null>(autoFreeService);
+  const serviceTestSequence = useRef(0);
 
   const endpoint = settings.endpoint;
   const ready = state.status === "ready";
@@ -343,6 +430,37 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
     }
   };
 
+  const shownMode = agentPreview ? "agent" as const : settings.mode;
+  const testService = async () => {
+    const sequence = ++serviceTestSequence.current;
+    const service = settings.freeService;
+    setServiceTest({ service, tone: "neutral", text: t.serviceTesting });
+    const started = Date.now();
+    try {
+      const target = resolveTranslationTarget(settings.targetLanguage, lang);
+      const result = await translateFree({ service, text: "Hello, world", targetCode: target.code });
+      if (sequence !== serviceTestSequence.current) return;
+      if (service === "auto") setAutoPick(result.service);
+      setServiceTest({ service, tone: "accent", text: t.serviceTestOk(result.translation, ((Date.now() - started) / 1000).toFixed(1)) });
+    } catch (error) {
+      if (sequence !== serviceTestSequence.current) return;
+      setServiceTest({ service, tone: "danger", text: t.serviceTestFailed(error instanceof Error ? error.message : String(error)) });
+    }
+  };
+  const serviceLine = serviceTest?.service === settings.freeService ? serviceTest : null;
+  const serviceTesting = serviceLine?.text === t.serviceTesting;
+  // `auto` shows the service this device uses; it finds one on first view.
+  const autoMode = settings.enabled && settings.mode === "free" && settings.freeService === "auto" && !agentPreview;
+  const probeAuto = autoMode && autoPick === null && serviceTest?.service !== "auto";
+  useEffect(() => {
+    if (probeAuto) void testService();
+    // Runs once per need: `testService` changes every render.
+  }, [probeAuto]);
+  const shownService = settings.freeService === "auto" ? autoPick : settings.freeService;
+  const serviceNote = settings.freeService === "auto"
+    ? (autoPick ? t.serviceAuto(t.services[autoPick]) : t.serviceAutoSearching)
+    : t.serviceNotes[settings.freeService];
+
   const writeDisabled = state.status !== "ready" || state.saving;
   const controlsDisabled = writeDisabled || !settings.enabled;
   const formDisabled = controlsDisabled || keyBusy || testing;
@@ -413,6 +531,56 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
 
       {settings.enabled ? <>
       <SettingRow
+        stacked title={t.modeTitle} description={t.modeDescription}
+        control={<Segmented<"free" | "openai" | "agent"> wrap label={t.modeTitle} value={shownMode}
+          options={[
+            { value: "free", label: t.modes.free },
+            { value: "openai", label: t.modes.openai },
+            { value: "agent", label: t.modes.agent },
+          ]}
+          onChange={(mode) => {
+            if (mode === "agent") {
+              setAgentPreview(true);
+              return;
+            }
+            setAgentPreview(false);
+            if (mode !== settings.mode) void savePatch({ mode });
+          }}
+          look={look}
+        />}
+        look={look} disabled={controlsDisabled}
+        below={notice(agentPreview ? { text: t.agentWaiting, tone: "warning" } : { text: t.modeNotes[settings.mode], tone: "neutral" })}
+      />
+
+      {shownMode === "free" ? <>
+      <SettingRow
+        stacked title={t.serviceTitle} description={t.serviceDescription}
+        control={<Segmented<FreeTranslationService> wrap label={t.serviceTitle} value={shownService}
+          options={[
+            { value: "microsoft", label: t.services.microsoft },
+            { value: "google", label: t.services.google },
+            { value: "tencent", label: t.services.tencent },
+          ]}
+          onChange={(freeService) => { if (freeService !== settings.freeService) void savePatch({ freeService }); }}
+          look={look}
+        />}
+        look={look} disabled={controlsDisabled}
+        below={notice({ text: serviceNote, tone: "neutral" })}
+      />
+      <SettingRow title={t.serviceTest}
+        control={<View style={styles.keyRow}>
+          {settings.freeService !== "auto" ? <PlainButton label={t.serviceUseAuto} look={look} disabled={controlsDisabled || serviceTesting}
+            onPress={() => { setAutoPick(autoFreeService()); void savePatch({ freeService: "auto" }); }} /> : null}
+          <PlainButton label={t.serviceTest} look={look} loading={serviceTesting}
+            disabled={controlsDisabled || serviceTesting} onPress={() => void testService()} />
+        </View>}
+        look={look} wrapControl disabled={controlsDisabled}
+        below={<RowNotice look={look} text={serviceLine?.text ?? t.serviceTestIdle} tone={serviceLine?.tone ?? "neutral"} />}
+      />
+      </> : null}
+
+      {shownMode === "openai" ? <>
+      <SettingRow
         stacked title={t.endpointTitle} description={t.endpointDescription}
         control={<TextInput ref={setInputFont} accessibilityLabel={t.endpointTitle} value={apiEndpoint}
           onChangeText={(value) => { setEndpointDraft(value); setNoticeLine(null); }}
@@ -465,6 +633,9 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
         look={look} wrapControl disabled={formDisabled}
         below={noticeLine ? <RowNotice look={look} text={noticeLine.text} tone={noticeLine.tone} /> : null}
       />
+      </> : null}
+
+      {shownMode !== "agent" ? <>
 
       <SettingRow wrapControl title={t.targetTitle} description={t.targetDescription}
         control={<SearchableLanguageSelect value={settings.targetLanguage} onChange={(targetLanguage) => void savePatch({ targetLanguage })}
@@ -472,24 +643,25 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
         look={look} disabled={controlsDisabled}
       />
 
-      <SettingRow
+      {shownMode === "openai" ? <SettingRow
         title={t.promptTitle}
         description={t.promptDescription}
         control={<PlainButton label={t.editPrompt} look={look} onPress={() => setPromptOpen(true)} disabled={controlsDisabled} />}
         look={look}
         wrapControl
         disabled={controlsDisabled}
-      />
+      /> : null}
+      </> : null}
 
       <ResetRow look={look} title={t.resetSection} description={t.resetHint} confirmDescription={t.resetConfirmHint}
         disabled={writeDisabled} onReset={() => savePatch(DEFAULT_TIMELINE_TRANSLATION_SETTINGS)}
       />
       {saveError}
-      <SectionFooter look={look}><SettingsTips items={t.tips} look={look} /></SectionFooter>
+      {shownMode !== "agent" ? <SectionFooter look={look}><SettingsTips items={shownMode === "free" ? t.freeTips : t.tips} look={look} /></SectionFooter> : null}
       </> : saveError}
     </Section>
 
-    {settings.enabled && promptOpen ? <PromptEditorModal look={look} title={t.promptModalTitle} label={t.promptTitle}
+    {settings.enabled && settings.mode === "openai" && promptOpen ? <PromptEditorModal look={look} title={t.promptModalTitle} label={t.promptTitle}
       value={settings.prompt} defaultValue={DEFAULT_TRANSLATION_PROMPT} maxLength={TRANSLATION_PROMPT_MAX_LENGTH}
       reset={t.resetPrompt} cancel={t.cancel} save={t.save} placeholder={t.promptPlaceholder} trim
       onClose={() => setPromptOpen(false)} onSave={(prompt) => void savePatch({ prompt })}

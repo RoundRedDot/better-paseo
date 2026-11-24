@@ -256,7 +256,7 @@ describe("direct translation against a synthetic loopback gateway", () => {
   });
 
   it("sends nothing while translation is unconfigured", async () => {
-    const app = plugin({ endpoint: "", customModel: true, provider: "codex", model: "gpt-5" });
+    const app = plugin({ mode: "openai", endpoint: "", customModel: true, provider: "codex", model: "gpt-5" });
     const state = await app.translate(SOURCE);
     expect(state).toEqual({ state: "error", error: "Set an OpenAI-compatible translation endpoint in Better Paseo settings first." });
     expect(primary.received).toHaveLength(0);

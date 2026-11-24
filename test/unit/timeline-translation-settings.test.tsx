@@ -63,6 +63,7 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
 import { placeLanguageMenu } from "../../client/translation/language-picker";
 import { TimelineTranslationSettings as TimelineTranslationSettingsSection } from "../../client/translation/settings";
 import { createEndpointStatusStore } from "../../client/translation/endpoint-status";
+import { resetAutoFreeServiceForTests } from "../../shared/free-translation";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -88,7 +89,8 @@ function makeLook(compact = false, lang: "en" | "zh" = "en") {
 }
 
 function makeReadySettings(values: Partial<TimelineTranslationSettings> = {}, options?: { saveResult?: boolean; reload?: () => Promise<void> }) {
-  const parsed = timelineTranslationSettingsSchema.parse(values);
+  // Most cases here exercise the OpenAI-compatible rows; free-mode cases say so.
+  const parsed = timelineTranslationSettingsSchema.parse({ mode: "openai", ...values });
   return {
     status: "ready" as const,
     values: parsed,
@@ -567,7 +569,7 @@ describe("timeline translation settings", () => {
     expect(allTexts).not.toMatch(/Provider|Thinking level|Disable thinking/);
     const section = renderer!.root.findByType(Section);
     expect(section.findAllByType(SettingRow).map((row) => row.props.title)).toEqual([
-      "Enable translation", "API Base URL", "API key", "Model", "Test connection", "Target language",
+      "Enable translation", "Translation method", "API Base URL", "API key", "Model", "Test connection", "Target language",
       "Translation prompt", "Restore default translation settings",
     ]);
     expect(section.findByType(SectionFooter)).toBeDefined();
@@ -803,5 +805,87 @@ describe("timeline translation settings", () => {
     });
     expect(getTranslationSettingsState()).toMatchObject({ status: "invalid", error: "Corrupt JSON schema" });
     expect(textValues(renderer!.root).join("\n")).toContain("Corrupt JSON schema");
+  });
+});
+
+describe("translation method settings", () => {
+  afterEach(() => {
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    vi.unstubAllGlobals();
+    resetAutoFreeServiceForTests();
+  });
+
+  const radio = (label: string) => renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === label);
+  const titles = () => renderer!.root.findByType(Section).findAllByType(SettingRow).map((row) => row.props.title);
+  const render = async (values: Partial<TimelineTranslationSettings>) => {
+    // As the host stores it: no mode written yet unless the case sets one.
+    const parsed = timelineTranslationSettingsSchema.parse({ enabled: true, ...values });
+    mocks.settingsState = { ...makeReadySettings(), values: parsed };
+    await act(async () => { renderer = TestRenderer.create(<TimelineTranslationSettingsSection look={makeLook()} />); });
+    await act(async () => {});
+  };
+  /** Microsoft unreachable, Google answers. */
+  const stubServices = () => {
+    const urls: string[] = [];
+    vi.stubGlobal("fetch", vi.fn(async (url: string, init: RequestInit) => {
+      urls.push(url);
+      if (url.includes("edge.microsoft.com")) throw new TypeError("Network request failed");
+      const texts = JSON.parse(String(init.body))[0][0] as string[];
+      return Response.json([texts.map(() => "你好，世界"), ["en"]]);
+    }));
+    return urls;
+  };
+
+  it("starts free and selects the first service this device can reach, without saving it", async () => {
+    const urls = stubServices();
+    await render({});
+    expect(titles()).toEqual([
+      "Enable translation", "Translation method", "Translation service", "Test service", "Target language",
+      "Restore default translation settings",
+    ]);
+    expect(radio("Free").props.accessibilityState.selected).toBe(true);
+    await vi.waitFor(() => expect(radio("Google").props.accessibilityState.selected).toBe(true));
+    expect(radio("Microsoft").props.accessibilityState.selected).toBe(false);
+    expect(textValues(renderer!.root).join("\n")).toContain("Automatic: Google is the first service this device can reach.");
+    expect(urls.map((url) => new URL(url).host)).toEqual(["edge.microsoft.com", "translate-pa.googleapis.com"]);
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+  });
+
+  it("saves a picked service, and can go back to choosing automatically", async () => {
+    stubServices();
+    await render({ freeService: "tencent" });
+    expect(radio("Tencent TranSmart").props.accessibilityState.selected).toBe(true);
+    await act(async () => radio("Microsoft").props.onPress());
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "free", freeService: "microsoft" }), "rev-1");
+    const auto = renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Choose automatically");
+    await act(async () => auto.props.onPress());
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ freeService: "auto" }), "rev-1");
+  });
+
+  it("switches to the OpenAI-compatible rows and saves the mode", async () => {
+    stubServices();
+    await render({ mode: "free", freeService: "google" });
+    await act(async () => radio("OpenAI compatible").props.onPress());
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "openai" }), "rev-1");
+  });
+
+  it("keeps an earlier endpoint on the OpenAI-compatible mode", async () => {
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    expect(radio("OpenAI compatible").props.accessibilityState.selected).toBe(true);
+    expect(titles()).toContain("API Base URL");
+    expect(titles()).toContain("Translation prompt");
+  });
+
+  it("explains Agent mode instead of saving it", async () => {
+    await render({ mode: "openai", endpoint: OK_ENDPOINT, endpointModel: "m" });
+    await act(async () => radio("Agent").props.onPress());
+    expect(radio("Agent").props.accessibilityState.selected).toBe(true);
+    expect(textValues(renderer!.root).join("\n")).toContain("getpaseo/paseo#10394");
+    expect(titles()).toEqual(["Enable translation", "Translation method", "Restore default translation settings"]);
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+    await act(async () => radio("OpenAI compatible").props.onPress());
+    expect(titles()).toContain("API Base URL");
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
   });
 });

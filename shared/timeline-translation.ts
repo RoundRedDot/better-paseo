@@ -38,8 +38,29 @@ function currentDefaultPrompt(prompt: string): string {
 export const TRANSLATION_ENDPOINT_MAX_LENGTH = 2048;
 export const TRANSLATION_MODEL_MAX_LENGTH = 256;
 
-export const timelineTranslationSettingsSchema = z.object({
+/**
+ * Who translates. `free`: a public machine translation service, called from
+ * the client. `openai`: the OpenAI-compatible endpoint below, called from the
+ * daemon. (An `agent` mode waits for host tool-free helper agents.)
+ */
+export const TRANSLATION_MODES = ["free", "openai"] as const;
+export type TranslationMode = (typeof TRANSLATION_MODES)[number];
+
+/** In the order `auto` tries them. */
+export const FREE_TRANSLATION_SERVICES = ["microsoft", "google", "tencent"] as const;
+export type FreeTranslationService = (typeof FREE_TRANSLATION_SERVICES)[number];
+/**
+ * `auto`: each client uses the first service it can reach. Settings are shared
+ * by every client of a host, but which service is reachable depends on the
+ * device's network, so the choice is made per client, never stored.
+ */
+export type FreeServiceChoice = FreeTranslationService | "auto";
+
+const timelineTranslationFieldsSchema = z.object({
   enabled: z.boolean().catch(false),
+  /** Missing in settings saved before modes existed; see the transform below. */
+  mode: z.enum(TRANSLATION_MODES).optional().catch(undefined),
+  freeService: z.enum(["auto", ...FREE_TRANSLATION_SERVICES]).catch("auto"),
   /**
    * The OpenAI-compatible base URL (or full `/chat/completions` URL) the
    * daemon sends translations to. Empty means nothing is ever sent. The server
@@ -60,6 +81,13 @@ export const timelineTranslationSettingsSchema = z.object({
   prompt: z.string().trim().min(1).max(TRANSLATION_PROMPT_MAX_LENGTH).catch(DEFAULT_TRANSLATION_PROMPT).transform(currentDefaultPrompt),
 });
 
+// Settings saved before modes existed keep translating the way they did: an
+// endpoint means the OpenAI-compatible mode. Everything else starts free.
+export const timelineTranslationSettingsSchema = timelineTranslationFieldsSchema.transform((values) => ({
+  ...values,
+  mode: values.mode ?? (values.endpoint ? "openai" as const : "free" as const),
+}));
+
 export type TimelineTranslationSettings = z.output<typeof timelineTranslationSettingsSchema>;
 
 export const TIMELINE_TRANSLATION_SETTINGS = defineSettings({
@@ -74,6 +102,14 @@ export function translationConfigSignature(
   interfaceLanguage: "en" | "zh",
 ): string {
   const target = resolveTranslationTarget(settings.targetLanguage, interfaceLanguage);
+  if (settings.mode === "free") {
+    return JSON.stringify({
+      enabled: settings.enabled,
+      targetCode: target.code,
+      mode: settings.mode,
+      freeService: settings.freeService,
+    });
+  }
   return JSON.stringify({
     enabled: settings.enabled,
     targetCode: target.code,

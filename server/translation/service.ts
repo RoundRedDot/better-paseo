@@ -105,6 +105,8 @@ export function createTimelineTranslator(deps: Dependencies) {
     if (settings.status !== "ready") throw new Error("Translation settings are invalid.");
     const config = settings.values;
     if (!config.enabled) throw new Error("Timeline translation is disabled in settings.");
+    // Free services are called by the client itself; the daemon never sends there.
+    if (config.mode !== "openai") throw new Error("Free translation runs on the client. Please retry.");
     // The client caches this job under the configuration it saw when starting it.
     if (input.configSignature !== translationConfigSignature(config, input.interfaceLanguage)) {
       throw new Error("Translation configuration changed. Please retry.");

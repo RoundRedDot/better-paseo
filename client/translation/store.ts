@@ -7,6 +7,8 @@ import {
   type TranslateTimelineItemInput,
   type TranslationJobState,
 } from "../../shared/timeline-translation";
+import { FREE_SERVICE_INFO, translateFree } from "../../shared/free-translation";
+import { resolveTranslationTarget } from "../../shared/translation-languages";
 
 export type TranslationSourceKind = "assistant_message" | "user_message" | "reasoning" | "tool_output";
 
@@ -60,7 +62,23 @@ export function isEntryCurrent(
 
 let jobSequence = 0;
 
-export function createTranslationStore() {
+type TranslateFree = typeof translateFree;
+
+/** Free mode: the client asks the service itself; there is no daemon job to poll. */
+async function translateLocally(input: TranslationRequestInput, free: TranslateFree): Promise<TranslationJobState> {
+  const target = resolveTranslationTarget(input.settings.targetLanguage, input.interfaceLanguage);
+  const { translation, service } = await free({ service: input.settings.freeService, text: input.text, targetCode: target.code });
+  return {
+    state: "done",
+    translation,
+    targetLanguageCode: target.code,
+    origin: FREE_SERVICE_INFO[service].origin,
+    model: FREE_SERVICE_INFO[service].name,
+  };
+}
+
+export function createTranslationStore(deps: { translateFree?: TranslateFree } = {}) {
+  const free = deps.translateFree ?? translateFree;
   const entries = new Map<string, TranslationEntry>();
   const listeners = new Set<() => void>();
 
@@ -153,7 +171,7 @@ export function createTranslationStore() {
           });
 
         try {
-          let result = await call({
+          let result = input.settings.mode === "free" ? await translateLocally(input, free) : await call({
             action: "start",
             jobId,
             agentId: input.agentId,

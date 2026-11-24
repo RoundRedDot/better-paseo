@@ -190,7 +190,7 @@ describe("iOS single Markdown block selection", () => {
     const { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } = await import("../../client/translation/settings-store");
     const { resetTranslationStoreForTests } = await import("../../client/translation/store");
     resetTranslationStoreForTests();
-    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "gpt-5" }, "scroll");
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, mode: "openai", endpoint: "https://api.example.test/v1", endpointModel: "gpt-5" }, "scroll");
     translate.mockResolvedValue({ state: "done", translation: "译文", targetLanguageCode: "zh-CN", origin: "https://api.example.test", model: "gpt-5" });
     const scoped = (text: string) => React.createElement(list.Provider, { value: { getScrollMetrics: () => ({ offset }) } },
       React.createElement(SelectionTranslationScope, { agentId: "agent-1", kind: "assistant_message", streaming: false,
