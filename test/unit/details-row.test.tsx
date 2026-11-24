@@ -157,7 +157,8 @@ describe("details row press zones and registration", () => {
     act(() => row().props.onPress({ nativeEvent: { ctrlKey: true } })); expect(toggle).toHaveBeenCalledTimes(2);
     // Opened on purpose from the menu, the panel marks this row; a click on it expands, the panel stays.
     act(() => row().props.onLongPress()); act(() => buttons("Open details")[0]!.props.onPress());
-    expect(state.open).toHaveBeenCalledWith("agent", "call:preview");
+    // Under a pointer the menu docks the panel at the side, as the hover's "Open in panel" does.
+    expect(state.open).toHaveBeenCalledWith("agent", "call:preview", { form: "side" });
     act(() => { state.current = "call:preview"; renderer!.update(wrap(header({ onToggle: toggle }))); });
     act(() => row().props.onPress()); expect(toggle).toHaveBeenCalledTimes(3);
     expect(state.close).not.toHaveBeenCalled(); expect(state.open).toHaveBeenCalledOnce();

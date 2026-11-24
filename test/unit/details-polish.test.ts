@@ -9,6 +9,10 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
   return { Icon: rn.View, ScrollView: rn.ScrollView, TextInput: rn.TextInput,
     copyText: vi.fn(async () => {}), useToast: () => ({ show: vi.fn(), error: vi.fn() }) };
 });
+const input = vi.hoisted(() => ({ hover: false }));
+vi.mock("../../client/ui/use-input-capabilities", () => ({
+  useInputCapabilities: () => ({ hover: input.hover, touch: !input.hover, compact: false, native: false }),
+}));
 import { ANDROID_NAV_FALLBACK, androidBottomInset, androidContentBottomPad } from "../../client/details/shell/safe-area";
 import { TurboModuleRegistry } from "react-native";
 import { RowMenu } from "../../client/details/row-menu";
@@ -107,6 +111,25 @@ describe("row menu", () => {
     const scroller = renderer.root.findAll((node) => (node.type as unknown) === "ScrollView")[0]!;
     expect(scroller.props.showsVerticalScrollIndicator).toBe(false);
     act(() => renderer.unmount());
+  });
+
+  it.each([["side", true], [undefined, false]] as const)("asks for form %s from the menu (pointer = %s)", (form, hover) => {
+    input.hover = hover;
+    const onOpen = vi.fn();
+    const onClose = vi.fn();
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => {
+      renderer = TestRenderer.create(createElement(RowMenu, {
+        anchor: { x: 0, y: 300, width: 390, height: 28 }, title: "npm test", hasBody: true,
+        copyItems: [], tokens, onOpen, onToggle() {}, onClose,
+      }));
+    });
+    const item = renderer.root.findAll((node) => node.props.accessibilityLabel === "Open details" && node.props.accessibilityRole === "menuitem")[0]!;
+    act(() => item.props.onPress());
+    expect(onClose).toHaveBeenCalledOnce();
+    expect(onOpen).toHaveBeenCalledWith(form);
+    act(() => renderer.unmount());
+    input.hover = false;
   });
 
   function menuLabels(props: Partial<Parameters<typeof RowMenu>[0]>) {

@@ -8,7 +8,7 @@ import { useReducedMotion } from "../ui/use-reduced-motion";
 import { useHover } from "../ui/use-hover";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { useEnhancerPreferences } from "../preferences";
-import type { CopyItem } from "./contracts";
+import type { CopyItem, DetailsForm } from "./contracts";
 import { detailsForm } from "./layout-model";
 import { DROPDOWN_REVEAL } from "../ui/tokens/motion";
 
@@ -28,7 +28,8 @@ export interface RowMenuProps {
   /** The row is the one the details panel shows: no "Open details". */
   detailsOpen?: boolean;
   tokens: ExtendedThemeTokens;
-  onOpen(): void;
+  /** Under a pointer the menu asks for the side form, which docks the panel beside the timeline. */
+  onOpen(form?: DetailsForm): void;
   onToggle(): void;
   onViewImage?(): void;
   onClose(): void;
@@ -69,7 +70,7 @@ export function RowMenu(props: RowMenuProps) {
     copies.filter((item) => item.text).map((item) => ({ ...item, run: () => void copy(item.text, { feedback: "toast", label: item.label }) })),
     [
       ...(props.readsImage && props.onViewImage ? [{ id: "viewer", label: "View image", icon: "Image", run: props.onViewImage }] : []),
-      ...(props.hasBody && !props.detailsOpen ? [{ id: "details", label: "Open details", icon: !capabilities.hover && bottomPanel ? "BottomSheet" : "PanelRight", run: props.onOpen }] : []),
+      ...(props.hasBody && !props.detailsOpen ? [{ id: "details", label: "Open details", icon: !capabilities.hover && bottomPanel ? "BottomSheet" : "PanelRight", run: () => props.onOpen(capabilities.hover ? "side" : undefined) }] : []),
       ...(props.hasBody ? [props.expanded
         ? { id: "collapse", label: "Collapse in timeline", icon: "ChevronUp", run: props.onToggle }
         : { id: "expand", label: "Expand in timeline", icon: "ChevronDown", run: props.onToggle }] : []),

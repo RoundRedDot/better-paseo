@@ -445,7 +445,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
       })}
       {detailsEnabled && menuAnchor ? <RowMenu anchor={menuAnchor} title="Tasks" hasBody
         copyItems={[{ id: "text", label: "Copy", icon: "Copy", text: taskListCopyText(data) }]}
-        expanded={listExpanded} tokens={tokens} onOpen={() => detailsApi.open(placement!.agentId, detailsKey)}
+        expanded={listExpanded} tokens={tokens} onOpen={(form) => detailsApi.open(placement!.agentId, detailsKey, { form })}
         onToggle={() => setListExpanded((value) => !value)} onClose={closeMenu} /> : null}
       {shared || full ? null : <TaskListPanel panel={own} data={data} tokens={tokens} compact={compact} />}
     </View>

@@ -624,7 +624,7 @@ export function DisclosureHeader({
       {detailsEnabled && menuAnchor ? <RowMenu anchor={menuAnchor} title={title}
         subtitle={detailsSubtitle} hasBody={!inert} readsImage={readsImage} copyItems={copyItems?.() ?? []}
         expanded={expanded} detailsOpen={isCurrent}
-        tokens={tokens} onOpen={() => detailsApi.open(placement!.agentId, previewKey!)}
+        tokens={tokens} onOpen={(form) => detailsApi.open(placement!.agentId, previewKey!, { form })}
         onToggle={toggle} onViewImage={onViewImage} onClose={closeMenu} /> : null}
       {preview.open && previewContent ? (
         <HoverPreview preview={preview} tokens={tokens} wraps={previewWraps}>{previewContent()}</HoverPreview>
