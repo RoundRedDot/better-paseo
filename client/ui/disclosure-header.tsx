@@ -2,7 +2,7 @@ import React, { createContext, useCallback, useContext, useEffect, useRef, useSt
 import { Platform, Pressable, StyleSheet, Text, View, type GestureResponderEvent, type TextProps } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
-import { space } from "../components/theme-tokens";
+import { radiusV2, space } from "../components/theme-tokens";
 import { selectableTextStyle, unselectable } from "../components/selection";
 import { selectionSurface } from "../components/selection-actions";
 import { surfaceProps } from "../components/view-props";
@@ -542,13 +542,13 @@ export function DisclosureHeader({
                 {...(pointerProps as object)}
                 style={({ pressed: pressedState }) => [
                   styles.row,
-                  { height, borderRadius: height / 2 },
+                  { height, borderRadius: radiusV2.block },
                   hovered && { backgroundColor: tokens.v2.surface1 },
                   (pressedState || (detailsEnabled && (menuOpen || actionsActive || pressed))) && { backgroundColor: tokens.v2.surface2 },
                 ]}
               >
-                {detailsEnabled && hasMarker.current ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} radius={height / 2} /> : null}
-                {detailsMarker ? <CurrentMarker agentId={detailsMarker.agentId} id={detailsMarker.id} tokens={tokens} radius={height / 2} /> : null}
+                {detailsEnabled && hasMarker.current ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} radius={radiusV2.block} /> : null}
+                {detailsMarker ? <CurrentMarker agentId={detailsMarker.agentId} id={detailsMarker.id} tokens={tokens} radius={radiusV2.block} /> : null}
                 <View style={styles.slot}>
                   {showChevron ? (
                     <Icon

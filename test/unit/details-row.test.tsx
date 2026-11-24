@@ -41,7 +41,7 @@ import { PathText } from "../../client/ui/path-text";
 import { CurrentMarker } from "../../client/details/current-marker";
 import { useReducedMotion } from "../../client/ui/use-reduced-motion";
 import { BlockPlacementContext, type BlockEntry } from "../../client/details/contracts";
-import { buildThemeTokens } from "../../client/components/theme-tokens";
+import { buildThemeTokens, radiusV2 } from "../../client/components/theme-tokens";
 import { ToolCallout, toolRowCopyItems } from "../../client/components/tool-callouts";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { TaskActivityRow } from "../../client/components/task-activity-row";
@@ -95,15 +95,15 @@ afterEach(() => {
 });
 
 describe("details row press zones and registration", () => {
-  it.each([false, true])("rounds the row using its rendered height (compact=%s)", (compact) => {
+  it.each([false, true])("uses the footer button radius for row highlights (compact=%s)", (compact) => {
     const toggle = vi.fn();
     render(header({ compact, onToggle: toggle }));
     const expectedHeight = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
-    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ height: expectedHeight, borderRadius: expectedHeight / 2 });
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ height: expectedHeight, borderRadius: radiusV2.block });
     act(() => row().props.onHoverIn());
-    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: expectedHeight / 2, backgroundColor: tokens.v2.surface1 });
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: radiusV2.block, backgroundColor: tokens.v2.surface1 });
     act(() => row().props.onPressIn());
-    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: expectedHeight / 2, backgroundColor: tokens.v2.surface2 });
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: radiusV2.block, backgroundColor: tokens.v2.surface2 });
     act(() => row().props.onPressOut());
   });
   it("registers, updates the render thunk and releases only on unmount", () => {
@@ -405,7 +405,7 @@ describe("current marker", () => {
     expect(instances()).toHaveLength(1);
     const instance = instances()[0];
     expect(painted()).toHaveLength(1);
-    expect(StyleSheet.flatten(painted()[0]!.props.style).borderRadius).toBe(Number(StyleSheet.flatten(row().props.style).height) / 2);
+    expect(StyleSheet.flatten(painted()[0]!.props.style).borderRadius).toBe(radiusV2.block);
     act(() => { state.current = null; state.linger = "call:preview"; state.marker = "linger"; renderer!.update(wrap(header())); });
     expect(painted()).toHaveLength(1);
     expect(timing).not.toHaveBeenCalled();

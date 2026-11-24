@@ -19,7 +19,7 @@ vi.mock("../../client/components/tool-callouts", () => ({
 }));
 
 import { TurnWorkCard } from "../../client/components/turn-work-card";
-import { buildThemeTokens, withAlpha } from "../../client/components/theme-tokens";
+import { buildThemeTokens, radiusV2, withAlpha } from "../../client/components/theme-tokens";
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
 import { updateEnhancerPreferences, getEnhancerPreferences } from "../../client/preferences";
@@ -219,7 +219,9 @@ describe("turn work card", () => {
     const row = renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "用时 9秒");
     expect(row.props.dataSet).toEqual({ bcworkdetails: "agent:work:r:10000:done:steps" });
     pressText("用时 9秒");
-    expect(renderer.root.findAll((node) => (node.type as unknown) === "Animated.View" && node.props?.testID === "details-current-marker")).toHaveLength(1);
+    const markers = renderer.root.findAll((node) => (node.type as unknown) === "Animated.View" && node.props?.testID === "details-current-marker");
+    expect(markers).toHaveLength(1);
+    expect(StyleSheet.flatten(markers[0]!.props.style).borderRadius).toBe(radiusV2.block);
     delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
   });
 
