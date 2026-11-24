@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
 import { Image, Platform, Pressable, StyleSheet, View, type TextInput as NativeTextInput } from "react-native";
 import { useMarkBitmap } from "../components/marks";
+import { ChoiceMenuSelect, type MenuChoice } from "../settings-choice-menu";
 import { Glyph } from "../components/glyph";
 import { usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
 import { TextInput } from "@getpaseo/plugin/client/ui";
@@ -15,6 +16,7 @@ import {
   translationRevealKeyRpc,
   translationEndpointStatusRpc,
   translationTestRpc,
+  FREE_TRANSLATION_SERVICES,
   type FreeServiceChoice,
   type FreeTranslationService,
   type TimelineTranslationSettings,
@@ -67,9 +69,10 @@ const STRINGS = {
       tencent: "Tencent TranSmart. Good at Chinese and English; supports fewer target languages.",
     },
     serviceNetwork: "This device sends the request itself, so whether a service is reachable depends on its network. If one fails, try another.",
-    serviceAuto: (name: string) => `Automatic: ${name} is the first service this device can reach. Pick a service to always use it.`,
+    serviceAuto: (name: string) => `Automatic: ${name} is the first service this device can reach. Pick a service in the menu to always use it.`,
     serviceAutoSearching: "Automatic: finding the first service this device can reach...",
-    serviceUseAuto: "Choose automatically",
+    serviceAutoChoice: (name: string) => `Automatic (${name})`,
+    serviceAutoChoiceIdle: "Automatic",
     serviceTest: "Test service",
     serviceTesting: "Testing...",
     serviceTestIdle: "Send one sample sentence to check that this device can reach the service.",
@@ -183,9 +186,10 @@ const STRINGS = {
       tencent: "腾讯 TranSmart，中英互译表现较好，支持的目标语言较少。",
     },
     serviceNetwork: "翻译请求由当前设备直接发出，能否连通取决于本机网络；连不上时可换一个服务。",
-    serviceAuto: (name: string) => `自动选择：${name}是当前设备第一个可用的服务。点选某个服务可固定使用它。`,
+    serviceAuto: (name: string) => `自动选择：${name}是当前设备第一个可用的服务。在菜单里选某个服务可固定使用它。`,
     serviceAutoSearching: "自动选择：正在查找当前设备第一个可用的服务...",
-    serviceUseAuto: "自动选择",
+    serviceAutoChoice: (name: string) => `自动（${name}）`,
+    serviceAutoChoiceIdle: "自动",
     serviceTest: "测试服务",
     serviceTesting: "正在测试...",
     serviceTestIdle: "用一句示例文本测试当前设备能否连上所选服务。",
@@ -281,7 +285,8 @@ const STRINGS = {
 
 type Strings = (typeof STRINGS)["en" | "zh"];
 
-const SERVICE_MARK = 16;
+/** The file-open editor menu's logo size (LOGO in client/settings-file-open.tsx). */
+const SERVICE_MARK = 20;
 
 function endpointNotice(t: Strings, settings: TimelineTranslationSettings, status: EndpointStatusSnapshot):
   { text: string; tone: "neutral" | "warning" | "danger" } | null {
@@ -461,7 +466,16 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
     if (probeAuto) void testService();
     // Runs once per need: `testService` changes every render.
   }, [probeAuto]);
-  const shownService = settings.freeService === "auto" ? autoPick : settings.freeService;
+  // The settings page's dropdown, like the file-open editor menu: Automatic
+  // first, naming and showing the service this device settled on.
+  const serviceChoices: MenuChoice[] = [
+    {
+      value: "auto",
+      name: autoPick ? t.serviceAutoChoice(t.services[autoPick]) : t.serviceAutoChoiceIdle,
+      logo: <ServiceMark service={autoPick} />,
+    },
+    ...FREE_TRANSLATION_SERVICES.map((service) => ({ value: service, name: t.services[service], logo: <ServiceMark service={service} /> })),
+  ];
   const serviceNote = settings.freeService === "auto"
     ? (autoPick ? t.serviceAuto(t.services[autoPick]) : t.serviceAutoSearching)
     : t.serviceNotes[settings.freeService];
@@ -559,26 +573,24 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
 
       {shownMode === "free" ? <>
       <SettingRow
-        stacked title={t.serviceTitle} description={t.serviceDescription}
-        control={<Segmented<FreeTranslationService> wrap label={t.serviceTitle} value={shownService}
-          options={[
-            { value: "microsoft", label: t.services.microsoft, icon: <ServiceMark service="microsoft" /> },
-            { value: "google", label: t.services.google, icon: <ServiceMark service="google" /> },
-            { value: "tencent", label: t.services.tencent, icon: <ServiceMark service="tencent" /> },
-          ]}
-          onChange={(freeService) => { if (freeService !== settings.freeService) void savePatch({ freeService }); }}
-          look={look}
+        title={t.serviceTitle} description={t.serviceDescription} wrapControl
+        control={<ChoiceMenuSelect label={t.serviceTitle} value={settings.freeService}
+          selected={serviceChoices.find((choice) => choice.value === settings.freeService) ?? null}
+          choices={serviceChoices}
+          onChange={(next) => {
+            const freeService = next as FreeServiceChoice;
+            if (freeService === settings.freeService) return;
+            if (freeService === "auto") setAutoPick(autoFreeService());
+            void savePatch({ freeService });
+          }}
+          look={look} disabled={controlsDisabled}
         />}
         look={look} disabled={controlsDisabled}
         below={notice({ text: `${serviceNote}${lang === "zh" ? "" : " "}${t.serviceNetwork}`, tone: "neutral" })}
       />
       <SettingRow title={t.serviceTest}
-        control={<View style={styles.keyRow}>
-          {settings.freeService !== "auto" ? <PlainButton label={t.serviceUseAuto} look={look} disabled={controlsDisabled || serviceTesting}
-            onPress={() => { setAutoPick(autoFreeService()); void savePatch({ freeService: "auto" }); }} /> : null}
-          <PlainButton label={t.serviceTest} look={look} loading={serviceTesting}
-            disabled={controlsDisabled || serviceTesting} onPress={() => void testService()} />
-        </View>}
+        control={<PlainButton label={t.serviceTest} look={look} loading={serviceTesting}
+          disabled={controlsDisabled || serviceTesting} onPress={() => void testService()} />}
         look={look} wrapControl disabled={controlsDisabled}
         below={<RowNotice look={look} text={serviceLine?.text ?? t.serviceTestIdle} tone={serviceLine?.tone ?? "neutral"} />}
       />
@@ -674,9 +686,13 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   </>;
 }
 
-/** The service's colour logo, served by the daemon like the other brand marks. */
-export function ServiceMark({ service }: { service: FreeTranslationService }) {
-  const uri = useMarkBitmap(`service:${service}`);
+/**
+ * The service's colour logo, served by the daemon like the other brand marks,
+ * at the editor menu's logo size. No service (Automatic still searching)
+ * keeps the logo's space empty.
+ */
+export function ServiceMark({ service }: { service: FreeTranslationService | null }) {
+  const uri = useMarkBitmap(service ? `service:${service}` : undefined);
   return <View style={styles.serviceMark}>
     {uri ? <Image accessible={false} source={{ uri }} resizeMode="contain" style={styles.serviceMark} /> : null}
   </View>;

@@ -839,7 +839,15 @@ describe("translation method settings", () => {
     return urls;
   };
 
-  it("starts free and selects the first service this device can reach, without saving it", async () => {
+  /** The service dropdown's closed face, and its menu once opened. */
+  const serviceMenu = () => renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Translation service");
+  const openServiceMenu = async () => { await act(async () => serviceMenu().props.onPress()); };
+  const menuChoice = (name: string) => renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === name);
+  const menuNames = () => renderer!.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "radio" &&
+    n.parent !== null && typeof n.props.onPress === "function").map((n) => n.props.accessibilityLabel as string)
+    .filter((name) => !["Free", "OpenAI compatible", "Agent"].includes(name));
+
+  it("starts free and shows the first service this device can reach as Automatic, without saving it", async () => {
     const urls = stubServices();
     await render({});
     expect(titles()).toEqual([
@@ -847,8 +855,8 @@ describe("translation method settings", () => {
       "Restore default translation settings",
     ]);
     expect(radio("Free").props.accessibilityState.selected).toBe(true);
-    await vi.waitFor(() => expect(radio("Google").props.accessibilityState.selected).toBe(true));
-    expect(radio("Microsoft").props.accessibilityState.selected).toBe(false);
+    await vi.waitFor(() => expect(serviceMenu().props.accessibilityValue).toEqual({ text: "Automatic (Google)" }));
+    expect(serviceMenu().findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBe("google");
     expect(textValues(renderer!.root).join("\n")).toContain("Automatic: Google is the first service this device can reach.");
     // Every service names its network dependence the same way, never by region.
     expect(textValues(renderer!.root).join("\n")).toContain("whether a service is reachable depends on its network");
@@ -857,24 +865,26 @@ describe("translation method settings", () => {
     expect(mocks.saveSpy).not.toHaveBeenCalled();
   });
 
-  it("draws each service's colour mark before its name", async () => {
+  it("lists Automatic and each service with its colour mark in the settings dropdown", async () => {
     stubServices();
     await render({ freeService: "microsoft" });
-    for (const label of ["Microsoft", "Google", "Tencent TranSmart"]) {
-      const marks = radio(label).findAll((node) => node.type === ServiceMarkType);
-      expect(marks).toHaveLength(1);
-    }
-    expect(radio("Google").findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBe("google");
+    expect(serviceMenu().props.accessibilityValue).toEqual({ text: "Microsoft" });
+    // Not the segmented control any more.
+    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Google")).toHaveLength(0);
+    await openServiceMenu();
+    expect(menuNames()).toEqual(["Automatic", "Microsoft", "Google", "Tencent TranSmart"]);
+    expect(menuChoice("Google").findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBe("google");
+    expect(menuChoice("Automatic").findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBeNull();
   });
 
   it("saves a picked service, and can go back to choosing automatically", async () => {
     stubServices();
     await render({ freeService: "tencent" });
-    expect(radio("Tencent TranSmart").props.accessibilityState.selected).toBe(true);
-    await act(async () => radio("Microsoft").props.onPress());
+    await openServiceMenu();
+    await act(async () => menuChoice("Microsoft").props.onPress());
     expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "free", freeService: "microsoft" }), "rev-1");
-    const auto = renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Choose automatically");
-    await act(async () => auto.props.onPress());
+    await openServiceMenu();
+    await act(async () => menuChoice("Automatic").props.onPress());
     expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ freeService: "auto" }), "rev-1");
   });
 

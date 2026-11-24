@@ -26,7 +26,7 @@ const SOURCES = [
 ];
 const target = path.join(root, "server", "mark-bitmaps.ts");
 // The menu draws a mark at 20pt (LOGO in client/settings-file-open.tsx); 60px covers a three-times display.
-// Service marks sit in a settings segment at 16pt, which 60px covers too.
+// Service marks sit in the same settings menu at 20pt.
 const SIZE = 60;
 
 const work = mkdtempSync(path.join(tmpdir(), "editor-marks-"));
