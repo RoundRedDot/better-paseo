@@ -23,7 +23,7 @@ vi.mock("../../client/components/tool-callouts", () => ({
   }),
 }));
 
-import { TurnWorkCard } from "../../client/components/turn-work-card";
+import { TurnWorkCard, callKinds } from "../../client/components/turn-work-card";
 import { buildThemeTokens, radiusV2, withAlpha } from "../../client/components/theme-tokens";
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
@@ -139,6 +139,8 @@ describe("turn work card", () => {
     act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
     expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
     expect(panel.root.findAll((node) => node.children.includes("Check the root first, then fix the path.")).length).toBeGreaterThan(0);
+    // The panel opens with the turn's calls counted by kind.
+    expect(panel.root.findByProps({ testID: "work-kinds" }).props.children).toBe("读取 1 · 编辑 5 · 命令 1");
     act(() => panel.unmount());
     pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
     expect(openId).toBeNull();
@@ -433,5 +435,22 @@ describe("turn work card", () => {
     act(() => { updateEnhancerPreferences({ toolDetail: "expand-failed" }); });
     expect(getEnhancerPreferences().toolDetail).toBe("expand-failed");
     expect(byType("ToolCallout")).toHaveLength(0);
+  });
+});
+
+describe("call kinds", () => {
+  it("counts every call of the turn by kind, a failed call as failed whatever it did", () => {
+    const call = (callId: string, name: string, detail: Record<string, unknown>, status = "completed") =>
+      ({ type: "tool_call", name, callId, status, error: status === "failed" ? "boom" : null, detail }) as unknown as ToolCallTimelineItem;
+    expect(callKinds([
+      call("r1", "Read", { type: "read", filePath: "a.ts" }),
+      call("s1", "Grep", { type: "search", query: "foo" }),
+      call("s2", "Glob", { type: "search", query: "*.ts" }),
+      call("f1", "WebFetch", { type: "fetch", url: "https://example.com" }),
+      call("m1", "mcp__linear__get_issue", { type: "unknown", input: {}, output: null }),
+      call("c1", "Bash", { type: "shell", command: "npm test", exitCode: 1 }, "failed"),
+      call("c2", "Bash", { type: "shell", command: "ls", exitCode: 0 }),
+    ])).toEqual([{ kind: "read", count: 1 }, { kind: "command", count: 1 }, { kind: "search", count: 2 },
+      { kind: "fetch", count: 1 }, { kind: "mcp", count: 1 }, { kind: "failed", count: 1 }]);
   });
 });

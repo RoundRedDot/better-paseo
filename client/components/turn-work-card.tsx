@@ -52,6 +52,8 @@ const STRINGS: Record<SettingsLanguage, {
   worked: string; work: string; read: string; edited: string; ran: string; files: (count: number) => string;
   someFiles: string; view: string; more: (count: number) => string; fewer: string;
   steps: (count: number) => string; calls: (count: number) => string; thinking: string;
+  /** The opened card's count of each kind of call (`callKinds`). */
+  kinds: Record<CallKind, string>;
   /** The status line's verb for a call still running, and for the newest finished one. */
   doing: Record<WorkVerb, string>; done: Record<WorkVerb, string>;
 }> = {
@@ -61,6 +63,8 @@ const STRINGS: Record<SettingsLanguage, {
     view: "View changes", more: (count) => `Show ${count} more ${count === 1 ? "file" : "files"}`, fewer: "Show fewer files",
     steps: (count) => `${count} ${count === 1 ? "step" : "steps"}`, thinking: "Thinking",
     calls: (count) => `${count} ${count === 1 ? "tool call" : "tool calls"}`,
+    kinds: { read: "Read", edit: "Edit", command: "Command", search: "Search", fetch: "Fetch", mcp: "MCP",
+      agent: "Agent", other: "Other", failed: "Failed" },
     doing: { command: "Running command", read: "Reading", edit: "Editing", write: "Writing" },
     done: { command: "Ran command", read: "Read", edit: "Edited", write: "Wrote" },
   },
@@ -70,10 +74,38 @@ const STRINGS: Record<SettingsLanguage, {
     view: "查看变更", more: (count) => `再显示 ${count} 个文件`, fewer: "收起文件",
     steps: (count) => `${count} 步`, thinking: "正在思考",
     calls: (count) => `${count} 次工具调用`,
+    kinds: { read: "读取", edit: "编辑", command: "命令", search: "搜索", fetch: "抓取", mcp: "MCP",
+      agent: "子 agent", other: "其他", failed: "失败" },
     doing: { command: "正在运行命令", read: "正在读取", edit: "正在编辑", write: "正在写入" },
     done: { command: "运行了命令", read: "读取了", edit: "编辑了", write: "写入了" },
   },
 };
+
+/** The kinds the opened card counts a turn's calls by, in display order. */
+export type CallKind = "read" | "edit" | "command" | "search" | "fetch" | "mcp" | "agent" | "other" | "failed";
+const CALL_KINDS: readonly CallKind[] = ["read", "edit", "command", "search", "fetch", "mcp", "agent", "other", "failed"];
+
+/** One call's kind: a failed or canceled call counts as failed, whatever it did. */
+function callKind(item: ToolCallTimelineItem): CallKind {
+  if (item.status !== "completed" && item.status !== "running") return "failed";
+  switch (viewOf(item).tool) {
+    case "read": return "read";
+    case "edit": case "write": return "edit";
+    case "bash": case "shell": case "git": return "command";
+    case "search": case "ast_grep": case "lsp": return "search";
+    case "fetch": return "fetch";
+    case "mcp": return "mcp";
+    case "sub_agent": return "agent";
+    default: return "other";
+  }
+}
+
+/** Every call of the turn counted by kind, kinds with no calls left out. */
+export function callKinds(calls: readonly ToolCallTimelineItem[]): Array<{ kind: CallKind; count: number }> {
+  const counts = new Map<CallKind, number>();
+  for (const item of calls) { const kind = callKind(item); counts.set(kind, (counts.get(kind) ?? 0) + 1); }
+  return CALL_KINDS.filter((kind) => counts.has(kind)).map((kind) => ({ kind, count: counts.get(kind)! }));
+}
 
 /** A folded call as its own row would read it. */
 function viewOf(item: ToolCallTimelineItem): ToolCallView {
@@ -155,11 +187,12 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
     subtitle: [], icon: "List", readsImage: false, dismissOnOutside: true, reserveTimeline: true,
     render: () => <>
       <HoverPreviewHeader tokens={tokens} />
-      <HoverPreviewBody fullBleed stickySteps>{intent ? <WorkIntent agentId={agentId} text={intent} style={[styles.intent, { paddingHorizontal: space.md }]} /> : null}
+      <HoverPreviewBody fullBleed stickySteps><WorkKinds calls={work.calls} text={text} style={[styles.intent, { paddingHorizontal: space.md }]} />
+        {intent ? <WorkIntent agentId={agentId} text={intent} style={[styles.intent, { paddingHorizontal: space.md }]} /> : null}
         <WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>
     </>,
     copies: () => [],
-  }), [agentId, at, compact, intent, label, styles, summary, tokens, work.key, work.steps]);
+  }), [agentId, at, compact, intent, label, styles, summary, text, tokens, work.calls, work.key, work.steps]);
   const phase = useMarkerPhase(agentId, entry.id);
   // A step list open in the details panel stays attached to the card drawn
   // under the next row: it registers before the previous card releases. The
@@ -237,6 +270,12 @@ function activityTarget(step: WorkStep): string | null {
  * selection surface scoped as the turn's reasoning, so the selection bar
  * offers Copy and Translate as it does on a thought row.
  */
+/** The opened card's first line: how many calls of each kind the turn made. */
+function WorkKinds({ calls, text, style }: { calls: readonly ToolCallTimelineItem[]; text: typeof STRINGS.en; style: StyleProp<TextStyle> }) {
+  const line = useMemo(() => callKinds(calls).map(({ kind, count }) => `${text.kinds[kind]} ${count}`).join(" \u00b7 "), [calls, text]);
+  return line ? <Text testID="work-kinds" style={style}>{line}</Text> : null;
+}
+
 function WorkIntent({ agentId, text, style }: { agentId: string; text: string; style: StyleProp<TextStyle> }) {
   return <SelectionTranslationScope agentId={agentId} kind="reasoning" streaming={false}>
     <IntentText text={text} style={style} />
