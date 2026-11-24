@@ -34,6 +34,8 @@ export interface TurnWork {
   /** Prompt to the turn's last item, when both are known and the turn ended. */
   durationMs: number | null;
   steps: readonly WorkStep[];
+  /** Every tool call of the turn, folded into a step or still drawn as its own row. */
+  toolCalls: number;
   files: readonly WorkFile[];
   /**
    * The newest call still running that will fold once it succeeds (a
@@ -153,6 +155,7 @@ export function collectTurnWork(entries: readonly Entry[], span: TurnSpan, key: 
     complete: span.whole,
     durationMs: Number.isFinite(duration) && duration >= 0 ? duration : null,
     steps,
+    toolCalls: calls.size,
     files: [...files].map(([path, callIds]) => ({ path, callIds })),
     current,
     latest: steps.at(-1) ?? null,
@@ -166,7 +169,7 @@ export function collectTurnWork(entries: readonly Entry[], span: TurnSpan, key: 
 export function workSignature(work: TurnWork | null): string {
   if (!work) return "";
   return [work.running, work.complete, work.durationMs, work.since, work.current?.callId ?? "", work.current?.verb ?? "",
-    work.thinking, work.intent?.length ?? -1,
+    work.thinking, work.intent?.length ?? -1, work.toolCalls,
     ...work.steps.map((step) => `${step.callId}:${step.verb}:${step.filePath ?? ""}`)].join("|");
 }
 

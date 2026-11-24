@@ -47,6 +47,8 @@ describe("turn work store", () => {
     expect(work.steps.map((step) => `${step.verb}:${step.callId}`)).toEqual(["read:r1", "edit:e1", "command:c1", "write:w1"]);
     // The failed edit keeps its own row and never enters the card.
     expect(work.files).toEqual([{ path: "a.ts", callIds: ["e1"] }, { path: "b.ts", callIds: ["w1"] }]);
+    // The card counts every tool call of the turn, the failed edit's row included.
+    expect(work.toolCalls).toBe(5);
     expect(work.durationMs).toBe(6000);
     expect(work.complete).toBe(true);
     expect(store.work(liveAnchor, ownsAll)).toBeNull();

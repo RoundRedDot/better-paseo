@@ -51,7 +51,7 @@ import type { WorkVerb } from "../tools/standard-fold";
 const STRINGS: Record<SettingsLanguage, {
   worked: string; work: string; read: string; edited: string; ran: string; files: (count: number) => string;
   someFiles: string; view: string; more: (count: number) => string; fewer: string;
-  steps: (count: number) => string; thinking: string;
+  steps: (count: number) => string; calls: (count: number) => string; thinking: string;
   /** The status line's verb for a call still running, and for the newest finished one. */
   doing: Record<WorkVerb, string>; done: Record<WorkVerb, string>;
 }> = {
@@ -60,6 +60,7 @@ const STRINGS: Record<SettingsLanguage, {
     files: (count) => `Edited ${count} ${count === 1 ? "file" : "files"}`, someFiles: "Edited files",
     view: "View changes", more: (count) => `Show ${count} more ${count === 1 ? "file" : "files"}`, fewer: "Show fewer files",
     steps: (count) => `${count} ${count === 1 ? "step" : "steps"}`, thinking: "Thinking",
+    calls: (count) => `${count} ${count === 1 ? "tool call" : "tool calls"}`,
     doing: { command: "Running command", read: "Reading", edit: "Editing", write: "Writing" },
     done: { command: "Ran command", read: "Read", edit: "Edited", write: "Wrote" },
   },
@@ -68,6 +69,7 @@ const STRINGS: Record<SettingsLanguage, {
     files: (count) => `已编辑 ${count} 个文件`, someFiles: "已编辑的文件",
     view: "查看变更", more: (count) => `再显示 ${count} 个文件`, fewer: "收起文件",
     steps: (count) => `${count} 步`, thinking: "正在思考",
+    calls: (count) => `${count} 次工具调用`,
     doing: { command: "正在运行命令", read: "正在读取", edit: "正在编辑", write: "正在写入" },
     done: { command: "运行了命令", read: "读取了", edit: "编辑了", write: "写入了" },
   },
@@ -138,8 +140,10 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   const text = STRINGS[resolveLanguage(language)] ?? STRINGS.en;
   const registration = useRef<{ id: string; handle: BlockRegistration } | null>(null);
   const lang = resolveLanguage(language);
+  // A settled turn says how long it took, how many steps folded into the card and how many tools it called.
+  const counts = `${text.steps(work.steps.length)} \u00b7 ${text.calls(work.toolCalls)}`;
   const label = !work.running && work.complete && work.durationMs !== null
-    ? text.worked.replace("{d}", formatDuration(work.durationMs, lang))
+    ? `${text.worked.replace("{d}", formatDuration(work.durationMs, lang))} \u00b7 ${counts}`
     : work.running && work.steps.length ? `${text.work} \u00b7 ${text.steps(work.steps.length)}` : text.work;
   const styles = useCardStyles(tokens);
   const summary = workVerbs(work.steps).map((verb) => text[verb]).join(" · ");
