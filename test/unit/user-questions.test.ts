@@ -137,8 +137,8 @@ describe("AskUserQuestion transcript data", () => {
 describe("AskUserQuestion presentation", () => {
   it.each<[TextZoom, number, number]>([
     [0, tokens.typography.block.label.size, tokens.typography.block.meta.size],
-    [20, 20, 18],
-    [12, 12, 10],
+    [20, 20, Math.round(tokens.typography.block.meta.size * 20 / tokens.typography.block.label.size)],
+    [12, 12, Math.round(tokens.typography.block.meta.size * 12 / tokens.typography.block.label.size)],
     [{ scale: 1.5 }, Math.round(tokens.typography.block.label.size * 1.5), Math.round(tokens.typography.block.meta.size * 1.5)],
   ])("sets the question's text to the details text size %j", (zoom, prose, meta) => {
     const data = call();

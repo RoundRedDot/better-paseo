@@ -10,7 +10,7 @@
 import { createContext, useContext } from "react";
 import { StyleSheet, type StyleProp, type TextStyle } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
-import type { Typography } from "./tokens/typography";
+import type { BlockMetrics, Typography } from "./tokens/typography";
 import { clampDetailsFontSize } from "../../shared/preferences-settings";
 
 /**
@@ -88,4 +88,27 @@ export function zoomTextStyle(style: StyleProp<TextStyle>, zoom: TextZoom): Styl
   const next = Math.round(typeof zoom === "number" ? zoom : size * zoom.scale);
   const lineHeight = typeof flat?.lineHeight === "number" ? Math.round(typeof zoom === "number" ? next * 1.5 : flat.lineHeight * zoom.scale) : undefined;
   return [style, lineHeight === undefined ? { fontSize: next } : { fontSize: next, lineHeight }];
+}
+
+/**
+ * Block sizes (a question, a checklist) under the details' zoom. Native zoom
+ * is the absolute body size: the label takes it and every other step keeps
+ * its share of the label. The web's scale moves each step by itself.
+ */
+export function zoomBlockMetrics(block: BlockMetrics, zoom: TextZoom): BlockMetrics {
+  if (zoom === 0) return block;
+  const ratio = typeof zoom === "number" ? Math.round(zoom) / block.label.size : zoom.scale;
+  const step = (from: { size: number; lineHeight: number }) => ({ size: Math.round(from.size * ratio), lineHeight: Math.round(from.lineHeight * ratio) });
+  const label = step(block.label);
+  const grow = label.lineHeight - block.label.lineHeight;
+  return {
+    size: label.size,
+    delta: typeof zoom === "number" ? 0 : block.delta,
+    label,
+    target: step(block.target),
+    meta: step(block.meta),
+    caption: step(block.caption),
+    button: step(block.button),
+    rowHeight: { desktop: block.rowHeight.desktop + grow, compact: block.rowHeight.compact + grow },
+  };
 }

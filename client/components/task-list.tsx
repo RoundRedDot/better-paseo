@@ -17,6 +17,7 @@ import { ProgressRing } from "../ui/progress-ring";
 import { FadeIn } from "../ui/fade-in";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-header";
 import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, useHoverPreview, usePreviewWraps } from "../ui/hover-preview";
+import { TextZoomContext, zoomBlockMetrics } from "../ui/text-zoom";
 import { ToolbarCopyButton, ToolbarButton, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
 import { bindPreviewPointer } from "../web";
 import { BlockPlacementContext } from "../details/contracts";
@@ -122,8 +123,10 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
   const completedCount = tasks.filter((t) => t.status === "completed").length;
   const totalCount = tasks.length;
   const allDone = totalCount > 0 && completedCount === totalCount;
-  const rowHeight = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
-  const block = tokens.typography.block;
+  // In the details panel the list follows its text size (pinch, toolbar, badge).
+  const zoom = useContext(TextZoomContext);
+  const block = useMemo(() => zoomBlockMetrics(tokens.typography.block, zoom), [tokens.typography.block, zoom]);
+  const rowHeight = compact ? block.rowHeight.compact : block.rowHeight.desktop;
 
   const styles = useMemo(
     () =>
@@ -261,7 +264,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
           color: tokens.foregroundMuted,
         },
       }),
-    [tokens, rowHeight],
+    [tokens, block, rowHeight],
   );
 
   const toggleStatus = (task: TaskItemData) => {

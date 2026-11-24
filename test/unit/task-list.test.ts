@@ -46,6 +46,7 @@ const { TaskActivityRow } = await import("../../client/components/task-activity-
 const { DisclosureHeader } = await import("../../client/ui/disclosure-header");
 const { HoverPreview, HoverPreviewContext, useHoverPreview } = await import("../../client/ui/hover-preview");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
+const { TextZoomContext } = await import("../../client/ui/text-zoom");
 const { resetEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -111,6 +112,18 @@ afterEach(() => {
   renderer = undefined;
   vi.useRealTimers();
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+});
+
+describe("in the details panel", () => {
+  it.each([
+    [0, tokens.typography.block.label.size],
+    [20, 20],
+    [{ scale: 1.5 }, Math.round(tokens.typography.block.label.size * 1.5)],
+  ])("sets the titles to the details text size %j", (zoom, size) => {
+    const root = mount(React.createElement(TextZoomContext.Provider, { value: zoom },
+      React.createElement(TaskList, { data, tokens, full: true }))).root;
+    expect(titles(root).map((node) => flat(node.props.style).fontSize)).toEqual([size, size, size]);
+  });
 });
 
 describe("a tapped task title", () => {

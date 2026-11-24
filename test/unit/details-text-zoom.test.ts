@@ -31,7 +31,7 @@ const TestRenderer = (await import("react-test-renderer")).default;
 const { act } = await import("react-test-renderer");
 const { buildThemeTokens, useThemeTokens } = await import("../../client/components/theme-tokens");
 const { DEFAULT_PREFERENCES, parsePreferences } = await import("../../client/preferences");
-const { TextZoomContext, isZoomed, pinchZoom, zoomTextStyle, zoomTokens } = await import("../../client/ui/text-zoom");
+const { TextZoomContext, isZoomed, pinchZoom, zoomBlockMetrics, zoomTextStyle, zoomTokens } = await import("../../client/ui/text-zoom");
 const { PreviewLines } = await import("../../client/ui/preview-lines");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 
@@ -108,6 +108,25 @@ describe("zoomTokens", () => {
     expect(fixed.typography.content).toEqual({ size: 14, lineHeight: 21 });
     expect(fixed.typography.mono.size).toBe(14);
     expect(fixed.typography.block.delta).toBe(0);
+  });
+});
+
+describe("zoomBlockMetrics", () => {
+  const block = tokens.typography.block;
+  it("leaves the block sizes alone outside the details", () => {
+    expect(zoomBlockMetrics(block, 0)).toBe(block);
+  });
+  it("sets the label to the absolute size and keeps the other steps' share", () => {
+    const up = zoomBlockMetrics(block, 20);
+    expect(up.label.size).toBe(20);
+    expect(up.meta.size).toBe(Math.round(block.meta.size * 20 / block.label.size));
+    expect(up.delta).toBe(0);
+    expect(up.rowHeight.desktop - up.label.lineHeight).toBe(block.rowHeight.desktop - block.label.lineHeight);
+  });
+  it("scales every step on the web", () => {
+    const up = zoomBlockMetrics(block, { scale: 1.5 });
+    expect(up.label.size).toBe(Math.round(block.label.size * 1.5));
+    expect(up.caption.lineHeight).toBe(Math.round(block.caption.lineHeight * 1.5));
   });
 });
 
