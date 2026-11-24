@@ -157,6 +157,44 @@ describe("timeline translation settings", () => {
     expect(timelineTranslationSettingsSchema.parse({ enabled: true }).enabled).toBe(true);
   });
 
+  it("collapses translation controls while disabled and restores saved settings when enabled", async () => {
+    const saved = { endpoint: "https://api.example.test/v1", endpointModel: "saved-model", targetLanguage: "ja", prompt: "Keep formatting." };
+    const page = <TimelineTranslationSettingsSection look={makeLook()} />;
+    const show = async (enabled: boolean) => {
+      mocks.settingsState = makeReadySettings({ ...saved, enabled });
+      await act(async () => {
+        if (renderer) renderer.update(React.cloneElement(page));
+        else renderer = TestRenderer.create(page);
+      });
+    };
+    const field = (label: string) => renderer!.root.findAll((node) =>
+      (node.type as unknown) === "TextInput" && node.props.accessibilityLabel === label);
+    await show(false);
+    expect(field("API Base URL")).toHaveLength(0);
+    expect(field("API key")).toHaveLength(0);
+    expect(field("Model")).toHaveLength(0);
+    expect(renderer!.root.findAllByType(SectionFooter)).toHaveLength(0);
+    expect(textValues(renderer!.root)).not.toContain("Restore default translation settings");
+    const master = renderer!.root.find((node) => node.props.accessibilityRole === "switch" && node.props.accessibilityLabel === "Enable translation");
+    await act(async () => master.props.onPress());
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ ...saved, enabled: true }), "rev-1");
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === "translation.api-key")).toEqual([]);
+    await show(true);
+    expect(field("API Base URL")[0]!.props.value).toBe(saved.endpoint);
+    expect(field("Model")[0]!.props.value).toBe(saved.endpointModel);
+    expect(renderer!.root.findAllByType(SectionFooter)).toHaveLength(1);
+    await show(false);
+    expect(field("API Base URL")).toHaveLength(0);
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === "translation.api-key")).toEqual([]);
+  });
+
+  it("keeps a save error visible when translation is disabled", async () => {
+    mocks.settingsState = { ...makeReadySettings({ enabled: false }), saveError: "Write rejected" };
+    await act(async () => { renderer = TestRenderer.create(<TimelineTranslationSettingsSection look={makeLook()} />); });
+    expect(textValues(renderer!.root)).toContain("Write rejected");
+    expect(renderer!.root.findAllByType(SectionFooter)).toHaveLength(0);
+  });
+
   it("toggles master switch, searches 119 languages, and saves selected target language", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, targetLanguage: "interface" });
 

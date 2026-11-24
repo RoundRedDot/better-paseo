@@ -137,7 +137,7 @@ describe("translation settings placement", () => {
       } as never));
     });
     const button = (label: string) => renderer!.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === label);
-    expect(button("Reset · Restore default translation settings").props.disabled).toBe(true);
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Reset · Restore default translation settings")).toHaveLength(0);
     await act(async () => button("Reset · Reset all settings").props.onPress());
     expect(getEnhancerPreferences().hoverPreview).toBe(hoverPreview);
     await act(async () => button("Confirm · Reset all settings").props.onPress());

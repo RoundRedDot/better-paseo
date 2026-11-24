@@ -342,6 +342,10 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
     </View>
   ) : null;
 
+  const saveError = state.saveError ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
+    <RowNotice look={look} text={state.saveError} tone="danger" alert />
+  </View> : null;
+
   return <>
     <Section title={t.sectionTitle} look={look} busy={state.saving}>
       {state.status === "error" || state.status === "invalid" ? (
@@ -366,6 +370,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
         look={look}
       />
 
+      {settings.enabled ? <>
       <SettingRow
         stacked title={t.endpointTitle} description={t.endpointDescription}
         control={<TextInput accessibilityLabel={t.endpointTitle} value={apiEndpoint}
@@ -435,14 +440,12 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
       <ResetRow look={look} title={t.resetSection} description={t.resetHint} confirmDescription={t.resetConfirmHint}
         disabled={writeDisabled} onReset={() => savePatch(DEFAULT_TIMELINE_TRANSLATION_SETTINGS)}
       />
-      {state.saveError ? <View style={{ paddingHorizontal: space.lg, paddingBottom: space.sm }}>
-        <RowNotice look={look} text={state.saveError} tone="danger" alert />
-      </View> : null}
-
+      {saveError}
       <SectionFooter look={look}><SettingsTips items={t.tips} look={look} /></SectionFooter>
+      </> : saveError}
     </Section>
 
-    {promptOpen ? <PromptEditorModal look={look} title={t.promptModalTitle} label={t.promptTitle}
+    {settings.enabled && promptOpen ? <PromptEditorModal look={look} title={t.promptModalTitle} label={t.promptTitle}
       value={settings.prompt} defaultValue={DEFAULT_TRANSLATION_PROMPT} maxLength={TRANSLATION_PROMPT_MAX_LENGTH}
       reset={t.resetPrompt} cancel={t.cancel} save={t.save} placeholder={t.promptPlaceholder} trim
       onClose={() => setPromptOpen(false)} onSave={(prompt) => void savePatch({ prompt })}
