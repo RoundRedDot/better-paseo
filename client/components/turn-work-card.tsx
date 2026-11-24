@@ -143,7 +143,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
     subtitle: [], icon: "List", readsImage: false, dismissOnOutside: true, reserveTimeline: true,
     render: () => <>
       <HoverPreviewHeader tokens={tokens} />
-      <HoverPreviewBody>{intent ? <Text style={styles.intent}>{intent}</Text> : null}
+      <HoverPreviewBody fullBleed>{intent ? <Text style={[styles.intent, { paddingHorizontal: space.md }]}>{intent}</Text> : null}
         <WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>
     </>,
     copies: () => [],
@@ -216,7 +216,7 @@ function WorkSteps({ agentId, at, steps, tokens, compact }: {
       <BlockPlacementContext.Provider value={placement}>
         <View testID="work-step-list">
           {steps.map((step, index) => <View key={step.callId} testID="work-step-cell"
-            style={{ paddingVertical: space.xs,
+            style={{ paddingVertical: space.xs, paddingHorizontal: space.md,
               backgroundColor: index % 2 === 1 ? withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04) : undefined }}>
             <WorkStepRow agentId={agentId} step={step} tokens={tokens} compact={compact} />
           </View>)}

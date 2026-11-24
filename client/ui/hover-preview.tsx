@@ -815,10 +815,11 @@ function detailsWrap(actions: PreviewActions | null, kind: DetailsShellValue["en
  * within 8; while let go, "Back to latest" counts the lines that came since.
  * The hover panel keeps its one slack unless `follow` sets a band.
  */
-export function HoverPreviewBody({ children, streaming = false, follow }: {
+export function HoverPreviewBody({ children, streaming = false, follow, fullBleed = false }: {
   children: ReactNode;
   streaming?: boolean;
   follow?: PreviewFollowBand;
+  fullBleed?: boolean;
 }) {
   const actions = useContext(PreviewActionsContext);
   const details = useContext(PreviewChromeContext) === "details";
@@ -897,7 +898,7 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
     return (
       <View testID="details-body" ref={pinch.body} collapsable={false} {...pan} {...pinch.handlers} style={styles.detailsBody}>
         {Platform.OS !== "web" ? (
-          <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={styles.pressBodyContent}
+          <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={[styles.pressBodyContent, fullBleed && styles.fullBleed]}
             scrollEnabled={!scroller.held && !(pulls && bodyTop)} scrollEventThrottle={16} {...detailsScroll}
             bounces={!(pulls && bodyTop)} disableScrollViewPanResponder={pulls && bodyTop}>
             <PreviewScrollerContext.Provider value={scroller.value}>
@@ -910,7 +911,7 @@ export function HoverPreviewBody({ children, streaming = false, follow }: {
             </PreviewScrollerContext.Provider>
           </ScrollView>
         ) : (
-          <View ref={webBody} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll, shell?.form === "side" && styles.sideScroll]}>
+          <View ref={webBody} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll, shell?.form === "side" && styles.sideScroll, fullBleed && styles.fullBleed]}>
             {content}
           </View>
         )}
@@ -1250,6 +1251,7 @@ const styles = StyleSheet.create({
   sideScroll: { marginTop: 0 },
   pressBodyFill: { flexGrow: 1, minHeight: 0 },
   pressBodyContent: { padding: space.md, gap: space.sm },
+  fullBleed: { paddingHorizontal: 0 },
   unwrappedScroll: { flexGrow: 1 },
   unwrapped: { flexGrow: 1, gap: space.sm },
   // On a phone a text is one layer, and a layer wider than the GPU's largest

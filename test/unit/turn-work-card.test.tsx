@@ -26,9 +26,9 @@ import { updateEnhancerPreferences, getEnhancerPreferences } from "../../client/
 import { detailsApi, useDetails } from "../../client/details/details-store";
 import { getBlock } from "../../client/details/block-registry";
 import { timelineEntry as entry } from "./helpers/turn-timeline";
-import { Dimensions } from "react-native";
+import { Dimensions, StyleSheet } from "react-native";
 import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
-import { PreviewChromeContext } from "../../client/ui/hover-preview";
+import { PreviewActionsContext, PreviewChromeContext } from "../../client/ui/hover-preview";
 import { resetDisclosureStore } from "../../client/state/disclosure-store";
 import { SelectionTranslationContext } from "../../client/translation/selection";
 
@@ -176,6 +176,7 @@ describe("turn work card", () => {
     })).toBe(true);
     expect(list[0]!.props.style?.gap ?? 0).toBe(0);
     expect(cells.map((cell) => cell.props.style?.paddingVertical)).toEqual(Array(7).fill(4));
+    expect(cells.map((cell) => cell.props.style?.paddingHorizontal)).toEqual(Array(7).fill(12));
     expect(cells.map((cell) => cell.props.style?.backgroundColor)).toEqual([
       undefined, withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
       withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
@@ -187,6 +188,29 @@ describe("turn work card", () => {
     expect(openId).toBeNull();
     act(() => panel.unmount());
   });
+
+  it.each([["web", true], ["web", false], ["ios", true], ["ios", false]] as const)(
+    "fills the %s details body while keeping cell and intent insets (wrap %s)", (platform, wrap) => {
+      (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+      pressText("用时 9秒");
+      const block = getBlock("agent", openId!)!;
+      let panel!: TestRenderer.ReactTestRenderer;
+      const actions = { maximizable: false, maximized: false, maximize() {}, close() {}, fill: true,
+        wrap: { on: wrap, toggle() {}, tokens } };
+      act(() => { panel = TestRenderer.create(<PreviewChromeContext.Provider value="details">
+        <PreviewActionsContext.Provider value={actions}>{block.render()}</PreviewActionsContext.Provider>
+      </PreviewChromeContext.Provider>); });
+      const body = panel.root.findAll((node) => typeof node.type === "string" && node.props.testID === "hover-preview-body")[0]!;
+      const bodyStyle = StyleSheet.flatten(platform === "web" ? body.props.style : body.props.contentContainerStyle);
+      expect(bodyStyle.paddingHorizontal).toBe(0);
+      const cells = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-cell");
+      expect(cells).toHaveLength(7);
+      expect(cells.every((cell) => cell.props.style.paddingHorizontal === 12)).toBe(true);
+      const intent = panel.root.findAll((node) => (node.type as unknown) === "Text" && node.children.includes("Check the root first, then fix the path."))[0]!;
+      expect(StyleSheet.flatten(intent.props.style).paddingHorizontal).toBe(12);
+      act(() => panel.unmount());
+      delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+    });
 
   it("marks the title row while details are selected", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
