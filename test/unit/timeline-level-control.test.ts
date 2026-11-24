@@ -185,8 +185,25 @@ describe("timeline level pill", () => {
     expect(rows.map((row) => row.description)).toEqual(["Conversation and results", "Summarize changes, show failures", "Every step"]);
   });
 
-  it("hides while Better Paseo chat is off", () => {
-    expect(timelineLevelButton({ ...DEFAULT_PREFERENCES, chatEnabled: false }, () => {}).visible).toBe(false);
+  it.each([false, true])("keeps the switch accessible and synchronized (compact=%s)", (compact) => {
+    const client = fakeClient();
+    const control = createTimelineLevelControl(client);
+    control.request("a", "w");
+    const button = client.pills[0]!.button;
+    if (button.behavior.kind !== "popover") throw new Error("expected a popover");
+    const Content = button.behavior.Content;
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(Content, { theme: { colors: { foreground: "black", foregroundMuted: "gray", border: "gray", surface2: "gray", surface0: "white", accent: "green", accentForeground: "white" } }, layout: { compact }, host: { id: "h", label: "h" }, context: "agent", agentId: "a", workspaceId: "w", close() {} } as never)); });
+    const toggle = () => renderer.root.findByProps({ accessibilityRole: "switch" });
+    expect(toggle().props.accessibilityState.checked).toBe(true);
+    act(() => toggle().props.onPress());
+    expect(getEnhancerPreferences().chatEnabled).toBe(false);
+    expect(client.pills[0]!.button.visible).toBe(true);
+    expect(toggle().props.accessibilityState.checked).toBe(false);
+    act(() => updateEnhancerPreferences({ chatEnabled: true }));
+    expect(toggle().props.accessibilityState.checked).toBe(true);
+    act(() => renderer.unmount());
+    control.remove();
   });
 
   it("registers one pill per agent, however many rows ask", () => {
@@ -254,8 +271,8 @@ describe("timeline level pill", () => {
     updateEnhancerPreferences({ hoverPreview: false });
     expect(client.pills[0]!.updates).toBe(0);
     updateEnhancerPreferences({ chatEnabled: false });
-    expect(client.pills[0]!.updates).toBe(1);
-    expect(client.pills[0]!.button.visible).toBe(false);
+    expect(client.pills[0]!.updates).toBe(0);
+    expect(client.pills[0]!.button.visible).toBe(true);
     control.remove();
   });
 
