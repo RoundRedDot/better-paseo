@@ -172,7 +172,7 @@ describe("direct translation against a synthetic loopback gateway", () => {
   it("sends the saved key to its own origin only, while status returns only a mask", async () => {
     const app = plugin({ endpoint: `${primary.base}/v1` });
     const saved = await app.saveKey(KEY);
-    expect(saved.key).toEqual({ status: "saved", origin: primary.base, matches: true, masked: `sk-g${"*".repeat(KEY.length - 8)}0123` });
+    expect(saved.key).toEqual({ status: "saved", origin: primary.base, matches: true, masked: "sk-g********0123" });
     noLeak(saved);
     noLeak(await app.status());
     expect(await app.revealKey()).toEqual({ origin: primary.base, apiKey: KEY });
@@ -185,7 +185,7 @@ describe("direct translation against a synthetic loopback gateway", () => {
     // The endpoint moves to another port: another origin. Nothing reaches it.
     app.setSettings({ endpoint: `${other.base}/v1` });
     const status = await app.status();
-    expect(status.key).toEqual({ status: "saved", origin: primary.base, matches: false, masked: `sk-g${"*".repeat(KEY.length - 8)}0123` });
+    expect(status.key).toEqual({ status: "saved", origin: primary.base, matches: false, masked: "sk-g********0123" });
     noLeak(status);
     const refused = await app.translate(SOURCE);
     expect(refused).toMatchObject({ state: "error" });

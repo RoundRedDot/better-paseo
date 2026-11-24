@@ -354,12 +354,12 @@ describe("translation API key storage", () => {
       key: { status: "none" },
     });
     const saved = await handlers.apiKey({ action: "save", endpoint: "https://api.example.test/v1", apiKey: `  ${KEY}\n` });
-    expect(saved.key).toEqual({ status: "saved", origin: "https://api.example.test", matches: true, masked: `sk-t${"*".repeat(KEY.length - 8)}6789` });
+    expect(saved.key).toEqual({ status: "saved", origin: "https://api.example.test", matches: true, masked: "sk-t********6789" });
     expect(await handlers.revealKey()).toEqual({ origin: "https://api.example.test", apiKey: KEY });
     expectNoLeak(saved, KEY);
     expect(await env.credentials.read()).toEqual({ origin: "https://api.example.test", apiKey: KEY });
     const moved = await handlers.status({ endpoint: "https://elsewhere.test/v1" });
-    expect(moved.key).toEqual({ status: "saved", origin: "https://api.example.test", matches: false, masked: `sk-t${"*".repeat(KEY.length - 8)}6789` });
+    expect(moved.key).toEqual({ status: "saved", origin: "https://api.example.test", matches: false, masked: "sk-t********6789" });
     expectNoLeak(moved, KEY);
     expect(translationEndpointStatusRpc.output.parse(moved)).toEqual(moved);
 
@@ -384,7 +384,7 @@ describe("translation API key storage", () => {
     const env = createTranslationEnv();
     await env.credentials.save({ origin: "https://api.example.test", apiKey: key });
     const status = await createTranslationEndpointHandlers(env.credentials, env.handle).status({ endpoint: "https://api.example.test/v1" });
-    expect(status.key).toMatchObject({ masked: key.length <= 8 ? "*".repeat(key.length) : "1234*6789" });
+    expect(status.key).toMatchObject({ masked: key.length <= 8 ? "*".repeat(key.length) : "1234********6789" });
   });
 
   it("binds a key only to the endpoint saved in settings, never an unsaved or outdated one", async () => {

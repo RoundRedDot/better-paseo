@@ -65,7 +65,7 @@ const ENDPOINT_PROBLEMS: Record<TranslationEndpointProblem, string> = {
 
 function maskApiKey(key: string): string {
   if (key.length <= 8) return "*".repeat(key.length);
-  return `${key.slice(0, 4)}${"*".repeat(key.length - 8)}${key.slice(-4)}`;
+  return `${key.slice(0, 4)}********${key.slice(-4)}`;
 }
 
 /** The status of `endpoint` and the masked saved key. */
