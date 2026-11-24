@@ -326,6 +326,8 @@ const WorkStepRow = memo(function WorkStepRow({ agentId, step, number, total, to
   agentId: string; step: WorkStep; number: number; total: number; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
   const view = useMemo(() => viewOf(step.item), [step.item]);
+  // Outlives the body's remount: iOS mounts it again at each text size step.
+  const [expanded, setExpanded] = useDisclosure(`${agentId}:work:${step.callId}:step`, false);
   const width = lineNumberWidth(total, tokens.typography.mono.size);
   const leading = { width, content: <Text testID="work-step-number" selectable={false} style={{
     color: tokens.syntax.comment, fontFamily: tokens.fontMono, fontSize: tokens.typography.mono.size - 2,
@@ -333,7 +335,8 @@ const WorkStepRow = memo(function WorkStepRow({ agentId, step, number, total, to
     textAlign: "right", paddingRight: space.sm, fontVariant: ["tabular-nums"],
   }}>{number}</Text> };
   return <SelectionTranslationScope agentId={agentId} kind="tool_output" streaming={false}>
-    <ToolCallout data={view} previewKey={`${agentId}:work:${step.callId}:preview`} tokens={tokens} compact={compact} leading={leading} />
+    <ToolCallout data={view} previewKey={`${agentId}:work:${step.callId}:preview`} tokens={tokens} compact={compact} leading={leading}
+      expanded={expanded} onExpandedChange={setExpanded} />
   </SelectionTranslationScope>;
 });
 

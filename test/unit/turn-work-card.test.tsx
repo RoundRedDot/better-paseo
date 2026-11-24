@@ -217,6 +217,22 @@ describe("turn work card", () => {
     act(() => panel.unmount());
   });
 
+  it("keeps an opened step open when the details body mounts again (iOS text size step)", () => {
+    pressText("工作过程 · 7 步 · 7 次工具调用");
+    const block = getBlock("agent", openId!)!;
+    const draw = () => <PreviewChromeContext.Provider value="details">{block.render()}</PreviewChromeContext.Provider>;
+    let panel!: TestRenderer.ReactTestRenderer;
+    act(() => { panel = TestRenderer.create(draw()); });
+    const rows = () => panel.root.findAll((node) => (node.type as unknown) === "ToolCallout");
+    expect(rows().map((row) => row.props.expanded)).toEqual(Array(7).fill(false));
+    act(() => rows()[3]!.props.onExpandedChange(true));
+    expect(rows().map((row) => row.props.expanded)).toEqual([false, false, false, true, false, false, false]);
+    act(() => panel.unmount());
+    act(() => { panel = TestRenderer.create(draw()); });
+    expect(rows().map((row) => row.props.expanded)).toEqual([false, false, false, true, false, false, false]);
+    act(() => panel.unmount());
+  });
+
   it.each([["web", true], ["web", false], ["ios", true], ["ios", false]] as const)(
     "fills the %s details body while keeping cell and intent insets (wrap %s)", (platform, wrap) => {
       (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
