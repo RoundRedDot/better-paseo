@@ -124,7 +124,7 @@ describe("turn work card", () => {
     expect(openId).toBe("agent:work:r:10000:done:steps");
     expect(texts()).not.toContain("读取了文件 · 编辑了文件 · 运行了命令");
     const block = getBlock("agent", openId!)!;
-    expect(block.title).toBe("读取了文件 · 编辑了文件 · 运行了命令");
+    expect(block.title).toBe("用时 9秒 · 读取了文件 · 编辑了文件 · 运行了命令");
     let panel!: TestRenderer.ReactTestRenderer;
     act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
     expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
@@ -177,7 +177,7 @@ describe("turn work card", () => {
       <PreviewChromeContext.Provider value="details">{block.render()}</PreviewChromeContext.Provider>
     </DetailsShellContext.Provider>); });
     const title = panel.root.findByProps({ testID: "details-header-title" });
-    expect(title.props.accessibilityLabel).toBe("读取了文件 · 编辑了文件 · 运行了命令");
+    expect(title.props.accessibilityLabel).toBe("用时 9秒 · 读取了文件 · 编辑了文件 · 运行了命令");
     expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
     const cells = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-cell");
     const list = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-list");
@@ -339,7 +339,7 @@ describe("turn work card", () => {
     expect(texts()).toContain("\u5de5\u4f5c\u8fc7\u7a0b \u00b7 1 \u6b65");
     expect(lines()).toEqual(["\u6b63\u5728\u8fd0\u884c\u547d\u4ee4 npm test"]);
     pressText("工作过程 · 1 步");
-    expect(getBlock("agent", "agent:work:live:steps")?.title).toBe("编辑了文件");
+    expect(getBlock("agent", "agent:work:live:steps")?.title).toBe("工作过程 · 1 步 · 编辑了文件");
     expect(lines()).toEqual(["正在运行命令 npm test"]);
     // The command ends: the same line names the newest finished step, it does not leave.
     draw({ ...running, current: null, latest: running.steps[0]! });

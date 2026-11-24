@@ -155,7 +155,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   const intent = useMemo(() => firstLine(work.intent), [work.intent]);
   const entry = useMemo<BlockEntry>(() => ({
     id: `${agentId}:work:${work.key}:steps`, agentId, at, kind: "tool", seq: 0,
-    mounted: true, navigable: false, hasBody: true, title: summary, titleMono: false,
+    mounted: true, navigable: false, hasBody: true, title: `${label} · ${summary}`, titleMono: false,
     subtitle: [], icon: "List", readsImage: false, dismissOnOutside: true, reserveTimeline: true,
     render: () => <>
       <HoverPreviewHeader tokens={tokens} />
@@ -163,7 +163,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
         <WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>
     </>,
     copies: () => [],
-  }), [agentId, at, compact, intent, styles, summary, tokens, work.key, work.steps]);
+  }), [agentId, at, compact, intent, label, styles, summary, tokens, work.key, work.steps]);
   const phase = useMarkerPhase(agentId, entry.id);
   // A step list open in the details panel stays attached to the card drawn
   // under the next row: it registers before the previous card releases. The
