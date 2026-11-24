@@ -91,6 +91,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
   const running = view.status === "running" || view.status === "settings-loading";
   return (
     <View testID="selection-translation-panel" style={[styles.panel, (resized || sheet) && { flex: 1, minHeight: 0 }]}>
+      {sheet ? <View testID="translation-sheet-header-cover" pointerEvents="none" style={[styles.headerCover, { backgroundColor: tokens.surface0 }]} /> : null}
       <View testID="translation-header" style={styles.header}>
         <View style={{ flex: 1 }} />
         <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
@@ -109,7 +110,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
           </TooltipAlignContext.Provider>
         </ToolbarMetricsContext.Provider>
       </View>
-      {!sheet ? <View testID="translation-header-divider" style={[styles.divider, { backgroundColor: tokens.v2.border }]} /> : null}
+      <View testID="translation-header-divider" style={[styles.divider, { backgroundColor: tokens.v2.border }]} />
       {message ? (
         <View style={styles.messageRow}>
           {running ? <SyncedLoader color={tokens.foreground} gridTestID="translation-loading" /> : null}
@@ -172,6 +173,8 @@ function ModelMark({ id }: { id: string }) {
 
 const styles = StyleSheet.create({
   panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+  // The host modal always draws a header border; cover it only in this sheet.
+  headerCover: { position: "absolute", top: -1, left: 0, right: 0, height: 1, zIndex: 2 },
   header: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 },
   headerInfo: { height: 24, flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
   divider: { height: 0.5, marginHorizontal: -12 },

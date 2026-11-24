@@ -1046,7 +1046,11 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(footer.findAll((node) => node.props.testID === "translation-language").length).toBeGreaterThan(0);
     expect(footer.findAll((node) => node.props.testID === "translation-model").length).toBeGreaterThan(0);
     expect(header.findAll((node) => node.props.testID === "translation-language")).toHaveLength(0);
-    expect(renderer!.root.findAll((node) => node.props.testID === "translation-header-divider")).toHaveLength(0);
+    const divider = renderer!.root.findByProps({ testID: "translation-header-divider" });
+    expect(divider.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ height: 0.5 })]));
+    const cover = renderer!.root.findByProps({ testID: "translation-sheet-header-cover" });
+    expect(cover.props.pointerEvents).toBe("none");
+    expect(cover.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ position: "absolute", top: -1, height: 1 })]));
     expect(collectTexts(header).join(" ")).not.toContain("Translation ·");
     expect(collectTexts(header).join(" ")).not.toContain("Claude ·");
     expect(panelText()).not.toContain("Thinking was NOT disabled");
@@ -1056,6 +1060,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     const scroll = body.findByProps({ testID: "selection-translation-body" });
     expect(scroll.findByType(MarkdownView)).toBeTruthy();
     expect(scroll.findAll((node) => node.props.testID === "translation-header")).toHaveLength(0);
+    expect(scroll.findAll((node) => node.props.testID === "translation-header-divider")).toHaveLength(0);
     expect(body.findAll((node) => node.props.testID === "markdown-block-selection")).toHaveLength(0);
     const translatedMarkdown = body.findByType(MarkdownView);
     const markdownRoot = translatedMarkdown.find((node) => String(node.type) === "View");
