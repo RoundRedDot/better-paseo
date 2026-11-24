@@ -285,7 +285,7 @@ describe("timeline translation settings", () => {
       mocks.settingsState = makeReadySettings({ enabled: true });
       await act(async () => {
         renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() }), {
-          createNodeMock: () => ({ getBoundingClientRect: measure, contains: (node: unknown) => node === menuChild }),
+          createNodeMock: () => ({ style: {}, getBoundingClientRect: measure, contains: (node: unknown) => node === menuChild }),
         });
       });
       const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Target language");
@@ -420,6 +420,27 @@ describe("timeline translation settings", () => {
     await act(async () => resolve({ origin: "https://api.example.test", apiKey: "sk-test-1234" }));
     expect(JSON.stringify(renderer!.toJSON())).not.toContain("sk-test-1234");
     expect(input("API key").props.placeholder).toBe("Paste a new key");
+  });
+
+  it("applies and updates the web font directly on all three inputs", async () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    mocks.settingsState = makeReadySettings({ enabled: true, endpoint: OK_ENDPOINT, endpointModel: "m" });
+    const nodes = new Map<string, { style: { fontFamily: string } }>();
+    const look = makeLook();
+    await act(async () => {
+      renderer = TestRenderer.create(<TimelineTranslationSettingsSection look={look} />, {
+        createNodeMock(element) {
+          if (element.type !== "TextInput") return null;
+          const node = { style: { fontFamily: "" } };
+          nodes.set((element.props as { accessibilityLabel: string }).accessibilityLabel, node);
+          return node;
+        },
+      });
+    });
+    for (const label of ["API Base URL", "API key", "Model"]) expect(nodes.get(label)?.style.fontFamily).toBe(look.tokens.fontMono);
+    const changed = { ...look, tokens: { ...look.tokens, fontMono: "Menlo, monospace" } };
+    await act(async () => renderer!.update(<TimelineTranslationSettingsSection look={changed} />));
+    for (const label of ["API Base URL", "API key", "Model"]) expect(nodes.get(label)?.style.fontFamily).toBe(changed.tokens.fontMono);
   });
 
   it.each(["API Base URL", "API key", "Model"])("changes the %s border on focus", async (label) => {

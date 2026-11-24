@@ -1,5 +1,5 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, View } from "react-native";
+import { Platform, Pressable, StyleSheet, View, type TextInput as NativeTextInput } from "react-native";
 import { Glyph } from "../components/glyph";
 import { usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
 import { TextInput } from "@getpaseo/plugin/client/ui";
@@ -287,6 +287,11 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
     }
   };
   const inputTextStyle = Platform.OS === "web" ? settingsTextStyle(tokens, -1) : { fontSize: settingsTextStyle(tokens, -1).fontSize, textAlignVertical: "center" as const };
+  // Paseo's web Unistyles turns this style into a class; RN Web's input font
+  // shorthand can win the cascade. The DOM style keeps the chosen face.
+  const setInputFont = useCallback((node: NativeTextInput | null) => {
+    if (Platform.OS === "web" && node) (node as unknown as HTMLInputElement).style.fontFamily = tokens.fontMono;
+  }, [tokens.fontMono]);
   const apiEndpoint = endpointDraft ?? settings.endpoint;
   const apiModel = modelDraft ?? settings.endpointModel;
   const test = async () => {
@@ -409,7 +414,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
       {settings.enabled ? <>
       <SettingRow
         stacked title={t.endpointTitle} description={t.endpointDescription}
-        control={<TextInput accessibilityLabel={t.endpointTitle} value={apiEndpoint}
+        control={<TextInput ref={setInputFont} accessibilityLabel={t.endpointTitle} value={apiEndpoint}
           onChangeText={(value) => { setEndpointDraft(value); setNoticeLine(null); }}
           placeholder={t.endpointPlaceholder} placeholderTextColor={tokens.foregroundSubtle} maxLength={TRANSLATION_ENDPOINT_MAX_LENGTH}
           autoCapitalize="none" autoCorrect={false} editable={!formDisabled}
@@ -423,7 +428,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
         stacked title={t.keyTitle} description={t.keyDescription}
         control={<View style={[styles.keyRow, { width: look.compact ? "100%" : 380, maxWidth: "100%" }]}>
           <View style={[styles.keyInput, { borderColor: focused === "key" ? tokens.foregroundMuted : tokens.v2.border, backgroundColor: tokens.v2.surface0 }]}>
-            <TextInput accessibilityLabel={t.keyTitle} value={keyDraft}
+            <TextInput ref={setInputFont} accessibilityLabel={t.keyTitle} value={keyDraft}
               onChangeText={(value) => { revealSequence.current++; setRevealed(null); setKeyDraft(value); setNoticeLine(null); }} secureTextEntry={!keyVisible}
               onFocus={() => setFocused("key")} onBlur={() => setFocused(null)}
               placeholder={savedKey ? (keyVisible && shownKey ? shownKey : savedKey.masked) : t.keyPlaceholder} placeholderTextColor={savedKey ? tokens.foreground : tokens.foregroundSubtle} maxLength={TRANSLATION_API_KEY_MAX_LENGTH}
@@ -442,7 +447,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
 
       <SettingRow
         stacked title={t.modelTitle} description={t.modelDescription}
-        control={<TextInput accessibilityLabel={t.modelTitle} value={apiModel}
+        control={<TextInput ref={setInputFont} accessibilityLabel={t.modelTitle} value={apiModel}
           onChangeText={(value) => { setModelDraft(value); setNoticeLine(null); }}
           placeholder={t.modelPlaceholder} placeholderTextColor={tokens.foregroundSubtle} maxLength={TRANSLATION_MODEL_MAX_LENGTH}
           autoCapitalize="none" autoCorrect={false} editable={!formDisabled}
