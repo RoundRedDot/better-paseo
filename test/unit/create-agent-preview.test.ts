@@ -119,6 +119,7 @@ describe("create_agent preview", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(agentView()); });
     const root = renderer!.root;
+    expect(root.findByProps({ accessibilityLabel: "Copy prompt" }).findByProps({ name: "FileText" })).toBeDefined();
     expect(root.findByType(MarkdownView).props.text).toBe(prompt);
     expect(root.findByType(HoverPreviewHeader).props.fitControls).toBe(true);
     expect(textOf(renderer!.toJSON())).toContain(agentId.slice(0, 8));
@@ -583,6 +584,8 @@ describe("unified agent tool card layout", () => {
     expect(renderer!.root.findByProps({ testID: "send-agent-prompt-state" }).props.accessibilityLabel).toBe("running");
     expect(textOf(renderer!.toJSON())).toContain(receipt.guidance);
     expect(renderer!.root.findByType(MarkdownView).props.text).toBe(statusBody);
+    expect(renderer!.root.findByProps({ accessibilityLabel: "Copy prompt" }).findByProps({ name: "FileText" })).toBeDefined();
+    expect(renderer!.root.findByProps({ accessibilityLabel: "Copy result" }).findByProps({ name: "Copy" })).toBeDefined();
     await press("Copy prompt");
     expect(clipboard.copyText).toHaveBeenLastCalledWith(statusBody);
     await press(`Copy agent ID ${agentId}`);

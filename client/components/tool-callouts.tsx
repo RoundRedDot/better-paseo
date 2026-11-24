@@ -748,10 +748,10 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, tra
         {translations && translationGroupState(translations) ? <InlineTranslateButtonWithTokens state={translationGroupState(translations)!} tokens={tokens} timeline
           testID={call.paseo?.createAgent ? "create-agent-prompt-translate" : "detail-translate"} /> : null}
         {call.paseo?.sendAgentPrompt ? <>
-          <ToolbarCopyButton text={call.paseo.sendAgentPrompt.prompt} label="Copy prompt" tokens={tokens} />
+          <ToolbarCopyButton text={call.paseo.sendAgentPrompt.prompt} icon={COPY_ICON.prompt} label="Copy prompt" tokens={tokens} />
           <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
         </> : call.tool === "paseo" && call.paseo?.createAgent ?
-          <ToolbarCopyButton text={call.paseo.createAgent.initialPrompt} label="Copy prompt" tokens={tokens} /> :
+          <ToolbarCopyButton text={call.paseo.createAgent.initialPrompt} icon={COPY_ICON.prompt} label="Copy prompt" tokens={tokens} /> :
           <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />}
       </View>
     </HoverPreviewHeader>
