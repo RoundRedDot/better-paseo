@@ -542,6 +542,10 @@ describe("preview line numbers and shading", () => {
         act(() => gutter().props.onResponderGrant({ nativeEvent: { locationY: line + 1, pageY: 100 } }));
         act(() => { vi.advanceTimersByTime(400); });
         act(() => gutter().props.onResponderMove({ nativeEvent: { pageY: 100 + line } }));
+        const band = body.root.findByProps({ testID: "preview-gutter-selection" });
+        expect(Object.assign({}, ...[band.props.style].flat(Infinity))).toMatchObject({
+          top: line, height: 2 * line, backgroundColor: tokens.accentBg,
+        });
         expect(body.root.findAllByProps({ testID: "preview-line-selection-menu" })).toHaveLength(0);
         act(() => gutter().props.onResponderRelease());
         await press(body, "Copy selected lines");

@@ -89,6 +89,7 @@ describe("gutter line selection", () => {
       const [second, rest] = view.runs;
       expect(view.doc.selection.set).toEqual([rest, 11, second, 6]);
       expect(view.state.range).toEqual({ from: 1, to: 3 });
+      expect(view.state.band).toEqual({ top: 10, height: 40 });
       expect(view.state.selectedText).toBe("  wrapped\n\nlast");
       // The page draws and offers it: no drawn band, no menu of its own.
       expect(view.state.selectionStyle).toBeNull();
@@ -99,6 +100,7 @@ describe("gutter line selection", () => {
       view.doc.selection.text = "pp";
       fire(view.doc, "selectionchange");
       expect(view.state.range).toBeNull();
+      expect(view.state.band).toBeNull();
     } finally { view.close(); }
     expect(view.gutter.style.touchAction).toBe("pan-y");
   });

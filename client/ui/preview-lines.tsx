@@ -355,6 +355,8 @@ function PreviewLinesBody({ text, lines, style: given, tokens: rowTokens, render
         // whole column, never an individual number. Numbers stay out of copies.
         <View ref={selection.gutterRef} {...selection.gutterProps} pointerEvents="box-only"
           testID="preview-line-numbers" style={[styles.gutter, { width: gutter }, !wraps && stickyGutter(tokens)]}>
+          {selection.band ? <View testID="preview-gutter-selection" pointerEvents="none"
+            style={[styles.stripe, selection.band, { backgroundColor: Platform.OS === "web" ? "Highlight" : tokens.accentBg }]} /> : null}
           {numbers.map((number, index) => (
             <Text key={index} selectable={false}
               style={[styles.number, {

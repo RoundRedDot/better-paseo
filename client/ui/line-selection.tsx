@@ -302,7 +302,7 @@ export function useLineSelection({ enabled, lines, tops, bottom, contentRef }: {
     height: (tops[range.to + 1] ?? bottom) - (tops[range.from] ?? 0),
   } : null;
   return {
-    gutterRef, gutterProps, range, dismiss,
+    gutterRef, gutterProps, range, band, dismiss,
     // Only the selected source text reaches the clipboard, including empty
     // lines and indentation. Display numbers never participate in the range.
     selectedText: range ? lines.slice(range.from, range.to + 1).join("\n") : "",
