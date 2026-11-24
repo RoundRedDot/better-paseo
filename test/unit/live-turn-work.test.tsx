@@ -43,6 +43,7 @@ vi.mock("../../client/components/markdown/markdown-view", async () => {
 
 import { LiveAssistantRenderer, LiveUserMessageRenderer, type LiveAssistantPayload, type LiveUserMessagePayload } from "../../client/live-renderers";
 import { TurnWorkCard } from "../../client/components/turn-work-card";
+import { AssistantFooter } from "../../client/components/turn-footer";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
 import { resetTimelineTailsForTests } from "../../client/timeline-tail";
 import { getBlock } from "../../client/details/block-registry";
@@ -222,11 +223,12 @@ describe("standard level work card while a turn runs", () => {
 });
 
 const cardType = (TurnWorkCard as unknown as { type: React.ComponentType }).type;
-/** Per reply row, top to bottom: "card" and "text" in the order they are drawn. */
+/** Per reply row, top to bottom: "card", "text" and "footer" in the order they are drawn. */
 function layoutOf(renderer: TestRenderer.ReactTestRenderer) {
   return renderer.root.findAllByType(LiveAssistantRenderer).map((row) =>
-    row.findAll((node) => node.type === cardType || (typeof node.type === "string" && node.props?.testID === "reply-markdown"))
-      .map((node) => node.type === cardType ? "card" : "text"));
+    row.findAll((node) => node.type === cardType || node.type === AssistantFooter
+      || (typeof node.type === "string" && node.props?.testID === "reply-markdown"))
+      .map((node) => node.type === cardType ? "card" : node.type === AssistantFooter ? "footer" : "text"));
 }
 
 describe("standard level running card under the newest row", () => {
@@ -268,7 +270,7 @@ describe("standard level running card under the newest row", () => {
     } finally { await act(async () => renderer.unmount()); }
   });
 
-  it("moves the card above the final reply as the agent stops, and settles it there in place", async () => {
+  it("keeps the card under the final reply as the agent stops, and settles it there in place", async () => {
     const turn = [prompt(1, "t"), call(edit("e1", "a.ts"), 2, "t")];
     const harness = setup(turn);
     let renderer!: TestRenderer.ReactTestRenderer;
@@ -280,7 +282,8 @@ describe("standard level running card under the newest row", () => {
       // The agent reports idle; the read of the ended turn has not landed yet.
       const land = harness.holdReads();
       await act(async () => { setStatus("idle"); });
-      expect(layoutOf(renderer)).toEqual([["card", "text"]]);
+      // The reply's own card takes over where the running one was: nothing above or below it moves.
+      expect(layoutOf(renderer)).toEqual([["text", "card"]]);
       const pending = cards(renderer)[0]!;
       expect(pending.props.work.running).toBe(true);
       await act(async () => {
@@ -288,7 +291,8 @@ describe("standard level running card under the newest row", () => {
         land();
       });
       await act(flush);
-      expect(layoutOf(renderer)).toEqual([["card", "text"]]);
+      // The footer arrives under the card, so the card does not move for it either.
+      expect(layoutOf(renderer)).toEqual([["text", "card", "footer"]]);
       const settled = cards(renderer)[0]!;
       expect(settled.props.work.running).toBe(false);
       // The same card, not a remount.

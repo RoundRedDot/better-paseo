@@ -694,11 +694,6 @@ function LiveAssistantMessageRenderer({
     >
       {probe.node}
       <PreferenceSyncSlot />
-      {/* A split reply draws the card on the block that carries the whole text, as its footer does. */}
-      {!envelope && !streaming && standardFoldActive(preferences) && (item.data.blockIndex === undefined || item.data.messageText !== undefined) ? (
-        <ReplyTurnWork agentId={agentId} at={timestamp.getTime()} text={messageText} handover={isTail && !turnRunning}
-          tokens={tokens} compact={layout.compact} />
-      ) : null}
       {envelope ? (
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
@@ -716,6 +711,11 @@ function LiveAssistantMessageRenderer({
           /></InlineReplyBlock> : null}
         </SelectionTranslationScope>
       )}
+      {/* A split reply draws the card on the block that carries the whole text, as its footer does. */}
+      {!envelope && !streaming && standardFoldActive(preferences) && (item.data.blockIndex === undefined || item.data.messageText !== undefined) ? (
+        <ReplyTurnWork agentId={agentId} at={timestamp.getTime()} text={messageText} handover={isTail && !turnRunning}
+          tokens={tokens} compact={layout.compact} />
+      ) : null}
       {/* A streaming row only observes completion usage; the visible footer
           still belongs exclusively to the final reply of a completed turn. */}
       {!envelope ? (
@@ -763,16 +763,18 @@ function useLiveTurnWork(agentId: string, at: number, candidate: boolean) {
 }
 
 /**
- * A settled turn's work card above its final reply
+ * A settled turn's work card under its final reply's text, above the footer
  * (`components/turn-work-card.tsx`). The running turn's card is not drawn
  * here but under the newest row (`TailTurnWork`): above a reply it moved down
  * the list with each newer reply of the turn, and grew above text that was
- * still streaming, so everything under it jumped.
+ * still streaming, so everything under it jumped. Under the text, the running
+ * card and this one sit in the same place, so nothing moves when the turn
+ * ends; the footer then appears under the card.
  *
- * `handover`: this reply is the newest row and the agent stopped. The turn's
- * card moves up here at once, with the host folding the turn's rows, from
- * the running work the row below still holds; the read of the ended turn then
- * turns it into the settled card in place.
+ * `handover`: this reply is the newest row and the agent stopped. This card
+ * takes over at once, with the host folding the turn's rows, from the running
+ * work the tail card still holds; the read of the ended turn then turns it
+ * into the settled card in place.
  */
 const ReplyTurnWork = memo(function ReplyTurnWork({ agentId, at, text, handover, tokens, compact }: {
   agentId: string; at: number; text: string; handover: boolean; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
@@ -802,7 +804,7 @@ function useTimelineTailSlot(agentId: string, key: string, previousKey: string |
  * one: the running turn's work card at the standard level, then the
  * running-jobs card. New rows arrive above these, so nothing already on
  * screen moves when a card changes or passes to the next row. `drawWork`
- * false: a reply drawing the card above itself (`ReplyTurnWork`).
+ * false: a reply drawing the card itself (`ReplyTurnWork`).
  */
 function TimelineTail({ agentId, tokens, compact, isTail, at, kind, drawWork = true }: {
   agentId: string; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
@@ -820,7 +822,7 @@ function TimelineTail({ agentId, tokens, compact, isTail, at, kind, drawWork = t
 /**
  * The running turn's work card under the newest row of that turn, so
  * successful steps show up as they finish instead of disappearing until the
- * turn ends. When the turn ends the card moves above the final reply
+ * turn ends. When the turn ends the final reply draws the card in its place
  * (`ReplyTurnWork`), in the same store update that folds the turn's rows.
  */
 const TailTurnWork = memo(function TailTurnWork({ agentId, at, draw, tokens, compact }: {
