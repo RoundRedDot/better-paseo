@@ -178,7 +178,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
       {work.steps.length ? (
         <BlockPlacementContext.Provider value={null}>
           <DisclosureHeader expanded={open} onToggle={() => { setFade(true); setOpen(!open); }}
-            tokens={tokens} compact={compact} icon={<RowIcon name="ListCollapse" />} verb={label} keepVerb />
+            tokens={tokens} compact={compact} icon={<RowIcon name="Footprints" />} verb={label} keepVerb />
           {open ? (fade ? <FadeIn style={styles.indent}>{steps}</FadeIn> : <View style={styles.indent}>{steps}</View>) : null}
         </BlockPlacementContext.Provider>
       ) : null}
