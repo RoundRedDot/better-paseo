@@ -8,7 +8,9 @@ vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({ useAgent: () => undefined, useWorkspace: () => undefined,
   useRpc: () => () => Promise.resolve(null), usePaseo: () => null, useSettings: () => ({ data: undefined, status: "loading" }) }));
 vi.mock("@getpaseo/plugin/client/ui", () => ({ Icon: "Icon", useToast: () => ({ show() {}, error() {} }) }));
-vi.mock("../../client/ui/use-input-capabilities", () => ({ noteHover() {}, useInputCapabilities: () => ({ hover: false, touch: true, native: false }) }));
+const caps = vi.hoisted(() => ({ hover: false }));
+vi.mock("../../client/ui/use-input-capabilities", () => ({ noteHover() {},
+  useInputCapabilities: () => ({ hover: caps.hover, touch: !caps.hover, native: false }) }));
 vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => undefined }));
 // The rows and diffs the card mounts on demand, as markers.
 vi.mock("../../client/components/tool-callouts", () => ({
@@ -23,14 +25,15 @@ import { buildThemeTokens, radiusV2, withAlpha } from "../../client/components/t
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
 import { updateEnhancerPreferences, getEnhancerPreferences } from "../../client/preferences";
-import { detailsApi, useDetails } from "../../client/details/details-store";
+import { closeDetailsIfCurrent, detailsApi, MARKER_LINGER_MS, useDetails } from "../../client/details/details-store";
+import { detailsForm } from "../../client/details/layout-model";
 import { getBlock } from "../../client/details/block-registry";
 import { timelineEntry as entry } from "./helpers/turn-timeline";
 import { Dimensions, StyleSheet } from "react-native";
 import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
 import { PreviewActionsContext, PreviewChromeContext } from "../../client/ui/hover-preview";
 import { resetDisclosureStore } from "../../client/state/disclosure-store";
-import { SelectionTranslationContext } from "../../client/translation/selection";
+import { SELECTION_SCOPE_ATTRIBUTES, SelectionTranslationContext } from "../../client/translation/selection";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
@@ -76,7 +79,16 @@ beforeEach(() => {
   const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
   act(() => { renderer = TestRenderer.create(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
 });
-afterEach(() => { act(() => renderer.unmount()); detailsApi.close("agent"); resetDisclosureStore(); vi.restoreAllMocks(); });
+afterEach(() => {
+  act(() => renderer.unmount()); detailsApi.close("agent"); resetDisclosureStore(); vi.restoreAllMocks();
+  caps.hover = false; delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+});
+
+/** The form the details shell settles on for a window, written back to the store as the shell does. */
+function settleForm(agentId: string, width: number, pointer: boolean) {
+  act(() => { detailsApi.setForm(agentId, detailsForm({ width, height: 844, sidebar: 0, pointer }, null)); });
+}
+const titleRow = (label: string) => renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
 
 describe("turn work card", () => {
   it("closed: the work row and the file header, no paths", () => {
@@ -107,6 +119,7 @@ describe("turn work card", () => {
   it.each([false, true])("opens and closes work details in one press, compact=%s", (compact) => {
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
     act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={compact} /></>); });
+    settleForm("agent", 1000, true);
     pressText("用时 9秒");
     expect(openId).toBe("agent:work:r:10000:done:steps");
     expect(texts()).not.toContain("读取了文件 · 编辑了文件 · 运行了命令");
@@ -223,6 +236,89 @@ describe("turn work card", () => {
     expect(markers).toHaveLength(1);
     expect(StyleSheet.flatten(markers[0]!.props.style).borderRadius).toBe(radiusV2.block);
     delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
+  });
+
+  it.each([true, false])("marks the title row while selected, lingers after a switch or close, with block details %s", (enabled) => {
+    vi.useFakeTimers();
+    act(() => { updateEnhancerPreferences({ blockDetails: enabled }); });
+    const agentId = `selection-${enabled}`;
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<TurnWorkCard agentId={agentId} at={10000} work={turn()} store={store} tokens={tokens} compact={false} />); });
+    settleForm(agentId, 1000, true);
+    const markers = () => renderer.root.findAll((node) => (node.type as unknown) === "Animated.View" && node.props?.testID === "details-current-marker");
+    expect(markers()).toHaveLength(0);
+    pressText("用时 9秒");
+    expect(markers()).toHaveLength(1);
+    // Another block opens: the title lingers, then lets go.
+    act(() => { detailsApi.open(agentId, "other"); });
+    expect(markers()).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(markers()).toHaveLength(0);
+    // Closed from the panel: the same linger.
+    pressText("用时 9秒");
+    expect(markers()).toHaveLength(1);
+    act(() => { detailsApi.close(agentId); });
+    expect(markers()).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(markers()).toHaveLength(0);
+    // An outside click clears the marker at once.
+    pressText("用时 9秒");
+    expect(markers()).toHaveLength(1);
+    act(() => { closeDetailsIfCurrent(agentId, `${agentId}:work:r:10000:done:steps`); });
+    act(() => { vi.advanceTimersByTime(200); });
+    expect(markers()).toHaveLength(0);
+    vi.useRealTimers();
+  });
+
+  it("taps the title on a phone as any row: opens the drawer, and a second tap leaves the drawer open", () => {
+    vi.spyOn(Dimensions, "get").mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 1 });
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact /></>); });
+    pressText("用时 9秒");
+    expect(openId).toBe("agent:work:r:10000:done:steps");
+    settleForm("agent", 390, false);
+    pressText("用时 9秒");
+    expect(openId).toBe("agent:work:r:10000:done:steps");
+    // A floating panel leaves the row in reach: the tap closes it, as it does a tool row.
+    settleForm("agent", 700, false);
+    pressText("用时 9秒");
+    expect(openId).toBeNull();
+  });
+
+  it("reports the title's selection to assistive technology, not a collapsed disclosure", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    settleForm("agent", 1000, true);
+    expect(titleRow("用时 9秒").props.accessibilityState).toEqual({ selected: false });
+    expect(titleRow("用时 9秒").props["aria-expanded"]).toBeUndefined();
+    expect(titleRow("用时 9秒").props["aria-pressed"]).toBe(false);
+    pressText("用时 9秒");
+    expect(titleRow("用时 9秒").props.accessibilityState).toEqual({ selected: true });
+    expect(titleRow("用时 9秒").props["aria-pressed"]).toBe(true);
+  });
+
+  it("shows the details entry's panel icon on hover, not an in-place chevron", () => {
+    caps.hover = true;
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
+    act(() => { titleRow("用时 9秒").props.onHoverIn(); });
+    const icons = titleRow("用时 9秒").findAll((node) => (node.type as unknown) === "Icon").map((node) => node.props.name);
+    expect(icons).toContain("PanelRight");
+    expect(icons).not.toContain("ChevronRight");
+  });
+
+  it("lets a selection of the intent line be translated as the turn's reasoning", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    pressText("用时 9秒");
+    const block = getBlock("agent", openId!)!;
+    let panel!: TestRenderer.ReactTestRenderer;
+    act(() => { panel = TestRenderer.create(<PreviewChromeContext.Provider value="details">{block.render()}</PreviewChromeContext.Provider>); });
+    const intent = panel.root.findAll((node) => (node.type as unknown) === "Text" && node.children.includes("Check the root first, then fix the path."))[0]!;
+    expect(intent.props.selectable).toBe(true);
+    expect(intent.props.dataSet).toMatchObject({ bcselection: true, [SELECTION_SCOPE_ATTRIBUTES.agent]: "agent",
+      [SELECTION_SCOPE_ATTRIBUTES.kind]: "reasoning", [SELECTION_SCOPE_ATTRIBUTES.streaming]: "0" });
+    act(() => panel.unmount());
   });
 
   it("keeps one status line while the turn runs: what runs, then a thought, then the newest finished step", () => {

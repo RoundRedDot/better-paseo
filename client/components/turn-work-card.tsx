@@ -12,8 +12,8 @@
  * details off it opens under the card. Line counts are the turn's edit events
  * added up, not the file's net change, and are measured once per call.
  */
-import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Pressable, StyleSheet, Text, View } from "react-native";
+import React, { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { space, withAlpha } from "./theme-tokens";
@@ -35,8 +35,13 @@ import { countDiff, countLines } from "../tools/summarize";
 import { FileEditsPreview, ToolCallout } from "./tool-callouts";
 import { BlockPlacementContext, type BlockEntry } from "../details/contracts";
 import { getBlock, registerBlock, type BlockRegistration } from "../details/block-registry";
-import { detailsApi, useMarkerPhase } from "../details/details-store";
+import { detailsApi, readDetails, useMarkerPhase } from "../details/details-store";
+import { rowPressAction } from "../details/click-model";
 import { SelectionTranslationScope } from "../translation/ui";
+import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationContext } from "../translation/selection";
+import { selectionSurface } from "./selection-actions";
+import { selectableTextStyle } from "./selection";
+import { surfaceProps } from "./view-props";
 import type { LineCount, TurnFooterStore } from "../state/turn-footers";
 import type { TurnWork, WorkFile, WorkStep } from "../state/turn-work";
 import type { WorkVerb } from "../tools/standard-fold";
@@ -129,37 +134,53 @@ interface CardProps {
 export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, store, tokens, compact }: CardProps) {
   const { language } = useEnhancerPreferences();
   const text = STRINGS[resolveLanguage(language)] ?? STRINGS.en;
-  const registration = useRef<BlockRegistration | null>(null);
+  const registration = useRef<{ id: string; handle: BlockRegistration } | null>(null);
   const lang = resolveLanguage(language);
   const label = !work.running && work.complete && work.durationMs !== null
     ? text.worked.replace("{d}", formatDuration(work.durationMs, lang))
     : work.running && work.steps.length ? `${text.work} \u00b7 ${text.steps(work.steps.length)}` : text.work;
   const styles = useCardStyles(tokens);
   const summary = workVerbs(work.steps).map((verb) => text[verb]).join(" · ");
-  const intent = firstLine(work.intent);
+  // The running card redraws with each live update; the turn's first thought rarely changes.
+  const intent = useMemo(() => firstLine(work.intent), [work.intent]);
   const entry = useMemo<BlockEntry>(() => ({
     id: `${agentId}:work:${work.key}:steps`, agentId, at, kind: "tool", seq: 0,
     mounted: true, navigable: false, hasBody: true, title: summary, titleMono: false,
     subtitle: [], icon: "List", readsImage: false, dismissOnOutside: true, reserveTimeline: true,
     render: () => <>
       <HoverPreviewHeader tokens={tokens} />
-      <HoverPreviewBody fullBleed>{intent ? <Text style={[styles.intent, { paddingHorizontal: space.md }]}>{intent}</Text> : null}
+      <HoverPreviewBody fullBleed>{intent ? <WorkIntent agentId={agentId} text={intent} style={[styles.intent, { paddingHorizontal: space.md }]} /> : null}
         <WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>
     </>,
     copies: () => [],
   }), [agentId, at, compact, intent, styles, summary, tokens, work.key, work.steps]);
   const phase = useMarkerPhase(agentId, entry.id);
   // A step list open in the details panel stays attached to the card drawn
-  // under the next row: it registers before the previous card releases.
+  // under the next row: it registers before the previous card releases. The
+  // same card under a new id (the running card settling, `live` → the reply's
+  // key) takes the open panel along: it registers the new id and opens it in
+  // the old one's place, so the panel keeps following the card.
   useLayoutEffect(() => {
-    if (!registration.current && getBlock(agentId, entry.id)) registration.current = registerBlock(entry);
+    const held = registration.current;
+    if (held?.id === entry.id) return;
+    const carry = held !== null && readDetails(agentId).openId === held.id;
+    registration.current = carry || getBlock(agentId, entry.id) ? { id: entry.id, handle: registerBlock(entry) } : null;
+    if (carry) detailsApi.open(agentId, entry.id, { independent: true, navigable: false });
+    held?.handle.release();
   }, [agentId, entry.id]); // eslint-disable-line react-hooks/exhaustive-deps
-  useEffect(() => { registration.current?.update(entry); }, [entry]);
-  useEffect(() => () => { registration.current?.release(); registration.current = null; }, [agentId, work.key]);
+  useEffect(() => { registration.current?.handle.update(entry); }, [entry]);
+  useEffect(() => () => { registration.current?.handle.release(); registration.current = null; }, []);
+  // A tap as on any details row (`click-model.ts`): open, or close the current
+  // one where the panel leaves the row in reach; the phone drawer stays. The
+  // title has no body to expand in place, so a pointer acts as a tap.
   const toggleSteps = () => {
-    if (phase === "on") { detailsApi.close(agentId); return; }
-    if (registration.current) registration.current.update(entry);
-    else registration.current = registerBlock(entry);
+    const details = readDetails(agentId);
+    const action = rowPressAction({ pointer: false, hasBody: true, readsImage: false,
+      isCurrent: details.openId === entry.id, form: details.openId ? details.form : null });
+    if (action === "close") { detailsApi.close(agentId); return; }
+    if (action !== "details") return;
+    if (registration.current) registration.current.handle.update(entry);
+    else registration.current = { id: entry.id, handle: registerBlock(entry) };
     detailsApi.open(agentId, entry.id, { independent: true, navigable: false });
   };
   return (
@@ -203,6 +224,30 @@ function ActivityLine({ work, text, tokens }: { work: TurnWork; text: (typeof ST
 function activityTarget(step: WorkStep): string | null {
   if (step.verb === "command") return step.item.detail.type === "shell" ? step.item.detail.command ?? null : null;
   return step.filePath ?? null;
+}
+
+/**
+ * The turn's first thought atop the opened steps. Selectable, and on web a
+ * selection surface scoped as the turn's reasoning, so the selection bar
+ * offers Copy and Translate as it does on a thought row.
+ */
+function WorkIntent({ agentId, text, style }: { agentId: string; text: string; style: StyleProp<TextStyle> }) {
+  return <SelectionTranslationScope agentId={agentId} kind="reasoning" streaming={false}>
+    <IntentText text={text} style={style} />
+  </SelectionTranslationScope>;
+}
+
+function IntentText({ text, style }: { text: string; style: StyleProp<TextStyle> }) {
+  const scope = useContext(SelectionTranslationContext);
+  const scopeData = Platform.OS === "web" ? selectionScopeDataSet(scope) : null;
+  const bindScope = useCallback((node: Text | null) => {
+    if (!node || !scope) return;
+    bindSelectionScopeElement(node, scope);
+    return () => bindSelectionScopeElement(node, null);
+  }, [scope]);
+  return <Text ref={scopeData ? bindScope : undefined}
+    {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : selectionSurface) as object}
+    selectable style={[style, selectableTextStyle]}>{text}</Text>;
 }
 
 /** Mounted only while the steps are open; each command can open its output. */

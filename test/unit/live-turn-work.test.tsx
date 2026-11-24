@@ -5,6 +5,7 @@ import type { PluginTimelineItemProps } from "@getpaseo/plugin/client";
 import type { PaseoAgentTimelineEvent, PaseoAgentTimelineHandle, PaseoProviderModelsResult } from "@getpaseo/client";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import "./helpers/quiet-renderer";
+import { Dimensions } from "./helpers/rn-mock";
 import { timelineEntry as entry, timelinePage as page, type TimelineEntry } from "./helpers/turn-timeline";
 
 const runtime = vi.hoisted(() => ({
@@ -44,6 +45,8 @@ import { LiveAssistantRenderer, LiveUserMessageRenderer, type LiveAssistantPaylo
 import { TurnWorkCard } from "../../client/components/turn-work-card";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
 import { resetTimelineTailsForTests } from "../../client/timeline-tail";
+import { getBlock } from "../../client/details/block-registry";
+import { detailsApi, readDetails } from "../../client/details/details-store";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -115,7 +118,10 @@ beforeEach(() => { runtime.agent = { ...runtime.agent, status: "running" }; rese
 afterEach(() => { expect(runtime.listeners.size).toBe(0); });
 
 describe("standard level work card while a turn runs", () => {
-  it("shows finished edits on the streaming reply, and keeps that card in place when the turn ends", async () => {
+  // The rows mount the details shell, which takes its form from the window: a phone's drawer, a desktop's side panel.
+  it.each([[390, "drawer"], [1280, "side"]] as const)(
+    "shows finished edits on the streaming reply, and keeps that card in place when the turn ends (%s pt, %s)", async (width, form) => {
+    vi.spyOn(Dimensions, "get").mockReturnValue({ width, height: 844, scale: 2, fontScale: 1 });
     const turn = [prompt(1, "t"), call(edit("e1", "a.ts"), 2, "t")];
     const harness = setup(turn);
     let renderer!: TestRenderer.ReactTestRenderer;
@@ -158,7 +164,17 @@ describe("standard level work card while a turn runs", () => {
       expect(settled).toHaveLength(1);
       expect(settled[0]!.props.work).toMatchObject({ running: false, files: [{ path: "a.ts" }, { path: "b.ts" }] });
       expect(filesHeader().props.accessibilityState).toEqual({ expanded: true });
-    } finally { await act(async () => renderer.unmount()); }
+      // The details opened from the running card stay with it: selected, attached, and showing the settled steps.
+      const title = () => cards(renderer)[0]!.findAllByType(DisclosureHeader)[0]!;
+      expect(title().props.detailsMarker.selected).toBe(true);
+      const open = getBlock(harness.agentId, title().props.detailsMarker.id)!;
+      expect(open.mounted).toBe(true);
+      expect(open.title).toBe("Edited files · Ran commands");
+      expect(readDetails(harness.agentId)).toMatchObject({ openId: open.id, form });
+      await act(async () => title().props.onToggle());
+      // A tap on the current title leaves the phone drawer open, as on any row; a side panel closes in one press.
+      expect(readDetails(harness.agentId).openId).toBe(form === "drawer" ? open.id : null);
+    } finally { await act(async () => renderer.unmount()); vi.restoreAllMocks(); }
   });
 
   it("moves the running card to each newer reply, and never onto an earlier turn's reply", async () => {

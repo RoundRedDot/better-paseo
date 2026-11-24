@@ -181,6 +181,11 @@ export const detailsApi: DetailsApi = {
   },
 };
 
+/** The agent's details state, read once without subscribing (a press handler's). */
+export function readDetails(agentId: string): DetailsState {
+  return stores.get(agentId)?.state ?? CLOSED;
+}
+
 /** Do not close a different block opened by the same outside click. */
 export function closeDetailsIfCurrent(agentId: string, id: string): void {
   if (stores.get(agentId)?.state.openId === id) detailsApi.close(agentId, { clearMarker: true });

@@ -143,7 +143,11 @@ export interface DisclosureHeaderProps {
   copyItems?(): CopyItem[];
   readsImage?: boolean;
   onViewImage?(): void;
-  /** Selection for a separately registered details entry. */
+  /**
+   * Selection for a separately registered details entry. Such a row only
+   * opens the panel: it reports `selected` rather than `expanded`, and its
+   * hover hint is the panel icon rather than a chevron.
+   */
   detailsMarker?: { agentId: string; id: string; selected: boolean };
   tokens: ExtendedThemeTokens;
   /** `layout.compact`. */
@@ -519,9 +523,12 @@ export function DisclosureHeader({
                 {...(Platform.OS === "web" && detailsMarker ? { dataSet: { bcworkdetails: detailsMarker.id } } : {})}
                 accessibilityRole={button.accessibilityRole}
                 accessibilityLabel={label}
-                accessibilityState={inert ? undefined : { expanded }}
+                // A row that only opens the details panel (`detailsMarker`) never
+                // expands in place: it reports whether the panel shows it instead.
+                accessibilityState={inert ? undefined : detailsMarker ? { selected: detailsMarker.selected } : { expanded }}
                 // React Native Web reads the ARIA prop, not `accessibilityState`.
-                aria-expanded={inert ? undefined : expanded}
+                aria-expanded={inert || detailsMarker ? undefined : expanded}
+                aria-pressed={detailsMarker ? detailsMarker.selected : undefined}
                 disabled={inert && !detailsEnabled}
                 onPressIn={pressIn}
                 onPressOut={pressOut}
@@ -552,7 +559,8 @@ export function DisclosureHeader({
                 <View style={styles.slot}>
                   {showChevron ? (
                     <Icon
-                      name={expanded ? "ChevronDown" : "ChevronRight"}
+                      // A panel-only row hints at the details panel, as "Open details" does.
+                      name={expanded ? "ChevronDown" : detailsMarker ? "PanelRight" : "ChevronRight"}
                       size={DISCLOSURE_HEADER.chevron}
                       color={palette.icon}
                     />
