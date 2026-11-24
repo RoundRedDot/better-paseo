@@ -80,13 +80,16 @@ jobs:
       - name: Install dependencies
         run: node scripts/npm-retry.mjs ci
 
-      - name: Test local validation runner
-        run: node --test scripts/test-local.test.mjs
-
-      # vitest.config.ts allows 30 s per case. The long-fixture sweeps override
-      # that, up to 180 s. The suite is several minutes on a GitHub runner.
+      # vitest.config.ts allows 30 s per case. The suite is several minutes on
+      # a GitHub runner.
       - name: Test
         run: npm test
+        timeout-minutes: 15
+
+      # Left out of npm test locally; CI always runs them. They override the
+      # per-case timeout, up to 180 s.
+      - name: Markdown exhaustive sweeps
+        run: npm test markdown
         timeout-minutes: 15
 
   client:

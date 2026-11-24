@@ -9,6 +9,7 @@ workspace:
   - "package-lock.json"
   - "tsconfig.json"
   - "vitest.config.ts"
+  - "vitest.markdown.config.ts"
   - "scripts/**"
 
 ci:
@@ -21,6 +22,7 @@ test:
   - "**/*.{ts,tsx,mjs}"
   - "test/**"
   - "vitest.config.ts"
+  - "vitest.markdown.config.ts"
 
 client:
   - "index.client.tsx"

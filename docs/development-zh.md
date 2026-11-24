@@ -42,12 +42,13 @@ better-paseo/
 npm install
 npm run typecheck
 npm test
+npm test markdown   # after changing Markdown rendering
 npm run check:hermes
 npm run build:client
 paseo plugin reload better-paseo
 ```
 
-本地 UI 验证可运行 `npm run test:local`。它运行单元测试，并仅在全部输入和环境与本机上次成功记录一致时复用两组穷举 Markdown 测试；首次运行、输入变化或没有记录时运行全套。记录由本仓库的 worktree 共用，命令会报告是否复用。修改本地测试脚本时运行 `node --test scripts/test-local.test.mjs`。CI 和插件目录更新仍使用完整的 `npm test`；typecheck、客户端构建、Hermes 和任务特定检查的要求不变。
+`npm test` 运行单元测试，不含两组 Markdown 穷举测试（`test/unit/markdown-blocks-exhaustive.test.ts` 和 `test/unit/markdown-streaming-height-exhaustive.test.ts`）。这两组把每个 stream fixture 逐字符送进 Markdown 切分和 lex，耗时数分钟。改动 Markdown 渲染（`client/components/markdown/`、`client/vendor/marked.js`、stream fixture 或这两组测试本身）后，用 `npm test markdown`（或 `npm run test:markdown`）运行它们。CI 两者都运行。`npm test` 后的其他参数原样传给 `vitest run`。`npm run test:local` 与 `npm test` 相同。
 
 Paseo 从 GitHub 安装插件，因此本地分支的修改在推送到远端并更新插件（`paseo plugin update better-paseo`）之前不会在客户端生效。
 
