@@ -88,7 +88,7 @@ const isRefreshing = () => refreshing;
 
 /**
  * Keeps the store in step with the daemon while no settings hook is mounted:
- * with General → Enable Better Paseo chat off, no plugin row mounts the hook,
+ * with General → Enhance conversation timeline off, no plugin row mounts the hook,
  * and the settings page mounts it only while open. Listens for the host's
  * `plugin_settings_changed` push, which the daemon sends to every client, and
  * reads the record again. While a hook is mounted the host reads it for that

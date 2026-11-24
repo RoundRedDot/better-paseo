@@ -1,5 +1,5 @@
 import React from "react";
-import { Pressable, Text, View, StyleSheet } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import type { PluginButtonContentProps } from "@getpaseo/plugin/client";
 import { updateEnhancerPreferences, useEnhancerPreferences, type TimelineLevel } from "./preferences";
@@ -21,7 +21,9 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
     accessibilityState={{ checked: preferences.chatEnabled }} onPress={toggleChat} {...spaceKeys}
     style={{ minHeight: rowHeight, paddingHorizontal: 8, paddingVertical: 8, flexDirection: "row", alignItems: "center", gap: 8 }}>
     <Text style={{ flex: 1, color: colors.foreground, fontSize: 13 }}>{text.chat}</Text>
-    <SwitchTrack value={preferences.chatEnabled} colors={colors} />
+    <View style={{ width: 30, height: 18, alignItems: "center", justifyContent: "center" }}>
+      <View style={{ transform: [{ scale: 0.75 }] }}><SwitchTrack value={preferences.chatEnabled} colors={colors} /></View>
+    </View>
   </Pressable>;
   const openSettings = () => { props.close(); props.openSettings(); };
   // On compact the host's sheet header already shows the title and has no slot for a trailing button,
@@ -29,9 +31,9 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
   if (props.layout.compact) {
     return (
       <View testID="timeline-level-menu">
-        {chatSwitch}
         {levels}
-        <View style={{ height: StyleSheet.hairlineWidth, backgroundColor: colors.border, marginVertical: 4 }} />
+        <View testID="chat-switch-divider" style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} />
+        {chatSwitch}
         <MenuRow icon="Settings" title={text.settings} accessibilityRole="button" colors={colors} height={rowHeight} onPress={openSettings} />
       </View>
     );
@@ -47,8 +49,9 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
         </Pressable>
       </View>
       <View style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} />
-      {chatSwitch}
       {levels}
+      <View testID="chat-switch-divider" style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} />
+      {chatSwitch}
     </View>
   );
 }

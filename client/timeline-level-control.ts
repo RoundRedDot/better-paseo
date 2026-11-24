@@ -44,7 +44,7 @@ const STRINGS: Readonly<Record<SettingsLanguage, { title: string; settings: stri
   en: {
     title: "Agent steps",
     settings: "Chat settings",
-    chat: "Enable Better Paseo chat",
+    chat: "Enhance conversation timeline",
     levels: { simple: "Simple", standard: "Standard", detailed: "Detailed" },
     descriptions: { simple: "Conversation and results", standard: "Summarize changes, show failures", detailed: "Every step" },
     command: "Switch how many agent steps the chat shows",
@@ -54,7 +54,7 @@ const STRINGS: Readonly<Record<SettingsLanguage, { title: string; settings: stri
   zh: {
     title: "工作过程",
     settings: "聊天设置",
-    chat: "启用 Better Paseo 聊天",
+    chat: "优化对话时间线",
     levels: { simple: "简洁", standard: "标准", detailed: "详细" },
     descriptions: { simple: "只看对话和结果", standard: "汇总改动，列出失败", detailed: "显示每一步" },
     command: "切换对话里显示多少工作过程",

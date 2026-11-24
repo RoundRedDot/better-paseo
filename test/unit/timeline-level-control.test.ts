@@ -14,7 +14,9 @@ import {
   parseTimelineLevelArgument,
   setTimelineLevelToast,
   timelineLevelButton,
+  timelineLevelStrings,
 } from "../../client/timeline-level-control";
+import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { setSettingsTab, settingsTab } from "../../client/settings-tab";
 import { DEFAULT_PREFERENCES, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
@@ -122,6 +124,10 @@ afterEach(() => {
 });
 
 describe("timeline level pill", () => {
+  it.each(["en", "zh"] as const)("uses the same chat switch label in the menu and settings for %s", (language) => {
+    expect(timelineLevelStrings({ ...DEFAULT_PREFERENCES, language }).chat).toBe(SETTINGS_STRINGS[language].chatEnabledTitle);
+  });
+
   it.each([false, true])("matches the host menu density for compact=%s", (compact) => {
     const button = timelineLevelButton(DEFAULT_PREFERENCES, () => {});
     if (button.behavior.kind !== "popover") throw new Error("expected a popover");
@@ -146,7 +152,13 @@ describe("timeline level pill", () => {
     }
     const menu = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "timeline-level-menu")[0]!;
     expect(menu.props.style).toEqual(compact ? undefined : { margin: -8 });
-    if (!compact) expect(menu.findAll((node) => String(node.type) === "View" && node.props.style?.height === 0.5)).toHaveLength(1);
+    const children = menu.findAll((node) => String(node.type) === "Pressable" || (String(node.type) === "View" && node.props.testID === "chat-switch-divider"));
+    const divider = children.find((node) => node.props.testID === "chat-switch-divider")!;
+    const toggle = children.find((node) => node.props.accessibilityRole === "switch")!;
+    expect(divider.props.style.height).toBe(0.5);
+    expect(children.indexOf(divider)).toBeGreaterThan(children.indexOf(rows[2]!));
+    expect(children.indexOf(toggle)).toBe(children.indexOf(divider) + 1);
+    if (compact) expect(children.indexOf(settings)).toBe(children.indexOf(toggle) + 1);
     act(() => renderer.unmount());
   });
 

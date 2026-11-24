@@ -223,7 +223,7 @@ describe("block details settings", () => {
     const switches = () => renderer.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "switch");
     const chatOnly = () => switches().filter((node) => ["Block details panel (preview)", "Enhanced prompt bubble", "Tight rows"].includes(node.props.accessibilityLabel));
     expect(chatOnly()).toEqual([]);
-    act(() => switchControl(renderer.root, "Enable Better Paseo chat").props.onPress());
+    act(() => switchControl(renderer.root, "Enhance conversation timeline").props.onPress());
     expect(getEnhancerPreferences().chatEnabled).toBe(true);
     expect(chatOnly()).toHaveLength(3);
     act(() => renderer.unmount());
