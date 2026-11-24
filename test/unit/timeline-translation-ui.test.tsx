@@ -146,6 +146,8 @@ import { LiveAssistantRenderer, LiveReasoningRenderer } from "../../client/live-
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { SelectionTranslationScope } from "../../client/translation/ui";
 import { MessageTranslateButton } from "../../client/translation/message-button";
+import { InlineTranslateButtonWithTokens } from "../../client/translation/inline";
+import { ToolbarMetricsContext } from "../../client/ui/toolbar-button";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { segmentReasoning } from "../../client/reasoning/segment";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
@@ -225,6 +227,28 @@ function doneState(translation: string, extra: Record<string, unknown> = {}) {
 }
 
 const translator = () => ({ call: mocks.rpc as never });
+
+it.each(["web", "ios", "android"] as const)("%s inline translation spinner follows the toolbar icon size", async (platform) => {
+  (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
+  for (const iconSize of [13, 21]) {
+    const draw = (loading: boolean) => React.createElement(ToolbarMetricsContext.Provider, {
+      value: { button: iconSize * 2, icon: iconSize },
+      children: React.createElement(InlineTranslateButtonWithTokens, {
+        state: { active: loading, view: loading ? { status: "running", targetCode: "zh-CN" } : null, toggle() {} },
+        tokens: makeTokens(), testID: "sized-translate", timeline: true,
+      }),
+    });
+    await act(async () => { renderer = TestRenderer.create(draw(false)); });
+    const translate = renderer!.root.find((node) => String(node.type) === "Icon" && node.props.icon === TRANSLATE_ICON);
+    expect(translate.props.size).toBe(iconSize);
+    await act(async () => { renderer!.update(draw(true)); });
+    const mark = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "running-mark");
+    expect(mark.props.style.width).toBe(iconSize);
+    expect(mark.props.style.height).toBe(iconSize);
+    await act(async () => { renderer!.unmount(); });
+    renderer = undefined;
+  }
+});
 
 describe.each(["web", "ios", "android"] as const)("%s whole-message translation", (platform) => {
   it("hides the action when translation is disabled", async () => {

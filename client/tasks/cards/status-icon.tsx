@@ -214,9 +214,9 @@ const RunningRing = memo(function RunningRing(props: {
  * It turns on the running rings' clock, so it is in phase with them; on
  * Android it is the platform spinner, as they are.
  */
-export const SpinnerRing = memo(function SpinnerRing(props: { size: number; color: string; testID?: string }) {
+export const SpinnerRing = memo(function SpinnerRing(props: { size: number; color: string; markSize?: number; testID?: string }) {
   const box: ViewStyle = { width: props.size, height: props.size, flexShrink: 0, alignItems: "center", justifyContent: "center" };
-  return <RunningRing box={box} mark={statusMarkSize(props.size)} color={props.color} animated dot={false} testID={props.testID ?? "spinner-ring"} />;
+  return <RunningRing box={box} mark={props.markSize ?? statusMarkSize(props.size)} color={props.color} animated dot={false} testID={props.testID ?? "spinner-ring"} />;
 });
 
 export function StoppedMark(props: { size: number; color: string }) {

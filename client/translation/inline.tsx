@@ -1,10 +1,10 @@
-import React, { useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
+import React, { useContext, useEffect, useMemo, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Pressable, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { radiusV2, useThemeTokens, type ExtendedThemeTokens } from "../components/theme-tokens";
-import { ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
+import { ToolbarItem, ToolbarMetricsContext, TOOLBAR_METRICS, TooltipSideContext } from "../ui/toolbar-button";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { useEnhancerPreferences } from "../preferences";
@@ -60,6 +60,8 @@ export function InlineTranslateButtonWithTokens({ state, tokens, testID, base, t
   const settings = useTranslationSettingsState();
   const preferences = useEnhancerPreferences();
   const { hovered, hoverProps } = useHover();
+  const toolbar = useContext(ToolbarMetricsContext);
+  const iconSize = timeline ? toolbar.icon : TOOLBAR_METRICS.icon;
   if (settings.status === "ready" && !settings.values.enabled) return null;
   // While the translation is shown, the button restores the original, and its
   // glyph says so; otherwise it translates (or retries) with the translate mark.
@@ -67,10 +69,10 @@ export function InlineTranslateButtonWithTokens({ state, tokens, testID, base, t
   const loading = state.active && selectionViewLoading(state.view);
   const label = showingTranslation ? (resolveLanguage(preferences.language ?? "system") === "zh" ? "显示原文" : "Show original") : state.active && state.view && selectionViewRetryable(state.view) ? toolbarLabel("Retry", preferences.language) : toolbarLabel("Translate", preferences.language);
   const icon = loading
-    ? <SpinnerRing size={14} color={tokens.foregroundMuted} testID={`${testID}-spinner`} />
+    ? <SpinnerRing size={iconSize} markSize={iconSize} color={tokens.foregroundMuted} testID={`${testID}-spinner`} />
     : showingTranslation
-      ? <Icon icon={SHOW_ORIGINAL_ICON} size={14} color={tokens.foregroundMuted} />
-      : <Icon icon={TRANSLATE_ICON} size={14} color={tokens.foregroundMuted} />;
+      ? <Icon icon={SHOW_ORIGINAL_ICON} size={iconSize} color={tokens.foregroundMuted} />
+      : <Icon icon={TRANSLATE_ICON} size={iconSize} color={tokens.foregroundMuted} />;
   if (timeline) return <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}><TooltipSideContext.Provider value="auto"><ToolbarItem testID={testID} label={label} tokens={tokens} align="end"
     buttonStyle={{ width: 24, height: 24, borderRadius: radiusV2.block }}
     onPress={(event) => { event.stopPropagation(); state.toggle(); }}>
