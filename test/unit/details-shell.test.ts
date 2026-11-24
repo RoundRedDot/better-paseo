@@ -2218,7 +2218,7 @@ describe("a pinch in the phone drawer", () => {
     expect(web.scrolls.at(-1)).toBe(4575);
   });
 
-  it("keeps the saved size within 12 and 26 points", () => {
+  it("keeps the saved size within 9 and 26 points", () => {
     const { panel, shown } = drawer("pinch-far");
     act(() => {
       panel().onTouchStart!(fingers(500, 600));
@@ -2231,8 +2231,8 @@ describe("a pinch in the phone drawer", () => {
       panel().onTouchMove!(fingers(545, 555));
       panel().onTouchEnd!(fingers());
     });
-    expect(getEnhancerPreferences().detailsFontSize).toBe(12);
-    expect(shown()).toBe("14");
+    expect(getEnhancerPreferences().detailsFontSize).toBe(9);
+    expect(shown()).toBe(String(Math.round(16 * 9 / 14)));
   });
 
   it("lets go of the drawer's pull once a second finger comes down", () => {
@@ -2311,9 +2311,9 @@ describe("a pinch in the phone drawer", () => {
     act(() => updateEnhancerPreferences({ detailsFontSize: 26 }));
     keys.press("+");
     expect(getEnhancerPreferences().detailsFontSize).toBe(26);
-    act(() => updateEnhancerPreferences({ detailsFontSize: 12 }));
+    act(() => updateEnhancerPreferences({ detailsFontSize: 9 }));
     keys.press("-");
-    expect(getEnhancerPreferences().detailsFontSize).toBe(12);
+    expect(getEnhancerPreferences().detailsFontSize).toBe(9);
     keys.press("0");
     expect(getEnhancerPreferences().detailsFontSize).toBe(14);
     expect(zooms.at(-1)).toBe(0);
@@ -2401,7 +2401,7 @@ describe("a pinch in the phone drawer", () => {
     act(() => button("Reset zoom")!.props.onPress());
     act(() => { vi.advanceTimersByTime(150); });
     expect(getEnhancerPreferences().detailsFontSize).toBe(14);
-    act(() => updateEnhancerPreferences({ detailsFontSize: 12 }));
+    act(() => updateEnhancerPreferences({ detailsFontSize: 9 }));
     expect(button("Decrease text size")!.props.accessibilityState?.disabled ?? button("Decrease text size")!.props.disabled).toBe(true);
     act(() => updateEnhancerPreferences({ detailsFontSize: 14 }));
 

@@ -436,7 +436,7 @@ describe("details toolbar", () => {
     act(() => find(root, "Decrease text size").props.onPress());
     act(() => find(root, "Reset zoom").props.onPress());
     expect(commit.mock.calls).toEqual([[15], [13], [14]]);
-    act(() => updateEnhancerPreferences({ detailsFontSize: 12 }));
+    act(() => updateEnhancerPreferences({ detailsFontSize: 9 }));
     expect(find(root, "Decrease text size").props.disabled).toBe(true);
     act(() => updateEnhancerPreferences({ detailsFontSize: 26 }));
     expect(find(root, "Increase text size").props.disabled).toBe(true);

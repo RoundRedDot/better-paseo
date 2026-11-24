@@ -127,7 +127,7 @@ describe("independent details size in settings", () => {
     expect(getEnhancerPreferences().detailsFontSize).toBe(18);
     act(() => updateEnhancerPreferences({ detailsFontSize: 26 }));
     expect(control(t.detailsSizeLarger).props.disabled).toBe(true);
-    act(() => updateEnhancerPreferences({ detailsFontSize: 12 }));
+    act(() => updateEnhancerPreferences({ detailsFontSize: 9 }));
     expect(control(t.detailsSizeSmaller).props.disabled).toBe(true);
     press(t.detailsSizeReset);
     expect(getEnhancerPreferences().detailsFontSize).toBe(14);

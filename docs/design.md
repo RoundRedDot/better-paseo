@@ -462,7 +462,7 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 - Header 44 pointer, 52 touch: a 28 `surface1` icon tile (radius 7, 16 icon), the title 14/20
   weight 600, a subtitle with `i / n`, then previous, next and close. Toolbar 36, 44 on touch. The
   current row in the timeline takes an `accentSoft` fill and a 2 pt accent bar.
-- Text size: on native a pinch sets an absolute size from 12 to 26 (default 14), and the Text size
+- Text size: on native a pinch sets an absolute size from 9 to 26 (default 14), and the Text size
   badge, with − / + and Reset, stays 2 s after the fingers lift. The web has no pinch. The toolbar
   carries − / size / + after line wrap, as on the desktop; pressing the size resets it. Where the
   three would leave the copies no room for one button, a phone folds them into one Text size button

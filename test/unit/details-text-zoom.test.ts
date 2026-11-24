@@ -64,10 +64,11 @@ function inDrawer(zoom: number, child: React.ReactElement) {
 }
 
 describe("pinchZoom", () => {
-  it("scales an absolute size to whole points within 12–26", () => {
+  it("scales an absolute size to whole points within 9–26", () => {
     expect(pinchZoom(14, 1)).toBe(14);
     expect(pinchZoom(14, 1.5)).toBe(21);
-    expect(pinchZoom(18, 0.5)).toBe(12);
+    expect(pinchZoom(18, 0.5)).toBe(9);
+    expect(pinchZoom(14, 0.5)).toBe(9);
     expect(pinchZoom(16, 3)).toBe(26);
     expect(pinchZoom(20, 1.03)).toBe(21);
     expect(pinchZoom(19, 0)).toBe(19);
@@ -166,11 +167,11 @@ describe("in the drawer", () => {
 });
 
 describe("detailsFontSize", () => {
-  it("defaults to 14 and stores a whole absolute size within 12–26", () => {
+  it("defaults to 14 and stores a whole absolute size within 9–26", () => {
     expect(DEFAULT_PREFERENCES.detailsFontSize).toBe(14);
     expect(parsePreferences({ detailsFontSize: 17.4 }).detailsFontSize).toBe(17);
     expect(parsePreferences({ detailsFontSize: 40 }).detailsFontSize).toBe(26);
-    expect(parsePreferences({ detailsFontSize: -9 }).detailsFontSize).toBe(12);
+    expect(parsePreferences({ detailsFontSize: -9 }).detailsFontSize).toBe(9);
     expect(parsePreferences({ detailsFontSize: "big" }).detailsFontSize).toBe(14);
     expect(parsePreferences({ detailsTextZoom: 3 })).not.toHaveProperty("detailsTextZoom");
   });
@@ -354,8 +355,8 @@ describe("text size step buttons", () => {
       for (let index = 0; index < 11; index++) press("details-zoom-increase");
       expect(current).toBe(26);
       expect(button("details-zoom-increase").props.disabled).toBe(true);
-      for (let index = 0; index < 14; index++) press("details-zoom-decrease");
-      expect(current).toBe(12);
+      for (let index = 0; index < 17; index++) press("details-zoom-decrease");
+      expect(current).toBe(9);
       expect(button("details-zoom-decrease").props.disabled).toBe(true);
       press("details-zoom-reset");
       expect(current).toBe(14);

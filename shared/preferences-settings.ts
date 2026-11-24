@@ -57,7 +57,7 @@ export function clampCodeFontSize(value: number): number {
 
 /** An independent size for native details; never follows the timeline's size. */
 export const DETAILS_FONT_SIZE_DEFAULT = 14;
-export const DETAILS_FONT_SIZE_MIN = 12;
+export const DETAILS_FONT_SIZE_MIN = 9;
 export const DETAILS_FONT_SIZE_MAX = 26;
 
 export function clampDetailsFontSize(value: number): number {
