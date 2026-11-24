@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useContext, useState, type ReactNode } from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { QuestionSelectionMark } from "./question-selection-mark";
 import type { ExtendedThemeTokens } from "./theme-tokens";
@@ -9,6 +9,7 @@ import { ToolbarButton, TooltipAlignContext } from "../ui/toolbar-button";
 import { ToolPager } from "../ui/tool-pager";
 import { AlwaysWrapPreview, HoverPreviewBody } from "../ui/hover-preview";
 import { useEnhancerPreferences } from "../preferences";
+import { TextZoomContext, type TextZoom } from "../ui/text-zoom";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { TranslationGroup, translatedField, translationGroupState, type TranslationField } from "../translation/group";
 import { InlineTranslateButtonWithTokens, InlineTranslationNoticeWithTokens } from "../translation/inline";
@@ -17,6 +18,18 @@ function selectedAnswerOptions(question: UserQuestion): string[] {
   const selected = question.selected ?? (question.answer !== undefined ? question.options.filter((option) =>
     question.answer === option.label || (question.multiSelect && question.answer?.split(", ").includes(option.label))).map((option) => option.label) : []);
   return selected.length > 0 && question.answer === selected.join(", ") ? selected : [];
+}
+
+/**
+ * A question's text size under the details panel's zoom. Native zoom is the
+ * absolute body size: the question and its options take it, the labels sit
+ * `below` it. The web's scale moves the block sizes themselves.
+ */
+export function questionSize(base: { size: number; lineHeight: number }, zoom: TextZoom, below: number): { fontSize: number; lineHeight: number } {
+  if (zoom === 0) return { fontSize: base.size, lineHeight: base.lineHeight };
+  if (typeof zoom !== "number") return { fontSize: Math.round(base.size * zoom.scale), lineHeight: Math.round(base.lineHeight * zoom.scale) };
+  const size = Math.round(zoom) - below;
+  return { fontSize: size, lineHeight: Math.round(size * 1.5) };
 }
 
 /** A read-only question transcript; submitting answers belongs to the host. */
@@ -34,10 +47,10 @@ export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, 
   const question = data.questions[index]!;
   const { language } = useEnhancerPreferences();
   const label = (value: string) => toolbarLabel(value, language);
-  const prose = { fontFamily: tokens.fontUi, fontSize: tokens.typography.block.label.size,
-    lineHeight: tokens.typography.block.label.lineHeight, color: tokens.foreground };
-  const meta = { fontFamily: tokens.fontUi, fontSize: tokens.typography.block.meta.size,
-    lineHeight: tokens.typography.block.meta.lineHeight, color: tokens.foregroundMuted };
+  // In the details panel the text follows its text size (pinch, toolbar, badge).
+  const zoom = useContext(TextZoomContext);
+  const prose = { fontFamily: tokens.fontUi, ...questionSize(tokens.typography.block.label, zoom, 0), color: tokens.foreground };
+  const meta = { fontFamily: tokens.fontUi, ...questionSize(tokens.typography.block.meta, zoom, 2), color: tokens.foregroundMuted };
   const fields: TranslationField[] = [];
   data.questions.forEach((item, questionIndex) => {
     const add = (id: string, text: string) => fields.push({ id: `${questionIndex}:${id}`, text, kind: "tool_output" });

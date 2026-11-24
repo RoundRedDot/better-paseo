@@ -27,6 +27,7 @@ import { HScroll } from "../../client/ui/h-scroll";
 import { ToolbarButton } from "../../client/ui/toolbar-button";
 import { toolCopyPlan } from "../../client/tools/copy";
 import { toolHasDetail } from "../../client/tools/detail";
+import { TextZoomContext, type TextZoom } from "../../client/ui/text-zoom";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -134,6 +135,25 @@ describe("AskUserQuestion transcript data", () => {
 });
 
 describe("AskUserQuestion presentation", () => {
+  it.each<[TextZoom, number, number]>([
+    [0, tokens.typography.block.label.size, tokens.typography.block.meta.size],
+    [20, 20, 18],
+    [12, 12, 10],
+    [{ scale: 1.5 }, Math.round(tokens.typography.block.label.size * 1.5), Math.round(tokens.typography.block.meta.size * 1.5)],
+  ])("sets the question's text to the details text size %j", (zoom, prose, meta) => {
+    const data = call();
+    let view!: ReturnType<typeof TestRenderer.create>;
+    act(() => { view = TestRenderer.create(React.createElement(TextZoomContext.Provider, { value: zoom },
+      React.createElement(ToolPreviewContent, { data, tokens, compact: false, resolvePath: (p) => p }))); });
+    try {
+      const size = (node: ReactTestInstance) => ([node.props.style].flat(Infinity) as Array<{ fontSize?: number } | null | undefined>)
+        .reduce<number | undefined>((found, entry) => entry?.fontSize ?? found, undefined);
+      const question = view.root.find((node) => typeof node.type === "string" && text(node) === questions[0]!.question);
+      const header = view.root.find((node) => typeof node.type === "string" && text(node) === questions[0]!.header);
+      expect(size(question)).toBe(prose);
+      expect(size(header)).toBe(meta);
+    } finally { act(() => view.unmount()); }
+  });
   it.each([false, true])("starts a long question row at the beginning (compact: %s)", (compact) => {
     const question = `拍板 1/12: ${"问题内容很长".repeat(30)}`;
     const data = call({ questions: [{ question, options: [{ label: "Yes" }] }] });
