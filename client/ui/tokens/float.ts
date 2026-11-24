@@ -9,7 +9,7 @@
  * The edge is a light border that never darkens, and the
  * shadow lifts the frame off the content under it.
  */
-import { mix, radiusV2, type ExtendedThemeTokens } from "../../components/theme-tokens";
+import { mix, radiusV2, space, type ExtendedThemeTokens } from "../../components/theme-tokens";
 import { cssShadow } from "./css-shadow";
 
 const ITEM_HEIGHT = 24;
@@ -47,6 +47,24 @@ export function floatShadow(tokens: ExtendedThemeTokens, visible = true): string
     shadowRadius: 24,
     shadowOpacity: visible ? (tokens.isDark ? 0.36 : 0.22) : 0,
   });
+}
+
+/**
+ * The hover preview's header: a tinted strip over the body, its toolbar
+ * buttons the floating items (`FLOAT.item`, `FLOAT.iconSize`). The selection
+ * bar's translation panel draws the same strip, so both panels read as one.
+ */
+export const PREVIEW_HEADER = {
+  paddingX: space.md,
+  paddingY: space.sm,
+  gap: space.xs,
+  border: 1,
+  /** The body's inset under the header. */
+  bodyInset: space.md,
+} as const;
+
+export function previewHeaderLook(tokens: ExtendedThemeTokens): { backgroundColor: string; borderBottomColor: string } {
+  return { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle };
 }
 
 /** A hovered item: the preview toolbar's hover fill. */

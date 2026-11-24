@@ -485,6 +485,30 @@ describe("selection bar Translate", () => {
     expect(bar().style.getPropertyValue("--bc-panel-height")).toBe("70px");
     popup.dispose();
   });
+  it("draws the translation panel as the hover preview: corner, shadow, header strip and buttons", async () => {
+    const { FLOAT, floatShadow, PREVIEW_HEADER, previewHeaderLook } = await import("../../client/ui/tokens/float");
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    const anchor = Object.assign(new ElementMock(), {
+      getBoundingClientRect: () => ({ left: 120, top: 200, bottom: 220, width: 100, height: 20 }),
+    });
+    body.appendChild(anchor);
+    const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close: vi.fn(), retry: vi.fn(), settings: vi.fn() }, "Original");
+    popup.setView({ status: "done", result: done("译文") as never });
+    const head = previewHeaderLook(tokens);
+    expect(host().style.getPropertyValue("--bc-panel-shadow")).toBe(floatShadow(tokens));
+    expect(host().style.getPropertyValue("--bc-panel-head-bg")).toBe(head.backgroundColor);
+    expect(host().style.getPropertyValue("--bc-panel-head-border")).toBe(head.borderBottomColor);
+    const css = host().all((node) => node.textContent.includes(".bar.translating"))[0]!.textContent.replace(/\s+/g, " ");
+    expect(css).toContain(`.bar.translating { width: var(--bc-panel-width); padding: 0; border-radius: ${FLOAT.radius}px; box-shadow: var(--bc-panel-shadow); }`);
+    expect(css).toContain(`padding: ${PREVIEW_HEADER.paddingY}px ${PREVIEW_HEADER.paddingX}px; border-bottom: ${PREVIEW_HEADER.border}px solid var(--bc-panel-head-border);`);
+    for (const name of ["panel-toggle", "panel-settings"]) {
+      expect(css).toContain(`.row .${name} { ${name === "panel-settings" ? "margin-left: auto; " : ""}padding: 0; width: ${FLOAT.item}px; height: ${FLOAT.item}px;`);
+    }
+    expect(css).toContain(`.panel-actions .btn { position: relative; width: ${FLOAT.item}px; height: ${FLOAT.item}px;`);
+    expect(css).not.toMatch(/28px/);
+    popup.dispose();
+  });
   it("uses the same movable panel for whole messages and cleans it up", () => {
     act(() => renderer?.unmount());
     renderer = undefined;

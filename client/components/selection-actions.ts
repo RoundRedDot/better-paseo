@@ -4,7 +4,8 @@ import type { TextProps, ViewProps } from "react-native";
 import { copyText } from "@getpaseo/plugin/client/ui";
 import { radiusV2 } from "./theme-tokens";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import { FLOAT, FLOAT_EASE, floatHover, floatPressed } from "../ui/tokens/float";
+import { FLOAT, FLOAT_EASE, floatHover, floatPressed, floatShadow, PREVIEW_HEADER, previewHeaderLook } from "../ui/tokens/float";
+import { UI_SCALE } from "../ui/tokens/typography";
 import { CARD_RADIUS, CARD_SHADOW } from "../ui/tokens/card";
 import { getEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
@@ -381,14 +382,27 @@ const BAR_CSS = `
 .resize-left { left: 0; }
 .resize-right { right: 0; }
 .resize-bottom { left: 8px; right: 16px; bottom: 0; height: 8px; cursor: ns-resize; }
-.bar.translating { width: var(--bc-panel-width); }
+/* Translating, the bar becomes the hover preview's panel: its corner, shadow and header strip. */
+.bar.translating {
+  width: var(--bc-panel-width);
+  padding: 0;
+  border-radius: ${FLOAT.radius}px;
+  box-shadow: var(--bc-panel-shadow);
+}
+@media (hover: hover) { .bar.translating:hover { box-shadow: var(--bc-panel-shadow); } }
+.bar.translating .row {
+  gap: ${PREVIEW_HEADER.gap}px;
+  padding: ${PREVIEW_HEADER.paddingY}px ${PREVIEW_HEADER.paddingX}px;
+  border-bottom: ${PREVIEW_HEADER.border}px solid var(--bc-panel-head-border);
+  border-radius: ${FLOAT.radius - 1}px ${FLOAT.radius - 1}px 0 0;
+  background-color: var(--bc-panel-head-bg);
+}
+.bar.translating .row .btn { border-radius: ${FLOAT.itemRadius}px; }
 .panel {
   display: none;
   flex-direction: column;
   gap: 6px;
-  margin-top: ${FLOAT.inset}px;
-  padding: 8px 8px 4px;
-  border-top: 0.5px solid var(--bc-bar-border);
+  padding: ${PREVIEW_HEADER.bodyInset}px;
 }
 .bar.translating .panel { display: flex; }
 .panel-head {
@@ -414,13 +428,14 @@ const BAR_CSS = `
   stroke-linejoin: round;
 }
 .panel-title { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.row .panel-toggle { padding: 0; width: 28px; height: 28px; justify-content: center; }
+.row .panel-toggle { padding: 0; width: ${FLOAT.item}px; height: ${FLOAT.item}px; justify-content: center; }
 .row .panel-toggle span { display: none; }
-.panel-heading { display: none; align-items: center; gap: 6px; height: 32px; padding: 0 8px; font-weight: 500; }
-.panel-heading svg { width: 16px; height: 16px; fill: none; stroke: var(--bc-bar-icon); stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+/* The preview's title: its glyph centred in a button's box, then the name, both muted. */
+.panel-heading { display: none; align-items: center; gap: ${PREVIEW_HEADER.gap}px; height: ${FLOAT.item}px; color: var(--bc-bar-icon); font-size: ${UI_SCALE.base}px; font-weight: 400; white-space: nowrap; }
+.panel-heading svg { width: ${FLOAT.iconSize}px; height: ${FLOAT.iconSize}px; margin: 0 ${(FLOAT.item - FLOAT.iconSize) / 2}px; flex: 0 0 auto; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
 .bar.translating .panel-heading { display: flex; }
 .bar.translating .translate-action { display: none; }
-.row .panel-settings { margin-left: auto; padding: 0; width: 28px; height: 28px; justify-content: center; }
+.row .panel-settings { margin-left: auto; padding: 0; width: ${FLOAT.item}px; height: ${FLOAT.item}px; justify-content: center; }
 .panel-model { display: flex; align-items: center; gap: 5px; min-width: 0; }
 .panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-grid { display: grid; grid-template-columns: repeat(2, ${10 / 3}px); grid-template-rows: repeat(3, ${10 / 3}px); gap: 2px; width: ${26 / 3}px; height: 14px; flex: 0 0 auto; }
@@ -454,7 +469,7 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
 .panel-footer { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .panel-head { flex: 1 1 auto; }
 .panel-actions { display: flex; flex: 0 0 auto; justify-content: flex-end; gap: ${FLOAT.inset}px; }
-.panel-actions .btn { position: relative; width: 28px; height: 28px; padding: 0; justify-content: center; }
+.panel-actions .btn { position: relative; width: ${FLOAT.item}px; height: ${FLOAT.item}px; padding: 0; justify-content: center; }
 .panel-actions .btn span { display: none; }
 .panel-actions .btn::after {
   content: attr(data-tip); position: absolute; bottom: calc(100% + 4px); right: 0; z-index: 1;
@@ -896,6 +911,10 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
       host.style.setProperty("--bc-bar-bg", tokens.surface0);
       host.style.setProperty("--bc-bar-shadow", CARD_SHADOW[tokens.isDark ? "dark" : "light"].rest);
       host.style.setProperty("--bc-bar-shadow-hover", CARD_SHADOW[tokens.isDark ? "dark" : "light"].hover);
+      host.style.setProperty("--bc-panel-shadow", floatShadow(tokens));
+      const head = previewHeaderLook(tokens);
+      host.style.setProperty("--bc-panel-head-bg", head.backgroundColor);
+      host.style.setProperty("--bc-panel-head-border", head.borderBottomColor);
       host.style.setProperty("--bc-bar-text", tokens.foreground);
       host.style.setProperty("--bc-bar-icon", tokens.foregroundMuted);
       host.style.setProperty("--bc-bar-subtle", tokens.foregroundSubtle);

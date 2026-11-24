@@ -11,7 +11,7 @@ import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationC
 import { bindPreviewMaximize, bindPreviewPointer, watchNextPointerMove, watchPointerOutside, dropSelectionIn, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
-import { floatShadow } from "./tokens/float";
+import { floatShadow, PREVIEW_HEADER, previewHeaderLook } from "./tokens/float";
 import { DEFAULT_PREFERENCES, useEnhancerPreferences } from "../preferences";
 import { SafeInset } from "./safe-inset";
 import { phoneChrome, PREVIEW_LIMIT, pressPreviewFrame, pressPreviewOrigin } from "./press-preview-placement";
@@ -710,7 +710,7 @@ function HoverPanelHeader({ tokens, icon, iconLabel, left, center: centerProp, m
   return (
     <View
       testID="hover-preview-header"
-      style={[styles.header, { backgroundColor: tokens.v2.surface1, borderBottomColor: tokens.v2.borderSubtle }]}
+      style={[styles.header, previewHeaderLook(tokens)]}
     >
       <View ref={toolbarRef} testID="hover-preview-toolbar" {...(toolbarDrag ?? {})} style={[styles.toolbar, Platform.OS === "web" && styles.grab]}>
         <View testID="hover-preview-start" style={[styles.toolbarStart, fitControls && styles.toolbarControls]}>
@@ -1220,7 +1220,7 @@ const styles = StyleSheet.create({
   panel: { padding: 0, borderWidth: 1, borderRadius: radiusV2.overlay },
   // In the page, not on the layer: clipped to its corners, with no shadow to float on.
   sample: { overflow: "hidden", boxShadow: "none" } as ViewStyle,
-  toolbar: { flexDirection: "row", alignItems: "center", gap: space.xs },
+  toolbar: { flexDirection: "row", alignItems: "center", gap: PREVIEW_HEADER.gap },
   // The title and the empty stretches drag; buttons set their own pointer cursor.
   grab: { cursor: "grab", touchAction: "none" } as unknown as ViewStyle,
   // Equal flexible sides keep the centre slot in the middle of the panel.
@@ -1236,9 +1236,9 @@ const styles = StyleSheet.create({
     flexShrink: 1,
     overflowY: "auto",
     overscrollBehavior: "contain",
-    marginTop: space.md,
-    paddingHorizontal: space.md,
-    paddingBottom: space.md,
+    marginTop: PREVIEW_HEADER.bodyInset,
+    paddingHorizontal: PREVIEW_HEADER.bodyInset,
+    paddingBottom: PREVIEW_HEADER.bodyInset,
     gap: space.sm,
   } as ViewStyle,
   // A maximized panel has a fixed height. The body fills it, so a picture can
@@ -1275,9 +1275,8 @@ const styles = StyleSheet.create({
   header: {
     flexShrink: 0,
     zIndex: 1,
-    paddingHorizontal: space.md,
-    paddingTop: space.sm,
-    paddingBottom: space.sm,
-    borderBottomWidth: 1,
+    paddingHorizontal: PREVIEW_HEADER.paddingX,
+    paddingVertical: PREVIEW_HEADER.paddingY,
+    borderBottomWidth: PREVIEW_HEADER.border,
   },
 });
