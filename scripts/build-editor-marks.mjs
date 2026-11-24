@@ -1,6 +1,10 @@
-// Rasterises assets/editor-marks/*.{svg,png} into server/mark-bitmaps.ts as `editor:<file name>`.
-// A .png source is the editor's own macOS app icon, taken from its official
-// app bundle; a .svg source is drawn for marks that have no app icon.
+// Rasterises colour marks into server/mark-bitmaps.ts:
+//   assets/editor-marks/*.{svg,png}  as `editor:<file name>`  (file-open choices)
+//   assets/service-marks/*.{svg,png} as `service:<file name>` (free translation services)
+// An editor .png source is the editor's own macOS app icon, taken from its
+// official app bundle; a .svg source is drawn for marks that have no app icon.
+// Service marks are the vendor logo (Microsoft, Google) or the product's own
+// icon (Tencent TranSmart's site icon).
 //
 //   node scripts/build-editor-marks.mjs
 //
@@ -13,18 +17,22 @@ import { tmpdir } from "node:os";
 import path from "node:path";
 
 const root = path.resolve(import.meta.dirname, "..");
-const sources = path.join(root, "assets", "editor-marks");
+const SOURCES = [
+  { dir: path.join(root, "assets", "editor-marks"), prefix: "editor" },
+  { dir: path.join(root, "assets", "service-marks"), prefix: "service" },
+];
 const target = path.join(root, "server", "mark-bitmaps.ts");
 // The menu draws a mark at 20pt (LOGO in client/settings-file-open.tsx); 60px covers a three-times display.
+// Service marks sit in a settings segment at 16pt, which 60px covers too.
 const SIZE = 60;
 
 const work = mkdtempSync(path.join(tmpdir(), "editor-marks-"));
 let text = readFileSync(target, "utf8");
 const built = [];
 try {
-  for (const file of readdirSync(sources).filter((name) => /\.(svg|png)$/.test(name)).sort()) {
-    const id = `editor:${file.slice(0, -4)}`;
-    const source = path.join(sources, file);
+  for (const { dir, prefix } of SOURCES) for (const file of readdirSync(dir).filter((name) => /\.(svg|png)$/.test(name)).sort()) {
+    const id = `${prefix}:${file.slice(0, -4)}`;
+    const source = path.join(dir, file);
     let raw = source;
     const png = path.join(work, `${file}.out.png`);
     if (file.endsWith(".svg")) {

@@ -808,6 +808,8 @@ describe("timeline translation settings", () => {
   });
 });
 
+const ServiceMarkType = (await import("../../client/translation/settings")).ServiceMark;
+
 describe("translation method settings", () => {
   afterEach(() => {
     act(() => renderer?.unmount());
@@ -848,8 +850,21 @@ describe("translation method settings", () => {
     await vi.waitFor(() => expect(radio("Google").props.accessibilityState.selected).toBe(true));
     expect(radio("Microsoft").props.accessibilityState.selected).toBe(false);
     expect(textValues(renderer!.root).join("\n")).toContain("Automatic: Google is the first service this device can reach.");
+    // Every service names its network dependence the same way, never by region.
+    expect(textValues(renderer!.root).join("\n")).toContain("whether a service is reachable depends on its network");
+    expect(textValues(renderer!.root).join("\n")).not.toMatch(/mainland|China/);
     expect(urls.map((url) => new URL(url).host)).toEqual(["edge.microsoft.com", "translate-pa.googleapis.com"]);
     expect(mocks.saveSpy).not.toHaveBeenCalled();
+  });
+
+  it("draws each service's colour mark before its name", async () => {
+    stubServices();
+    await render({ freeService: "microsoft" });
+    for (const label of ["Microsoft", "Google", "Tencent TranSmart"]) {
+      const marks = radio(label).findAll((node) => node.type === ServiceMarkType);
+      expect(marks).toHaveLength(1);
+    }
+    expect(radio("Google").findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBe("google");
   });
 
   it("saves a picked service, and can go back to choosing automatically", async () => {

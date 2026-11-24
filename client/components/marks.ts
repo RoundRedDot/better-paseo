@@ -154,6 +154,9 @@ export const MARK_IDS: ReadonlySet<string> = new Set([
   "editor:webstorm",
   "editor:pycharm",
   "editor:androidstudio",
+  "service:microsoft",
+  "service:google",
+  "service:tencent",
   "mark:file",
   "mark:folder",
 ]);

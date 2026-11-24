@@ -1,5 +1,6 @@
 import React, { useCallback, useEffect, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, View, type TextInput as NativeTextInput } from "react-native";
+import { Image, Platform, Pressable, StyleSheet, View, type TextInput as NativeTextInput } from "react-native";
+import { useMarkBitmap } from "../components/marks";
 import { Glyph } from "../components/glyph";
 import { usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
 import { TextInput } from "@getpaseo/plugin/client/ui";
@@ -61,10 +62,11 @@ const STRINGS = {
     serviceDescription: "These are the unofficial endpoints the vendors' web and browser translators use. They come with no guarantee and may be rate-limited or stop working; if one fails, switch to another or use OpenAI compatible.",
     services: { microsoft: "Microsoft", google: "Google", tencent: "Tencent TranSmart" },
     serviceNotes: {
-      microsoft: "Microsoft Edge's built-in translator. Usually reachable from mainland China.",
-      google: "The endpoint Chrome's page translation uses. Not reachable on some networks.",
-      tencent: "Tencent TranSmart. Good at Chinese and English; fewer target languages.",
+      microsoft: "The translator built into Microsoft Edge.",
+      google: "The endpoint Chrome's page translation uses.",
+      tencent: "Tencent TranSmart. Good at Chinese and English; supports fewer target languages.",
     },
+    serviceNetwork: "This device sends the request itself, so whether a service is reachable depends on its network. If one fails, try another.",
     serviceAuto: (name: string) => `Automatic: ${name} is the first service this device can reach. Pick a service to always use it.`,
     serviceAutoSearching: "Automatic: finding the first service this device can reach...",
     serviceUseAuto: "Choose automatically",
@@ -176,10 +178,11 @@ const STRINGS = {
     serviceDescription: "这些是厂商网页或浏览器内置翻译使用的非公开接口，没有服务保证，可能限流或停用。失败时可换一个服务，或改用 OpenAI 兼容方式。",
     services: { microsoft: "微软", google: "Google", tencent: "腾讯交互翻译" },
     serviceNotes: {
-      microsoft: "Microsoft Edge 内置翻译接口，国内网络通常可直接访问。",
-      google: "Chrome 网页翻译所用接口，部分网络可能无法访问。",
+      microsoft: "Microsoft Edge 内置的翻译接口。",
+      google: "Chrome 网页翻译使用的接口。",
       tencent: "腾讯 TranSmart，中英互译表现较好，支持的目标语言较少。",
     },
+    serviceNetwork: "翻译请求由当前设备直接发出，能否连通取决于本机网络；连不上时可换一个服务。",
     serviceAuto: (name: string) => `自动选择：${name}是当前设备第一个可用的服务。点选某个服务可固定使用它。`,
     serviceAutoSearching: "自动选择：正在查找当前设备第一个可用的服务...",
     serviceUseAuto: "自动选择",
@@ -277,6 +280,8 @@ const STRINGS = {
 } as const;
 
 type Strings = (typeof STRINGS)["en" | "zh"];
+
+const SERVICE_MARK = 16;
 
 function endpointNotice(t: Strings, settings: TimelineTranslationSettings, status: EndpointStatusSnapshot):
   { text: string; tone: "neutral" | "warning" | "danger" } | null {
@@ -557,15 +562,15 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
         stacked title={t.serviceTitle} description={t.serviceDescription}
         control={<Segmented<FreeTranslationService> wrap label={t.serviceTitle} value={shownService}
           options={[
-            { value: "microsoft", label: t.services.microsoft },
-            { value: "google", label: t.services.google },
-            { value: "tencent", label: t.services.tencent },
+            { value: "microsoft", label: t.services.microsoft, icon: <ServiceMark service="microsoft" /> },
+            { value: "google", label: t.services.google, icon: <ServiceMark service="google" /> },
+            { value: "tencent", label: t.services.tencent, icon: <ServiceMark service="tencent" /> },
           ]}
           onChange={(freeService) => { if (freeService !== settings.freeService) void savePatch({ freeService }); }}
           look={look}
         />}
         look={look} disabled={controlsDisabled}
-        below={notice({ text: serviceNote, tone: "neutral" })}
+        below={notice({ text: `${serviceNote}${lang === "zh" ? "" : " "}${t.serviceNetwork}`, tone: "neutral" })}
       />
       <SettingRow title={t.serviceTest}
         control={<View style={styles.keyRow}>
@@ -669,7 +674,16 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   </>;
 }
 
+/** The service's colour logo, served by the daemon like the other brand marks. */
+export function ServiceMark({ service }: { service: FreeTranslationService }) {
+  const uri = useMarkBitmap(`service:${service}`);
+  return <View style={styles.serviceMark}>
+    {uri ? <Image accessible={false} source={{ uri }} resizeMode="contain" style={styles.serviceMark} /> : null}
+  </View>;
+}
+
 const styles = StyleSheet.create({
+  serviceMark: { width: SERVICE_MARK, height: SERVICE_MARK },
   input: {
     ...(Platform.OS === "web" ? { outlineStyle: "none" } as object : null),
     alignSelf: "stretch",

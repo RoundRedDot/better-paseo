@@ -86,7 +86,8 @@ export function Segmented<T extends string>({
   wrap = false,
 }: {
   value: T | null;
-  options: ReadonlyArray<{ value: T; label: string; badge?: string }>;
+  /** `icon`: a colour mark drawn before the label (the free translation services). */
+  options: ReadonlyArray<{ value: T; label: string; badge?: string; icon?: React.ReactNode }>;
   contentWidth?: boolean;
   wrap?: boolean;
   onChange(value: T): void;
@@ -125,6 +126,7 @@ export function Segmented<T extends string>({
                 : styles.segmentIdle,
             ]}
           >
+            {option.icon ? <View style={styles.segmentIcon}>{option.icon}</View> : null}
             <View style={{ flexShrink: 1 }}>
               <Text
                 numberOfLines={1}
@@ -515,6 +517,7 @@ const styles = StyleSheet.create({
   },
   segmentFill: { flex: 1, paddingHorizontal: space.xs },
   segmentIdle: { borderColor: "transparent" },
+  segmentIcon: { marginRight: space.xs, flexShrink: 0 },
   segmentLabel: { fontSize: TYPE.button.size, lineHeight: TYPE.button.lineHeight },
   plainButton: {
     minHeight: 32,
