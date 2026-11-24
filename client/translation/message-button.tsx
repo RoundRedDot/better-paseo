@@ -10,6 +10,7 @@ import { selectionViewLoading, useSelectionTranslation } from "./selection";
 import { openTranslationSettings, TranslationSettingsParentCloseContext } from "./navigation";
 import { useTranslationSettingsState } from "./settings-store";
 import type { TranslationSourceKind } from "./store";
+import { holdReplyTranslation } from "./reply-pending";
 import { SelectionTranslationPanel, TranslationSheet, TRANSLATE_ICON } from "./ui";
 import { ToolbarItem } from "../ui/toolbar-button";
 import { radiusV2 } from "../components/theme-tokens";
@@ -23,6 +24,8 @@ type Props = {
   theme: PluginTheme;
   testID: string;
   size?: number;
+  /** `replyTranslationKey` of the reply this translates: its text dims while the translation runs. */
+  replyKey?: string;
   onOpenChange?(open: boolean): void;
 };
 
@@ -44,6 +47,8 @@ function MessageTranslationButton(props: Props) {
   const shown = text !== null && view !== null && (opened || !loading);
   if (shown && !opened) setOpened(true);
   useEffect(() => { start(); }, [start]);
+  const replyKey = props.replyKey;
+  useEffect(() => replyKey && loading ? holdReplyTranslation(replyKey) : undefined, [replyKey, loading]);
   const anchor = useRef<View>(null);
   useEffect(() => () => props.onOpenChange?.(false), [props.onOpenChange]);
   const close = () => { setText(null); setOpened(false); props.onOpenChange?.(false); };

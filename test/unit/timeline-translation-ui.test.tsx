@@ -147,6 +147,7 @@ import { LiveAssistantRenderer, LiveReasoningRenderer } from "../../client/live-
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { SelectionTranslationScope } from "../../client/translation/ui";
 import { MessageTranslateButton } from "../../client/translation/message-button";
+import { replyTranslationKey } from "../../client/translation/reply-pending";
 import { InlineTranslateButtonWithTokens } from "../../client/translation/inline";
 import { ToolbarCopyButton, ToolbarMetricsContext } from "../../client/ui/toolbar-button";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
@@ -795,6 +796,31 @@ describe("timeline translation", () => {
     await act(async () => button().props.onPress({ stopPropagation() {} }));
     await vi.waitFor(() => expect(button().props.accessibilityLabel).toBe("显示原文"));
     expect(renderer!.root.findAll((node) => String(node.type) === "Icon" && node.props.icon === SHOW_ORIGINAL_ICON)).toHaveLength(1);
+  });
+
+  it("dims every row of a reply while its footer translates the whole message", async () => {
+    const pending = deferred<ReturnType<typeof doneState>>();
+    mocks.rpc.mockReturnValueOnce(pending.promise);
+    const at = new Date("2026-11-19T10:00:00Z");
+    const other = { ...assistantProps({ text: "Earlier reply", phase: "complete" }), timestamp: new Date("2026-11-19T09:00:00Z") };
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+      React.createElement(LiveAssistantRenderer, other as never),
+      // A long reply split into rows: they share the source item's timestamp.
+      React.createElement(LiveAssistantRenderer, assistantProps({ text: "Split one", phase: "complete", blockIndex: 0 }) as never),
+      React.createElement(LiveAssistantRenderer, assistantProps({ text: "Split two", phase: "complete", blockIndex: 1, messageText: "Split one\n\nSplit two" }) as never),
+      React.createElement(MessageTranslateButton, { agentId: "agent-1", kind: "assistant_message", text: "Split one\n\nSplit two",
+        streaming: false, theme, testID: "footer-translate", replyKey: replyTranslationKey("agent-1", at.getTime()) }))); });
+    // The wrapper that holds each row's Markdown, keyed by the text it shows.
+    const dimmed = () => renderer!.root.findAll((node) => String(node.type) === "View"
+      && StyleSheet.flatten(node.props.style)?.opacity === 0.55).map((node) => textContent(node));
+    expect(dimmed()).toEqual([]);
+    await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "footer-translate").props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());
+    expect(dimmed()).toHaveLength(2);
+    expect(dimmed().join("|")).toMatch(/Split one.*\|.*Split two/);
+    expect(dimmed().join("|")).not.toContain("Earlier reply");
+    await act(async () => pending.resolve(doneState("整条译文")));
+    expect(dimmed()).toEqual([]);
   });
 
   it("keeps the original visible during translation and offers retry on failure", async () => {

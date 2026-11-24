@@ -62,6 +62,7 @@ import { PathContext, usePathContextValue } from "./ui/path-text";
 import { probeCard, textItemKey } from "./debug/perf";
 import { SelectionTranslationScope } from "./translation/ui";
 import { InlineTranslation, InlineTranslateButton, InlineTranslationNotice, type InlineTranslationState } from "./translation/inline";
+import { replyTranslationKey, useReplyTranslationPending } from "./translation/reply-pending";
 import {
   assistantPropsEqual,
   noticePropsEqual,
@@ -545,8 +546,10 @@ function LiveAssistantRendererBody(props: PluginTimelineItemProps<LiveAssistantP
 // The reply's right gutter, which the translate button sits in.
 const REPLY_TRANSLATE_GUTTER = 32;
 
-function InlineReplyBlock({ state, theme, tokens: given, compact, text, firstBlock, listContinuation, codexDirectives, children }: {
-  state: InlineTranslationState; theme: PluginTheme; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
+function InlineReplyBlock({ state, replyKey, theme, tokens: given, compact, text, firstBlock, listContinuation, codexDirectives, children }: {
+  state: InlineTranslationState;
+  /** The reply this block belongs to: the footer's whole-message translation dims it too. */
+  replyKey: string; theme: PluginTheme; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
   /** The Markdown the block shows, original or translated: the button centers on its first line. */
   text: string; firstBlock: boolean; listContinuation?: boolean; codexDirectives: boolean; children: ReactNode;
 }) {
@@ -564,7 +567,8 @@ function InlineReplyBlock({ state, theme, tokens: given, compact, text, firstBlo
     [source, metrics, ruleHeight, monoLineHeight, firstBlock, codexDirectives]);
   const top = gap + center - REPLY_TRANSLATE_GUTTER / 2;
   const enabled = settings.status !== "ready" || settings.values.enabled;
-  const loading = state.active && state.view && ["running", "settings-loading"].includes(state.view.status);
+  const replyPending = useReplyTranslationPending(replyKey);
+  const loading = replyPending || (state.active && state.view && ["running", "settings-loading"].includes(state.view.status));
   const gutter = enabled ? REPLY_TRANSLATE_GUTTER : 0;
   // The slot is positioned in the content's own box, so a status notice above
   // the content does not shift it, and that box spans the gutter so the slot
@@ -602,7 +606,7 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp, inlin
     {probe.node}
     <PreferenceSyncSlot />
     <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={item.data.phase === "streaming"}>
-      <InlineReplyBlock state={inline} theme={theme} tokens={tokens} compact={layout.compact} text={shown} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives} text={shown} tokens={tokens} variant={preferences.markdownVariant}
+      <InlineReplyBlock state={inline} replyKey={replyTranslationKey(agentId, timestamp.getTime())} theme={theme} tokens={tokens} compact={layout.compact} text={shown} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives} text={shown} tokens={tokens} variant={preferences.markdownVariant}
         compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
         listContinuation={item.data.listContinuation}
         probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} /></InlineReplyBlock>
@@ -699,7 +703,7 @@ function LiveAssistantMessageRenderer({
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
         <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={streaming}>
-          {inline ? <InlineReplyBlock state={inline} theme={theme} tokens={tokens} compact={layout.compact} text={translated ?? revealed} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives}
+          {inline ? <InlineReplyBlock state={inline} replyKey={replyTranslationKey(agentId, timestamp.getTime())} theme={theme} tokens={tokens} compact={layout.compact} text={translated ?? revealed} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives}
             text={translated ?? revealed}
             firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
             listContinuation={item.data.listContinuation}
@@ -868,12 +872,14 @@ const TurnFooter = memo(function TurnFooter({
   const paseo = usePaseo();
   const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running, streaming);
   if (!timing) return null;
-  return <CompletedReplyFooter agentId={agentId} text={text} theme={theme} at={new Date(timing.completedAt)} tokens={tokens}
+  return <CompletedReplyFooter agentId={agentId} replyAt={at.getTime()} text={text} theme={theme} at={new Date(timing.completedAt)} tokens={tokens}
     compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage} />;
 });
 
-function CompletedReplyFooter({ agentId, text, at, theme, tokens, compact, durationMs, startedAt, usage }: {
+function CompletedReplyFooter({ agentId, replyAt, text, at, theme, tokens, compact, durationMs, startedAt, usage }: {
   agentId: string;
+  /** The reply row's timestamp, which its split rows share. */
+  replyAt: number;
   text: string;
   at: Date;
   theme: PluginTheme;
@@ -889,7 +895,8 @@ function CompletedReplyFooter({ agentId, text, at, theme, tokens, compact, durat
   const cwd = useAgent(agentId, (agent) => agent.cwd);
   const paseo = usePaseo();
   const model = useFooterModel(paseo, agentName, modelId, thinkingOptionId, cwd);
-  return <AssistantFooter translation={{ agentId, theme }} text={text} at={at} agentName={agentName} modelId={modelId} modelName={model.modelName}
+  const translation = useMemo(() => ({ agentId, theme, replyKey: replyTranslationKey(agentId, replyAt) }), [agentId, theme, replyAt]);
+  return <AssistantFooter translation={translation} text={text} at={at} agentName={agentName} modelId={modelId} modelName={model.modelName}
     thinkingLabel={model.thinkingLabel}
     durationMs={durationMs} startedAt={startedAt} usage={usage} tokens={tokens} compact={compact} />;
 }

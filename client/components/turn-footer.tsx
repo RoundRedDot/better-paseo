@@ -48,7 +48,7 @@ interface AssistantFooterProps {
   startedAt?: number | null;
   usage?: TurnUsage | null;
   tokens: ExtendedThemeTokens;
-  translation?: { agentId: string; theme: PluginTheme };
+  translation?: { agentId: string; theme: PluginTheme; replyKey?: string };
   /** `layout.compact`: a 44pt touch target for Copy. */
   compact?: boolean;
 }
