@@ -5,6 +5,7 @@
  * these; change them only together with their users.
  */
 import { createContext, type ReactNode } from "react";
+import type { DetailsZoomControls } from "./shell/zoom-controls";
 
 /**
  * drawer: full-width bottom sheet with a scrim (W < 600).
@@ -164,5 +165,7 @@ export interface DetailsShellValue {
   headerHandlers?: Record<string, unknown>;
   /** Details text zoom, set by native pinch or desktop toolbar controls. */
   zoom?: DetailsZoom;
+  /** The native body's text size controls, published for the toolbar (`zoom-controls.ts`). */
+  zoomControls?: DetailsZoomControls;
 }
 export const DetailsShellContext = createContext<DetailsShellValue | null>(null);

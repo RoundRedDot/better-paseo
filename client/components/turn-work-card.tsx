@@ -34,6 +34,7 @@ import { toolErrorText } from "../tools/error-text";
 import { countDiff, countLines } from "../tools/summarize";
 import { FileEditsPreview, ToolCallout } from "./tool-callouts";
 import { BlockPlacementContext, type BlockEntry } from "../details/contracts";
+import { StickyStepContext } from "../details/sticky-step";
 import { getBlock, registerBlock, type BlockRegistration } from "../details/block-registry";
 import { detailsApi, readDetails, useMarkerPhase } from "../details/details-store";
 import { rowPressAction } from "../details/click-model";
@@ -257,15 +258,24 @@ function WorkSteps({ agentId, at, steps, tokens, compact }: {
 }) {
   const pathContext = usePathContextValue(agentId);
   const placement = useMemo(() => ({ agentId, at, kind: "tool" as const }), [agentId, at]);
+  const sticky = useMemo(() => ({
+    plain: {},
+    striped: { stripe: withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04) },
+  }), [tokens.foreground, tokens.isDark]);
   return (
     <PathContext.Provider value={pathContext}>
       <BlockPlacementContext.Provider value={placement}>
         <View testID="work-step-list">
-          {steps.map((step, index) => <View key={step.callId} testID="work-step-cell"
-            style={{ paddingVertical: space.xs, paddingHorizontal: space.md,
-              backgroundColor: index % 2 === 1 ? withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04) : undefined }}>
-            <WorkStepRow agentId={agentId} step={step} number={index + 1} total={steps.length} tokens={tokens} compact={compact} />
-          </View>)}
+          {steps.map((step, index) => {
+            const stripe = index % 2 === 1 ? sticky.striped.stripe : undefined;
+            return <View key={step.callId} testID="work-step-cell"
+              style={{ paddingVertical: space.xs, paddingHorizontal: space.md, backgroundColor: stripe }}>
+              {/* An opened step pins its row under the toolbar while its output scrolls past. */}
+              <StickyStepContext.Provider value={stripe ? sticky.striped : sticky.plain}>
+                <WorkStepRow agentId={agentId} step={step} number={index + 1} total={steps.length} tokens={tokens} compact={compact} />
+              </StickyStepContext.Provider>
+            </View>;
+          })}
         </View>
       </BlockPlacementContext.Provider>
     </PathContext.Provider>

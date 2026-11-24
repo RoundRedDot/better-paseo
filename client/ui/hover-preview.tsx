@@ -35,6 +35,8 @@ import { DetailsToolbar, type DetailsWrap } from "../details/chrome/details-tool
 import { BackToLatestPill } from "../details/chrome/back-to-latest";
 import { ZoomBadge } from "../details/chrome/zoom-badge";
 import { usePinchZoom } from "../details/shell/pinch-zoom";
+import { usePublishZoomControls } from "../details/shell/zoom-controls";
+import { createNativeStickySource, createWebStickySource, DetailsStickySourceContext } from "../details/sticky-step";
 import { TextZoomContext } from "./text-zoom";
 
 /** Prevent a path inside a preview-enabled header from opening a second layer. */
@@ -852,6 +854,12 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
   // again: text kept the old size's frame, and a command band cut its last line.
   const textZoom = useContext(TextZoomContext);
   const redrawKey = Platform.OS === "ios" && typeof textZoom === "number" ? textZoom : undefined;
+  // An opened work step pins its row to the body's top (`sticky-step.tsx`).
+  const [nativeSticky] = useState(() => createNativeStickySource({
+    content: () => (scroller.ref.current as unknown as { getInnerViewRef?(): unknown } | null)?.getInnerViewRef?.() ?? null,
+    offset: () => scroller.value.offset(),
+    scrollTo: (top) => scroller.ref.current?.scrollTo({ y: top, animated: false }),
+  }));
   const detailsScroll = useMemo(() => (report ? {
     ...scroller.props,
     onScroll(event: NativeSyntheticEvent<NativeScrollEvent>) {
@@ -864,15 +872,25 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
       }
     },
     onLayout(event: LayoutChangeEvent) {
+      const height = event.nativeEvent.layout.height;
       scroller.props.onLayout(event);
-      report.laidOut(event.nativeEvent.layout.height);
+      report.laidOut(height);
+      nativeSticky.laidOut(height);
     },
     onContentSizeChange(width: number, height: number) {
       scroller.props.onContentSizeChange(width, height);
       report.contentSized(height);
       pinch.contentSized(height);
+      nativeSticky.changed();
     },
-  } : scroller.props), [report, scroller.props, pinch.contentSized]);
+  } : scroller.props), [report, scroller.props, pinch.contentSized, nativeSticky]);
+  // The offset reaches a pinned row on the native driver; the reports still run in JS.
+  const detailsOnScroll = useMemo(() => Animated.event(
+    [{ nativeEvent: { contentOffset: { y: nativeSticky.scrollY } } }],
+    { useNativeDriver: true, listener: detailsScroll.onScroll as (event: unknown) => void },
+  ), [nativeSticky, detailsScroll.onScroll]);
+  // The toolbar's text size buttons (`zoom-controls.ts`).
+  usePublishZoomControls(zoom ? shell?.zoomControls : undefined, pinch);
   const webBody = useRef<View>(null);
   const selectionScope = useContext(SelectionTranslationContext);
   const scopeData = Platform.OS === "web" ? selectionScopeDataSet(selectionScope) : null;
@@ -885,6 +903,8 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
       bindSelectionScopeElement(node, null);
     };
   }, [selectionScope]);
+  const [webSticky] = useState(() => createWebStickySource(() => webBody.current as unknown as HTMLElement | null));
+  useEffect(() => (details && Platform.OS === "web" ? webSticky.bind() : undefined), [details, webSticky]);
   const tail = useStreamingTail(streaming, webBody, band, behind.onChange);
   useWebScrollMemory(webBody, memoryKey, remembered, streaming, tail.pinned);
   // Lines keep their length; the body scrolls sideways, with a track under it
@@ -911,21 +931,23 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
     return (
       <View testID="details-body" ref={pinch.body} collapsable={false} {...pan} {...pinch.handlers} style={styles.detailsBody}>
         {Platform.OS !== "web" ? (
-          <ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={[styles.pressBodyContent, fullBleed && styles.fullBleed]}
-            scrollEnabled={!scroller.held && !(pulls && bodyTop)} scrollEventThrottle={16} {...detailsScroll}
+          <Animated.ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={[styles.pressBodyContent, fullBleed && styles.fullBleed]}
+            scrollEnabled={!scroller.held && !(pulls && bodyTop)} scrollEventThrottle={16} {...detailsScroll} onScroll={detailsOnScroll}
             bounces={!(pulls && bodyTop)} disableScrollViewPanResponder={pulls && bodyTop}>
             <PreviewScrollerContext.Provider value={scroller.value}>
               <PreviewViewportContext.Provider value={scroller.viewport}>
                 {/* At rest after the slide-in, only the text that came or changed while sliding mounts again. */}
                 <ProseRedrawContext.Provider value={report ?? null}>
-                  <ProseSelectionContext.Provider key={redrawKey} value>{content}</ProseSelectionContext.Provider>
+                  <DetailsStickySourceContext.Provider value={nativeSticky}>
+                    <ProseSelectionContext.Provider key={redrawKey} value>{content}</ProseSelectionContext.Provider>
+                  </DetailsStickySourceContext.Provider>
                 </ProseRedrawContext.Provider>
               </PreviewViewportContext.Provider>
             </PreviewScrollerContext.Provider>
-          </ScrollView>
+          </Animated.ScrollView>
         ) : (
           <View ref={scopeData ? bindWebBody : webBody} {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : {})} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll, shell?.form === "side" && styles.sideScroll, fullBleed && styles.fullBleed]}>
-            {content}
+            <DetailsStickySourceContext.Provider value={webSticky}>{content}</DetailsStickySourceContext.Provider>
           </View>
         )}
         {pill}

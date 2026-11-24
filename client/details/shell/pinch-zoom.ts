@@ -20,7 +20,7 @@
  * (`holdHostGestures`): fingers resting mid-pinch otherwise started the
  * text's own long-press selection, and the scroller could still take them.
  */
-import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from "react";
 import { PixelRatio, Platform, type GestureResponderEvent, type View } from "react-native";
 import type { DetailsZoom } from "../contracts";
 import type { PreviewScroller } from "../../ui/preview-scroller";
@@ -165,6 +165,10 @@ export function usePinchZoom(zoom: DetailsZoom | undefined, scroller: PreviewScr
   const body = useRef<View>(null);
   // The size on the badge; null hides it.
   const [badge, setBadge] = useState<number | null>(null);
+  const badgeUp = useRef(false);
+  badgeUp.current = badge !== null;
+  // A toolbar step with the badge down still redraws, so the toolbar shows the pending size.
+  const [, redraw] = useReducer((count: number) => count + 1, 0);
   const [cap, setCap] = useState(Infinity);
   const height = useRef(0);
   const interacting = useRef(false);
@@ -235,20 +239,27 @@ export function usePinchZoom(zoom: DetailsZoom | undefined, scroller: PreviewScr
     // Keep that cap until the new height arrives, but always allow shrinking.
     return Math.min(Math.max(current, cap), clampDetailsFontSize(current + direction));
   };
-  const setSize = (next: number) => {
+  // The toolbar shows the size itself: its steps update the badge only while it is up.
+  const setSize = (next: number, show = true) => {
     if (!zoom) return;
     pending.current = next;
-    setBadge(next);
+    if (show || badgeUp.current) setBadge(next);
+    else redraw();
     // Long native text is expensive to remount and reflow. Count the steps
     // immediately, then apply only the last size once the reader pauses.
     if (height.current <= LIVE_LIMIT) zoom.preview(next);
     scheduleStep();
     scheduleHide();
   };
-  const step = (direction: -1 | 1) => {
+  const step = (direction: -1 | 1, show = true) => {
     const next = nextStep(direction);
-    if (next !== (pending.current ?? zoom?.current() ?? 0)) setSize(next);
+    if (next !== (pending.current ?? zoom?.current() ?? 0)) setSize(next, show);
     else scheduleHide();
+  };
+  const showBadge = () => {
+    if (!zoom) return;
+    setBadge(pending.current ?? zoom.current());
+    scheduleHide();
   };
   const interaction = (active: boolean) => {
     interacting.current = active;
@@ -261,7 +272,8 @@ export function usePinchZoom(zoom: DetailsZoom | undefined, scroller: PreviewScr
     }
   };
   const current = pending.current ?? zoom?.current() ?? 0;
-  return { handlers, badge, body, contentSized, reset: () => { if (zoom) setSize(zoom.base); }, step, interaction,
+  return { handlers, badge, body, contentSized, reset: (show = true) => { if (zoom) setSize(zoom.base, show); }, step, interaction, showBadge,
+    size: current,
     canDecrease: Boolean(zoom && nextStep(-1) < current),
     canIncrease: Boolean(zoom && nextStep(1) > current),
   };

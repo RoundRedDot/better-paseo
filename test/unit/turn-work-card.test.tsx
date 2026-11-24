@@ -16,6 +16,7 @@ vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => un
 vi.mock("../../client/components/tool-callouts", () => ({
   ToolCallout: (props: Record<string, unknown>) => React.createElement("ToolCallout", {
     ...props, translationScope: React.useContext(SelectionTranslationContext),
+    stickyStep: React.useContext(StickyStepContext), stickySource: React.useContext(DetailsStickySourceContext),
   }, (props.leading as { content: React.ReactNode } | undefined)?.content),
   FileEditsPreview: (props: Record<string, unknown>) => React.createElement("FileEditsPreview", {
     ...props, translationScope: React.useContext(SelectionTranslationContext),
@@ -36,6 +37,7 @@ import { DetailsShellContext, type DetailsShellValue } from "../../client/detail
 import { PreviewActionsContext, PreviewChromeContext } from "../../client/ui/hover-preview";
 import { resetDisclosureStore } from "../../client/state/disclosure-store";
 import { SELECTION_SCOPE_ATTRIBUTES, SelectionTranslationContext } from "../../client/translation/selection";
+import { DetailsStickySourceContext, StickyStepContext } from "../../client/details/sticky-step";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
@@ -232,6 +234,11 @@ describe("turn work card", () => {
       expect(cells.every((cell) => cell.props.style.paddingHorizontal === 12)).toBe(true);
       const intent = panel.root.findAll((node) => (node.type as unknown) === "Text" && node.children.includes("Check the root first, then fix the path."))[0]!;
       expect(StyleSheet.flatten(intent.props.style).paddingHorizontal).toBe(12);
+      // Each step may pin its opened row to this body, behind its own stripe.
+      const rows = panel.root.findAll((node) => (node.type as unknown) === "ToolCallout");
+      expect(rows.every((row) => row.props.stickySource !== null)).toBe(true);
+      expect(new Set(rows.map((row) => row.props.stickySource)).size).toBe(1);
+      expect(rows.map((row) => row.props.stickyStep?.stripe)).toEqual(cells.map((cell) => cell.props.style.backgroundColor));
       act(() => panel.unmount());
       delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
     });

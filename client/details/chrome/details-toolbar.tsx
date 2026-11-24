@@ -8,7 +8,7 @@
  * The title the hover bar carries in its middle is not repeated here; the
  * header above names the block.
  */
-import { useState, type ReactNode } from "react";
+import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Platform, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent } from "react-native";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon } from "@getpaseo/plugin/client/ui";
@@ -21,6 +21,7 @@ import type { DetailsShellValue } from "../contracts";
 import { DETAILS_BREAKPOINTS } from "../layout-model";
 import { HEADER_BUTTONS } from "./details-header";
 import { copySlots, CopyOverflowMenu, useCopyOverflow } from "./copy-overflow";
+import type { DetailsZoomControls, ZoomControls } from "../shell/zoom-controls";
 
 export const DETAILS_TOOLBAR = { touch: 44, pointer: 36 } as const;
 const PADDING = space.md;
@@ -33,6 +34,32 @@ const TEXT_SMALLER: PluginIcon = {
 const TEXT_LARGER: PluginIcon = {
   svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M3 19 8 5l5 14M5 14h6"/><path d="M16 9h5m-2.5-2.5v5"/></svg>',
 };
+
+/** One button for the text size where − / size / + leave no room for the copies. */
+const TEXT_SIZE: PluginIcon = {
+  svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.75" stroke-linecap="round" stroke-linejoin="round"><path d="M2 19 7 5l5 14M4 14h6"/><path d="m14 19 3.5-9 3.5 9M15.2 16h4.6"/></svg>',
+};
+
+/**
+ * How the phone toolbar shows the text size: − / size / + as on the desktop,
+ * or folded into one button (it raises the body's size badge) when the three
+ * would leave the copies no room for even their "⋯".
+ */
+export function zoomGroupMode({ width, others, button, gap, fullscreen }: {
+  /** The toolbar's width; null before its first layout. */
+  width: number | null;
+  /** The left group's width without the text size controls. */
+  others: number;
+  button: number;
+  gap: number;
+  /** The full screen button's width and gap, or 0. */
+  fullscreen: number;
+}): "full" | "folded" {
+  if (width === null) return "full";
+  const full = 3 * button + 2 * gap;
+  const free = width - 2 * PADDING - others - gap - full - SPLIT - fullscreen;
+  return free >= button ? "full" : "folded";
+}
 
 export interface DetailsWrap {
   on: boolean;
@@ -53,12 +80,18 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
   const metrics = HEADER_BUTTONS[shell.pointer ? "pointer" : "touch"];
   const [width, setWidth] = useState<number | null>(null);
   const [leftWidth, setLeftWidth] = useState(0);
+  const [zoomWidth, setZoomWidth] = useState(0);
   const { detailsFontSize } = useEnhancerPreferences();
   const window = useWindowDimensions();
   const fullscreen = Math.min(window.width, window.height) < DETAILS_BREAKPOINTS.drawerEnter
     ? null : fullscreenButton(shell);
+  const fullscreenWidth = fullscreen ? metrics.button + GAP : 0;
   const free = width === null ? null
-    : width - 2 * PADDING - leftWidth - SPLIT - (fullscreen ? metrics.button + GAP : 0);
+    : width - 2 * PADDING - leftWidth - SPLIT - fullscreenWidth;
+  // A phone body publishes its pinch's controls; the desktop commits sizes directly.
+  const native = useNativeZoomControls(Platform.OS === "web" ? undefined : shell.zoomControls);
+  const zoomMode = zoomGroupMode({ width, others: Math.max(0, leftWidth - (zoomWidth ? zoomWidth + GAP : 0)),
+    button: metrics.button, gap: GAP, fullscreen: fullscreenWidth });
   const slots = copySlots(free, metrics.button, GAP);
   const { overflow, folded } = useCopyOverflow(slots, tokens.success);
   return (
@@ -95,6 +128,28 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
                 <Icon icon={TEXT_LARGER} size={metrics.icon} color={tokens.foregroundMuted} />
               </ToolbarItem>
             </> : null}
+            {native ? (
+              <View testID="details-toolbar-zoom" style={styles.zoom}
+                onLayout={(event: LayoutChangeEvent) => setZoomWidth(event.nativeEvent.layout.width)}>
+                {zoomMode === "full" ? <>
+                  <ToolbarItem label="Decrease text size" disabled={!native.canDecrease}
+                    onPress={() => native.step(-1)} tokens={tokens} iconSize={metrics.icon}>
+                    <Icon icon={TEXT_SMALLER} size={metrics.icon} color={tokens.foregroundMuted} />
+                  </ToolbarItem>
+                  <ToolbarItem label="Reset zoom" onPress={() => native.reset()} tokens={tokens}>
+                    <Text selectable={false} style={{ color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: 13, fontVariant: ["tabular-nums"] }}>{native.size}</Text>
+                  </ToolbarItem>
+                  <ToolbarItem label="Increase text size" disabled={!native.canIncrease}
+                    onPress={() => native.step(1)} tokens={tokens} iconSize={metrics.icon}>
+                    <Icon icon={TEXT_LARGER} size={metrics.icon} color={tokens.foregroundMuted} />
+                  </ToolbarItem>
+                </> : (
+                  <ToolbarItem label="Text size" onPress={() => native.showBadge()} tokens={tokens} iconSize={metrics.icon}>
+                    <Icon icon={TEXT_SIZE} size={metrics.icon} color={tokens.foregroundMuted} />
+                  </ToolbarItem>
+                )}
+              </View>
+            ) : null}
             {left}
           </TooltipAlignContext.Provider>
         </View>
@@ -112,6 +167,15 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
       </View>
     </ToolbarMetricsContext.Provider></SpokenLabelsContext.Provider>
   );
+}
+
+const UNSUBSCRIBED = () => {};
+const NONE = () => null;
+
+/** The phone body's text size controls, while one publishes them. */
+function useNativeZoomControls(controls: DetailsZoomControls | undefined): ZoomControls | null {
+  const subscribe = useCallback((listener: () => void) => (controls ? controls.subscribe(listener) : UNSUBSCRIBED), [controls]);
+  return useSyncExternalStore(subscribe, controls?.read ?? NONE, controls?.read ?? NONE);
 }
 
 /**
@@ -143,5 +207,6 @@ const styles = StyleSheet.create({
     zIndex: 1,
   },
   start: { flexDirection: "row", alignItems: "center", gap: GAP, flexShrink: 0 },
+  zoom: { flexDirection: "row", alignItems: "center", gap: GAP, flexShrink: 0 },
   end: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: GAP },
 });

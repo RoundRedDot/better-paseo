@@ -49,6 +49,7 @@ import { bindDetailsKeys, registerDetailsKeyboardActions } from "../keyboard";
 import { useCopy } from "../../ui/use-copy";
 import { canProbeOlder, noteNavigation, stepDetails, syncTimeline, useHostList } from "./timeline-sync";
 import { DetailsBodyContext, createBodyScroll } from "./body-handover";
+import { createZoomControls } from "./zoom-controls";
 import { BottomDrawer } from "./bottom-drawer";
 import { FloatingPanel } from "./floating-panel";
 import { SidePanel, sideWidth } from "./side-panel";
@@ -357,6 +358,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   }, [runSync]);
 
   const bodyScroll = useMemo(() => createBodyScroll(), []);
+  const zoomControls = useMemo(() => createZoomControls(), []);
 
   // Phones keep the timeline's body size; tablets use a denser 7/8 ratio.
   // The saved pinch value scales either relative to the host's content size.
@@ -428,7 +430,8 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
     toggleFullscreen,
     headerHandlers: touch ? (headerPan.panHandlers as unknown as Record<string, unknown>) : undefined,
     zoom,
-  }), [agentId, entry, form, detent, fullscreenOn, pointer, nav.index, nav.count, canStep, step, close, toggleFullscreen, touch, headerPan, zoom]);
+    zoomControls,
+  }), [agentId, entry, form, detent, fullscreenOn, pointer, nav.index, nav.count, canStep, step, close, toggleFullscreen, touch, headerPan, zoom, zoomControls]);
   const actions = useMemo<PreviewActions>(() => ({
     maximizable: true,
     maximized: fullscreenOn,

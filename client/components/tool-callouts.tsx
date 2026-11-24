@@ -1,4 +1,4 @@
-import React, { useCallback, useContext, useEffect, useMemo, useState } from "react";
+import React, { useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { Platform, View, Text, Pressable, StyleSheet } from "react-native";
 import type { TextStyle, ViewStyle } from "react-native";
 import { Glyph } from "./glyph";
@@ -25,6 +25,7 @@ import { selectionCodeText, selectionSurface } from "./selection-actions";
 import { useToast } from "@getpaseo/plugin/client/ui";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon, RowPaletteContext, RowText } from "../ui/disclosure-header";
 import { STICKY_SUPPORTED, StickyCard } from "../ui/sticky-header";
+import { DetailsStickyCard, DetailsStickySourceContext, StickyStepContext, type StickyStepHandle } from "../details/sticky-step";
 import { useScrollAnchor } from "../ui/scroll-anchor";
 import { PathContext, PathText } from "../ui/path-text";
 import { RunningDot } from "../ui/running-dot";
@@ -205,6 +206,9 @@ export function ToolCallout({
   requestImage,
 }: ToolCalloutProps) {
   const placement = useContext(BlockPlacementContext);
+  // A work step in the details panel pins its opened row under the toolbar.
+  const stickyStep = useContext(StickyStepContext);
+  const stickySource = useContext(DetailsStickySourceContext);
   const selectionScope = useContext(SelectionTranslationContext);
   const scopeData = Platform.OS === "web" ? selectionScopeDataSet(selectionScope) : null;
   const bindSelectionScope = useCallback((node: View | Text | null) => {
@@ -221,7 +225,12 @@ export function ToolCallout({
   );
   const expanded = hasDetail && (controlledExpanded ?? localExpanded);
   const setExpanded = onExpandedChange ?? setLocalExpanded;
-  const onToggle = useCallback(() => setExpanded(!expanded), [setExpanded, expanded]);
+  // A pinned work step being closed first brings the body back to its row.
+  const stickyHandle = useRef<StickyStepHandle>(null);
+  const onToggle = useCallback(() => {
+    if (expanded) stickyHandle.current?.collapsing();
+    setExpanded(!expanded);
+  }, [setExpanded, expanded]);
   // Owned here, not by the row: an opened card moves the row into `StickyCard`.
   const scrollAnchor = useScrollAnchor(expanded);
 
@@ -421,6 +430,15 @@ export function ToolCallout({
       </View>
     </FadeIn>
   ) : null;
+
+  if (expanded && stickyStep && stickySource) {
+    return (
+      <DetailsStickyCard source={stickySource} tokens={tokens} stripe={stickyStep.stripe} header={header} handle={stickyHandle}>
+        {viewer}
+        {body}
+      </DetailsStickyCard>
+    );
+  }
 
   // An opened card on a host with the sticky header API pins its row while it
   // scrolls past (S6). Collapsed rows never reach the hook.

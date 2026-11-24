@@ -2372,6 +2372,59 @@ describe("a pinch in the phone drawer", () => {
     expect(byTestId(renderer, "details-zoom-reset")).not.toBeNull();
   });
 
+  it.each(["ios", "android"])("offers phone text size steps in the %s drawer toolbar, folding them where the copies need room", async (os) => {
+    vi.useFakeTimers();
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    screen.width = 390;
+    screen.height = 844;
+    updateEnhancerPreferences({ detailsFontSize: 14 });
+    const renderBlock = () => createElement(React.Fragment, null,
+      createElement(HoverPreviewHeader, { tokens, icon: "FileText" }), zoomed());
+    fake.box.blocks = [block("phone-toolbar-zoom", 1, { render: renderBlock })];
+    const renderer = render(slot());
+    open("phone-toolbar-zoom");
+    await act(async () => {});
+    expect(byTestId(renderer, "details-drawer")).not.toBeNull();
+    const button = (label: string) => renderer.root.findAll((node) => typeof node.type === "string" && node.props.accessibilityLabel === label)[0];
+    const startLabels = () => byTestId(renderer, "details-toolbar-zoom")!.findAll((node) => typeof node.type === "string"
+      && typeof node.props.accessibilityLabel === "string").map((node) => node.props.accessibilityLabel);
+    const size = () => byTestId(renderer, "details-toolbar-zoom")!.findAll((node) => typeof node.props.children === "number")[0]!.props.children;
+    expect(startLabels()).toEqual(["Decrease text size", "Reset zoom", "Increase text size"]);
+    expect(size()).toBe(14);
+    act(() => button("Increase text size")!.props.onPress());
+    // The toolbar counts the step at once and saves it once the presses pause; the badge stays down.
+    expect(size()).toBe(15);
+    expect(byTestId(renderer, "details-zoom-badge")).toBeNull();
+    act(() => { vi.advanceTimersByTime(150); });
+    expect(getEnhancerPreferences().detailsFontSize).toBe(15);
+    expect(byTestId(renderer, "zoom-probe")!.props.children).toBe(String(Math.round(16 * 15 / 14)));
+    act(() => button("Reset zoom")!.props.onPress());
+    act(() => { vi.advanceTimersByTime(150); });
+    expect(getEnhancerPreferences().detailsFontSize).toBe(14);
+    act(() => updateEnhancerPreferences({ detailsFontSize: 12 }));
+    expect(button("Decrease text size")!.props.accessibilityState?.disabled ?? button("Decrease text size")!.props.disabled).toBe(true);
+    act(() => updateEnhancerPreferences({ detailsFontSize: 14 }));
+
+    // A toolbar too narrow for − / size / + and one more button keeps one text size button.
+    const layout = (id: string, width: number) => act(() => byTestId(renderer, id)!.props.onLayout({ nativeEvent: { layout: { width, height: 44 } } }));
+    // Line wrap, then the three controls; the copies need at least one 36 button after them.
+    layout("details-toolbar-start", 36 + 4 + 3 * 36 + 2 * 4);
+    layout("details-toolbar-zoom", 3 * 36 + 2 * 4);
+    layout("details-toolbar", 2 * 12 + 36 + 4 + 3 * 36 + 2 * 4 + 8 + 36);
+    expect(startLabels()).toEqual(["Decrease text size", "Reset zoom", "Increase text size"]);
+    layout("details-toolbar", 2 * 12 + 36 + 4 + 3 * 36 + 2 * 4 + 8 + 35);
+    expect(startLabels()).toEqual(["Text size"]);
+    // Folded, the measured group is narrower; the choice does not flip back.
+    layout("details-toolbar-zoom", 36);
+    layout("details-toolbar-start", 36 + 4 + 36);
+    expect(startLabels()).toEqual(["Text size"]);
+    act(() => button("Text size")!.props.onPress());
+    expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();
+    act(() => byTestId(renderer, "details-zoom-increase")!.props.onPress());
+    act(() => { vi.advanceTimersByTime(150); });
+    expect(getEnhancerPreferences().detailsFontSize).toBe(15);
+  });
+
   it("keeps tablet zoom across a side-to-floating layout change", () => {
     vi.useFakeTimers();
     screen.width = 1194;

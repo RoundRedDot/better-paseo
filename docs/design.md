@@ -463,7 +463,13 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   weight 600, a subtitle with `i / n`, then previous, next and close. Toolbar 36, 44 on touch. The
   current row in the timeline takes an `accentSoft` fill and a 2 pt accent bar.
 - Text size: on native a pinch sets an absolute size from 12 to 26 (default 14), and the Text size
-  badge, with − / + and Reset, stays 2 s after the fingers lift. The web has no pinch.
+  badge, with − / + and Reset, stays 2 s after the fingers lift. The web has no pinch. The toolbar
+  carries − / size / + after line wrap, as on the desktop; pressing the size resets it. Where the
+  three would leave the copies no room for one button, a phone folds them into one Text size button
+  that raises the badge.
+- An opened work step in the details panel pins its row under the toolbar while its output scrolls
+  past, however short the output, and the step's end pushes it out. Closing the row while it is
+  pinned brings the list back to the row; switching blocks or closing the panel leaves the scroll.
 - Hover preview: on the web it opens after the reader's hover delay (default 1 s) and closes
   150 ms after the pointer leaves; it spans the content column 6 below the row, above it when
   below has no room, at most 360 tall. Native opens it pinned on a long press. Its toolbar ends
