@@ -1048,7 +1048,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(footer.findAll((node) => node.props.testID === "translation-language").length).toBeGreaterThan(0);
     expect(footer.findAll((node) => node.props.testID === "translation-model").length).toBeGreaterThan(0);
     expect(header.findAll((node) => node.props.testID === "translation-language")).toHaveLength(0);
-    const divider = renderer!.root.findByProps({ testID: "translation-header-divider" });
+    const divider = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header-divider");
     expect(divider.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ height: 0.5 })]));
     expect(renderer!.root.findAll((node) => node.props.testID === "translation-sheet-header-cover")).toHaveLength(0);
     expect(collectTexts(header).join(" ")).not.toContain("Translation ·");
@@ -1057,7 +1057,12 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     // Touching translated prose must not cancel the source block and unmount the modal.
     const body = renderer!.root.find((node) => String(node.type) === "SheetContent");
     expect(body.props.scrollable).toBe(false);
-    const scroll = body.findByProps({ testID: "selection-translation-body" });
+    const scroll = body.find((node) => String(node.type) === "ScrollView" && node.props.testID === "selection-translation-body");
+    const panel = body.findByProps({ testID: "selection-translation-panel" });
+    const frames = measureHostTree(panel, { width: 390 });
+    expect(frames.get(scroll)!.top).toBeCloseTo(frames.get(divider)!.top + frames.get(divider)!.height);
+    expect(scroll.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ overflow: "hidden" })]));
+    expect(scroll.props.contentContainerStyle).toMatchObject({ paddingTop: 6 });
     expect(scroll.findByType(MarkdownView)).toBeTruthy();
     expect(scroll.findAll((node) => node.props.testID === "translation-header")).toHaveLength(0);
     expect(scroll.findAll((node) => node.props.testID === "translation-header-divider")).toHaveLength(0);

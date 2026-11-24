@@ -122,7 +122,8 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
       ) : null}
       {text ? (
         <ScrollView testID="selection-translation-body" nestedScrollEnabled
-          style={resized || sheet ? { flex: 1, minHeight: 0 } : { maxHeight: Math.max(120, Math.round(window.height * 0.45)) }}>
+          style={[resized || sheet ? { flex: 1, minHeight: 0 } : { maxHeight: Math.max(120, Math.round(window.height * 0.45)) }, sheet && styles.sheetBody]}
+          contentContainerStyle={sheet ? styles.sheetBodyContent : undefined}>
           <SelectionTranslationContext.Provider value={null}>
             <MarkdownView text={sheet ? withoutLeadingRule(text) : text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
           </SelectionTranslationContext.Provider>
@@ -162,6 +163,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
 }
 
 const TRANSLATION_TOOLBAR_METRICS = { button: 28, icon: 16 };
+const PANEL_GAP = 6;
 
 function withoutLeadingRule(text: string) {
   const firstLine = text.match(/^(?:[ \t]*\r?\n)*[^\r\n]*(?:\r?\n|$)/)?.[0] ?? "";
@@ -178,7 +180,9 @@ function ModelMark({ id }: { id: string }) {
 }
 
 const styles = StyleSheet.create({
-  panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
+  panel: { paddingHorizontal: 12, paddingVertical: 10, gap: PANEL_GAP },
+  sheetBody: { marginTop: -PANEL_GAP, overflow: "hidden" },
+  sheetBodyContent: { paddingTop: PANEL_GAP },
   header: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 },
   headerInfo: { height: 24, flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
   divider: { height: 0.5, marginHorizontal: -12 },
