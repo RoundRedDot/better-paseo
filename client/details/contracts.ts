@@ -91,6 +91,8 @@ export interface DetailsState {
   fullscreen: boolean;
   /** The block whose row marker lingers 1.2 s after the panel closed. */
   lingerId: string | null;
+  /** Opened at the side on request ("open in panel"): on desktop it reserves timeline space like work details. */
+  docked?: boolean;
 }
 
 export interface OpenOptions {
@@ -99,7 +101,7 @@ export interface OpenOptions {
   independent?: boolean;
   /** False for a code block: no ‹ ›, not counted. */
   navigable?: boolean;
-  /** Force a form (the desktop hover's "open in panel" asks for side). */
+  /** Force a form (the desktop hover's "open in panel" asks for side, which also docks the panel). */
   form?: DetailsForm;
 }
 

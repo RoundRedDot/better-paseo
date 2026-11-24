@@ -5,7 +5,7 @@ import { orderBlocks } from "./navigation";
 
 export const MARKER_LINGER_MS = 1200;
 
-const CLOSED: DetailsState = { openId: null, independent: false, form: "drawer", detent: "fit", fullscreen: false, lingerId: null };
+const CLOSED: DetailsState = { openId: null, independent: false, form: "drawer", detent: "fit", fullscreen: false, lingerId: null, docked: false };
 
 interface AgentDetailsStore {
   state: DetailsState;
@@ -49,7 +49,7 @@ function updateState(agentId: string, next: DetailsState, nextLingerUntil: numbe
   const previousUntil = store.lingerUntil;
   if (
     previous.openId === next.openId && previous.form === next.form && previous.detent === next.detent &&
-    previous.fullscreen === next.fullscreen && previous.lingerId === next.lingerId && previous.independent === next.independent &&
+    previous.fullscreen === next.fullscreen && previous.lingerId === next.lingerId && previous.independent === next.independent && previous.docked === next.docked &&
     previousUntil === nextLingerUntil
   ) return;
 
@@ -108,12 +108,15 @@ export const detailsApi: DetailsApi = {
     const store = storeFor(agentId);
     const previous = store.state;
     setNavigationOverride(agentId, id, options?.navigable);
+    // A docked panel stays docked while it steps to other blocks; a fresh open without a form does not dock.
+    const docked = options?.form !== undefined ? options.form === "side" : previous.openId !== null && previous.docked === true;
 
     if (previous.openId === id) {
       updateState(agentId, {
         ...previous,
         independent: options?.independent ?? previous.independent,
         form: options?.form ?? previous.form,
+        docked,
         detent: options?.detent ?? previous.detent,
       }, store.lingerUntil);
       return;
@@ -137,6 +140,7 @@ export const detailsApi: DetailsApi = {
       openId: id,
       independent: options?.independent ?? false,
       form: options?.form ?? previous.form,
+      docked,
       detent: options?.detent ?? (previous.openId === null ? "fit" : previous.detent),
       fullscreen: previous.openId === null ? false : previous.fullscreen,
       lingerId,

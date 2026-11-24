@@ -97,10 +97,10 @@ export function DetailsShell({ agentId, tokens }: { agentId: string; tokens: Ext
     setLastId(null);
   }, [agentId]);
   if (!shownId || !entry) return null;
-  return <OpenShell agentId={agentId} tokens={tokens} entry={entry} openId={state.openId} detent={state.detent} fullscreen={state.fullscreen} storeForm={state.form} onExited={onExited} />;
+  return <OpenShell agentId={agentId} tokens={tokens} entry={entry} openId={state.openId} detent={state.detent} fullscreen={state.fullscreen} storeForm={state.form} docked={state.docked === true} onExited={onExited} />;
 }
 
-function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeForm, onExited }: {
+function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeForm, docked, onExited }: {
   agentId: string;
   tokens: ExtendedThemeTokens;
   entry: BlockEntry;
@@ -109,6 +109,7 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   detent: Detent;
   fullscreen: boolean;
   storeForm: DetailsForm;
+  docked: boolean;
   onExited(): void;
 }) {
   const leaving = openId === null;
@@ -119,7 +120,9 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
   const paneRef = useRef<View>(null);
   const anchor = useCallback(() => paneRef.current, []);
   const host = useHostList(agentId, anchor);
-  const layout = useDetailsLayout(pointer, host, entry.reserveTimeline);
+  // "Open in panel" asks for the side: make room in the timeline as work details do.
+  const reserveTimeline = entry.reserveTimeline === true || docked;
+  const layout = useDetailsLayout(pointer, host, reserveTimeline);
   const [insets, insetProbe] = useSafeInsets();
   const lockList = useListScrollLock();
   const revealPath = useRpc(revealPathRpc);
@@ -216,12 +219,12 @@ function OpenShell({ agentId, tokens, entry, openId, detent, fullscreen, storeFo
       : layout.stage.width;
   const timelineSpace = useRef<ReturnType<typeof bindTimelineSpace> | null>(null);
   useLayoutEffect(() => {
-    if (Platform.OS !== "web" || !pointer || !entry.reserveTimeline || form !== "side" || leaving || !layout.ready) return;
+    if (Platform.OS !== "web" || !pointer || !reserveTimeline || form !== "side" || leaving || !layout.ready) return;
     const reservation = bindTimelineSpace(paneRef.current);
     timelineSpace.current = reservation;
     reservation.setWidth(panelWidth);
     return () => { timelineSpace.current = null; reservation.release(); };
-  }, [entry.reserveTimeline, form, leaving, layout.ready, pointer]);
+  }, [reserveTimeline, form, leaving, layout.ready, pointer]);
   useLayoutEffect(() => { timelineSpace.current?.setWidth(panelWidth); }, [panelWidth]);
   const navRef = useRef({ nav, canStep, panelWidth });
   navRef.current = { nav, canStep, panelWidth };

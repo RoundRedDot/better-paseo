@@ -75,7 +75,10 @@ const fake = vi.hoisted(() => {
   };
   const navigable = () => box.blocks.filter((entry) => entry.navigable && entry.hasBody);
   const api = {
-    open: vi.fn((_agent: string, id: string, options?: { detent?: "fit" | "full" }) => set({ openId: id, detent: options?.detent ?? "fit", fullscreen: false })),
+    open: vi.fn((_agent: string, id: string, options?: { detent?: "fit" | "full"; form?: State["form"] }) => set({
+      openId: id, detent: options?.detent ?? "fit", fullscreen: false,
+      docked: options?.form !== undefined ? options.form === "side" : box.state.openId !== null && box.state.docked === true,
+    })),
     close: vi.fn(() => set({ openId: null, lingerId: box.state.openId })),
     step: vi.fn((_agent: string, direction: -1 | 1) => {
       const list = navigable();
@@ -498,6 +501,25 @@ describe("form", () => {
     act(() => seen.shell!.toggleFullscreen!());
     expect(web.timelinePadding).toBe("calc(16px + 624px)");
     act(() => fake.api.close());
+    expect(web.timelinePadding).toBe("16px");
+  });
+
+  it("docks an ordinary detail opened in the panel beside the timeline even without an empty gutter", async () => {
+    webDesktop();
+    screen.width = 1280;
+    web.reserveHost = true;
+    web.pane = { left: 240, right: 1280, contentRight: 1280 };
+    fake.box.blocks = [block("a", 1)];
+    const renderer = render(slot());
+    await act(async () => fake.api.open(AGENT, "a", { form: "side" }));
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    expect(byTestId(renderer, "details-floating")).toBeNull();
+    expect(web.timelinePadding).toBe("calc(16px + 420px)");
+    act(() => fake.api.close());
+    expect(web.timelinePadding).toBe("16px");
+    // A plain open of the same detail keeps the floating form.
+    await act(async () => fake.api.open(AGENT, "a"));
+    expect(byTestId(renderer, "details-floating")).not.toBeNull();
     expect(web.timelinePadding).toBe("16px");
   });
 
