@@ -320,7 +320,15 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   const testConnection = useRpc(translationTestRpc);
   const endpointStatus = useEndpointStatus(store);
 
-  const settings = state.status === "ready" ? state.values : DEFAULT_TIMELINE_TRANSLATION_SETTINGS;
+  // The host's settings hook has no optimistic update: until a save lands it
+  // still reports the old values and `saving`. Show the change being saved
+  // right away and keep the rows as they are, so the group does not dim and
+  // snap back for the length of the round trip.
+  const [pendingPatch, setPendingPatch] = useState<Partial<TimelineTranslationSettings> | null>(null);
+  const savingPatch = useRef(false);
+  const settings = state.status === "ready"
+    ? (pendingPatch ? { ...state.values, ...pendingPatch } : state.values)
+    : DEFAULT_TIMELINE_TRANSLATION_SETTINGS;
 
   useTranslationSettingsReport(state);
 
@@ -351,11 +359,17 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   }, [ready, refreshStatus]);
 
   const savePatch = useCallback(async (patch: Partial<TimelineTranslationSettings>) => {
-    if (state.status !== "ready") return;
-    const next = { ...state.values, ...patch };
-    const ok = await state.save(next, state.revision);
-    if (!ok) {
-      void state.reload?.();
+    // One write at a time: a second save against the same revision would be
+    // rejected as stale.
+    if (state.status !== "ready" || state.saving || savingPatch.current) return;
+    savingPatch.current = true;
+    setPendingPatch(patch);
+    try {
+      const ok = await state.save({ ...state.values, ...patch }, state.revision);
+      if (!ok) void state.reload?.();
+    } finally {
+      savingPatch.current = false;
+      setPendingPatch(null);
     }
   }, [state]);
 
@@ -452,7 +466,9 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
     value: service, name: t.services[service], logo: <ServiceMark service={service} />,
   }));
 
-  const writeDisabled = state.status !== "ready" || state.saving;
+  // Saving does not disable the rows (that dimmed the whole group on every
+  // change); `savePatch` refuses a second write while one is in flight.
+  const writeDisabled = state.status !== "ready";
   const controlsDisabled = writeDisabled || !settings.enabled;
   const formDisabled = controlsDisabled || keyBusy || testing;
   const current = endpointStatus.status === "ready" && endpointStatus.endpoint === endpoint ? endpointStatus : null;

@@ -694,7 +694,11 @@ describe("timeline translation settings", () => {
     expect(root().props["aria-busy"]).toBe(true);
     expect(footerTop()).toBe(topBeforeSave);
     const enabled = renderer!.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Enable translation");
-    expect(enabled.props.disabled).toBe(true);
+    // Saving does not dim the rows (the whole group flashed on every change);
+    // a second write while one is in flight is refused instead.
+    expect(enabled.props.disabled).toBe(false);
+    await act(async () => enabled.props.onPress());
+    expect(ready.save).not.toHaveBeenCalled();
     await updateState({ ...ready, saveError: "Write rejected" });
     expect(root().props["aria-busy"]).toBe(false);
     expect(alerts().map((node) => node.children.join(""))).toEqual(["Write rejected"]);
