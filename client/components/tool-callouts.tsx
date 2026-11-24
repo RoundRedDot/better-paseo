@@ -155,6 +155,8 @@ interface ToolCalloutProps {
   tokens: ExtendedThemeTokens;
   /** `layout.compact`: 28px header and shorter truncation budgets. */
   compact?: boolean;
+  /** A fixed-width prefix for this call's header. */
+  leading?: { content: React.ReactNode; width: number };
   /** Uncontrolled start state. The live renderer passes `expanded` instead. */
   defaultExpanded?: boolean;
   /** Controlled open state (the disclosure store's value). */
@@ -194,6 +196,7 @@ export function ToolCallout({
   groupCalls,
   tokens,
   compact = false,
+  leading,
   defaultExpanded = false,
   expanded: controlledExpanded,
   onExpandedChange,
@@ -353,6 +356,7 @@ export function ToolCallout({
       scrollAnchor={scrollAnchor}
       tokens={tokens}
       compact={compact}
+      leading={leading}
       tone={tone}
       inert={!hasDetail}
       icon={statusIcon}
@@ -396,7 +400,7 @@ export function ToolCallout({
     />
   );
   const body = expanded ? (
-    <FadeIn style={[styles.body, { backgroundColor: tokens.row.outputBg },
+    <FadeIn style={[styles.body, leading && { marginLeft: leading.width }, { backgroundColor: tokens.row.outputBg },
       summary.tone === "warning" && { borderWidth: 1, borderColor: permissionBorder(tokens) }]}>
       <View ref={scopeData ? bindSelectionScope : undefined}
         {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : selectionSurface)} style={styles.bodyInner}>
@@ -441,6 +445,7 @@ export function ToolCallout({
           numberOfLines={1}
           style={[
             styles.errorLine,
+            leading && { marginLeft: leading.width },
             {
               color: tokens.row.meta,
               fontFamily: tokens.fontMono,

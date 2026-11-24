@@ -152,6 +152,8 @@ export interface DisclosureHeaderProps {
   tokens: ExtendedThemeTokens;
   /** `layout.compact`. */
   compact?: boolean;
+  /** A fixed-width prefix inside the row's hover and press area. */
+  leading?: { content: ReactNode; width: number };
   /** The status slot: a muted tool icon, a `RunningDot`, a failure mark. */
   icon?: ReactNode;
   /**
@@ -275,6 +277,7 @@ export function DisclosureHeader({
   onToggle,
   tokens,
   compact = false,
+  leading,
   icon,
   iconIsStatus = false,
   verb,
@@ -549,6 +552,7 @@ export function DisclosureHeader({
                 {...(pointerProps as object)}
                 style={({ pressed: pressedState }) => [
                   styles.row,
+                  leading && { marginHorizontal: -space.md, paddingHorizontal: space.md },
                   { height, borderRadius: radiusV2.block },
                   hovered && { backgroundColor: tokens.row.hover },
                   (pressedState || (detailsEnabled && (menuOpen || actionsActive || pressed))) && { backgroundColor: tokens.row.hover },
@@ -556,6 +560,7 @@ export function DisclosureHeader({
               >
                 {detailsEnabled && hasMarker.current ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} radius={radiusV2.block} /> : null}
                 {detailsMarker ? <CurrentMarker agentId={detailsMarker.agentId} id={detailsMarker.id} tokens={tokens} radius={radiusV2.block} /> : null}
+                {leading ? <View style={{ width: leading.width, marginRight: -DISCLOSURE_HEADER.gap }}>{leading.content}</View> : null}
                 <View style={styles.slot}>
                   {showChevron ? (
                     <Icon
@@ -614,7 +619,8 @@ export function DisclosureHeader({
                     onLongPress={openMenu} delayLongPress={500}
                     onPress={(event) => { event.stopPropagation(); toggle(); }}
                     hitSlop={slop > 0 ? { top: slop, bottom: slop } : undefined}
-                    style={{ position: "absolute", left: 0, top: 0, bottom: 0, width: capabilities.hover ? 28 : 44 }} />
+                    style={{ position: "absolute", left: leading ? space.md + leading.width - DISCLOSURE_HEADER.bleed : 0,
+                      top: 0, bottom: 0, width: capabilities.hover ? 28 : 44 }} />
                 ) : null}
               </Pressable>
             </RowLongPressContext.Provider>

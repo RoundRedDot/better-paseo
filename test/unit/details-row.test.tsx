@@ -248,6 +248,19 @@ const fixtures: Array<[string, ToolCallView, string[]]> = [
   } }), ["Copy result", "Copy arguments"]],
 ];
 describe("tool menu copy order", () => {
+  it("keeps a step number in the same hover and press area as the tool row", () => {
+    const data = fixtures[0]![1];
+    render(<ToolCallout data={data} tokens={tokens} leading={{ width: 24, content: <React.Fragment>12</React.Fragment> }} />, false);
+    expect(textOf(row())).toContain("12");
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ marginHorizontal: -12, paddingHorizontal: 12 });
+    act(() => row().props.onHoverIn());
+    expect(StyleSheet.flatten(row().props.style).backgroundColor).toBe(tokens.row.hover);
+    act(() => row().props.onPress());
+    expect(row().props.accessibilityState).toEqual({ expanded: true });
+    expect(textOf(row())).toContain("12");
+    act(() => row().props.onPress());
+    expect(row().props.accessibilityState).toEqual({ expanded: false });
+  });
   it.each(fixtures)("renders %s copies in design order", (_name, data, expected) => {
     render(<ToolCallout data={data} tokens={tokens} previewKey="tool:preview" />);
     act(() => row().props.onLongPress());

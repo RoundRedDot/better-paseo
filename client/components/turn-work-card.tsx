@@ -262,17 +262,9 @@ function WorkSteps({ agentId, at, steps, tokens, compact }: {
       <BlockPlacementContext.Provider value={placement}>
         <View testID="work-step-list">
           {steps.map((step, index) => <View key={step.callId} testID="work-step-cell"
-            style={{ flexDirection: "row", paddingVertical: space.xs, paddingHorizontal: space.md,
+            style={{ paddingVertical: space.xs, paddingHorizontal: space.md,
               backgroundColor: index % 2 === 1 ? withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04) : undefined }}>
-            <Text testID="work-step-number" selectable={false} style={{
-              width: lineNumberWidth(steps.length, tokens.typography.mono.size),
-              color: tokens.syntax.comment, fontFamily: tokens.fontMono, fontSize: tokens.typography.mono.size - 2,
-              lineHeight: compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop,
-              textAlign: "right", paddingRight: space.sm, fontVariant: ["tabular-nums"],
-            }}>{index + 1}</Text>
-            <View style={{ flex: 1, minWidth: 0 }}>
-              <WorkStepRow agentId={agentId} step={step} tokens={tokens} compact={compact} />
-            </View>
+            <WorkStepRow agentId={agentId} step={step} number={index + 1} total={steps.length} tokens={tokens} compact={compact} />
           </View>)}
         </View>
       </BlockPlacementContext.Provider>
@@ -280,12 +272,18 @@ function WorkSteps({ agentId, at, steps, tokens, compact }: {
   );
 }
 
-const WorkStepRow = memo(function WorkStepRow({ agentId, step, tokens, compact }: {
-  agentId: string; step: WorkStep; tokens: ExtendedThemeTokens; compact: boolean;
+const WorkStepRow = memo(function WorkStepRow({ agentId, step, number, total, tokens, compact }: {
+  agentId: string; step: WorkStep; number: number; total: number; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
   const view = useMemo(() => viewOf(step.item), [step.item]);
+  const width = lineNumberWidth(total, tokens.typography.mono.size);
+  const leading = { width, content: <Text testID="work-step-number" selectable={false} style={{
+    color: tokens.syntax.comment, fontFamily: tokens.fontMono, fontSize: tokens.typography.mono.size - 2,
+    lineHeight: compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop,
+    textAlign: "right", paddingRight: space.sm, fontVariant: ["tabular-nums"],
+  }}>{number}</Text> };
   return <SelectionTranslationScope agentId={agentId} kind="tool_output" streaming={false}>
-    <ToolCallout data={view} previewKey={`${agentId}:work:${step.callId}:preview`} tokens={tokens} compact={compact} />
+    <ToolCallout data={view} previewKey={`${agentId}:work:${step.callId}:preview`} tokens={tokens} compact={compact} leading={leading} />
   </SelectionTranslationScope>;
 });
 

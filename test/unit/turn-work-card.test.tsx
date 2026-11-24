@@ -16,7 +16,7 @@ vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => un
 vi.mock("../../client/components/tool-callouts", () => ({
   ToolCallout: (props: Record<string, unknown>) => React.createElement("ToolCallout", {
     ...props, translationScope: React.useContext(SelectionTranslationContext),
-  }),
+  }, (props.leading as { content: React.ReactNode } | undefined)?.content),
   FileEditsPreview: (props: Record<string, unknown>) => React.createElement("FileEditsPreview", {
     ...props, translationScope: React.useContext(SelectionTranslationContext),
   }),
