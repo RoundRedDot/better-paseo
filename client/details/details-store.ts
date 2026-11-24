@@ -155,7 +155,13 @@ export const detailsApi: DetailsApi = {
     if (previous.openId === null) return;
     if (options?.clearMarker) {
       clearLingerTimer(store);
-      updateState(agentId, { ...previous, openId: null, lingerId: null, independent: false }, 0);
+      updateState(agentId, { ...previous, openId: null, lingerId: null }, 0);
+      if (previous.independent) {
+        store.lingerTimer = setTimeout(() => {
+          store.lingerTimer = null;
+          if (store.state.openId === null) updateState(agentId, { ...store.state, independent: false }, 0);
+        }, MARKER_LINGER_MS);
+      }
       return;
     }
     const lingerUntil = Date.now() + MARKER_LINGER_MS;

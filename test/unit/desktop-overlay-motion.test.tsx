@@ -32,6 +32,7 @@ import { StyleSheet } from "react-native";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { usePreviewEntrance } from "../../client/ui/use-preview-entrance";
 import { DESKTOP_OVERLAY, DROPDOWN_REVEAL } from "../../client/ui/tokens/motion";
+import { MOTION } from "../../client/tasks/board/board-style";
 import { ToolbarDetailsFrame } from "../../client/ui/toolbar-button";
 import { RowMenu } from "../../client/details/row-menu";
 import { SidePanel } from "../../client/details/shell/side-panel";
@@ -152,18 +153,21 @@ describe("desktop overlay entry", () => {
     expect(open).toHaveBeenCalledOnce();
   });
 
-  it("keeps a side panel's first frame near opaque and closes without waiting", () => {
+  it("slides a side panel across its width with the task panel timing", () => {
     const exited = vi.fn();
     const panel = (leaving: boolean) => <SidePanel tokens={tokens} stage={{ width: 1400, height: 900 }} insets={{ top: 0, bottom: 0 }}
       reduced={false} entrance="slide" leaving={leaving} onExited={exited} wide={false} resizable={false} onOutside={vi.fn()}><div /></SidePanel>;
     act(() => { tree = TestRenderer.create(panel(false)); });
     const style = StyleSheet.flatten(host("details-side").props.style);
-    expect(style.opacity.__value).toBe(0.9);
-    expect(style.transform[0].translateX.__value).toBe(2);
-    expect(timings).toHaveLength(2);
-    expect(timings.every((entry) => entry.duration === 100 && entry.easing === DESKTOP_OVERLAY.ease)).toBe(true);
+    expect(style.opacity.__value).toBe(1);
+    expect(style.transform[0].translateX).toEqual({ inputRange: [0, 1], outputRange: [504, 0] });
+    expect(timings).toHaveLength(1);
+    expect(timings[0]).toMatchObject({ toValue: 1, duration: 240, useNativeDriver: false });
+    expect(timings[0]!.easing!(0.5)).toBeCloseTo(MOTION.ease(0.5));
     act(() => tree.update(panel(true)));
-    expect(exited).toHaveBeenCalledOnce();
+    expect(timings.at(-1)).toMatchObject({ toValue: 0, duration: 180, useNativeDriver: false });
+    expect(timings.at(-1)!.easing!(0.5)).toBeCloseTo(MOTION.ease(0.5));
+    expect(exited).not.toHaveBeenCalled();
   });
 
   it("replays a copy dropdown's entrance on every opening and closes immediately on selection", () => {

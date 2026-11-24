@@ -25,7 +25,7 @@ import { buildThemeTokens, radiusV2, withAlpha } from "../../client/components/t
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
 import { updateEnhancerPreferences, getEnhancerPreferences } from "../../client/preferences";
-import { closeDetailsIfCurrent, detailsApi, MARKER_LINGER_MS, useDetails } from "../../client/details/details-store";
+import { closeDetailsIfCurrent, detailsApi, MARKER_LINGER_MS, readDetails, useDetails } from "../../client/details/details-store";
 import { detailsForm } from "../../client/details/layout-model";
 import { getBlock } from "../../client/details/block-registry";
 import { timelineEntry as entry } from "./helpers/turn-timeline";
@@ -349,6 +349,8 @@ describe("turn work card", () => {
     // A settled card has no status line.
     draw(turn());
     expect(lines()).toEqual([]);
+    expect(readDetails("agent").openId).toBe("agent:work:r:10000:done:steps");
+    expect(getBlock("agent", "agent:work:r:10000:done:steps")?.title).toBe("用时 9秒 · 读取了文件 · 编辑了文件 · 运行了命令");
   });
 
   it("closes the file card again, and keeps the choice across a remount", () => {

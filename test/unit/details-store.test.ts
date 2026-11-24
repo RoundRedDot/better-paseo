@@ -167,6 +167,33 @@ describe("details store", () => {
     act(() => { renderer.unmount(); });
   });
 
+  it("clears the marker immediately but keeps an independent host through the exit", () => {
+    vi.useFakeTimers();
+    const agentId = "details-independent-exit";
+    let state!: DetailsState;
+    let phase = "";
+    function Probe() {
+      state = useDetails(agentId);
+      phase = useMarkerPhase(agentId, "work");
+      return null;
+    }
+    let renderer!: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(React.createElement(Probe)); });
+    act(() => { detailsApi.open(agentId, "work", { independent: true }); });
+    act(() => { detailsApi.close(agentId, { clearMarker: true }); });
+    expect(state).toMatchObject({ openId: null, lingerId: null, independent: true });
+    expect(phase).toBe("off");
+    act(() => { vi.advanceTimersByTime(180); });
+    expect(state.independent).toBe(true);
+    act(() => { detailsApi.open(agentId, "work", { independent: true }); });
+    act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
+    expect(state).toMatchObject({ openId: "work", independent: true });
+    act(() => { detailsApi.close(agentId, { clearMarker: true }); });
+    act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
+    expect(state).toMatchObject({ openId: null, independent: false });
+    act(() => renderer.unmount());
+  });
+
   it("hands the host lease to the next claimant and notifies subscribers", () => {
     const agentId = "details-lease";
     const first = claimHostLease(agentId, "slot-1");

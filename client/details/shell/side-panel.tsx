@@ -18,7 +18,6 @@ import { OutsideCatcher, detailsPalette } from "./scrim";
 import type { Entrance } from "./bottom-panel";
 import type { Insets } from "./safe-area";
 import { keepOffWindowDrag } from "./web-layer";
-import { DESKTOP_OVERLAY } from "../../ui/tokens/motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
 
 export const SIDE = {
@@ -73,42 +72,54 @@ export function SidePanel(props: {
   const [nativeDragging, setNativeDragging] = useState(false);
   const width = sideWidth(props.stage, props.wide);
   const liveWidth = useRef(new Animated.Value(width)).current;
+  const progress = useRef(new Animated.Value(props.entrance === "slide" && !reduced ? 0 : 1)).current;
   const moves = props.entrance === "slide" && !reduced;
-  const shift = useRef(new Animated.Value(moves ? Platform.OS === "web" ? DESKTOP_OVERLAY.shift : DETAILS_MOTION.sideShift : 0)).current;
-  const opacity = useRef(new Animated.Value(props.entrance === "none" || Platform.OS === "web" && reduced ? 1 : Platform.OS === "web" && moves ? DESKTOP_OVERLAY.opacity : 0)).current;
+  const shift = useRef(new Animated.Value(moves ? DETAILS_MOTION.sideShift : 0)).current;
+  const opacity = useRef(new Animated.Value(props.entrance === "none" || Platform.OS === "web" && (reduced || moves) ? 1 : 0)).current;
   const entered = useRef(false);
-  const wasLeaving = useRef(false);
 
   useEffect(() => {
     if (entered.current) return;
     entered.current = true;
     const now = latest.current;
-    if (now.entrance === "none" || Platform.OS === "web" && now.reduced) return;
+    if (Platform.OS === "web") {
+      if (now.entrance === "fade" && !now.reduced) {
+        const animation = animate(opacity, 1, DETAILS_MOTION.formInMs);
+        return () => animation.stop();
+      }
+      return;
+    }
+    if (now.entrance === "none") return;
     if (now.entrance === "slide" && !now.reduced) {
-      const ms = Platform.OS === "web" ? DESKTOP_OVERLAY.ms : DETAILS_MOTION.sideOpenMs;
-      const ease = Platform.OS === "web" ? "overlay" : "ease";
-      animate(shift, 0, ms, undefined, ease);
-      animate(opacity, 1, ms, undefined, ease);
+      animate(shift, 0, DETAILS_MOTION.sideOpenMs);
+      animate(opacity, 1, DETAILS_MOTION.sideOpenMs);
       return;
     }
     animate(opacity, 1, now.reduced ? DETAILS_MOTION.reducedMs : DETAILS_MOTION.formInMs);
   }, [shift, opacity]);
 
   useEffect(() => {
-    const restoring = wasLeaving.current;
-    wasLeaving.current = props.leaving;
+    if (Platform.OS !== "web") return;
+    if (reduced) {
+      progress.setValue(props.leaving ? 0 : 1);
+      if (props.leaving) latest.current.onExited();
+      return;
+    }
+    const animation = animate(progress, props.leaving ? 0 : 1, props.leaving ? 180 : 240,
+      props.leaving ? () => latest.current.onExited() : undefined);
+    return () => animation.stop();
+  }, [progress, props.leaving, reduced]);
+
+  useEffect(() => {
+    if (Platform.OS === "web") return;
     if (!props.leaving) {
-      if (entered.current && (Platform.OS !== "web" || restoring)) {
+      if (entered.current) {
         animate(shift, 0, 0);
         animate(opacity, 1, 0);
       }
       return;
     }
     const done = () => latest.current.onExited();
-    if (Platform.OS === "web") {
-      done();
-      return;
-    }
     if (latest.current.reduced) {
       animate(opacity, 0, DETAILS_MOTION.reducedMs, done);
       return;
@@ -179,6 +190,10 @@ export function SidePanel(props: {
       <Animated.View
         ref={panel}
         testID="details-side"
+        pointerEvents={props.leaving ? "none" : "auto"}
+        aria-hidden={props.leaving}
+        accessibilityElementsHidden={props.leaving}
+        importantForAccessibility={props.leaving ? "no-hide-descendants" : "auto"}
         accessibilityViewIsModal={Platform.OS !== "web"}
         style={[
           styles.panel,
@@ -188,7 +203,7 @@ export function SidePanel(props: {
             backgroundColor: tokens.surface0,
             borderLeftColor: edgeHovered ? tokens.foregroundMuted : palette.border,
             opacity,
-            transform: [{ translateX: shift }],
+            transform: [{ translateX: Platform.OS === "web" ? progress.interpolate({ inputRange: [0, 1], outputRange: [width, 0] }) : shift }],
           },
         ] as never}
       >

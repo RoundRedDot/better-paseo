@@ -169,7 +169,7 @@ describe("standard level work card while a turn runs", () => {
       expect(title().props.detailsMarker.selected).toBe(true);
       const open = getBlock(harness.agentId, title().props.detailsMarker.id)!;
       expect(open.mounted).toBe(true);
-      expect(open.title).toBe("Edited files · Ran commands");
+      expect(open.title).toBe("Worked for 4s · Edited files · Ran commands");
       expect(readDetails(harness.agentId)).toMatchObject({ openId: open.id, form });
       await act(async () => title().props.onToggle());
       // A tap on the current title leaves the phone drawer open, as on any row; a side panel closes in one press.

@@ -13,6 +13,9 @@ const screen = vi.hoisted(() => ({ width: 390, height: 844 }));
 const caps = vi.hoisted(() => ({ hover: false, touch: true }));
 const motion = vi.hoisted(() => ({ reduced: false }));
 const timings = vi.hoisted(() => [] as { toValue: number; duration: number; native?: boolean }[]);
+const heldMotion = vi.hoisted(() => ({ enabled: false, pending: [] as {
+  toValue: number; duration: number; stopped: boolean; finish(): void;
+}[] }));
 
 vi.mock("react-native", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -28,10 +31,16 @@ vi.mock("react-native", async () => {
       timing: (value: { setValue(next: number): void }, config: { toValue: number; duration: number; useNativeDriver: boolean }) => ({
         start(done?: (result: { finished: boolean }) => void) {
           timings.push({ toValue: config.toValue, duration: config.duration, native: config.useNativeDriver });
+          if (heldMotion.enabled && (config.duration === 240 || config.duration === 180)) {
+            const pending = { toValue: config.toValue, duration: config.duration, stopped: false,
+              finish() { if (!pending.stopped) { value.setValue(config.toValue); done?.({ finished: true }); } } };
+            heldMotion.pending.push(pending);
+            return;
+          }
           value.setValue(config.toValue);
           done?.({ finished: true });
         },
-        stop() {},
+        stop() { const pending = heldMotion.pending.findLast((item) => item.toValue === config.toValue && item.duration === config.duration && !item.stopped); if (pending) pending.stopped = true; },
       }),
     },
   };
@@ -406,6 +415,8 @@ beforeEach(() => {
   fake.box.blocks = [block("a", 1), block("b", 2), block("c", 3)];
 });
 afterEach(() => {
+  heldMotion.enabled = false;
+  heldMotion.pending.length = 0;
   act(() => mounted.splice(0).forEach((renderer) => renderer.unmount()));
   delete (globalThis as { document?: unknown }).document;
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
@@ -482,6 +493,43 @@ describe("DetailsHostSlot", () => {
 });
 
 describe("form", () => {
+  it("slides the desktop side panel out and reverses an interrupted close", async () => {
+    webDesktop();
+    web.pane = { left: 240, right: 1440, contentRight: 1000 };
+    fake.box.blocks = [block("work", 1, { dismissOnOutside: true })];
+    heldMotion.enabled = true;
+    const renderer = render(slot());
+    await act(async () => fake.api.open(AGENT, "work"));
+    expect(heldMotion.pending.map(({ toValue, duration }) => [toValue, duration])).toContainEqual([1, 240]);
+    act(() => heldMotion.pending.at(-1)!.finish());
+    act(() => fake.api.close());
+    const closing = heldMotion.pending.at(-1)!;
+    expect([closing.toValue, closing.duration]).toEqual([0, 180]);
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    expect(byTestId(renderer, "details-side")!.props).toMatchObject({ pointerEvents: "none", "aria-hidden": true });
+    act(() => fake.api.open(AGENT, "work"));
+    expect(closing.stopped).toBe(true);
+    expect(byTestId(renderer, "details-side")!.props).toMatchObject({ pointerEvents: "auto", "aria-hidden": false });
+    expect(heldMotion.pending.at(-1)).toMatchObject({ toValue: 1, duration: 240 });
+    act(() => closing.finish());
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    act(() => fake.api.close());
+    act(() => heldMotion.pending.at(-1)!.finish());
+    expect(byTestId(renderer, "details-side")).toBeNull();
+  });
+
+  it("closes the desktop side panel immediately with reduced motion", async () => {
+    webDesktop();
+    web.pane = { left: 240, right: 1440, contentRight: 1000 };
+    motion.reduced = true;
+    fake.box.blocks = [block("work", 1)];
+    const renderer = render(slot());
+    await act(async () => fake.api.open(AGENT, "work"));
+    expect(byTestId(renderer, "details-side")).not.toBeNull();
+    act(() => fake.api.close());
+    expect(byTestId(renderer, "details-side")).toBeNull();
+  });
+
   it("reserves the desktop timeline for work details, aligns the chrome and restores it on close", async () => {
     webDesktop();
     screen.width = 1280;

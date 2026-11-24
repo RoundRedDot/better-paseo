@@ -41,6 +41,11 @@ describe("details host slots", () => {
     act(() => { detailsApi.open(agentId, "normal"); });
     expect(renderer.root.findAllByType(SHELL)).toHaveLength(0);
     act(() => { detailsApi.open(agentId, "work", { independent: true }); });
+    act(() => { detailsApi.close(agentId, { clearMarker: true }); });
+    expect(renderer.root.findAllByType(SHELL)).toHaveLength(1);
+    act(() => { vi.advanceTimersByTime(180); });
+    expect(renderer.root.findAllByType(SHELL)).toHaveLength(1);
+    act(() => { detailsApi.open(agentId, "work", { independent: true }); });
     act(() => { detailsApi.close(agentId); });
     act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
     expect(renderer.root.findAllByType(SHELL)).toHaveLength(0);
