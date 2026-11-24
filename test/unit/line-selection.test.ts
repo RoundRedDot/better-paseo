@@ -1,4 +1,5 @@
 import React from "react";
+import { createRequire } from "node:module";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
@@ -8,6 +9,8 @@ vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/ui", () => ({ copyText: vi.fn(), useToast: () => ({ show() {}, error() {} }) }));
 import { useLineSelection } from "../../client/ui/line-selection";
 import { PreviewScrollerContext, type PreviewScroller } from "../../client/ui/preview-scroller";
+import { PreviewLines } from "../../client/ui/preview-lines";
+import { buildThemeTokens } from "../../client/components/theme-tokens";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const platform = globalThis as { __rnMockOS?: string };
@@ -79,6 +82,32 @@ function mount(os: string, tops = [0, 10, 30, 40], scroller: PreviewScroller | n
 }
 
 describe("gutter line selection", () => {
+  it("renders a web gutter selection in a color the host can normalize", () => {
+    platform.__rnMockOS = "web";
+    const doc = new FakeDocument();
+    const gutter = new Surface();
+    const content = new Surface();
+    content.children = [new TextNode("first\n  wrapped\n\nlast")];
+    for (const node of [gutter, content, ...content.children]) node.ownerDocument = doc;
+    Object.assign(doc.defaultView, { ResizeObserver: class { observe() {} disconnect() {} } });
+    Object.assign(doc, { createRange: () => ({ setStart() {}, setEnd() {}, getClientRects: () => [] }) });
+    const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
+      foreground: "#111", foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff",
+      statusSuccess: "#198754", statusWarning: "#a36a00", statusDanger: "#d92d20" });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    act(() => { renderer = TestRenderer.create(React.createElement(PreviewLines, {
+      text: "first\n  wrapped\n\nlast", lines: ["first", "  wrapped", "", "last"], tokens, style: {},
+    }), { createNodeMock: (element) => (element.props as { testID?: string }).testID === "preview-line-numbers" ? gutter : content }); });
+    try {
+      fire(gutter, "pointerdown", { button: 0, pointerId: 1, pointerType: "mouse", clientY: 101 });
+      fire(gutter, "pointermove", { pointerId: 1, clientY: 121 });
+      fire(gutter, "pointerup", { pointerId: 1 });
+      const band = renderer.root.findByProps({ testID: "preview-gutter-selection" });
+      const color = Object.assign({}, ...[band.props.style].flat(Infinity)).backgroundColor;
+      const normalizeColor = createRequire(import.meta.url)("@react-native/normalize-colors") as (value: string) => number | null;
+      expect(normalizeColor(color)).not.toBeNull();
+    } finally { act(() => renderer.unmount()); }
+  });
   it("hands whole wrapped lines to the page selection, anchored where a reverse drag began", () => {
     const view = mount("web");
     try {
