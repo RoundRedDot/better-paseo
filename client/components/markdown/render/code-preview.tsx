@@ -12,6 +12,8 @@ import { detailsApi } from "../../../details/details-store";
 import { useEnhancerPreferences } from "../../../preferences";
 import { useInputCapabilities } from "../../../ui/use-input-capabilities";
 import { toolbarLabel } from "../../../i18n/toolbar-strings";
+import { SelectionTranslationContext } from "../../../translation/selection";
+import { SelectionTranslationScope } from "../../../translation/ui";
 
 /** A code block owns its window; the window never opens another preview. */
 export function MarkdownCodePreview({ code, language, context, closed, showLineNumbers }: {
@@ -23,6 +25,7 @@ export function MarkdownCodePreview({ code, language, context, closed, showLineN
 }) {
   const { tokens, metrics, variant, onRevealPath } = context;
   const placement = useContext(BlockPlacementContext);
+  const scope = useContext(SelectionTranslationContext);
   const owner = useContext(HoverPreviewContext);
   const preferences = useEnhancerPreferences();
   const flag = preferences.blockDetails;
@@ -58,7 +61,7 @@ export function MarkdownCodePreview({ code, language, context, closed, showLineN
   entry.current = enabled ? {
     id, agentId: placement!.agentId, at: placement!.at, kind: "code", seq: 0,
     mounted: true, navigable: false, hasBody: true, title: language || toolbarLabel("Code", preferences.language), titleMono: false,
-    subtitle: [], icon: "Code", readsImage: false, render: renderContent,
+    subtitle: [], icon: "Code", readsImage: false, render: scope ? () => <SelectionTranslationScope agentId={scope.agentId} kind={scope.kind} streaming={scope.streaming}>{renderContent()}</SelectionTranslationScope> : renderContent,
     copies: () => [{ id: "code", label: "Copy code", icon: "Code", text: code }],
     measure: () => new Promise((resolve) => {
       const node = preview.anchorRef.current;

@@ -1051,7 +1051,7 @@ function LiveUserMessageRendererBody({
       {envelope ? (
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
-        <UserMessage
+        <SelectionTranslationScope agentId={agentId} kind="user_message" streaming={false}><UserMessage
           text={item.data.text}
           images={item.data.images}
           timestamp={timestamp}
@@ -1072,7 +1072,7 @@ function LiveUserMessageRendererBody({
               <LivePromptUsage agentId={agentId} promptKey={promptKey} at={atMs} tokens={tokens} />
             ) : null
           }
-        />
+        /></SelectionTranslationScope>
       )}
       {!envelope && standardFoldActive(preferences) ? (
         <PromptTurnWork agentId={agentId} promptKey={promptKey} at={atMs} tokens={tokens} compact={layout.compact} />

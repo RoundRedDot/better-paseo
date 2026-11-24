@@ -449,7 +449,9 @@ function FileChanges({ agentId, calls, tokens, compact }: {
   const resolvePath = useCallback((path: string) => formatPath(path, pathContext).absolutePath, [pathContext]);
   return (
     <PathContext.Provider value={pathContext}>
-      <FileEditsPreview calls={views} resolvePath={resolvePath} tokens={tokens} compact={compact} />
+      <SelectionTranslationScope agentId={agentId} kind="tool_output" streaming={calls.some((call) => call.status === "running")}>
+        <FileEditsPreview calls={views} resolvePath={resolvePath} tokens={tokens} compact={compact} />
+      </SelectionTranslationScope>
     </PathContext.Provider>
   );
 }

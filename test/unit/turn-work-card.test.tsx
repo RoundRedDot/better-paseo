@@ -17,7 +17,9 @@ vi.mock("../../client/components/tool-callouts", () => ({
   ToolCallout: (props: Record<string, unknown>) => React.createElement("ToolCallout", {
     ...props, translationScope: React.useContext(SelectionTranslationContext),
   }),
-  FileEditsPreview: (props: Record<string, unknown>) => React.createElement("FileEditsPreview", props),
+  FileEditsPreview: (props: Record<string, unknown>) => React.createElement("FileEditsPreview", {
+    ...props, translationScope: React.useContext(SelectionTranslationContext),
+  }),
 }));
 
 import { TurnWorkCard } from "../../client/components/turn-work-card";
@@ -377,6 +379,16 @@ describe("turn work card", () => {
     pressText("查看变更");
     expect(openId).toBe("agent:work:r:10000:done:file:a.ts");
     expect(texts()).not.toContain("a.ts");
+  });
+
+  it("gives detached file changes their conversation's tool-output scope", () => {
+    pressText("查看变更");
+    const block = getBlock("agent", openId!)!;
+    let panel!: TestRenderer.ReactTestRenderer;
+    act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
+    expect(panel.root.find((node) => (node.type as unknown) === "FileEditsPreview").props.translationScope)
+      .toMatchObject({ agentId: "agent", kind: "tool_output", streaming: false });
+    act(() => panel.unmount());
   });
 
   it("opens a closed card for 查看变更 when the changes show under it", () => {

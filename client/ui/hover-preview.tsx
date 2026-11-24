@@ -6,6 +6,8 @@ import {
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { radiusV2, space, withAlpha } from "../components/theme-tokens";
 import { selectionSurface } from "../components/selection-actions";
+import { surfaceProps } from "../components/view-props";
+import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationContext } from "../translation/selection";
 import { bindPreviewMaximize, bindPreviewPointer, watchNextPointerMove, watchPointerOutside, dropSelectionIn, openPreviewLayer } from "../web";
 import { useInputCapabilities } from "./use-input-capabilities";
 import { cssShadow } from "./tokens/css-shadow";
@@ -872,6 +874,17 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
     },
   } : scroller.props), [report, scroller.props, pinch.contentSized]);
   const webBody = useRef<View>(null);
+  const selectionScope = useContext(SelectionTranslationContext);
+  const scopeData = Platform.OS === "web" ? selectionScopeDataSet(selectionScope) : null;
+  const bindWebBody = useCallback((node: View | null) => {
+    webBody.current = node;
+    if (!node || !selectionScope) return;
+    bindSelectionScopeElement(node, selectionScope);
+    return () => {
+      if (webBody.current === node) webBody.current = null;
+      bindSelectionScopeElement(node, null);
+    };
+  }, [selectionScope]);
   const tail = useStreamingTail(streaming, webBody, band, behind.onChange);
   useWebScrollMemory(webBody, memoryKey, remembered, streaming, tail.pinned);
   // Lines keep their length; the body scrolls sideways, with a track under it
@@ -911,7 +924,7 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
             </PreviewScrollerContext.Provider>
           </ScrollView>
         ) : (
-          <View ref={webBody} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll, shell?.form === "side" && styles.sideScroll, fullBleed && styles.fullBleed]}>
+          <View ref={scopeData ? bindWebBody : webBody} {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : {})} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll, shell?.form === "side" && styles.sideScroll, fullBleed && styles.fullBleed]}>
             {content}
           </View>
         )}
@@ -939,7 +952,7 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
     );
   }
   return (
-    <View ref={webBody} testID="hover-preview-body" style={[styles.body, fill && styles.bodyFill]}>
+    <View ref={scopeData ? bindWebBody : webBody} {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : {})} testID="hover-preview-body" style={[styles.body, fill && styles.bodyFill]}>
       {content}
     </View>
   );

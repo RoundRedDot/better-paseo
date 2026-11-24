@@ -28,6 +28,9 @@ import { updateEnhancerPreferences, resetEnhancerPreferences } from "../../clien
 import { StyleSheet } from "./helpers/rn-mock";
 import { PreviewLines } from "../../client/ui/preview-lines";
 import { HoverPreviewContext } from "../../client/ui/hover-preview";
+import { BlockPlacementContext } from "../../client/details/contracts";
+import { getBlockList } from "../../client/details/block-registry";
+import { SelectionTranslationContext, selectionScopeFromDataset } from "../../client/translation/selection";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const platform = globalThis as { __rnMockOS?: string };
@@ -62,6 +65,22 @@ afterEach(() => {
 });
 
 describe("Markdown code window", () => {
+  it("retains the conversation in detached rendered and raw Markdown", () => {
+    platform.__rnMockOS = "web";
+    updateEnhancerPreferences({ blockDetails: true });
+    const scope = { agentId: "code-agent", kind: "assistant_message" as const, streaming: true };
+    act(() => { renderer = TestRenderer.create(
+      React.createElement(SelectionTranslationContext.Provider, { value: scope },
+        React.createElement(BlockPlacementContext.Provider, { value: { agentId: "code-agent", at: 1, kind: "thought" } }, view("```markdown\n# Heading\n```"))));
+    });
+    const entry = getBlockList("code-agent").find((block) => block.kind === "code")!;
+    expect(entry).toBeDefined();
+    act(() => { renderer.unmount(); renderer = TestRenderer.create(React.createElement(React.Fragment, null, entry.render())); });
+    const scopes = () => renderer.root.findAll((node) => selectionScopeFromDataset(node.props?.dataSet)?.agentId === "code-agent");
+    expect(scopes().some((node) => selectionScopeFromDataset(node.props.dataSet)?.streaming)).toBe(true);
+    press("Show raw text");
+    expect(scopes().some((node) => selectionScopeFromDataset(node.props.dataSet)?.kind === "assistant_message")).toBe(true);
+  });
   it("hides the window button inside a detail context while keeping copy", async () => {
     platform.__rnMockOS = "web";
     act(() => {

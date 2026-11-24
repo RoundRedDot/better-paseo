@@ -56,8 +56,9 @@ vi.mock("../../client/components/task-list", () => ({
 vi.mock("../../client/components/task-activity-row", () => ({ TaskActivityRow: () => null }));
 vi.mock("../../client/components/user-message", async () => {
   const ReactModule = await import("react");
+  const { SelectionTranslationContext } = await import("../../client/translation/selection");
   return {
-    UserMessage: ({ footer }: { footer?: React.ReactNode }) => ReactModule.createElement("PromptProbe", null, footer),
+    UserMessage: ({ footer }: { footer?: React.ReactNode }) => ReactModule.createElement("PromptProbe", { translationScope: ReactModule.useContext(SelectionTranslationContext) }, footer),
     TurnUsageRow: (props: Record<string, unknown>) => ReactModule.createElement("UsageProbe", props),
   };
 });
@@ -134,6 +135,14 @@ const flush = () => act(async () => { for (let index = 0; index < 4; index += 1)
 afterEach(() => { runtime.listeners.clear(); });
 
 describe("live prompt usage", () => {
+  it("provides the originating conversation for prompt selection", async () => {
+    runtime.api = { agents: { ref: () => ({ refresh: runtime.refresh }) } };
+    let renderer!: TestRenderer.ReactTestRenderer;
+    await act(async () => { renderer = TestRenderer.create(prompt("prompt-agent", "message", 0)); });
+    expect(renderer.root.find((node) => (node.type as unknown) === "PromptProbe").props.translationScope)
+      .toMatchObject({ agentId: "prompt-agent", kind: "user_message", streaming: false });
+    act(() => renderer.unmount());
+  });
   it("keeps a finished turn's figures when its row remounts after a newer prompt, without borrowing the newer turn's", async () => {
     runtime.api = { agents: { ref: () => ({ refresh: runtime.refresh }) } };
     runtime.refresh.mockReset().mockImplementation(async () => ({ agent: { lastUsage: runtime.usage } }));

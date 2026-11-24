@@ -29,12 +29,14 @@ const React = await import("react");
 await import("./helpers/quiet-renderer");
 const { default: TestRenderer, act } = await import("react-test-renderer");
 const { StyleSheet } = await import("./helpers/rn-mock");
-const { ToolCallout, previewCopyActions } = await import("../../client/components/tool-callouts");
+const { ToolCallout, ToolPreviewContent, previewCopyActions } = await import("../../client/components/tool-callouts");
 const { ToolbarButton, ToolbarMetricsContext, TOOLBAR_TOOLTIP_MS } = await import("../../client/ui/toolbar-button");
-const { HoverPreviewHeader } = await import("../../client/ui/hover-preview");
+const { HoverPreviewHeader, HoverPreviewBody } = await import("../../client/ui/hover-preview");
 const { updateEnhancerPreferences } = await import("../../client/preferences");
 const { classifyTool } = await import("../../client/tools/classify");
 const { SelectionTranslationContext, selectionScopeForElement } = await import("../../client/translation/selection");
+const { PreviewLines } = await import("../../client/ui/preview-lines");
+const { UserMessage } = await import("../../client/components/user-message");
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
 
@@ -49,6 +51,63 @@ const calls = ["first", "second"].map((callId, index) => classifyTool({
 }));
 
 describe("grouped tool card presentation", () => {
+  it("binds other selectable preview text to the conversation", () => {
+    vi.stubGlobal("__rnMockOS", "web");
+    const scope = { agentId: "agent-1", kind: "tool_output" as const, streaming: false };
+    const elements: object[] = [];
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { renderer = TestRenderer.create(React.createElement(SelectionTranslationContext.Provider, { value: scope },
+        React.createElement(HoverPreviewBody, null, React.createElement("Text", { selectable: true }, "Tool error"))),
+      { createNodeMock: (element) => {
+        if (!(element.props as { dataSet?: { bctlagent?: string } }).dataSet?.bctlagent) return null;
+        const node = {}; elements.push(node); return node;
+      } }); });
+      expect(elements.some((element) => selectionScopeForElement(element) === scope)).toBe(true);
+      act(() => renderer.unmount());
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it.each([
+    ["shell output", { type: "shell", command: "echo hello", output: "hello", exitCode: 0 }, "Bash"],
+    ["file", { type: "read", filePath: "readme.txt", content: "hello" }, "Read"],
+    ["diff", { type: "edit", filePath: "a.ts", unifiedDiff: "@@ -1 +1 @@\n-old\n+new" }, "Edit"],
+  ])("binds a %s preview to its tool scope", (_label, detail, name) => {
+    vi.stubGlobal("__rnMockOS", "web");
+    const scope = { agentId: "agent-1", kind: "tool_output" as const, streaming: false };
+    const elements: object[] = [];
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { renderer = TestRenderer.create(React.createElement(SelectionTranslationContext.Provider, { value: scope },
+        React.createElement(ToolPreviewContent, { data: classifyTool({ name, status: "completed", detail }), tokens, compact: false, resolvePath: (path) => path })),
+      { createNodeMock: (element) => {
+        if (!(element.props as { dataSet?: { bctlagent?: string } }).dataSet?.bctlagent) return null;
+        const node = {}; elements.push(node); return node;
+      } }); });
+      expect(renderer.root.findAllByType(PreviewLines).length).toBeGreaterThan(0);
+      expect(elements.some((element) => selectionScopeForElement(element) === scope)).toBe(true);
+      act(() => renderer.unmount());
+    } finally { vi.unstubAllGlobals(); }
+  });
+  it.each(["lines", "user"] as const)("binds %s text to its conversation for selection translation", (kind) => {
+    vi.stubGlobal("__rnMockOS", "web");
+    const scope = { agentId: "agent-1", kind: kind === "user" ? "user_message" as const : "tool_output" as const, streaming: false };
+    const elements: object[] = [];
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    try {
+      act(() => { renderer = TestRenderer.create(
+        React.createElement(SelectionTranslationContext.Provider, { value: scope }, kind === "lines"
+          ? React.createElement(PreviewLines, { text: "Selected output", lines: ["Selected output"], style: {}, tokens })
+          : React.createElement(UserMessage, { text: "Selected prompt", tokens })),
+        { createNodeMock: (element) => {
+          if (!(element.props as { dataSet?: { bctlagent?: string } }).dataSet?.bctlagent) return null;
+          const node = {}; elements.push(node); return node;
+        } },
+      ); });
+      expect(elements.some((element) => selectionScopeForElement(element) === scope)).toBe(true);
+      act(() => renderer.unmount());
+      expect(elements.every((element) => !selectionScopeForElement(element))).toBe(true);
+    } finally { vi.unstubAllGlobals(); }
+  });
   it.each([false, true])("binds the %s expanded tool surface to its own translation scope", (expanded) => {
     vi.stubGlobal("__rnMockOS", "web");
     const scope = { agentId: "tool-agent", kind: "tool_output" as const, streaming: false };

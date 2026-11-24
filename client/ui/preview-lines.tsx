@@ -12,7 +12,9 @@ import {
 import { space, type ExtendedThemeTokens } from "../components/theme-tokens";
 import { diffLineNumbers } from "../components/diff-lines";
 import { lineNumberWidth } from "../components/syntax-highlight";
-import { selectionCodeText } from "../components/selection-actions";
+import { selectionCodeText, selectionSurface } from "../components/selection-actions";
+import { surfaceProps } from "../components/view-props";
+import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationContext } from "../translation/selection";
 import { unselectable } from "../components/selection";
 import { useEnhancerPreferences } from "../preferences";
 import { usePreviewWraps } from "./hover-preview";
@@ -135,9 +137,17 @@ interface PreviewLinesProps {
  * numbers are placed from where that text laid each source line out.
  */
 export function PreviewLines(props: PreviewLinesProps) {
+  const scope = useContext(SelectionTranslationContext);
+  const bindScope = useCallback((node: View | null) => {
+    if (!node || !scope) return;
+    bindSelectionScopeElement(node, scope);
+    return () => bindSelectionScopeElement(node, null);
+  }, [scope]);
   if (Platform.OS !== "web" && (props.lines.length > TEXT_CHUNK_LINES * 4 || props.text.length > TEXT_CHUNK_CHARS)) {
     return <ChunkedPreviewLines {...props} />;
   }
+  const scopeData = Platform.OS === "web" ? selectionScopeDataSet(scope) : null;
+  if (scopeData) return <View ref={bindScope} {...surfaceProps(selectionSurface, { dataSet: scopeData } as never)}><PreviewLinesBody {...props} /></View>;
   return <PreviewLinesBody {...props} />;
 }
 
