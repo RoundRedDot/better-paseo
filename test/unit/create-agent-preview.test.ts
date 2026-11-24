@@ -98,7 +98,7 @@ afterEach(() => {
 describe("create_agent preview", () => {
   it.each(["web", "ios", "android"])("translates the full create prompt and restores the original on %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
-    publishTranslationSettings({ enabled: true, endpoint: "https://example.test/v1", endpointModel: "test" }, "translation-test");
+    publishTranslationSettings({ enabled: true, mode: "openai", endpoint: "https://example.test/v1", endpointModel: "test" }, "translation-test");
     const data = classifyTool({ callId: "create", name: "paseo.create_agent", status: "completed", detail: {
       type: "unknown", input: { title: "Review", provider: "cursor", initialPrompt: prompt }, output: agentId,
     } });
@@ -665,7 +665,7 @@ describe("whole detail translations", () => {
     return renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === id);
   }
   function configured() {
-    publishTranslationSettings({ enabled: true, endpoint: "https://example.test/v1", endpointModel: "test" }, "detail-test");
+    publishTranslationSettings({ enabled: true, mode: "openai", endpoint: "https://example.test/v1", endpointModel: "test" }, "detail-test");
   }
   it.each(["web", "ios", "android"])("translates the sent prompt but copies the original on %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
@@ -791,7 +791,7 @@ describe("structured detail translation", () => {
       data, tokens, compact: false, resolvePath: (path) => path, translationAgentId: "parent-agent",
     }) });
   }
-  beforeEach(() => publishTranslationSettings({ enabled: true, endpoint: "https://example.test/v1", endpointModel: "test" }, "structured-test"));
+  beforeEach(() => publishTranslationSettings({ enabled: true, mode: "openai", endpoint: "https://example.test/v1", endpointModel: "test" }, "structured-test"));
   it("retries a failed question field without re-requesting successful fields", async () => {
     const data = classifyTool({ name: "AskUserQuestion", callId: "retry", status: "completed", questionData: {
       questions: [{ question: "Choose", options: [{ label: "One" }, { label: "Two" }] }],

@@ -108,8 +108,8 @@ describe("translation settings migration", () => {
       thinkingOptionId: "high", targetLanguage: "ja", prompt: "Keep it terse.",
     };
     const parsed = timelineTranslationSettingsSchema.parse(earlier);
-    // Without an endpoint there was nothing to keep: the old provider and model
-    // never become an endpoint or model, and translation starts free.
+    // The old provider and model never become an endpoint or model, and
+    // translation starts free.
     expect(parsed).toEqual({ ...earlier, mode: "free", freeService: "auto", endpoint: "", endpointModel: "" });
     expect(JSON.parse(translationConfigSignature(parsed, "en"))).toEqual({
       enabled: true, targetCode: "ja", mode: "free", freeService: "auto",
@@ -119,11 +119,12 @@ describe("translation settings migration", () => {
     });
   });
 
-  it("keeps settings saved with an endpoint before modes existed on the OpenAI-compatible mode", () => {
-    expect(timelineTranslationSettingsSchema.parse({ endpoint: "https://a.test/v1", endpointModel: "m" }).mode).toBe("openai");
+  it("starts free unless the OpenAI-compatible mode was chosen", () => {
     expect(timelineTranslationSettingsSchema.parse({}).mode).toBe("free");
-    expect(timelineTranslationSettingsSchema.parse({ mode: "free", endpoint: "https://a.test/v1" }).mode).toBe("free");
-    expect(timelineTranslationSettingsSchema.parse({ mode: "agent", endpoint: "" }).mode).toBe("free");
+    // An endpoint saved before modes existed does not pick the mode.
+    expect(timelineTranslationSettingsSchema.parse({ endpoint: "https://a.test/v1", endpointModel: "m" }).mode).toBe("free");
+    expect(timelineTranslationSettingsSchema.parse({ mode: "openai" }).mode).toBe("openai");
+    expect(timelineTranslationSettingsSchema.parse({ mode: "agent" }).mode).toBe("free");
     expect(timelineTranslationSettingsSchema.parse({ freeService: "deepl" }).freeService).toBe("auto");
   });
 
@@ -144,7 +145,7 @@ describe("translation settings migration", () => {
   });
 
   it("binds a translation to the endpoint, model, target and prompt, not the legacy fields", () => {
-    const base = timelineTranslationSettingsSchema.parse({ enabled: true, endpoint: "https://a.test/v1", endpointModel: "m" });
+    const base = timelineTranslationSettingsSchema.parse({ enabled: true, mode: "openai", endpoint: "https://a.test/v1", endpointModel: "m" });
     const sig = (patch: object) => translationConfigSignature({ ...base, ...patch }, "en");
     expect(sig({ provider: "claude", model: "x", customModel: true, thinkingOptionId: "off", disableThinking: false })).toBe(sig({}));
     for (const patch of [{ endpoint: "https://b.test/v1" }, { endpointModel: "n" }, { targetLanguage: "ja" }, { prompt: "Other" }, { enabled: false }]) {

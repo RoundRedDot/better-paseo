@@ -56,10 +56,9 @@ export type FreeTranslationService = (typeof FREE_TRANSLATION_SERVICES)[number];
  */
 export type FreeServiceChoice = FreeTranslationService | "auto";
 
-const timelineTranslationFieldsSchema = z.object({
+export const timelineTranslationSettingsSchema = z.object({
   enabled: z.boolean().catch(false),
-  /** Missing in settings saved before modes existed; see the transform below. */
-  mode: z.enum(TRANSLATION_MODES).optional().catch(undefined),
+  mode: z.enum(TRANSLATION_MODES).catch("free"),
   freeService: z.enum(["auto", ...FREE_TRANSLATION_SERVICES]).catch("auto"),
   /**
    * The OpenAI-compatible base URL (or full `/chat/completions` URL) the
@@ -80,13 +79,6 @@ const timelineTranslationFieldsSchema = z.object({
   targetLanguage: z.string().refine(isTranslationLanguageCode).catch(FOLLOW_INTERFACE_LANGUAGE_CODE),
   prompt: z.string().trim().min(1).max(TRANSLATION_PROMPT_MAX_LENGTH).catch(DEFAULT_TRANSLATION_PROMPT).transform(currentDefaultPrompt),
 });
-
-// Settings saved before modes existed keep translating the way they did: an
-// endpoint means the OpenAI-compatible mode. Everything else starts free.
-export const timelineTranslationSettingsSchema = timelineTranslationFieldsSchema.transform((values) => ({
-  ...values,
-  mode: values.mode ?? (values.endpoint ? "openai" as const : "free" as const),
-}));
 
 export type TimelineTranslationSettings = z.output<typeof timelineTranslationSettingsSchema>;
 

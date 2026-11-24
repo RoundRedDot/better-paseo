@@ -870,8 +870,8 @@ describe("translation method settings", () => {
     expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "openai" }), "rev-1");
   });
 
-  it("keeps an earlier endpoint on the OpenAI-compatible mode", async () => {
-    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+  it("shows the OpenAI-compatible rows once that mode is chosen", async () => {
+    await render({ mode: "openai", endpoint: OK_ENDPOINT, endpointModel: "m" });
     expect(radio("OpenAI compatible").props.accessibilityState.selected).toBe(true);
     expect(titles()).toContain("API Base URL");
     expect(titles()).toContain("Translation prompt");
