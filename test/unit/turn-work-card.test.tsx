@@ -228,6 +228,33 @@ describe("turn work card", () => {
     expect(getBlock("agent", id)?.mounted).toBe(true);
   });
 
+  it("keeps one status line while the turn runs: what runs, then a thought, then the newest finished step", () => {
+    const entries = [
+      entry({ type: "user_message", text: "fix" }, 1),
+      entry(edit("e1", "a.ts"), 2),
+      entry({ ...tool("c1", { type: "shell", command: "npm test", output: "" }, "Bash"), status: "running" } as ToolCallTimelineItem, 3),
+    ];
+    const span = splitTurns(entries, { running: true, activeTurnId: null, fromStart: true })[0]!;
+    const running = collectTurnWork(entries, span, "live");
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    const draw = (work: typeof running) => act(() => { renderer.update(<TurnWorkCard agentId="agent" at={10000} work={work}
+      store={store} tokens={tokens} compact={false} />); });
+    const lines = () => renderer.root.findAll((node) => typeof node.type === "string" &&
+      typeof node.props.accessibilityLabel === "string" && /npm test|a\.ts|\u6b63\u5728\u601d\u8003/.test(node.props.accessibilityLabel))
+      .map((node) => node.props.accessibilityLabel);
+    draw(running);
+    expect(texts()).toContain("\u5de5\u4f5c\u8fc7\u7a0b \u00b7 1 \u6b65");
+    expect(lines()).toEqual(["\u6b63\u5728\u8fd0\u884c\u547d\u4ee4 npm test"]);
+    // The command ends: the same line names the newest finished step, it does not leave.
+    draw({ ...running, current: null, latest: running.steps[0]! });
+    expect(lines()).toEqual(["\u7f16\u8f91\u4e86 a.ts"]);
+    draw({ ...running, current: null, thinking: true });
+    expect(lines()).toEqual(["\u6b63\u5728\u601d\u8003"]);
+    // A settled card has no status line.
+    draw(turn());
+    expect(lines()).toEqual([]);
+  });
+
   it("closes the file card again, and keeps the choice across a remount", () => {
     pressText("已编辑 4 个文件");
     expect(texts()).toContain("a.ts");

@@ -123,6 +123,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
   let index: TurnIndex | null = null;
   const live = new Map<string, ToolCallTimelineItem>();
   let liveRevision = 0;
+  let liveThinking = false;
   let liveRetains = 0;
   const workListeners = new Map<string, Set<() => void>>();
   const works = new Map<string, { entries: Entry[]; liveRevision: number; owns: (text: string) => boolean; work: TurnWork | null }>();
@@ -287,6 +288,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     unsubscribe = pageReader.observe(source(), ({ event }) => {
       if (event.type === "timeline") {
         if (event.item.type === "tool_call") noteLiveCall(event.item);
+        noteLiveThinking(event.item.type === "reasoning");
         return;
       }
       if (event.type === "replacement" || event.type === "subscription_restored") {
@@ -295,6 +297,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
         footers = new Map();
         index = null;
         live.clear();
+        liveThinking = false;
         liveRevision++;
         if (event.type === "replacement") usageByTurn.clear();
         recordedStale = true;
@@ -309,6 +312,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
         // The server records every ended turn's timing, and usage on completion.
         if (event.type !== "turn_started") recordedStale = true;
         else if (live.size) { live.clear(); liveRevision++; }
+        noteLiveThinking(false);
         if (retained()) void refresh();
       }
     });
@@ -326,6 +330,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     footers = new Map();
     index = null;
     live.clear();
+    liveThinking = false;
     works.clear();
     lineCounts.clear();
   }
@@ -357,6 +362,18 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
    * the live anchor. Only a change of status, kind, path or command notifies
    * that listener. Streamed output, or another chunk of the same edit, does not.
    */
+  /**
+   * Whether the newest item the subscription delivered is a thought: the
+   * running card says the agent is thinking, which the standard level draws
+   * no row for. Only a change is published, not every streamed chunk.
+   */
+  function noteLiveThinking(next: boolean) {
+    if (liveThinking === next) return;
+    liveThinking = next;
+    liveRevision++;
+    workListeners.get(workAnchorKey({ kind: "live" }))?.forEach((listener) => listener());
+  }
+
   function noteLiveCall(item: ToolCallTimelineItem) {
     const listeners = workListeners.get(workAnchorKey({ kind: "live" }));
     // Nobody is drawing the running card, so the call's payload is not copied.
@@ -383,7 +400,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       (!dependsOnLive || cached.liveRevision === liveRevision)) return cached.work;
     let next: TurnWork | null = null;
     if (span && (anchor.kind === "live" || (span.reply !== null && owns(span.reply.text)))) {
-      const collected = collectTurnWork(workEntries, span, key, live);
+      const collected = collectTurnWork(workEntries, span, key, live, liveThinking);
       if (anchor.kind === "reply") {
         const footer = get(anchor.at, anchor.text);
         if (footer && footer.durationMs !== null) collected.durationMs = footer.durationMs;

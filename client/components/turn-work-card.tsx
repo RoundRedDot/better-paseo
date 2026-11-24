@@ -40,22 +40,30 @@ import { getBlock, registerBlock, type BlockRegistration } from "../details/bloc
 import { detailsApi, useMarkerPhase } from "../details/details-store";
 import type { LineCount, TurnFooterStore } from "../state/turn-footers";
 import type { TurnWork, WorkFile, WorkStep } from "../state/turn-work";
+import type { WorkVerb } from "../tools/standard-fold";
 
 const STRINGS: Record<SettingsLanguage, {
   worked: string; work: string; read: string; edited: string; ran: string; files: (count: number) => string;
-  someFiles: string; view: string; more: (count: number) => string; fewer: string; running: string;
+  someFiles: string; view: string; more: (count: number) => string; fewer: string;
+  steps: (count: number) => string; thinking: string;
+  /** The status line's verb for a call still running, and for the newest finished one. */
+  doing: Record<WorkVerb, string>; done: Record<WorkVerb, string>;
 }> = {
   en: {
     worked: "Worked for {d}", work: "Work", read: "Read files", edited: "Edited files", ran: "Ran commands",
     files: (count) => `Edited ${count} ${count === 1 ? "file" : "files"}`, someFiles: "Edited files",
     view: "View changes", more: (count) => `Show ${count} more ${count === 1 ? "file" : "files"}`, fewer: "Show fewer files",
-    running: "Running command",
+    steps: (count) => `${count} ${count === 1 ? "step" : "steps"}`, thinking: "Thinking",
+    doing: { command: "Running command", read: "Reading", edit: "Editing", write: "Writing" },
+    done: { command: "Ran command", read: "Read", edit: "Edited", write: "Wrote" },
   },
   zh: {
     worked: "用时 {d}", work: "工作过程", read: "读取了文件", edited: "编辑了文件", ran: "运行了命令",
     files: (count) => `已编辑 ${count} 个文件`, someFiles: "已编辑的文件",
     view: "查看变更", more: (count) => `再显示 ${count} 个文件`, fewer: "收起文件",
-    running: "正在运行命令",
+    steps: (count) => `${count} 步`, thinking: "正在思考",
+    doing: { command: "正在运行命令", read: "正在读取", edit: "正在编辑", write: "正在写入" },
+    done: { command: "运行了命令", read: "读取了", edit: "编辑了", write: "写入了" },
   },
 };
 
@@ -137,7 +145,8 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   const registration = useRef<BlockRegistration | null>(null);
   const lang = resolveLanguage(language);
   const label = !work.running && work.complete && work.durationMs !== null
-    ? text.worked.replace("{d}", formatDuration(work.durationMs, lang)) : text.work;
+    ? text.worked.replace("{d}", formatDuration(work.durationMs, lang))
+    : work.running && work.steps.length ? `${text.work} \u00b7 ${text.steps(work.steps.length)}` : text.work;
   const styles = useCardStyles(tokens);
   const summary = workVerbs(work.steps).map((verb) => text[verb]).join(" · ");
   const entry = useMemo<BlockEntry>(() => ({
@@ -174,18 +183,38 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
         </BlockPlacementContext.Provider>
       ) : null}
       {work.files.length ? <FileCard agentId={agentId} at={at} work={work} store={store} text={text} tokens={tokens} compact={compact} /> : null}
-      {/* Last: the running card sits under the newest row, so the line can come and go
-          without moving the card's other rows. A failed command's own row lands a frame later. */}
-      {work.current ? (
-        <View style={styles.current} accessibilityLabel={`${text.running} ${work.current.command}`}>
-          <View style={styles.slot}><RunningDot color={tokens.accent} /></View>
-          <Text style={styles.verb} numberOfLines={1}>{text.running}</Text>
-          <Text style={styles.command} numberOfLines={1}>{work.current.command}</Text>
-        </View>
-      ) : null}
+      {/* Last, and always one line while the turn runs: the card sits above the list's bottom edge, so a
+          line that came and went with each command moved the whole conversation up and back down. */}
+      {work.running ? <ActivityLine work={work} text={text} tokens={tokens} /> : null}
     </View>
   );
 });
+
+/**
+ * What the running turn is doing: the call still running, else a thought,
+ * else the newest finished step, dimmed. The verb and its target change in
+ * place; the line itself stays.
+ */
+function ActivityLine({ work, text, tokens }: { work: TurnWork; text: (typeof STRINGS)["en"]; tokens: ExtendedThemeTokens }) {
+  const styles = useCardStyles(tokens);
+  const { verb, target, live } = work.current ? { verb: text.doing[work.current.verb], target: work.current.target, live: true }
+    : work.thinking ? { verb: text.thinking, target: null, live: true }
+    : work.latest ? { verb: text.done[work.latest.verb], target: activityTarget(work.latest), live: false }
+    : { verb: text.thinking, target: null, live: true };
+  return (
+    <View style={styles.current} accessibilityLabel={target ? `${verb} ${target}` : verb}>
+      <View style={styles.slot}>{live ? <RunningDot color={tokens.accent} /> : null}</View>
+      <Text style={live ? styles.verb : styles.verbDone} numberOfLines={1}>{verb}</Text>
+      {target ? <Text style={live ? styles.command : styles.commandDone} numberOfLines={1}>{target}</Text> : null}
+    </View>
+  );
+}
+
+/** A finished step's command or path, as the status line names it. */
+function activityTarget(step: WorkStep): string | null {
+  if (step.verb === "command") return step.item.detail.type === "shell" ? step.item.detail.command ?? null : null;
+  return step.filePath ?? null;
+}
 
 function WorkSummary({ agentId, entryId, work, text, tokens, compact, onToggle }: {
   agentId: string; entryId: string; work: TurnWork; text: (typeof STRINGS)["en"]; tokens: ExtendedThemeTokens; compact: boolean; onToggle(): void;
@@ -440,7 +469,10 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
       lineHeight: block.label.lineHeight, paddingVertical: space.xs / 2 },
     current: { ...row },
     verb: { color: tokens.row.targetActive, fontFamily: tokens.fontUi, fontSize: block.label.size, lineHeight: block.label.lineHeight },
+    verbDone: { color: tokens.row.target, fontFamily: tokens.fontUi, fontSize: block.label.size, lineHeight: block.label.lineHeight },
     command: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, color: tokens.row.target, fontFamily: tokens.fontMono,
+      fontSize: block.target.size, lineHeight: block.target.lineHeight },
+    commandDone: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, color: tokens.row.meta, fontFamily: tokens.fontMono,
       fontSize: block.target.size, lineHeight: block.target.lineHeight },
     files: { marginTop: space.xs, borderWidth: 1, borderColor: tokens.border,
       borderRadius: 10, paddingHorizontal: inset, paddingTop: space.xs / 2, paddingBottom: space.xs },

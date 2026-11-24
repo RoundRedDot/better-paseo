@@ -35,8 +35,16 @@ export interface TurnWork {
   durationMs: number | null;
   steps: readonly WorkStep[];
   files: readonly WorkFile[];
-  /** A command still running: drawn outside the fold. */
-  current: { callId: string; command: string } | null;
+  /**
+   * The newest call still running that will fold once it succeeds (a
+   * command, or a read, edit or write of a path): the running card's
+   * status line shows it. `target` is the command or the path.
+   */
+  current: { callId: string; verb: WorkVerb; target: string } | null;
+  /** The newest folded step, which the status line shows once nothing runs. */
+  latest: WorkStep | null;
+  /** The running turn's newest item is a thought (`thinking` of `collectTurnWork`). */
+  thinking: boolean;
   /** The turn's first reasoning text, the source of the opened card's intent line. */
   intent: string | null;
   /** When the turn's first loaded item arrived: rows before it belong to earlier turns. */
@@ -95,13 +103,23 @@ function commandOf(item: ToolCallTimelineItem): string | null {
   return item.detail.type === "shell" && item.detail.command ? item.detail.command : null;
 }
 
+/** What a running call will fold as, and the command or path it names. */
+function pendingStep(item: ToolCallTimelineItem): { verb: WorkVerb; target: string } | null {
+  if (item.status !== "running") return null;
+  const verb = foldedWorkVerb({ ...item, status: "completed" });
+  if (!verb) return null;
+  const target = verb === "command" ? commandOf(item) : foldedFilePath(item) ?? null;
+  return target ? { verb, target } : null;
+}
+
 /**
  * The turn's folded steps and files. `live` holds calls the subscription
  * delivered after the read, by call ID; a running turn takes them in, newer
- * than the entries, in arrival order.
+ * than the entries, in arrival order. `thinking`: the subscription's newest
+ * item is a thought, which the standard level does not draw.
  */
 export function collectTurnWork(entries: readonly Entry[], span: TurnSpan, key: string,
-  live?: ReadonlyMap<string, ToolCallTimelineItem>): TurnWork {
+  live?: ReadonlyMap<string, ToolCallTimelineItem>, thinking = false): TurnWork {
   const calls = new Map<string, ToolCallTimelineItem>();
   let intent: string | null = null;
   for (let index = span.start; index <= span.end; index++) {
@@ -116,8 +134,8 @@ export function collectTurnWork(entries: readonly Entry[], span: TurnSpan, key: 
   for (const [callId, item] of calls) {
     const verb = foldedWorkVerb(item);
     if (!verb) {
-      const command = span.active && item.status === "running" ? commandOf(item) : null;
-      if (command) current = { callId, command };
+      const pending = span.active ? pendingStep(item) : null;
+      if (pending) current = { callId, ...pending };
       continue;
     }
     const filePath = verb === "edit" || verb === "write" || verb === "read" ? foldedFilePath(item) : undefined;
@@ -137,6 +155,8 @@ export function collectTurnWork(entries: readonly Entry[], span: TurnSpan, key: 
     steps,
     files: [...files].map(([path, callIds]) => ({ path, callIds })),
     current,
+    latest: steps.at(-1) ?? null,
+    thinking: span.active && thinking,
     intent,
     since: Date.parse(entries[span.start]!.timestamp),
   };
@@ -145,11 +165,12 @@ export function collectTurnWork(entries: readonly Entry[], span: TurnSpan, key: 
 /** What a card's subscribers compare: members' status and kind, and the running command. */
 export function workSignature(work: TurnWork | null): string {
   if (!work) return "";
-  return [work.running, work.complete, work.durationMs, work.since, work.current?.callId ?? "", work.intent?.length ?? -1,
+  return [work.running, work.complete, work.durationMs, work.since, work.current?.callId ?? "", work.current?.verb ?? "",
+    work.thinking, work.intent?.length ?? -1,
     ...work.steps.map((step) => `${step.callId}:${step.verb}:${step.filePath ?? ""}`)].join("|");
 }
 
 /** The part of a live call that can change a card: its status, kind and path. */
 export function liveCallSignature(item: ToolCallTimelineItem): string {
-  return `${item.status}|${foldedWorkVerb(item) ?? ""}|${foldedFilePath(item) ?? ""}|${commandOf(item) ?? ""}`;
+  return `${item.status}|${foldedWorkVerb(item) ?? ""}|${foldedFilePath(item) ?? ""}|${commandOf(item) ?? ""}|${pendingStep(item)?.verb ?? ""}`;
 }

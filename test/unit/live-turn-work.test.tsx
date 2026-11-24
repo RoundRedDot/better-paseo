@@ -132,7 +132,7 @@ describe("standard level work card while a turn runs", () => {
       });
       [card] = cards(renderer);
       expect(card?.props.work.files.map((file: { path: string }) => file.path)).toEqual(["a.ts", "b.ts"]);
-      expect(card?.props.work.current).toEqual({ callId: "c1", command: "npm test" });
+      expect(card?.props.work.current).toEqual({ callId: "c1", verb: "command", target: "npm test" });
       // Opened by the reader; a remount would close it again.
       await act(async () => card!.findAllByType(DisclosureHeader)[0]!.props.onToggle());
       expect(cards(renderer)[0]!.findAllByType(DisclosureHeader)[0]!.props.expanded).toBe(true);
@@ -229,7 +229,7 @@ describe("standard level running card under the newest row", () => {
       // The card grows as steps finish: below the text, which stays where it is.
       await act(async () => { harness.live(shell("c1", "running"), "t"); });
       expect(layoutOf(renderer)).toEqual([["text", "card"]]);
-      expect(cards(renderer)[0]!.props.work.current).toEqual({ callId: "c1", command: "npm test" });
+      expect(cards(renderer)[0]!.props.work.current).toEqual({ callId: "c1", verb: "command", target: "npm test" });
     } finally { await act(async () => renderer.unmount()); }
   });
 

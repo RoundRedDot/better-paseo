@@ -89,7 +89,7 @@ describe("turn work store", () => {
 
     live(shell("c1", "running", "1"));
     expect(prompted).toHaveBeenCalledTimes(3);
-    expect(store.work(liveAnchor, ownsAll)?.current).toEqual({ callId: "c1", command: "npm test" });
+    expect(store.work(liveAnchor, ownsAll)?.current).toEqual({ callId: "c1", verb: "command", target: "npm test" });
     // Streamed output alone notifies nobody.
     live(shell("c1", "running", "1\n2\n3"));
     expect(prompted).toHaveBeenCalledTimes(3);
@@ -107,6 +107,47 @@ describe("turn work store", () => {
     expect(subscribe).toHaveBeenCalledTimes(1);
     unsubscribe();
     unsubscribeOlder();
+    stop();
+  });
+
+  it("gives the running card's status line what runs, what the agent thinks, and the newest finished step", async () => {
+    const { store, live, emit } = setup([prompt(1, "run"), at(edit("e1", "a.ts"), 2, "run")]);
+    store.setRunning(true);
+    const stop = store.retainLive();
+    await flush();
+    const notified = vi.fn();
+    const unsubscribe = store.subscribeWork(liveAnchor, notified);
+    expect(store.work(liveAnchor, ownsAll)).toMatchObject({ current: null, thinking: false, latest: { callId: "e1", verb: "edit" } });
+
+    // A thought streams: one notice for the change, none per chunk.
+    const thought = (text: string) => emit({ type: "timeline", provider: "codex", item: { type: "reasoning", text }, turnId: "run" } as PaseoAgentTimelineEvent["event"]);
+    thought("Looking");
+    thought(" at the tests");
+    expect(notified).toHaveBeenCalledTimes(1);
+    expect(store.work(liveAnchor, ownsAll)?.thinking).toBe(true);
+
+    // A read, an edit and a write still running each name what they will fold as.
+    live(tool("r1", { type: "read", filePath: "b.ts" }, "running", "Read"));
+    expect(store.work(liveAnchor, ownsAll)).toMatchObject({ thinking: false, current: { callId: "r1", verb: "read", target: "b.ts" } });
+    live(tool("r1", { type: "read", filePath: "b.ts", content: "x" }, "completed", "Read"));
+    live(edit("e2", "c.ts", "running"));
+    expect(store.work(liveAnchor, ownsAll)?.current).toEqual({ callId: "e2", verb: "edit", target: "c.ts" });
+    live(edit("e2", "c.ts"));
+    expect(store.work(liveAnchor, ownsAll)).toMatchObject({ current: null, latest: { callId: "e2", verb: "edit", filePath: "c.ts" } });
+
+    // A patch keeps its row, so the line does not name it.
+    live(tool("p1", { type: "edit", filePath: "d.ts", unifiedDiff: "@@" }, "running", "apply_patch"));
+    expect(store.work(liveAnchor, ownsAll)?.current).toBeNull();
+
+    // The reply that follows a thought ends it; so does the turn's end.
+    thought("Again");
+    expect(store.work(liveAnchor, ownsAll)?.thinking).toBe(true);
+    emit({ type: "timeline", provider: "codex", item: { type: "assistant_message", text: "Done" }, turnId: "run" } as PaseoAgentTimelineEvent["event"]);
+    expect(store.work(liveAnchor, ownsAll)?.thinking).toBe(false);
+    thought("More");
+    emit({ type: "turn_completed", provider: "codex", turnId: "run" } as PaseoAgentTimelineEvent["event"]);
+    expect(store.work(liveAnchor, ownsAll)?.thinking ?? false).toBe(false);
+    unsubscribe();
     stop();
   });
 
