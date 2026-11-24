@@ -11,7 +11,7 @@
  *
  * Keep comments and regexes strictly ASCII for Hermes bundle compilation.
  */
-import { FREE_TRANSLATION_SERVICES, type FreeServiceChoice, type FreeTranslationService } from "./timeline-translation";
+import { FREE_TRANSLATION_SERVICES, type FreeTranslationService } from "./timeline-translation";
 
 export interface FreeServiceInfo {
   /** Shown as the "model" of a translation. */
@@ -57,21 +57,17 @@ const TENCENT_CODES: Record<string, string> = {
 };
 
 /**
- * `unavailable`: the service could not be used from here. `unsupported`: it
- * has no such target language. `auto` tries the next service on either.
- * Plain tagged errors: legacy Hermes cannot compile `class extends Error`.
+ * An error this module wrote, whose message is safe to show as is. A plain
+ * tagged error: legacy Hermes cannot compile `class extends Error`.
  */
-type FreeErrorKind = "unavailable" | "unsupported" | "failed";
+const FREE_ERROR = "freeTranslationError";
 
-const FREE_ERROR_KIND = "freeTranslationErrorKind";
-
-function freeError(message: string, kind: FreeErrorKind = "failed"): Error {
-  return Object.assign(new Error(message), { [FREE_ERROR_KIND]: kind });
+function freeError(message: string): Error {
+  return Object.assign(new Error(message), { [FREE_ERROR]: true });
 }
 
-function freeErrorKind(error: unknown): FreeErrorKind | null {
-  const kind = (error as Record<string, unknown> | null)?.[FREE_ERROR_KIND];
-  return kind === "unavailable" || kind === "unsupported" || kind === "failed" ? kind : null;
+function isFreeError(error: unknown): boolean {
+  return (error as Record<string, unknown> | null)?.[FREE_ERROR] === true;
 }
 
 export function freeServiceLanguage(service: FreeTranslationService, code: string): string {
@@ -79,7 +75,7 @@ export function freeServiceLanguage(service: FreeTranslationService, code: strin
   if (service === "google") return GOOGLE_CODES[code] ?? code;
   const mapped = TENCENT_CODES[code];
   if (!mapped) {
-    throw freeError(`${FREE_SERVICE_INFO.tencent.name} cannot translate into ${code}. Pick another service or target language.`, "unsupported");
+    throw freeError(`${FREE_SERVICE_INFO.tencent.name} cannot translate into ${code}. Pick another service or target language.`);
   }
   return mapped;
 }
@@ -188,19 +184,19 @@ interface ServiceRequest {
 }
 
 async function readJson(response: Response, name: string): Promise<unknown> {
-  if (!response.ok) throw freeError(`${name} returned HTTP ${response.status}.`, "unavailable");
+  if (!response.ok) throw freeError(`${name} returned HTTP ${response.status}.`);
   const raw = await response.text();
-  if (raw.length > MAX_RESPONSE_CHARS) throw freeError(`${name}'s reply is too large.`, "unavailable");
+  if (raw.length > MAX_RESPONSE_CHARS) throw freeError(`${name}'s reply is too large.`);
   try {
     return JSON.parse(raw);
   } catch {
-    throw freeError(`${name} did not answer with JSON.`, "unavailable");
+    throw freeError(`${name} did not answer with JSON.`);
   }
 }
 
 function stringsOrThrow(value: unknown, count: number, name: string): string[] {
   if (!Array.isArray(value) || value.length !== count || !value.every((item) => typeof item === "string")) {
-    throw freeError(`${name} answered in an unexpected format.`, "unavailable");
+    throw freeError(`${name} answered in an unexpected format.`);
   }
   return value as string[];
 }
@@ -282,7 +278,7 @@ async function tencent({ texts, to, fetch: send, signal }: ServiceRequest): Prom
   const body = await readJson(response, FREE_SERVICE_INFO.tencent.name) as
     { header?: { ret_code?: unknown }; auto_translation?: unknown } | null;
   if (body?.header?.ret_code !== "succ") {
-    throw freeError(`${FREE_SERVICE_INFO.tencent.name} refused the request.`, "unavailable");
+    throw freeError(`${FREE_SERVICE_INFO.tencent.name} refused the request.`);
   }
   return stringsOrThrow(body.auto_translation, texts.length, FREE_SERVICE_INFO.tencent.name);
 }
@@ -311,7 +307,7 @@ function batches(texts: readonly string[]): string[][] {
 }
 
 export interface FreeTranslationRequest {
-  service: FreeServiceChoice;
+  service: FreeTranslationService;
   text: string;
   /** A `TRANSLATION_LANGUAGES` code. */
   targetCode: string;
@@ -319,40 +315,14 @@ export interface FreeTranslationRequest {
   timeoutMs?: number;
 }
 
-export interface FreeTranslationResult {
-  translation: string;
-  /** The service that answered; with `auto`, the first one that worked. */
-  service: FreeTranslationService;
-}
-
-/** The service `auto` settled on for this client session. */
-let autoService: FreeTranslationService | null = null;
-
-export function autoFreeService(): FreeTranslationService | null {
-  return autoService;
-}
-
 /** The service a finished translation came from, by the origin it recorded. */
 export function freeServiceForOrigin(origin: string): FreeTranslationService | null {
   return FREE_TRANSLATION_SERVICES.find((service) => FREE_SERVICE_INFO[service].origin === origin) ?? null;
 }
 
-/** The service a choice uses now: `auto` only once it has settled on one. */
-export function currentFreeService(choice: FreeServiceChoice): FreeTranslationService | null {
-  return choice === "auto" ? autoService : choice;
-}
-
-/** What to name a choice before it answers: `auto` names the service it settled on, if any. */
-export function freeServiceInfo(choice: FreeServiceChoice): FreeServiceInfo {
-  const service = choice === "auto" ? autoService : choice;
-  return service ? FREE_SERVICE_INFO[service] : { name: "Free translation", origin: "" };
-}
-
-export function resetAutoFreeServiceForTests(): void {
-  autoService = null;
-}
-
-async function translateWith(service: FreeTranslationService, request: FreeTranslationRequest): Promise<string> {
+/** Translates with the chosen service; a failure names the service and never the text. */
+export async function translateFree(request: FreeTranslationRequest): Promise<string> {
+  const { service } = request;
   const info = FREE_SERVICE_INFO[service];
   const to = freeServiceLanguage(service, request.targetCode);
   const pieces = splitMarkdown(request.text);
@@ -368,9 +338,9 @@ async function translateWith(service: FreeTranslationService, request: FreeTrans
       results.push(...await SERVICES[service]({ texts: batch, from: "", to, fetch: send, signal: controller.signal }));
     }
   } catch (error) {
-    if (freeErrorKind(error)) throw error;
-    if (controller.signal.aborted) throw freeError(`${info.name} did not answer in time.`, "unavailable");
-    throw freeError(`Could not reach ${info.name}. Check the network, or pick another service.`, "unavailable");
+    if (isFreeError(error)) throw error;
+    if (controller.signal.aborted) throw freeError(`${info.name} did not answer in time.`);
+    throw freeError(`Could not reach ${info.name}. Check the network, or pick another service.`);
   } finally {
     clearTimeout(timer);
   }
@@ -383,24 +353,4 @@ async function translateWith(service: FreeTranslationService, request: FreeTrans
   }).join("");
   if (!out.trim()) throw freeError(`${info.name} returned an empty translation.`);
   return out;
-}
-
-export async function translateFree(request: FreeTranslationRequest): Promise<FreeTranslationResult> {
-  if (request.service !== "auto") {
-    return { translation: await translateWith(request.service, request), service: request.service };
-  }
-  const order = autoService ? [autoService, ...FREE_TRANSLATION_SERVICES.filter((service) => service !== autoService)] : FREE_TRANSLATION_SERVICES;
-  let last: unknown = null;
-  for (const service of order) {
-    try {
-      const translation = await translateWith(service, request);
-      autoService = service;
-      return { translation, service };
-    } catch (error) {
-      // An unreachable service, or one without the target language: try the next.
-      last = error;
-      if (freeErrorKind(error) !== "unavailable" && freeErrorKind(error) !== "unsupported") throw error;
-    }
-  }
-  throw last instanceof Error ? freeError(`No free translation service is reachable from this device. ${last.message}`) : freeError("No free translation service is reachable from this device.");
 }

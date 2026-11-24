@@ -10,7 +10,7 @@ import type {
 import { resolveTranslationTarget } from "../../shared/translation-languages";
 import { getEnhancerPreferences } from "../preferences";
 import { resolveLanguage } from "../i18n/settings-strings";
-import { currentFreeService, freeServiceForOrigin, freeServiceInfo } from "../../shared/free-translation";
+import { FREE_SERVICE_INFO, freeServiceForOrigin } from "../../shared/free-translation";
 import { translationSettingsSync, type TranslationSettingsSnapshot } from "./settings-store";
 import {
   hashTranslationText,
@@ -357,7 +357,7 @@ function viewOf(
 ): SelectionTranslationView {
   // `provider` picks the logo: the endpoint names its service (`api.openai.com`, ...).
   const modelInfo: ModelInfo = settings.mode === "free"
-    ? { provider: freeServiceInfo(settings.freeService).origin, model: freeServiceInfo(settings.freeService).name, ...freeMark(currentFreeService(settings.freeService)) }
+    ? { provider: FREE_SERVICE_INFO[settings.freeService].origin, model: FREE_SERVICE_INFO[settings.freeService].name, ...freeMark(settings.freeService) }
     : { provider: settings.endpoint, model: settings.endpointModel };
   if (!entry || entry.state.state === "idle") return { status: "running", targetCode, modelInfo };
   switch (entry.state.state) {

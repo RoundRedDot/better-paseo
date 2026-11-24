@@ -46,20 +46,15 @@ export const TRANSLATION_MODEL_MAX_LENGTH = 256;
 export const TRANSLATION_MODES = ["free", "openai"] as const;
 export type TranslationMode = (typeof TRANSLATION_MODES)[number];
 
-/** In the order `auto` tries them. */
+/** In menu order; the first is the default. */
 export const FREE_TRANSLATION_SERVICES = ["microsoft", "google", "tencent"] as const;
 export type FreeTranslationService = (typeof FREE_TRANSLATION_SERVICES)[number];
-/**
- * `auto`: each client uses the first service it can reach. Settings are shared
- * by every client of a host, but which service is reachable depends on the
- * device's network, so the choice is made per client, never stored.
- */
-export type FreeServiceChoice = FreeTranslationService | "auto";
 
 export const timelineTranslationSettingsSchema = z.object({
   enabled: z.boolean().catch(false),
   mode: z.enum(TRANSLATION_MODES).catch("free"),
-  freeService: z.enum(["auto", ...FREE_TRANSLATION_SERVICES]).catch("auto"),
+  // An earlier build stored "auto"; it and any unknown value read as the first service.
+  freeService: z.enum(FREE_TRANSLATION_SERVICES).catch(FREE_TRANSLATION_SERVICES[0]),
   /**
    * The OpenAI-compatible base URL (or full `/chat/completions` URL) the
    * daemon sends translations to. Empty means nothing is ever sent. The server

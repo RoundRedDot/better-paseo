@@ -63,7 +63,6 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
 import { placeLanguageMenu } from "../../client/translation/language-picker";
 import { TimelineTranslationSettings as TimelineTranslationSettingsSection } from "../../client/translation/settings";
 import { createEndpointStatusStore } from "../../client/translation/endpoint-status";
-import { resetAutoFreeServiceForTests } from "../../shared/free-translation";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -815,7 +814,6 @@ describe("translation method settings", () => {
     act(() => renderer?.unmount());
     renderer = undefined;
     vi.unstubAllGlobals();
-    resetAutoFreeServiceForTests();
   });
 
   const radio = (label: string) => renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === label);
@@ -847,7 +845,7 @@ describe("translation method settings", () => {
     n.parent !== null && typeof n.props.onPress === "function").map((n) => n.props.accessibilityLabel as string)
     .filter((name) => !["Free", "OpenAI compatible", "Agent"].includes(name));
 
-  it("starts free and shows the first service this device can reach as Automatic, without saving it", async () => {
+  it("starts free on the first service, without sending anything or saving", async () => {
     const urls = stubServices();
     await render({});
     expect(titles()).toEqual([
@@ -855,37 +853,42 @@ describe("translation method settings", () => {
       "Restore default translation settings",
     ]);
     expect(radio("Free").props.accessibilityState.selected).toBe(true);
-    await vi.waitFor(() => expect(serviceMenu().props.accessibilityValue).toEqual({ text: "Automatic (Google)" }));
-    expect(serviceMenu().findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBe("google");
-    expect(textValues(renderer!.root).join("\n")).toContain("Automatic: Google is the first service this device can reach.");
+    expect(serviceMenu().props.accessibilityValue).toEqual({ text: "Microsoft" });
+    expect(serviceMenu().findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBe("microsoft");
+    await act(async () => {});
+    // No automatic choice: opening the page sends nothing to any service.
+    expect(urls).toEqual([]);
+    expect(textValues(renderer!.root).join("\n")).not.toMatch(/Automatic/);
     // Every service names its network dependence the same way, never by region.
     expect(textValues(renderer!.root).join("\n")).toContain("whether a service is reachable depends on its network");
     expect(textValues(renderer!.root).join("\n")).not.toMatch(/mainland|China/);
-    expect(urls.map((url) => new URL(url).host)).toEqual(["edge.microsoft.com", "translate-pa.googleapis.com"]);
     expect(mocks.saveSpy).not.toHaveBeenCalled();
   });
 
-  it("lists Automatic and each service with its colour mark in the settings dropdown", async () => {
+  it("lists each service with its colour mark in the settings dropdown, and no automatic item", async () => {
     stubServices();
-    await render({ freeService: "microsoft" });
-    expect(serviceMenu().props.accessibilityValue).toEqual({ text: "Microsoft" });
-    // Not the segmented control any more.
-    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Google")).toHaveLength(0);
+    await render({ freeService: "google" });
+    expect(serviceMenu().props.accessibilityValue).toEqual({ text: "Google" });
     await openServiceMenu();
-    expect(menuNames()).toEqual(["Automatic", "Microsoft", "Google", "Tencent TranSmart"]);
+    expect(menuNames()).toEqual(["Microsoft", "Google", "Tencent TranSmart"]);
     expect(menuChoice("Google").findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBe("google");
-    expect(menuChoice("Automatic").findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBeNull();
   });
 
-  it("saves a picked service, and can go back to choosing automatically", async () => {
+  it("saves a picked service", async () => {
     stubServices();
     await render({ freeService: "tencent" });
     await openServiceMenu();
     await act(async () => menuChoice("Microsoft").props.onPress());
     expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ mode: "free", freeService: "microsoft" }), "rev-1");
-    await openServiceMenu();
-    await act(async () => menuChoice("Automatic").props.onPress());
-    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ freeService: "auto" }), "rev-1");
+  });
+
+  it("tests the chosen service with one sample sentence", async () => {
+    const urls = stubServices();
+    await render({ freeService: "google" });
+    const test = renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Test service");
+    await act(async () => test.props.onPress());
+    await vi.waitFor(() => expect(textValues(renderer!.root).join("\n")).toContain("Connected:"));
+    expect(urls.map((url) => new URL(url).host)).toEqual(["translate-pa.googleapis.com"]);
   });
 
   it("switches to the OpenAI-compatible rows and saves the mode", async () => {

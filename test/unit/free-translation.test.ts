@@ -1,8 +1,6 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import {
-  autoFreeService,
   freeServiceLanguage,
-  resetAutoFreeServiceForTests,
   restorePlaceholders,
   splitMarkdown,
   translateFree,
@@ -39,7 +37,6 @@ function fakeServices(options: { down?: string[]; answer?: (text: string) => str
   return { fetch: fetch as unknown as typeof globalThis.fetch, calls };
 }
 
-afterEach(() => resetAutoFreeServiceForTests());
 
 describe("free translation: Markdown", () => {
   it("never sends code blocks, table separators or markers, and protects inline code and links", () => {
@@ -97,7 +94,7 @@ describe("free translation: services", () => {
     const text = "Run `npm test` now.\n\n```\ncode\n```";
     for (const service of ["microsoft", "google", "tencent"] as const) {
       const result = await translateFree({ service, text, targetCode: "zh-CN", fetch });
-      expect(result).toEqual({ service, translation: "T:Run `npm test` now.\n\n```\ncode\n```" });
+      expect(result).toBe("T:Run `npm test` now.\n\n```\ncode\n```");
     }
     expect(calls.map((call) => call.url)).toEqual([
       "https://edge.microsoft.com/translate/translatetext?from=&to=zh-Hans&isEnterpriseClient=false",
@@ -117,13 +114,13 @@ describe("free translation: services", () => {
     const { fetch, calls } = fakeServices({ answer: (text) => text });
     const result = await translateFree({ service: "google", text: "a < b & c", targetCode: "en", fetch });
     expect(JSON.parse(String(calls[0]!.init.body))[0][0]).toEqual(["a &lt; b &amp; c"]);
-    expect(result.translation).toBe("a < b & c");
+    expect(result).toBe("a < b & c");
   });
 
   it("keeps a line's original text when the service drops a placeholder", async () => {
     const { fetch } = fakeServices({ answer: (text) => (text.includes("{0}") ? "lost it" : `T:${text}`) });
     const result = await translateFree({ service: "microsoft", text: "Run `x` now.\nHello", targetCode: "en", fetch });
-    expect(result.translation).toBe("Run `x` now.\nT:Hello");
+    expect(result).toBe("Run `x` now.\nT:Hello");
   });
 
   it("splits long text into batches", async () => {
@@ -131,7 +128,7 @@ describe("free translation: services", () => {
     const lines = Array.from({ length: 120 }, (_, index) => `Line number ${index}`);
     const result = await translateFree({ service: "microsoft", text: lines.join("\n"), targetCode: "en", fetch });
     expect(calls.length).toBeGreaterThan(1);
-    expect(result.translation.split("\n")).toEqual(lines.map((line) => `T:${line}`));
+    expect(result.split("\n")).toEqual(lines.map((line) => `T:${line}`));
   });
 
   it("reports HTTP failures and timeouts by name, never the text", async () => {
@@ -146,46 +143,39 @@ describe("free translation: services", () => {
   });
 });
 
-describe("free translation: automatic service", () => {
-  it("uses the first reachable service in order and keeps it for the session", async () => {
-    const { fetch, calls } = fakeServices({ down: ["edge.microsoft.com"] });
-    const first = await translateFree({ service: "auto", text: "Hello", targetCode: "en", fetch });
-    expect(first.service).toBe("google");
-    expect(autoFreeService()).toBe("google");
-    expect(calls.map((call) => new URL(call.url).host)).toEqual(["edge.microsoft.com", "translate-pa.googleapis.com"]);
-
-    calls.length = 0;
-    await translateFree({ service: "auto", text: "Again", targetCode: "en", fetch });
-    expect(calls.map((call) => new URL(call.url).host)).toEqual(["translate-pa.googleapis.com"]);
+describe("free translation: chosen service", () => {
+  it("starts on the first service, and reads an old automatic choice as it", () => {
+    expect(timelineTranslationSettingsSchema.parse({}).freeService).toBe("microsoft");
+    expect(timelineTranslationSettingsSchema.parse({ freeService: "auto" }).freeService).toBe("microsoft");
+    expect(timelineTranslationSettingsSchema.parse({ freeService: "google" }).freeService).toBe("google");
   });
 
-  it("skips a service without the target language", async () => {
-    const { fetch, calls } = fakeServices({ down: ["edge.microsoft.com", "googleapis.com"] });
-    await expect(translateFree({ service: "auto", text: "Hello", targetCode: "sw", fetch }))
-      .rejects.toThrow("No free translation service is reachable from this device.");
-    // Tencent has no Swahili, so nothing is sent there.
-    expect(calls.map((call) => new URL(call.url).host)).toEqual(["edge.microsoft.com", "translate-pa.googleapis.com"]);
-  });
-
-  it("does not fall back from a service the user picked", async () => {
+  it("uses only the service the user picked, without falling back to another", async () => {
     const { fetch, calls } = fakeServices({ down: ["edge.microsoft.com"] });
     await expect(translateFree({ service: "microsoft", text: "Hello", targetCode: "en", fetch }))
       .rejects.toThrow("Could not reach Microsoft Translator.");
     expect(calls).toHaveLength(1);
   });
+
+  it("refuses a target language the service lacks before sending anything", async () => {
+    const { fetch, calls } = fakeServices();
+    await expect(translateFree({ service: "tencent", text: "Hello", targetCode: "sw", fetch }))
+      .rejects.toThrow("Tencent TranSmart cannot translate into sw.");
+    expect(calls).toHaveLength(0);
+  });
 });
 
 describe("free translation: client store", () => {
   it("translates on the client without starting a daemon job", async () => {
-    const free = vi.fn(async () => ({ translation: "Bonjour", service: "google" as const }));
+    const free = vi.fn(async () => "Bonjour");
     const call = vi.fn();
     const store = createTranslationStore({ translateFree: free });
-    const settings = timelineTranslationSettingsSchema.parse({ enabled: true, targetLanguage: "fr" });
+    const settings = timelineTranslationSettingsSchema.parse({ enabled: true, targetLanguage: "fr", freeService: "google" });
     expect(settings.mode).toBe("free");
     store.startTranslation({ sourceKey: "k", sourceKind: "assistant_message", agentId: "a", text: "Hello", interfaceLanguage: "en", settings }, call);
     await vi.waitFor(() => expect(store.read("k")?.state.state).toBe("done"));
     expect(call).not.toHaveBeenCalled();
-    expect(free).toHaveBeenCalledWith({ service: "auto", text: "Hello", targetCode: "fr" });
+    expect(free).toHaveBeenCalledWith({ service: "google", text: "Hello", targetCode: "fr" });
     expect(store.read("k")?.state).toEqual({
       state: "done", translation: "Bonjour", targetLanguageCode: "fr",
       origin: "https://translate-pa.googleapis.com", model: "Google Translate",

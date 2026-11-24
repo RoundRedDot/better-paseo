@@ -67,7 +67,8 @@ type TranslateFree = typeof translateFree;
 /** Free mode: the client asks the service itself; there is no daemon job to poll. */
 async function translateLocally(input: TranslationRequestInput, free: TranslateFree): Promise<TranslationJobState> {
   const target = resolveTranslationTarget(input.settings.targetLanguage, input.interfaceLanguage);
-  const { translation, service } = await free({ service: input.settings.freeService, text: input.text, targetCode: target.code });
+  const service = input.settings.freeService;
+  const translation = await free({ service, text: input.text, targetCode: target.code });
   return {
     state: "done",
     translation,
