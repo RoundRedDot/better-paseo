@@ -198,6 +198,9 @@ describe("turn work card", () => {
     expect(list[0]!.props.style?.gap ?? 0).toBe(0);
     expect(cells.map((cell) => cell.props.style?.paddingVertical)).toEqual(Array(7).fill(4));
     expect(cells.map((cell) => cell.props.style?.paddingHorizontal)).toEqual(Array(7).fill(12));
+    expect(panel.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "work-step-number")
+      .map((number) => number.children.join("")))
+      .toEqual(["1", "2", "3", "4", "5", "6", "7"]);
     expect(cells.map((cell) => cell.props.style?.backgroundColor)).toEqual([
       undefined, withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
       withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,

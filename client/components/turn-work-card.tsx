@@ -42,6 +42,7 @@ import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationC
 import { selectionSurface } from "./selection-actions";
 import { selectableTextStyle } from "./selection";
 import { surfaceProps } from "./view-props";
+import { lineNumberWidth } from "./syntax-highlight";
 import type { LineCount, TurnFooterStore } from "../state/turn-footers";
 import type { TurnWork, WorkFile, WorkStep } from "../state/turn-work";
 import type { WorkVerb } from "../tools/standard-fold";
@@ -261,9 +262,17 @@ function WorkSteps({ agentId, at, steps, tokens, compact }: {
       <BlockPlacementContext.Provider value={placement}>
         <View testID="work-step-list">
           {steps.map((step, index) => <View key={step.callId} testID="work-step-cell"
-            style={{ paddingVertical: space.xs, paddingHorizontal: space.md,
+            style={{ flexDirection: "row", paddingVertical: space.xs, paddingHorizontal: space.md,
               backgroundColor: index % 2 === 1 ? withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04) : undefined }}>
-            <WorkStepRow agentId={agentId} step={step} tokens={tokens} compact={compact} />
+            <Text testID="work-step-number" selectable={false} style={{
+              width: lineNumberWidth(steps.length, tokens.typography.mono.size),
+              color: tokens.syntax.comment, fontFamily: tokens.fontMono, fontSize: tokens.typography.mono.size - 2,
+              lineHeight: compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop,
+              textAlign: "right", paddingRight: space.sm, fontVariant: ["tabular-nums"],
+            }}>{index + 1}</Text>
+            <View style={{ flex: 1, minWidth: 0 }}>
+              <WorkStepRow agentId={agentId} step={step} tokens={tokens} compact={compact} />
+            </View>
           </View>)}
         </View>
       </BlockPlacementContext.Provider>
