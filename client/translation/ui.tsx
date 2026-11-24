@@ -109,7 +109,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
           </TooltipAlignContext.Provider>
         </ToolbarMetricsContext.Provider>
       </View>
-      <View testID="translation-header-divider" style={[styles.divider, { backgroundColor: tokens.v2.border }]} />
+      {!sheet ? <View testID="translation-header-divider" style={[styles.divider, { backgroundColor: tokens.v2.border }]} /> : null}
       {message ? (
         <View style={styles.messageRow}>
           {running ? <SyncedLoader color={tokens.foreground} gridTestID="translation-loading" /> : null}
