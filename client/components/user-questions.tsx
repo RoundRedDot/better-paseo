@@ -3,16 +3,25 @@ import { View, Text, StyleSheet } from "react-native";
 import { QuestionSelectionMark } from "./question-selection-mark";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { radiusV2, space } from "./theme-tokens";
-import type { UserQuestionData } from "../tools/user-questions";
+import type { UserQuestion, UserQuestionData } from "../tools/user-questions";
 import { SelectableText } from "../ui/prose-text";
 import { ToolbarButton, TooltipAlignContext } from "../ui/toolbar-button";
 import { ToolPager } from "../ui/tool-pager";
 import { AlwaysWrapPreview, HoverPreviewBody } from "../ui/hover-preview";
 import { useEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
+import { TranslationGroup, translatedField, translationGroupState, type TranslationField } from "../translation/group";
+import { InlineTranslateButtonWithTokens, InlineTranslationNoticeWithTokens } from "../translation/inline";
+
+function selectedAnswerOptions(question: UserQuestion): string[] {
+  const selected = question.selected ?? (question.answer !== undefined ? question.options.filter((option) =>
+    question.answer === option.label || (question.multiSelect && question.answer?.split(", ").includes(option.label))).map((option) => option.label) : []);
+  return selected.length > 0 && question.answer === selected.join(", ") ? selected : [];
+}
 
 /** A read-only question transcript; submitting answers belongs to the host. */
-export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, children }: {
+export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, children, translationAgentId }: {
+  translationAgentId?: string;
   questions: UserQuestionData;
   tokens: ExtendedThemeTokens;
   rawBody: ReactNode;
@@ -29,51 +38,75 @@ export function UserQuestions({ questions: data, tokens, rawBody, renderHeader, 
     lineHeight: tokens.typography.block.label.lineHeight, color: tokens.foreground };
   const meta = { fontFamily: tokens.fontUi, fontSize: tokens.typography.block.meta.size,
     lineHeight: tokens.typography.block.meta.lineHeight, color: tokens.foregroundMuted };
-  const controls = <View style={styles.controls}>
-    <ToolbarButton icon={raw ? "MessagesSquare" : "FileJson"} label={raw ? "Show questions" : "Show raw data"}
-      checked={raw} onPress={() => setRaw((value) => !value)} tokens={tokens} />
-    {!raw && data.questions.length > 1 ? <ToolPager subject="question" index={index}
-      count={data.questions.length} onChange={setPage} tokens={tokens} /> : null}
-  </View>;
-  const body = <>
-    {raw ? rawBody : <View testID="user-question" style={styles.question}>
-      <View style={styles.heading}>
-        {question.header ? <Text style={[meta, styles.header]}>{question.header}</Text> : null}
-        <Text style={meta}>{label(question.options.length === 0 ? "Free text" : question.multiSelect ? "Select multiple" : "Select one")}</Text>
-      </View>
-      <SelectableText style={[prose, styles.title]}>{question.question}</SelectableText>
-      <View style={styles.options}>
-        {question.options.map((option, i) => {
-          const selected = question.selected ? question.selected.includes(option.label) :
-            question.answer === option.label || (question.multiSelect && question.answer?.split(", ").includes(option.label)) === true;
-          return <View key={i} testID="user-question-option" accessibilityLabel={option.label}
-            accessibilityState={{ selected }}
-            style={[styles.option, { borderColor: selected ? tokens.accent : tokens.v2.borderSubtle,
-              backgroundColor: selected ? tokens.v2.surface2 : "transparent" }]}>
-            <View style={styles.mark}>
-              <QuestionSelectionMark multiSelect={question.multiSelect} selected={selected} size={16}
-                accent={tokens.accent} accentForeground={tokens.accentForeground} muted={tokens.foregroundMuted} />
-            </View>
-            <View style={styles.optionText}>
-              <SelectableText style={[prose, selected && styles.header]}>{option.label}</SelectableText>
-              {option.description ? <SelectableText style={meta}>{option.description}</SelectableText> : null}
-            </View>
-          </View>;
-        })}
-      </View>
-      <View style={[styles.answer, { borderTopColor: tokens.v2.borderSubtle }]}>
-        <Text style={meta}>{label("Answer")}</Text>
-        <SelectableText style={question.answer !== undefined ? prose : meta}>
-          {question.answer ?? label(data.dismissed ? "Dismissed" : data.running ? "Waiting for answer…" : "No answer recorded")}
-        </SelectableText>
-      </View>
-    </View>}
-    {children}
-  </>;
-  return <AlwaysWrapPreview>
-    {renderHeader ? renderHeader(controls) : <TooltipAlignContext.Provider value="start">{controls}</TooltipAlignContext.Provider>}
-    {renderHeader ? <HoverPreviewBody streaming={data.running}>{body}</HoverPreviewBody> : body}
-  </AlwaysWrapPreview>;
+  const fields: TranslationField[] = [];
+  data.questions.forEach((item, questionIndex) => {
+    const add = (id: string, text: string) => fields.push({ id: `${questionIndex}:${id}`, text, kind: "tool_output" });
+    add("question", item.question);
+    if (item.header) add("header", item.header);
+    item.options.forEach((option, i) => {
+      add(`option-${i}`, option.label);
+      if (option.description) add(`description-${i}`, option.description);
+    });
+    if (item.answer && !selectedAnswerOptions(item).length) add("answer", item.answer);
+  });
+  const answerOptions = selectedAnswerOptions(question);
+  return <TranslationGroup agentId={translationAgentId} fields={fields}>
+  {(states) => {
+      const group = translationGroupState(states);
+      const translated = (id: string, text: string) => translatedField(states, `${index}:${id}`, text);
+      const answer = answerOptions.length ? answerOptions.map((option) => {
+        const optionIndex = question.options.findIndex((item) => item.label === option);
+        return optionIndex < 0 ? option : translated(`option-${optionIndex}`, option);
+      }).join(", ") : question.answer !== undefined ? translated("answer", question.answer) : undefined;
+      const controls = <View style={styles.controls}>
+        <ToolbarButton icon={raw ? "MessagesSquare" : "FileJson"} label={raw ? "Show questions" : "Show raw data"}
+          checked={raw} onPress={() => setRaw((value) => !value)} tokens={tokens} />
+        {!raw && group ? <InlineTranslateButtonWithTokens state={group} tokens={tokens} timeline testID="question-translate" /> : null}
+        {!raw && data.questions.length > 1 ? <ToolPager subject="question" index={index}
+          count={data.questions.length} onChange={setPage} tokens={tokens} /> : null}
+      </View>;
+      const body = <>
+        {!raw && group ? <InlineTranslationNoticeWithTokens state={group} tokens={tokens} /> : null}
+        {raw ? rawBody : <View testID="user-question" style={styles.question}>
+          <View style={styles.heading}>
+            {question.header ? <Text style={[meta, styles.header]}>{translated("header", question.header)}</Text> : null}
+            <Text style={meta}>{label(question.options.length === 0 ? "Free text" : question.multiSelect ? "Select multiple" : "Select one")}</Text>
+          </View>
+          <SelectableText style={[prose, styles.title]}>{translated("question", question.question)}</SelectableText>
+          <View style={styles.options}>
+            {question.options.map((option, i) => {
+              const selected = question.selected ? question.selected.includes(option.label) :
+                question.answer === option.label || (question.multiSelect && question.answer?.split(", ").includes(option.label)) === true;
+              return <View key={i} testID="user-question-option" accessibilityLabel={option.label}
+                accessibilityState={{ selected }}
+                style={[styles.option, { borderColor: selected ? tokens.accent : tokens.v2.borderSubtle,
+                  backgroundColor: selected ? tokens.v2.surface2 : "transparent" }]}>
+                <View style={styles.mark}>
+                  <QuestionSelectionMark multiSelect={question.multiSelect} selected={selected} size={16}
+                    accent={tokens.accent} accentForeground={tokens.accentForeground} muted={tokens.foregroundMuted} />
+                </View>
+                <View style={styles.optionText}>
+                  <SelectableText style={[prose, selected && styles.header]}>{translated(`option-${i}`, option.label)}</SelectableText>
+                  {option.description ? <SelectableText style={meta}>{translated(`description-${i}`, option.description)}</SelectableText> : null}
+                </View>
+              </View>;
+            })}
+          </View>
+          <View style={[styles.answer, { borderTopColor: tokens.v2.borderSubtle }]}>
+            <Text style={meta}>{label("Answer")}</Text>
+            <SelectableText style={question.answer !== undefined ? prose : meta}>
+              {answer !== undefined ? answer : label(data.dismissed ? "Dismissed" : data.running ? "Waiting for answer…" : "No answer recorded")}
+            </SelectableText>
+          </View>
+        </View>}
+        {children}
+      </>;
+      return <AlwaysWrapPreview>
+        {renderHeader ? renderHeader(controls) : <TooltipAlignContext.Provider value="start">{controls}</TooltipAlignContext.Provider>}
+        {renderHeader ? <HoverPreviewBody streaming={data.running}>{body}</HoverPreviewBody> : body}
+      </AlwaysWrapPreview>;
+  }}
+  </TranslationGroup>;
 }
 
 const styles = StyleSheet.create({

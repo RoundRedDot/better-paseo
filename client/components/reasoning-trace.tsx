@@ -332,6 +332,34 @@ export function ReasoningCard(props: ReasoningCardProps) {
   </InlineTranslation>;
 }
 
+function ReasoningPreview({ text, streaming, tokens, translation }: {
+  text: string; streaming: boolean; tokens: ExtendedThemeTokens; translation?: { agentId: string; theme: PluginTheme };
+}) {
+  if (!translation || !text) return <ReasoningPreviewContent text={text} streaming={streaming} tokens={tokens} />;
+  return <InlineTranslation agentId={translation.agentId} kind="reasoning" text={text} streaming={streaming}>
+    {(inline) => <ReasoningPreviewContent text={text} streaming={streaming} tokens={tokens} translation={translation} inline={inline} />}
+  </InlineTranslation>;
+}
+
+function ReasoningPreviewContent({ text, streaming, tokens, translation, inline }: {
+  text: string; streaming: boolean; tokens: ExtendedThemeTokens;
+  translation?: { agentId: string; theme: PluginTheme }; inline?: InlineTranslationState;
+}) {
+  const shown = inline?.active && inline.view?.status === "done" ? inline.view.result.translation : text;
+  return <>
+    <HoverPreviewHeader tokens={tokens} streaming={streaming}>
+      <View style={styles.previewActions}>
+        {inline && translation ? <InlineTranslateButton state={inline} theme={translation.theme} testID="reasoning-preview-translate" timeline /> : null}
+        <ToolbarCopyButton text={text} tokens={tokens} label="Copy thought" />
+      </View>
+    </HoverPreviewHeader>
+    <HoverPreviewBody streaming={streaming}>
+      {inline && translation ? <InlineTranslationNotice state={inline} theme={translation.theme} /> : null}
+      <MarkdownView text={shown} tokens={tokens} variant="compact" quiet streaming={streaming} size={blockProseBase(tokens.typography)} />
+    </HoverPreviewBody>
+  </>;
+}
+
 function ReasoningCardContent({ segmentation: originalSegmentation, streaming, durationMs, expanded: expandedProp, onToggle, tokens, compact = false, storeKey, copyText, translation, inline }: ReasoningCardProps & { inline?: InlineTranslationState }) {
   const translated = inline?.active && inline.view?.status === "done" ? inline.view.result.translation : null;
   const segmentation = useMemo(() => translated === null ? originalSegmentation : segmentReasoning(translated), [originalSegmentation, translated]);
@@ -409,16 +437,7 @@ function ReasoningCardContent({ segmentation: originalSegmentation, streaming, d
       onLongPress={onLongPress}
       accessibilityLabel={label.preview ? `${label.verb}: ${label.preview}` : label.verb}
       previewContent={() => (
-        <>
-          <HoverPreviewHeader tokens={tokens} streaming={streaming}>
-            <View style={styles.previewActions}>
-              <ToolbarCopyButton text={copySource} tokens={tokens} label="Copy thought" />
-            </View>
-          </HoverPreviewHeader>
-          <HoverPreviewBody streaming={streaming}>
-            <MarkdownView text={reasoningText(segmentation)} tokens={tokens} variant="compact" quiet streaming={streaming} size={blockProseBase(tokens.typography)} />
-          </HoverPreviewBody>
-        </>
+        <ReasoningPreview text={copySource()} streaming={streaming} tokens={tokens} translation={translation} />
       )}
     />
   );

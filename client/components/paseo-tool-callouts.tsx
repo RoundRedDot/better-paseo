@@ -1,7 +1,6 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
-import { InlineTranslationNoticeWithTokens, type InlineTranslationState } from "../translation/inline";
 import { usePaseo } from "@getpaseo/plugin/client";
 import { useCodexProvider } from "../state/provider-family";
 import { surfaceProps } from "./view-props";
@@ -33,7 +32,7 @@ interface PaseoToolCalloutProps {
   compact?: boolean;
   /** The host's error for a failed call, drawn as the card's first line. */
   error?: string;
-  promptTranslation?: InlineTranslationState;
+  translationAgentId?: string;
 }
 
 /**
@@ -42,14 +41,14 @@ interface PaseoToolCalloutProps {
  * whose header already names the call and whose open state decides whether
  * this is mounted at all.
  */
-export function PaseoToolCallout({ data, tokens, raw = false, compact = false, error, promptTranslation }: PaseoToolCalloutProps) {
+export function PaseoToolCallout({ data, tokens, raw = false, compact = false, error, translationAgentId }: PaseoToolCalloutProps) {
   return (
     <View {...surfaceProps(selectionSurface)} style={styles.body}>
       {data.tool === "create_agent" && data.createAgent && (
-        <CreateAgentView data={data.createAgent} tokens={tokens} raw={raw} compact={compact} error={error} promptTranslation={promptTranslation} />
+        <CreateAgentView data={data.createAgent} tokens={tokens} raw={raw} compact={compact} error={error} />
       )}
       {data.sendAgentPrompt ? <SendAgentPromptView data={data.sendAgentPrompt} tokens={tokens} raw={raw} compact={compact} error={error} /> : null}
-      {data.agentOperation ? <AgentOperationView data={data.agentOperation} tokens={tokens} raw={raw} compact={compact} error={error} /> : null}
+      {data.agentOperation ? <AgentOperationView data={data.agentOperation} tokens={tokens} raw={raw} compact={compact} error={error} translationAgentId={translationAgentId} /> : null}
       {data.catalog ? <CatalogView data={data.catalog} tokens={tokens} raw={raw} compact={compact} /> : null}
     </View>
   );
@@ -59,9 +58,8 @@ const styles = StyleSheet.create({
   body: { gap: 10, ...selectableSurface },
 });
 
-function CreateAgentView({ data, tokens, raw, compact, error, promptTranslation }: {
+function CreateAgentView({ data, tokens, raw, compact, error }: {
   data: PaseoCreateAgentData;
-  promptTranslation?: InlineTranslationState;
   tokens: ExtendedThemeTokens;
   raw: boolean;
   compact: boolean;
@@ -95,9 +93,8 @@ function CreateAgentView({ data, tokens, raw, compact, error, promptTranslation 
         provider={data.model ? undefined : data.provider} />
       <AgentDivider tokens={tokens} />
       {data.status === "failed" && error ? <AgentErrorLine text={error.split("\n")[0]!} tokens={tokens} /> : null}
-      {promptTranslation ? <InlineTranslationNoticeWithTokens state={promptTranslation} tokens={tokens} /> : null}
       <AgentSection label={raw ? undefined : "Prompt"} tokens={tokens}>
-        <AgentMarkdown text={promptTranslation?.active && promptTranslation.view?.status === "done" ? promptTranslation.view.result.translation : data.initialPrompt} tokens={tokens} raw={raw} mobile={mobile} /></AgentSection>
+        <AgentMarkdown text={data.initialPrompt} tokens={tokens} raw={raw} mobile={mobile} /></AgentSection>
     </View>
   );
 }
@@ -109,8 +106,8 @@ export function agentStatusColor(data: AgentStatusData, tokens: ExtendedThemeTok
 }
 
 /** A child agent's notification: who sent it, then its reply, error or permission request. */
-export function AgentStatusView({ data, tokens, raw = false, compact = false }: {
-  data: AgentStatusData; tokens: ExtendedThemeTokens; raw?: boolean; compact?: boolean;
+export function AgentStatusView({ data, tokens, raw = false, compact = false, translationAgentId }: {
+  data: AgentStatusData; tokens: ExtendedThemeTokens; raw?: boolean; compact?: boolean; translationAgentId?: string;
 }) {
   const mobile = useCardMobile(compact);
   const live = useLiveAgent(data.agentId);
@@ -126,9 +123,9 @@ export function AgentStatusView({ data, tokens, raw = false, compact = false }: 
       agentId={data.agentId} tokens={tokens} mobile={mobile} />
     {errorLine || rest || permission ? <AgentDivider tokens={tokens} /> : null}
     {errorLine ? <AgentErrorLine text={errorLine} tokens={tokens} /> : null}
-    {permission?.questions ? <PermissionQuestions questions={permission.questions} tokens={tokens} mobile={mobile} /> : null}
+    {permission?.questions ? <PermissionQuestions questions={permission.questions} tokens={tokens} mobile={mobile} translationAgentId={translationAgentId} /> : null}
     {permission && !permission.questions ? <PermissionRequest testID="agent-status-permission" title={permission.title}
-      description={permission.description} command={permission.command} plan={permission.plan} tokens={tokens} mobile={mobile} /> : null}
+      description={permission.description} command={permission.command} plan={permission.plan} tokens={tokens} mobile={mobile} translationAgentId={translationAgentId} /> : null}
     {permission ? <PermissionAnswerNote tokens={tokens} /> : null}
     {permission?.requestId ? <PermissionRequestId requestId={permission.requestId} tokens={tokens} /> : null}
     {rest ? <AgentSection label={data.status === "finished" && !raw ? "Reply" : undefined} tokens={tokens}>

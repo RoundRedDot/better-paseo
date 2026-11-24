@@ -312,6 +312,24 @@ it.each([
   expect(collectTexts(status()[0]!).join("")).toContain("provider down");
 });
 
+it("translates the thought inside its preview and restores the source", async () => {
+  const text = "First thought.\n\nSecond paragraph.";
+  mocks.rpc.mockResolvedValueOnce(doneState("完整思考译文"));
+  await act(async () => { renderer = TestRenderer.create(React.createElement(ReasoningCard, {
+    segmentation: segmentReasoning(text), streaming: false, durationMs: null, expanded: false,
+    onToggle: vi.fn(), tokens: makeTokens(), storeKey: "thought-preview", copyText: text,
+    translation: { agentId: "agent-1", theme },
+  })); });
+  const previewContent = renderer!.root.findByType(DisclosureHeader).props.previewContent();
+  await act(async () => { renderer!.update(previewContent); });
+  const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-preview-translate");
+  await act(async () => button().props.onPress({ stopPropagation() {} }));
+  expect(mocks.rpc).toHaveBeenCalledWith(expect.objectContaining({ text, sourceKind: "reasoning" }));
+  expect(JSON.stringify(renderer!.toJSON())).toContain("完整思考译文");
+  await act(async () => button().props.onPress({ stopPropagation() {} }));
+  expect(JSON.stringify(renderer!.toJSON())).toContain("First thought");
+});
+
 describe.each(["web", "ios", "android"] as const)("%s thought translation", (platform) => {
 
   it("honors the setting and translates the same complete thought as copy", async () => {

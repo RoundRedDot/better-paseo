@@ -53,7 +53,9 @@ import { toolHasDetail } from "../tools/detail";
 import { mcpServiceIcon } from "../tools/mcp-service-icon";
 import { commandIcon } from "../tools/command-icon";
 import { BlockPlacementContext, type CopyItem } from "../details/contracts";
-import { InlineTranslation, InlineTranslateButtonWithTokens, type InlineTranslationState } from "../translation/inline";
+import { InlineTranslateButtonWithTokens, InlineTranslationNoticeWithTokens, type InlineTranslationState } from "../translation/inline";
+import { TranslationGroup, translationGroupState } from "../translation/group";
+import { toolTranslationTargets, translatedTool, type ToolTranslationTarget } from "../translation/tool-preview";
 import { useZoomedTokens } from "../ui/text-zoom";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { useHostLanguageVersion } from "../i18n/host-language";
@@ -501,26 +503,22 @@ function isMarkdownWrite(data: ToolCallView): boolean {
  * body and the error. Also drawn outside a panel's layer by the settings page
  * (`PreviewPanelSample`), so a reader sees the panel options take effect.
  */
-export function ToolPreviewContent(props: Omit<ToolBodyProps, "preview"> & {
+type PreviewContentProps = Omit<ToolBodyProps, "preview"> & {
   translationAgentId?: string;
   resolvePath: ResolvePath;
   drawsImage?: boolean;
   pager?: React.ReactNode;
-}) {
-  const prompt = props.data.paseo?.tool === "create_agent" ? props.data.paseo.createAgent?.initialPrompt : undefined;
-  if (!props.translationAgentId || !prompt) return <ToolPreviewContentInner {...props} />;
-  return <InlineTranslation key={JSON.stringify([props.translationAgentId, props.data.callId ?? props.data.id, prompt])} agentId={props.translationAgentId} kind="user_message" text={prompt} streaming={false}>
-    {(translation) => <ToolPreviewContentInner {...props} translation={translation} />}
-  </InlineTranslation>;
+};
+type PreviewTranslations = Partial<Record<ToolTranslationTarget["id"], InlineTranslationState>>;
+
+export function ToolPreviewContent(props: PreviewContentProps) {
+  const targets = toolTranslationTargets(props.data);
+  return <TranslationGroup key={props.data.callId ?? props.data.id} agentId={props.translationAgentId} fields={targets}>
+    {(translations) => <ToolPreviewContentInner {...props} translations={translations} />}
+  </TranslationGroup>;
 }
 
-function ToolPreviewContentInner({ data, resolvePath, drawsImage = false, pager, translation, ...rest }: Omit<ToolBodyProps, "preview"> & {
-  translationAgentId?: string;
-  translation?: InlineTranslationState;
-  resolvePath: ResolvePath;
-  drawsImage?: boolean;
-  pager?: React.ReactNode;
-}) {
+function ToolPreviewContentInner({ data, resolvePath, drawsImage = false, pager, translations, translationAgentId, ...rest }: PreviewContentProps & { translations: PreviewTranslations }) {
   const { tokens, imageFile } = rest;
   const [raw, setRaw] = useState(false);
   const createAgent = data.tool === "paseo" && data.paseo?.tool === "create_agent" && Boolean(data.paseo.createAgent);
@@ -528,9 +526,15 @@ function ToolPreviewContentInner({ data, resolvePath, drawsImage = false, pager,
   const subAgent = data.tool === "sub_agent" && Boolean(data.subAgent);
   const markdown = isMarkdownWrite(data) || agentTool || subAgent || Boolean(data.agentStatus);
   const streaming = data.status === "running";
+  const values: Partial<Record<ToolTranslationTarget["id"], string>> = {};
+  for (const id of ["prompt", "result"] as const) {
+    const state = translations[id];
+    if (state?.active && state.view?.status === "done") values[id] = state.view.result.translation;
+  }
+  const bodyData = translatedTool(data, values);
   const questions = useMemo(() => readUserQuestions(data), [data]);
   if (questions) {
-    return <UserQuestions key={data.callId ?? data.id} questions={questions} tokens={tokens}
+    return <UserQuestions key={data.callId ?? data.id} questions={questions} tokens={tokens} translationAgentId={translationAgentId}
       rawBody={<ToolBody data={data} {...rest} preview raw />}
       renderHeader={(controls) => <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens}
         title={data.name ?? "Questions"} streaming={streaming} pager={controls} fitControls />}>
@@ -539,17 +543,18 @@ function ToolPreviewContentInner({ data, resolvePath, drawsImage = false, pager,
   }
   const content = (
     <>
-      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} translation={translation} streaming={streaming} fitControls={agentTool || subAgent || Boolean(data.agentStatus)}
+      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} translations={raw ? {} : translations} streaming={streaming} fitControls={agentTool || subAgent || Boolean(data.agentStatus)}
         pager={<>{pager}{markdown ? <ToolbarButton icon={raw ? "FileText" : "Code"}
           label={raw ? "Render Markdown" : "Show raw text"} onPress={() => setRaw((value) => !value)} tokens={tokens} /> : null}</>}
         meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
       <HoverPreviewBody key={markdown && !raw ? "markdown" : "raw"} streaming={streaming}>
+        {!raw && Object.entries(translations).map(([id, state]) => state ? <InlineTranslationNoticeWithTokens key={id} state={state} tokens={tokens} /> : null)}
         {data.filePath ? <PreviewPath path={resolvePath(data.filePath)} tokens={tokens} /> : null}
-        {data.agentStatus ? <AgentStatusView data={data.agentStatus} tokens={tokens} raw={raw} compact={rest.compact} /> :
-          subAgent ? <SubAgentView data={data} tokens={tokens} raw={raw} compact={rest.compact} /> :
-          agentTool ? <PaseoToolCallout data={data.paseo!} tokens={tokens} raw={raw} compact={rest.compact} error={data.error} promptTranslation={translation} /> :
+        {data.agentStatus ? <AgentStatusView data={(raw ? data : bodyData).agentStatus!} tokens={tokens} raw={raw} compact={rest.compact} translationAgentId={translationAgentId} /> :
+          subAgent ? <SubAgentView data={raw ? data : bodyData} tokens={tokens} raw={raw} compact={rest.compact} /> :
+          agentTool ? <PaseoToolCallout data={(raw ? data : bodyData).paseo!} tokens={tokens} raw={raw} compact={rest.compact} error={data.error} translationAgentId={translationAgentId} /> :
           markdown && !raw ? <MarkdownView text={data.code!} tokens={tokens} variant="document"
-          streaming={streaming} size={blockProseBase(tokens.typography)} /> : <ToolBody data={data} {...rest} preview />}
+          streaming={streaming} size={blockProseBase(tokens.typography)} /> : <ToolBody data={bodyData} {...rest} preview />}
         {data.error && !drawsOwnError(data) ? <PreviewError text={data.error} tokens={tokens} quiet={data.rejected} /> : null}
       </HoverPreviewBody>
     </>
@@ -710,8 +715,8 @@ function ToolCopyButtons({ call, resolvePath, tokens }: {
  * The preview's toolbar: a merged row's pager at the left, the tool's icon
  * and name or picture size in the middle, and copies at the right.
  */
-function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, translation, streaming = false, fitControls = false }: {
-  translation?: InlineTranslationState;
+function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, translations, streaming = false, fitControls = false }: {
+  translations?: PreviewTranslations;
   call: ToolCallView;
   resolvePath: ResolvePath;
   tokens: ExtendedThemeTokens;
@@ -740,7 +745,8 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, tra
       iconLabel={title ?? agentLabel ?? (call.tool === "activity" ? toolbarLabel(summary.verb, language) : summary.verb)}
       left={pager} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>
-        {translation ? <InlineTranslateButtonWithTokens state={translation} tokens={tokens} timeline testID="create-agent-prompt-translate" /> : null}
+        {translations && translationGroupState(translations) ? <InlineTranslateButtonWithTokens state={translationGroupState(translations)!} tokens={tokens} timeline
+          testID={call.paseo?.createAgent ? "create-agent-prompt-translate" : "detail-translate"} /> : null}
         {call.paseo?.sendAgentPrompt ? <>
           <ToolbarCopyButton text={call.paseo.sendAgentPrompt.prompt} label="Copy prompt" tokens={tokens} />
           <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />
