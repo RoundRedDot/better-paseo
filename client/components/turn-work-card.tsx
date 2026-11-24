@@ -1,7 +1,7 @@
 /**
  * The standard level's card for one turn's folded work (`state/turn-work.ts`):
  *
- *   ▸ 9 步 · 12 次工具调用 · 用时 1分18秒   opens the work details and steps
+ *   ▸ 工作过程 · 9 步 · 12 次工具调用 · 用时 1分18秒   opens the work details and steps
  *   ✎ 已编辑 4 个文件  查看变更       +33 −4
  *     client/paths/format-path.ts       +5 −2      only once the file card
  *     …three paths, then 再显示 N 个文件            is opened
@@ -140,8 +140,8 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   const text = STRINGS[resolveLanguage(language)] ?? STRINGS.en;
   const registration = useRef<{ id: string; handle: BlockRegistration } | null>(null);
   const lang = resolveLanguage(language);
-  // A settled turn says how many steps folded into the card, how many tools it called, then how long it took.
-  const counts = `${text.steps(work.steps.length)} \u00b7 ${text.calls(work.toolCalls)}`;
+  // A settled turn names the card, says how many steps folded into it, how many tools it called, then how long it took.
+  const counts = `${text.work} \u00b7 ${text.steps(work.steps.length)} \u00b7 ${text.calls(work.toolCalls)}`;
   const label = !work.running && work.complete && work.durationMs !== null
     ? `${counts} \u00b7 ${text.worked.replace("{d}", formatDuration(work.durationMs, lang))}`
     : work.running && work.steps.length ? `${text.work} \u00b7 ${text.steps(work.steps.length)}` : text.work;
