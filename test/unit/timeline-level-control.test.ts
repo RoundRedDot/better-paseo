@@ -146,10 +146,10 @@ describe("timeline level pill", () => {
     if (compact) expect(titles).toEqual([]);
     else expect(titles[0]!.props.style).toMatchObject({ fontSize: 14, fontWeight: "normal" });
     const settings = renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Chat settings")[0]!;
-    if (compact) {
-      expect(settings.props.style.minHeight).toBe(44);
-      expect(settings.findByType("Text" as never).props.children).toBe("Chat settings");
-    }
+    expect(settings.props.style).toMatchObject({ minHeight: compact ? 44 : 28, justifyContent: "flex-end", flexDirection: "row" });
+    expect(settings.findAll((node) => ["Text", "Icon"].includes(String(node.type))).map((node) => String(node.type))).toEqual(["Text", "Icon"]);
+    expect(settings.findByType("Text" as never).props.children).toBe("Chat settings");
+    expect(settings.findByType("Icon" as never).props.name).toBe("Settings");
     const menu = renderer.root.findAll((node) => String(node.type) === "View" && node.props.testID === "timeline-level-menu")[0]!;
     expect(menu.props.style).toEqual(compact ? undefined : { margin: -8 });
     const children = menu.findAll((node) => String(node.type) === "Pressable" || (String(node.type) === "View" && node.props.testID === "chat-switch-divider"));
@@ -158,7 +158,7 @@ describe("timeline level pill", () => {
     expect(divider.props.style.height).toBe(0.5);
     expect(children.indexOf(divider)).toBeGreaterThan(children.indexOf(rows[2]!));
     expect(children.indexOf(toggle)).toBe(children.indexOf(divider) + 1);
-    if (compact) expect(children.indexOf(settings)).toBe(children.indexOf(toggle) + 1);
+    expect(children.indexOf(settings)).toBe(children.indexOf(toggle) + 1);
     act(() => renderer.unmount());
   });
 
