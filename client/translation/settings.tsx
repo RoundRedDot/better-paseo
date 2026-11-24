@@ -1,5 +1,5 @@
-import React, { useCallback, useEffect, useState } from "react";
-import { Pressable, StyleSheet, View } from "react-native";
+import React, { useCallback, useEffect, useRef, useState } from "react";
+import { Platform, Pressable, StyleSheet, View } from "react-native";
 import { Glyph } from "../components/glyph";
 import { usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
 import { TextInput } from "@getpaseo/plugin/client/ui";
@@ -11,6 +11,7 @@ import {
   TRANSLATION_MODEL_MAX_LENGTH,
   TRANSLATION_PROMPT_MAX_LENGTH,
   translationApiKeyRpc,
+  translationRevealKeyRpc,
   translationEndpointStatusRpc,
   translationTestRpc,
   type TimelineTranslationSettings,
@@ -107,7 +108,7 @@ const STRINGS = {
       },
       {
         label: "API key",
-        text: "Stored unencrypted on the daemon host, protected by its file permissions; not in the Keychain. Sent only to the saved origin and never shown again. Translation does not use the conversation's provider, model or account.",
+        text: "Stored unencrypted on the daemon host, protected by its file permissions; not in the Keychain. Sent only to the saved origin. You can reveal it in these settings. Translation does not use the conversation's provider, model or account.",
       },
       {
         label: "Session cache",
@@ -184,7 +185,7 @@ const STRINGS = {
       },
       {
         label: "API Key",
-        text: "以明文保存在 daemon 所在机器的文件中，受主机文件权限保护，不是钥匙串。只发送给保存时绑定的 origin，保存后不再显示。翻译不使用会话的 Provider、模型或账号。",
+        text: "以明文保存在 daemon 所在机器的文件中，受主机文件权限保护，不是钥匙串。只发送给保存时绑定的 origin，可在此设置中显示。翻译不使用会话的 Provider、模型或账号。",
       },
       {
         label: "会话缓存",
@@ -233,6 +234,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   const state = useSettings(TIMELINE_TRANSLATION_SETTINGS);
   const readStatus = useRpc(translationEndpointStatusRpc);
   const writeKey = useRpc(translationApiKeyRpc);
+  const revealKey = useRpc(translationRevealKeyRpc);
   const testConnection = useRpc(translationTestRpc);
   const endpointStatus = useEndpointStatus(store);
 
@@ -247,6 +249,9 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   const [endpointDraft, setEndpointDraft] = useState<string | null>(null);
   const [modelDraft, setModelDraft] = useState<string | null>(null);
   const [keyVisible, setKeyVisible] = useState(false);
+  const [revealed, setRevealed] = useState<{ snapshot: EndpointStatusSnapshot; key: string } | null>(null);
+  const revealSequence = useRef(0);
+  const [focused, setFocused] = useState<"endpoint" | "key" | "model" | null>(null);
   const [testing, setTesting] = useState(false);
   const [noticeLine, setNoticeLine] = useState<{ text: string; tone: "neutral" | "accent" | "danger" } | null>(null);
 
@@ -269,6 +274,9 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   }, [state]);
 
   const clearKey = async () => {
+    revealSequence.current++;
+    setRevealed(null);
+    setKeyVisible(false);
     setKeyBusy(true);
     setKeyError(null);
     try {
@@ -334,6 +342,33 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   const formDisabled = controlsDisabled || keyBusy || testing;
   const current = endpointStatus.status === "ready" && endpointStatus.endpoint === endpoint ? endpointStatus : null;
   const keySaved = current?.value.key.status === "saved";
+  const savedKey = current?.value.key.status === "saved" ? current.value.key : null;
+  const shownKey = revealed?.snapshot === current ? revealed.key : null;
+  const toggleKey = async () => {
+    const sequence = ++revealSequence.current;
+    if (keyVisible) {
+      setKeyVisible(false);
+      setRevealed(null);
+      return;
+    }
+    if (keyDraft || !savedKey || !current) {
+      setKeyVisible(true);
+      return;
+    }
+    setKeyError(null);
+    try {
+      const result = await revealKey({});
+      if (sequence !== revealSequence.current || store.snapshot() !== current) return;
+      if (!result || result.origin !== savedKey.origin) {
+        refreshStatus();
+        return;
+      }
+      setRevealed({ snapshot: current, key: result.apiKey });
+      setKeyVisible(true);
+    } catch (error) {
+      if (sequence === revealSequence.current) setKeyError(error instanceof Error ? error.message : String(error));
+    }
+  };
   const endpointLine = endpointNotice(t, settings, current ?? (endpointStatus.status === "error" && endpointStatus.endpoint === endpoint ? endpointStatus : { status: "loading", endpoint }));
   const keyLine = keyError ? { text: keyError, tone: "danger" as const } : current ? keyNotice(t, current) : null;
   const notice = (line: { text: string; tone: "neutral" | "warning" | "danger" } | null) => line ? (
@@ -377,7 +412,8 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
           onChangeText={(value) => { setEndpointDraft(value); setNoticeLine(null); }}
           placeholder={t.endpointPlaceholder} placeholderTextColor={tokens.foregroundSubtle} maxLength={TRANSLATION_ENDPOINT_MAX_LENGTH}
           autoCapitalize="none" autoCorrect={false} editable={!formDisabled}
-          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
+          onFocus={() => setFocused("endpoint")} onBlur={() => setFocused(null)}
+          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: focused === "endpoint" ? tokens.foregroundMuted : tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
         />}
         look={look} disabled={formDisabled} below={endpointDraft === null ? notice(endpointLine) : null}
       />
@@ -385,15 +421,16 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
       <SettingRow
         stacked title={t.keyTitle} description={t.keyDescription}
         control={<View style={[styles.keyRow, { width: look.compact ? "100%" : 380, maxWidth: "100%" }]}>
-          <View style={[styles.keyInput, { borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0 }]}>
+          <View style={[styles.keyInput, { borderColor: focused === "key" ? tokens.foregroundMuted : tokens.v2.border, backgroundColor: tokens.v2.surface0 }]}>
             <TextInput accessibilityLabel={t.keyTitle} value={keyDraft}
-              onChangeText={(value) => { setKeyDraft(value); setNoticeLine(null); }} secureTextEntry={!keyVisible}
-              placeholder={t.keyPlaceholder} placeholderTextColor={tokens.foregroundSubtle} maxLength={TRANSLATION_API_KEY_MAX_LENGTH}
+              onChangeText={(value) => { revealSequence.current++; setRevealed(null); setKeyDraft(value); setNoticeLine(null); }} secureTextEntry={!keyVisible}
+              onFocus={() => setFocused("key")} onBlur={() => setFocused(null)}
+              placeholder={savedKey ? (keyVisible && shownKey ? shownKey : savedKey.masked) : t.keyPlaceholder} placeholderTextColor={savedKey ? tokens.foreground : tokens.foregroundSubtle} maxLength={TRANSLATION_API_KEY_MAX_LENGTH}
               autoCapitalize="none" autoCorrect={false} autoComplete="off" textContentType="none" editable={!formDisabled}
               style={[styles.keyField, settingsTextStyle(tokens, -1), { color: tokens.foreground, fontFamily: tokens.fontMono }]}
             />
             <Pressable accessibilityRole="button" accessibilityLabel={keyVisible ? t.hideKey : t.showKey} disabled={formDisabled}
-              onPress={() => setKeyVisible(!keyVisible)} style={[styles.eye, { borderColor: tokens.v2.border }]}>
+              onPress={() => void toggleKey()} style={[styles.eye, { borderColor: tokens.v2.border }]}>
               <Glyph name={keyVisible ? "EyeOff" : "Eye"} size={16} color={tokens.foregroundMuted} />
             </Pressable>
           </View>
@@ -408,7 +445,8 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
           onChangeText={(value) => { setModelDraft(value); setNoticeLine(null); }}
           placeholder={t.modelPlaceholder} placeholderTextColor={tokens.foregroundSubtle} maxLength={TRANSLATION_MODEL_MAX_LENGTH}
           autoCapitalize="none" autoCorrect={false} editable={!formDisabled}
-          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
+          onFocus={() => setFocused("model")} onBlur={() => setFocused(null)}
+          style={[styles.input, settingsTextStyle(tokens, -1), { color: tokens.foreground, borderColor: focused === "model" ? tokens.foregroundMuted : tokens.v2.border, backgroundColor: tokens.v2.surface0, fontFamily: tokens.fontMono, width: look.compact ? "100%" : 380, maxWidth: "100%" }]}
         />}
         look={look} disabled={formDisabled}
       />
@@ -455,6 +493,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
 
 const styles = StyleSheet.create({
   input: {
+    ...(Platform.OS === "web" ? { outlineStyle: "none" } as object : null),
     alignSelf: "stretch",
     minHeight: 32,
     borderWidth: 1,
@@ -464,6 +503,6 @@ const styles = StyleSheet.create({
   },
   keyRow: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.sm },
   keyInput: { flexGrow: 1, flexShrink: 1, flexBasis: 160, minWidth: 0, flexDirection: "row", alignItems: "center", borderWidth: 1, borderRadius: radiusV2.block },
-  keyField: { flex: 1, minWidth: 0, minHeight: 32, paddingHorizontal: space.sm, fontSize: TYPE.button.size },
+  keyField: { ...(Platform.OS === "web" ? { outlineStyle: "none" } as object : null), flex: 1, minWidth: 0, minHeight: 32, paddingHorizontal: space.sm, fontSize: TYPE.button.size },
   eye: { width: 38, minHeight: 32, alignItems: "center", justifyContent: "center", borderLeftWidth: 1 },
 });

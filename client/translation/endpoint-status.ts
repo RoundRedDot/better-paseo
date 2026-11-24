@@ -3,8 +3,7 @@ import type { TranslationEndpointStatus } from "../../shared/timeline-translatio
 
 /**
  * What one host's daemon says about its configured endpoint and saved API
- * key. The key itself never reaches the client; only whether one is saved and
- * the origin it is bound to.
+ * key, including its masked representation and the origin it is bound to.
  *
  * Every host has its own store, keyed by the host's `PaseoApi` (one per plugin
  * installation, so one per host): two hosts can hold the same endpoint with

@@ -369,7 +369,7 @@ describe("timeline translation settings", () => {
     let saved = false;
     mocks.rpc.mockImplementation(async (name: string, request: { endpoint: string; action?: string }) => {
       if (name === "translation.api-key") saved = request.action === "save";
-      return statusFor(request.endpoint, saved ? { status: "saved", origin: "https://api.example.test", matches: true } : { status: "none" });
+      return statusFor(request.endpoint, saved ? { status: "saved", origin: "https://api.example.test", matches: true, masked: "sk-t****1234" } : { status: "none" });
     });
     await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
     expect(input("API key").props.secureTextEntry).toBe(true);
@@ -384,6 +384,53 @@ describe("timeline translation settings", () => {
     expect(JSON.stringify(renderer!.toJSON())).not.toContain(key);
     await act(async () => pressable("Clear key").props.onPress());
     expect(mocks.rpc).toHaveBeenLastCalledWith("translation.api-key", { action: "clear", endpoint: OK_ENDPOINT }, mocks.host);
+  });
+
+  it("shows the saved mask and reveals the key only on request", async () => {
+    let saved = true;
+    mocks.rpc.mockImplementation(async (name: string, request: { endpoint: string; action?: string }) => {
+      if (name === "translation.reveal-key") return { origin: "https://api.example.test", apiKey: "sk-test-1234" };
+      if (name === "translation.api-key") saved = false;
+      return statusFor(request.endpoint, saved ? { status: "saved", origin: "https://api.example.test", matches: true, masked: "sk-t****1234" } : { status: "none" });
+    });
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    expect(input("API key").props.placeholder).toBe("sk-t****1234");
+    expect(mocks.rpc.mock.calls.some(([name]) => name === "translation.reveal-key")).toBe(false);
+    await act(async () => pressable("Show API key").props.onPress());
+    expect(input("API key").props.placeholder).toBe("sk-test-1234");
+    await act(async () => pressable("Hide API key").props.onPress());
+    expect(input("API key").props.placeholder).toBe("sk-t****1234");
+    await act(async () => input("API key").props.onChangeText("new-secret"));
+    await act(async () => pressable("Test connection").props.onPress());
+    expect(mocks.rpc).toHaveBeenCalledWith("translation.test", { endpoint: OK_ENDPOINT, model: "m", apiKey: "new-secret" }, mocks.host);
+    await act(async () => pressable("Clear key").props.onPress());
+    expect(input("API key").props.placeholder).toBe("Paste a new key");
+  });
+
+  it("does not reveal a key after it was cleared while the read was pending", async () => {
+    let resolve!: (value: unknown) => void;
+    mocks.rpc.mockImplementation(async (name: string, request: { endpoint: string }) => {
+      if (name === "translation.reveal-key") return new Promise((done) => { resolve = done; });
+      if (name === "translation.api-key") return statusFor(request.endpoint, { status: "none" });
+      return statusFor(request.endpoint, { status: "saved", origin: "https://api.example.test", matches: true, masked: "sk-t****1234" });
+    });
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    act(() => pressable("Show API key").props.onPress());
+    await act(async () => pressable("Clear key").props.onPress());
+    await act(async () => resolve({ origin: "https://api.example.test", apiKey: "sk-test-1234" }));
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("sk-test-1234");
+    expect(input("API key").props.placeholder).toBe("Paste a new key");
+  });
+
+  it.each(["API Base URL", "API key", "Model"])("changes the %s border on focus", async (label) => {
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    const border = () => label === "API key" ? input(label).parent!.props.style : input(label).props.style;
+    const color = () => Object.assign({}, ...border().filter(Boolean)).borderColor;
+    expect(color()).toBe(makeLook().tokens.v2.border);
+    await act(async () => input(label).props.onFocus());
+    expect(color()).toBe(makeLook().tokens.foregroundMuted);
+    await act(async () => input(label).props.onBlur());
+    expect(color()).toBe(makeLook().tokens.v2.border);
   });
 
   it("does not send the key if saving the endpoint fails", async () => {
@@ -401,7 +448,7 @@ describe("timeline translation settings", () => {
     const hostA = {};
     const hostB = {};
     mocks.rpc.mockImplementation(async (_name: string, request: { endpoint: string }, host: object) => statusFor(request.endpoint,
-      host === hostA ? { status: "saved", origin: "https://api.example.test", matches: true } : { status: "none" }));
+      host === hostA ? { status: "saved", origin: "https://api.example.test", matches: true, masked: "sk-t****1234" } : { status: "none" }));
     mocks.host = hostA;
     await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
     expect(textValues(renderer!.root)).toContain("A key is saved for https://api.example.test.");
@@ -422,14 +469,14 @@ describe("timeline translation settings", () => {
     const firstRead = deferred();
     const reads = vi.fn()
       .mockImplementationOnce(() => firstRead.promise)
-      .mockImplementationOnce(async () => statusFor(OK_ENDPOINT, { status: "saved", origin: "https://api.example.test", matches: true }));
+      .mockImplementationOnce(async () => statusFor(OK_ENDPOINT, { status: "saved", origin: "https://api.example.test", matches: true, masked: "sk-t****1234" }));
     const writing = store.write(OK_ENDPOINT, () => write.promise);
     void store.read(OK_ENDPOINT, reads);
     // The read went out before the write was applied: it still sees no key.
     firstRead.resolve(statusFor(OK_ENDPOINT, { status: "none" }));
     await Promise.resolve(); await Promise.resolve();
     expect(store.snapshot()).toMatchObject({ status: "ready", value: { key: { status: "none" } } });
-    write.resolve(statusFor(OK_ENDPOINT, { status: "saved", origin: "https://api.example.test", matches: true }));
+    write.resolve(statusFor(OK_ENDPOINT, { status: "saved", origin: "https://api.example.test", matches: true, masked: "sk-t****1234" }));
     expect(await writing).toEqual({ kind: "superseded" });
     // The overtaken write does not publish its own answer, but the latest read runs once more.
     await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2));
@@ -450,7 +497,7 @@ describe("timeline translation settings", () => {
 
   it("warns that a key saved for another origin blocks translation", async () => {
     mocks.rpc.mockImplementation(async (_name: string, request: { endpoint: string }) =>
-      statusFor(request.endpoint, { status: "saved", origin: "https://old.example.test", matches: false }));
+      statusFor(request.endpoint, { status: "saved", origin: "https://old.example.test", matches: false, masked: "sk-t****1234" }));
     await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
     expect(textValues(renderer!.root)).toContain(
       "The saved key belongs to https://old.example.test. Translation is blocked until you save a key for this endpoint or clear it.");

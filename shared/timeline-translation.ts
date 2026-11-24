@@ -148,11 +148,11 @@ export const translationEndpointCheckSchema = z.discriminatedUnion("status", [
 ]);
 export type TranslationEndpointCheck = z.output<typeof translationEndpointCheckSchema>;
 
-/** What the daemon holds as an API key. The key itself never leaves the daemon. */
+/** Status includes only a masked representation of the saved key. */
 export const translationKeyStateSchema = z.discriminatedUnion("status", [
   z.object({ status: z.literal("none") }),
   /** `matches`: `origin` is the origin of the endpoint this status was asked for. */
-  z.object({ status: z.literal("saved"), origin: z.string(), matches: z.boolean() }),
+  z.object({ status: z.literal("saved"), origin: z.string(), matches: z.boolean(), masked: z.string() }),
   z.object({ status: z.literal("error"), error: z.string() }),
 ]);
 export type TranslationKeyState = z.output<typeof translationKeyStateSchema>;
@@ -189,6 +189,13 @@ export const translationApiKeyRpc = defineRpc({
     }),
   ]),
   output: translationEndpointStatusSchema,
+});
+
+/** Read the saved key only when the user asks to reveal it. */
+export const translationRevealKeyRpc = defineRpc({
+  name: "translation.reveal-key",
+  input: z.object({}),
+  output: z.object({ origin: z.string(), apiKey: z.string() }).nullable(),
 });
 
 /** Verify the configured service with a short fixed prompt and no tools. */

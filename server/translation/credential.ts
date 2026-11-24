@@ -7,7 +7,7 @@ import { TRANSLATION_API_KEY_MAX_LENGTH } from "../../shared/timeline-translatio
  * The translation API key, bound to the origin it was saved for. It lives in a
  * plain JSON file readable only by the daemon's user (0600) in the plugin's
  * data directory: not the Keychain, not encrypted. Nothing here logs it, and
- * no RPC returns it.
+ * the explicit reveal RPC returns it on request.
  */
 export interface TranslationCredential {
   origin: string;

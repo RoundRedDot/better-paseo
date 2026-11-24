@@ -11,6 +11,7 @@ import { afterAll, afterEach, beforeAll, describe, expect, it, vi } from "vitest
 import {
   translateTimelineItemRpc,
   translationApiKeyRpc,
+  translationRevealKeyRpc,
   translationConfigSignature,
   translationEndpointStatusRpc,
   translationTestRpc,
@@ -90,7 +91,7 @@ function plugin(initial: Partial<TimelineTranslationSettings>) {
   const credentialPath = join(dir, "plugin-data", "translation-credential.json");
   let values = translationSettings(initial);
   const handlers = new Map<string, (input: unknown) => unknown>();
-  const contracts = [translateTimelineItemRpc, translationEndpointStatusRpc, translationApiKeyRpc, translationTestRpc] as const;
+  const contracts = [translateTimelineItemRpc, translationEndpointStatusRpc, translationApiKeyRpc, translationRevealKeyRpc, translationTestRpc] as const;
   const server = {
     registerSettings: () => settingsHandle(() => values),
     handle: (contract: { name: string }, handler: (input: unknown) => unknown) => { handlers.set(contract.name, handler); },
@@ -109,6 +110,7 @@ function plugin(initial: Partial<TimelineTranslationSettings>) {
     status: () => call(translationEndpointStatusRpc, { endpoint: values.endpoint }),
     saveKey: (apiKey: string) => call(translationApiKeyRpc, { action: "save", endpoint: values.endpoint, apiKey }),
     clearKey: () => call(translationApiKeyRpc, { action: "clear", endpoint: values.endpoint }),
+    revealKey: () => call(translationRevealKeyRpc, {}),
     test: (endpoint: string, model: string, apiKey?: string) => call(translationTestRpc, { endpoint, model, apiKey }),
     async translate(text: string) {
       const jobId = `gw-${++jobs}`;
@@ -167,12 +169,13 @@ describe("direct translation against a synthetic loopback gateway", () => {
     noLeak(logged);
   });
 
-  it("sends the saved key to its own origin only, and never back to a client", async () => {
+  it("sends the saved key to its own origin only, while status returns only a mask", async () => {
     const app = plugin({ endpoint: `${primary.base}/v1` });
     const saved = await app.saveKey(KEY);
-    expect(saved.key).toEqual({ status: "saved", origin: primary.base, matches: true });
+    expect(saved.key).toEqual({ status: "saved", origin: primary.base, matches: true, masked: `sk-g${"*".repeat(KEY.length - 8)}0123` });
     noLeak(saved);
     noLeak(await app.status());
+    expect(await app.revealKey()).toEqual({ origin: primary.base, apiKey: KEY });
     if (process.platform !== "win32") expect(statSync(app.credentialPath).mode & 0o777).toBe(0o600);
     expect(JSON.parse(readFileSync(app.credentialPath, "utf8")).origin).toBe(primary.base);
 
@@ -182,7 +185,7 @@ describe("direct translation against a synthetic loopback gateway", () => {
     // The endpoint moves to another port: another origin. Nothing reaches it.
     app.setSettings({ endpoint: `${other.base}/v1` });
     const status = await app.status();
-    expect(status.key).toEqual({ status: "saved", origin: primary.base, matches: false });
+    expect(status.key).toEqual({ status: "saved", origin: primary.base, matches: false, masked: `sk-g${"*".repeat(KEY.length - 8)}0123` });
     noLeak(status);
     const refused = await app.translate(SOURCE);
     expect(refused).toMatchObject({ state: "error" });
@@ -191,6 +194,7 @@ describe("direct translation against a synthetic loopback gateway", () => {
 
     // Clearing the key lets the new origin be used without one.
     expect((await app.clearKey()).key).toEqual({ status: "none" });
+    expect(await app.revealKey()).toBeNull();
     expect(await app.translate(SOURCE)).toMatchObject({ state: "done", origin: other.base });
     expect(other.received[0]!.headers.authorization).toBeUndefined();
     noLeak(logged);

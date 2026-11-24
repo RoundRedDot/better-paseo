@@ -6,6 +6,7 @@ import {
   timelineTranslationSettingsSchema,
   translateTimelineItemRpc,
   translationApiKeyRpc,
+  translationRevealKeyRpc,
   translationConfigSignature,
   translationEndpointStatusRpc,
   translationTestRpc,
@@ -62,7 +63,12 @@ const ENDPOINT_PROBLEMS: Record<TranslationEndpointProblem, string> = {
   query_or_fragment: "Remove the query string or fragment from the translation endpoint URL.",
 };
 
-/** The status of `endpoint` and the saved key. Never includes the key. */
+function maskApiKey(key: string): string {
+  if (key.length <= 8) return "*".repeat(key.length);
+  return `${key.slice(0, 4)}${"*".repeat(key.length - 8)}${key.slice(-4)}`;
+}
+
+/** The status of `endpoint` and the masked saved key. */
 async function endpointStatus(credentials: CredentialStore, endpoint: string): Promise<TranslationEndpointStatus> {
   const check = resolveTranslationEndpoint(endpoint);
   try {
@@ -70,7 +76,7 @@ async function endpointStatus(credentials: CredentialStore, endpoint: string): P
     return {
       endpoint: check,
       key: saved
-        ? { status: "saved", origin: saved.origin, matches: check.status === "ok" && check.origin === saved.origin }
+        ? { status: "saved", origin: saved.origin, matches: check.status === "ok" && check.origin === saved.origin, masked: maskApiKey(saved.apiKey) }
         : { status: "none" },
     };
   } catch (error) {
@@ -174,6 +180,7 @@ export function createTranslationEndpointHandlers(
 ) {
   return {
     status: ({ endpoint }: { endpoint: string }) => endpointStatus(credentials, endpoint),
+    revealKey: () => credentials.read(),
     async test(input: { endpoint: string; model: string; apiKey?: string }) {
       const endpoint = resolveTranslationEndpoint(input.endpoint);
       if (endpoint.status === "empty") throw new Error("Set the translation endpoint first.");
@@ -230,6 +237,7 @@ export function registerTimelineTranslation(
   server.handle(translateTimelineItemRpc, (input) => translator.request(input));
   server.handle(translationEndpointStatusRpc, (input) => endpoints.status(input));
   server.handle(translationApiKeyRpc, (input) => endpoints.apiKey(input));
+  server.handle(translationRevealKeyRpc, () => endpoints.revealKey());
   server.handle(translationTestRpc, (input) => endpoints.test(input));
 
   return settings;
