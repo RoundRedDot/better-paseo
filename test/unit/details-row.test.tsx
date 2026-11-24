@@ -96,8 +96,8 @@ afterEach(() => {
 
 describe("details row press zones and registration", () => {
   it.each([
-    { surface: "#ffffff", foreground: "#111111", alpha: 0.08 },
-    { surface: "#181818", foreground: "#eeeeee", alpha: 0.1 },
+    { surface: "#ffffff", foreground: "#111111", alpha: 0.06 },
+    { surface: "#181818", foreground: "#eeeeee", alpha: 0.08 },
   ])("uses a translucent highlight over plain and striped $surface backgrounds", ({ surface, foreground, alpha }) => {
     const themed = buildThemeTokens({ surface0: surface, surface1: surface, surface2: surface, border: surface,
       foreground, foregroundMuted: foreground, accent: "#0000ff", accentForeground: "#ffffff",

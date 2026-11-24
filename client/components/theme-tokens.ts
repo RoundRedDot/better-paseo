@@ -378,7 +378,7 @@ export function buildThemeTokens(
     borderSubtle,
 
     row: {
-      hover: withAlpha(fg, isDark ? 0.1 : 0.08),
+      hover: withAlpha(fg, isDark ? 0.08 : 0.06),
       target: colors.foregroundMuted,
       targetActive: mix(colors.foregroundMuted, fg, 0.5),
       meta: mix(colors.foregroundMuted, colors.surface0, 0.1),

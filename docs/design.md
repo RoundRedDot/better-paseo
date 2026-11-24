@@ -60,7 +60,7 @@ outside scrolling clips and within the viewport.
 
 ### Surfaces and states
 
-A resting, hover or selection state is a mix into the surface under it (`mix(from, to, t)`),
+A Tasks resting, hover or selection state is a mix into the surface under it (`mix(from, to, t)`),
 so it reads the same on any card. The transient lane/reply flash uses an animated accent overlay
 (`useFlash`), and text-edge fades use bands of the underlying fill. The board's card surface is `surface0` on a light theme and
 `surface2` on a dark one (`cardTokens`, `client/tasks/cards/tokens.ts`).
@@ -88,8 +88,12 @@ Tasks has two hover treatments:
 - A pointer on an iPad can show hover; touch shows the press state. The colour mix follows the active theme, including dark themes.
 - Menu chrome (`menuChrome`): `surface0`, hairline border, hover foreground 5%,
   shadow `0 4 24` and `0 1 3` at 8% and 4% (45% and 30% dark). `panelChrome` reuses it.
-- Chat rows have no surface at rest: `surface1` hovered, `surface2` pressed or held. The chat's
-  `surface1` and `surface2` are the foreground at 2.5% and 4.5% (3% and 6% dark) over the page.
+- Chat disclosure rows have no fill of their own at rest. Hover, press, held long-press and an
+  open row menu use `row.hover`: the theme foreground at 6% opacity in light themes and 8% in
+  dark themes (`client/components/theme-tokens.ts`). This translucent overlay preserves the
+  actual surface beneath it, including the alternating backgrounds in the work-details sidebar.
+  The work file rows use the same highlight. The chat's separate `surface1` and `surface2` tokens
+  remain foreground at 2.5% and 4.5% opacity (3% and 6% dark).
 
 ### Motion
 
@@ -337,7 +341,7 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 | Part | Rule |
 | --- | --- |
 | Height | 26 desktop, 28 touch; a 44 hit area on touch |
-| Bleed | 8 into the gutter on each side, padded 8 back; radius half the row height |
+| Bleed | 8 into the gutter on each side, padded 8 back; radius 6 (`radiusV2.block`) |
 | Icon slot | 16 wide plus a 2 trailing pad around a 14 icon; text starts at 24 (`textColumn`) |
 | Verb | 13/18, weight 500 |
 | Target | 12/18 mono, cut in the middle at 72 characters (40 compact) |
@@ -357,11 +361,14 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 - **Status in the slot**: a running row draws the accent running dot; a failed row draws its icon
   and its failure meta (`exit N`, `failed`, `timed out`) in `danger`, and while collapsed adds one
   selectable error line under the text. Exit 0 reads `✓`, any other exit `✗ N`.
-- **States**: no frame or fill at rest, `surface1` hovered, `surface2` pressed or held. With a
-  pointer the chevron replaces the icon while the row is hovered; an open row keeps a down chevron
-  unless its icon reports status. A row with nothing to open is inert: it does not light up and
+- **States**: no frame or fill of its own at rest; hover, press and held states use the translucent
+  `row.hover` overlay described in [Lift](#lift), including rows in work details. The highlight is
+  a rounded rectangle with a fixed 6 pt radius on all four corners (`radiusV2.block`), covering
+  the row rather than a pill with half-height corners. The work file header and file rows use the
+  same 6 pt corners. With a pointer the chevron replaces the icon while the row is hovered; an open
+  row keeps a down chevron unless its icon reports status. A row with nothing to open is inert: it does not light up and
   its text is selectable. `rowLabelStyle` may hide the verb or the icon; the slot stays, so the
-  text column never moves. The current-row marker uses the same half-height radius.
+  text column never moves. The current-row marker uses the same 6 pt radius.
 - **Expanding**: tools start collapsed. A failure opens when the reader chose to expand failures,
   and a child agent that needs permission always opens. The body is a `surface1` slab, radius 6,
   padded 8 × 12, 2 above and 6 below, with no frame; a permission or warning body adds a 1 pt
