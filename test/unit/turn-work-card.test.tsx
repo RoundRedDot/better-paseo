@@ -175,6 +175,7 @@ describe("turn work card", () => {
       return parent === list[0];
     })).toBe(true);
     expect(list[0]!.props.style?.gap ?? 0).toBe(0);
+    expect(cells.map((cell) => cell.props.style?.paddingVertical)).toEqual(Array(7).fill(4));
     expect(cells.map((cell) => cell.props.style?.backgroundColor)).toEqual([
       undefined, withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
       withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,

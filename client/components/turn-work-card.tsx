@@ -216,7 +216,8 @@ function WorkSteps({ agentId, at, steps, tokens, compact }: {
       <BlockPlacementContext.Provider value={placement}>
         <View testID="work-step-list">
           {steps.map((step, index) => <View key={step.callId} testID="work-step-cell"
-            style={index % 2 === 1 ? { backgroundColor: withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04) } : undefined}>
+            style={{ paddingVertical: space.xs,
+              backgroundColor: index % 2 === 1 ? withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04) : undefined }}>
             <WorkStepRow agentId={agentId} step={step} tokens={tokens} compact={compact} />
           </View>)}
         </View>
