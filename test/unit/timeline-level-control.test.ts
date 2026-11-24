@@ -198,6 +198,7 @@ describe("timeline level pill", () => {
   });
 
   it.each([false, true])("keeps the switch accessible and synchronized (compact=%s)", (compact) => {
+    updateEnhancerPreferences({ timelineLevel: "detailed" });
     const client = fakeClient();
     const control = createTimelineLevelControl(client);
     control.request("a", "w");
@@ -207,13 +208,21 @@ describe("timeline level pill", () => {
     let renderer!: TestRenderer.ReactTestRenderer;
     act(() => { renderer = TestRenderer.create(React.createElement(Content, { theme: { colors: { foreground: "black", foregroundMuted: "gray", border: "gray", surface2: "gray", surface0: "white", accent: "green", accentForeground: "white" } }, layout: { compact }, host: { id: "h", label: "h" }, context: "agent", agentId: "a", workspaceId: "w", close() {} } as never)); });
     const toggle = () => renderer.root.findByProps({ accessibilityRole: "switch" });
+    const levels = () => renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityRole === "radio");
+    expect(levels()).toHaveLength(3);
     expect(toggle().props.accessibilityState.checked).toBe(true);
     act(() => toggle().props.onPress());
     expect(getEnhancerPreferences().chatEnabled).toBe(false);
     expect(client.pills[0]!.button.visible).toBe(true);
     expect(toggle().props.accessibilityState.checked).toBe(false);
-    act(() => updateEnhancerPreferences({ chatEnabled: true }));
+    expect(levels()).toHaveLength(0);
+    expect(renderer.root.findAllByProps({ testID: "chat-switch-divider" })).toHaveLength(0);
+    expect(renderer.root.findAll((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "Chat settings")).toHaveLength(1);
+    expect(getEnhancerPreferences().timelineLevel).toBe("detailed");
+    act(() => toggle().props.onPress());
     expect(toggle().props.accessibilityState.checked).toBe(true);
+    expect(levels()).toHaveLength(3);
+    expect(levels()[2]!.props.accessibilityState.checked).toBe(true);
     act(() => renderer.unmount());
     control.remove();
   });

@@ -31,8 +31,7 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
   if (props.layout.compact) {
     return (
       <View testID="timeline-level-menu">
-        {levels}
-        <View testID="chat-switch-divider" style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} />
+        {preferences.chatEnabled ? <>{levels}<View testID="chat-switch-divider" style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} /></> : null}
         {chatSwitch}
         <MenuRow icon="Settings" title={text.settings} accessibilityRole="button" colors={colors} height={rowHeight} onPress={openSettings} />
       </View>
@@ -49,8 +48,7 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
         </Pressable>
       </View>
       <View style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} />
-      {levels}
-      <View testID="chat-switch-divider" style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} />
+      {preferences.chatEnabled ? <>{levels}<View testID="chat-switch-divider" style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} /></> : null}
       {chatSwitch}
     </View>
   );
