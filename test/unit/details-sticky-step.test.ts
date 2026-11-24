@@ -162,6 +162,48 @@ describe("DetailsStickyCard", () => {
     expect(travelRanges(fake.ranges).at(-1)).toEqual({ inputRange: [100, 132], outputRange: [0, 32], extrapolate: "clamp" });
   });
 
+  it("on the web leaves the row to the browser's sticky positioning, and shows its fill in the scroll event", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    const nodes = new Map<string, { style: Record<string, string> }>();
+    const fake = fakeSource({ top: 100, offset: 0 });
+    let renderer!: ReactTestRenderer;
+    act(() => {
+      renderer = TestRenderer.create(card(fake.source), {
+        createNodeMock: (element) => {
+          const node = { style: {} as Record<string, string> };
+          nodes.set(String((element.props as { testID?: string }).testID), node);
+          return node;
+        },
+      });
+    });
+    mounted.push(renderer);
+    layout(renderer, "work-step-sticky-row", 28);
+    layout(renderer, "work-step-sticky", 1000);
+    // React Native Web's Animated applied the offset through a render after
+    // the frame painted, and a scroll event's own write trails the compositor:
+    // the row is pinned by the browser, never moved by the scroll.
+    const rowStyle = JSON.stringify(host(renderer, "work-step-sticky-row")!.props.style);
+    expect(rowStyle).not.toContain("transform");
+    expect(rowStyle).toContain('"position":"sticky"');
+    expect(rowStyle).toContain('"top":0');
+    const fill = nodes.get("work-step-sticky-fill")!;
+    expect(fill.style.opacity).toBe("0");
+    // A scroll event, read before act flushes: the fill does not wait for a render.
+    const scroll = (offset: number, check: () => void) => act(() => {
+      fake.state.offset = offset;
+      Array.from(fake.listeners).forEach((listener) => listener());
+      check();
+    });
+    scroll(500, () => expect(fill.style.opacity).toBe("1"));
+    // Another step opened above moved this one: read from its new top in the same event.
+    fake.state.top = 520;
+    scroll(500, () => expect(fill.style.opacity).toBe("0"));
+    scroll(521, () => expect(fill.style.opacity).toBe("1"));
+    // Back above the step: at rest, without its fill.
+    scroll(40, () => expect(fill.style.opacity).toBe("0"));
+    expect(nodes.get("work-step-sticky-row")?.style.transform).toBeUndefined();
+  });
+
   it("draws the step's stripe over the panel surface behind a pinned row", () => {
     const fake = fakeSource();
     const renderer = mount(card(fake.source, "rgba(1, 2, 3, 0.04)"));

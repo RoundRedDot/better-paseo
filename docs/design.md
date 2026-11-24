@@ -470,6 +470,9 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
 - An opened work step in the details panel pins its row under the toolbar while its output scrolls
   past, however short the output, and the step's end pushes it out. Closing the row while it is
   pinned brings the list back to the row; switching blocks or closing the panel leaves the scroll.
+  On the web the browser pins it (`position: sticky`), so it holds at any scroll speed; with lines
+  unwrapped the steps list scrolls sideways in the panel body itself, under the body's own
+  scrollbar, rather than in a scroller with its own track.
 - Hover preview: on the web it opens after the reader's hover delay (default 1 s) and closes
   150 ms after the pointer leaves; it spans the content column 6 below the row, above it when
   below has no room, at most 360 tall. Native opens it pinned on a long press. Its toolbar ends

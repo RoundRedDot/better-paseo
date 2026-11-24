@@ -818,12 +818,18 @@ function detailsWrap(actions: PreviewActions | null, kind: DetailsShellValue["en
  * and a stream it follows lets go past 48 from the end and follows again
  * within 8; while let go, "Back to latest" counts the lines that came since.
  * The hover panel keeps its one slack unless `follow` sets a band.
+ *
+ * `stickySteps` marks a body whose opened work steps pin their rows
+ * (`sticky-step.tsx`). The web pins them with `position: sticky`, which holds
+ * to the nearest scroller, so with lines unwrapped the body itself scrolls
+ * sideways there instead of a sideways scroller inside it.
  */
-export function HoverPreviewBody({ children, streaming = false, follow, fullBleed = false }: {
+export function HoverPreviewBody({ children, streaming = false, follow, fullBleed = false, stickySteps = false }: {
   children: ReactNode;
   streaming?: boolean;
   follow?: PreviewFollowBand;
   fullBleed?: boolean;
+  stickySteps?: boolean;
 }) {
   const actions = useContext(PreviewActionsContext);
   const details = useContext(PreviewChromeContext) === "details";
@@ -912,7 +918,10 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
   // line's descenders, sits down near the panel's bottom edge, and is up only
   // while the reader scrolls: a long body must be read to its end before the
   // track would otherwise come into view.
-  const content = wrap && !wrap.on ? (
+  // One column in either wrap, so turning it does not mount the steps again.
+  const content = details && stickySteps && wrap && Platform.OS === "web" ? (
+    <View style={wrap.on ? styles.stepsColumn : styles.stepsUnwrapped}>{children}</View>
+  ) : wrap && !wrap.on ? (
     <HScroll tokens={wrap.tokens} trackStyle={previewTrack()} contentContainerStyle={styles.unwrappedScroll}
       trackOnScroll scrollEnabled={!scroller.held}>
       <View style={[styles.unwrapped, Platform.OS !== "web" && styles.unwrappedNative]}>{children}</View>
@@ -1289,6 +1298,9 @@ const styles = StyleSheet.create({
   fullBleed: { paddingHorizontal: 0 },
   unwrappedScroll: { flexGrow: 1 },
   unwrapped: { flexGrow: 1, gap: space.sm },
+  stepsColumn: { gap: space.sm },
+  // As wide as its widest line, and no narrower than the body: the body scrolls sideways.
+  stepsUnwrapped: { gap: space.sm, width: "max-content", minWidth: "100%" } as unknown as ViewStyle,
   // On a phone a text is one layer, and a layer wider than the GPU's largest
   // texture (16384px, 5461pt at 3x) draws nothing: a minified JSON line
   // left the whole output blank. Lines past this width wrap here instead.

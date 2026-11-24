@@ -539,6 +539,32 @@ describe("details body", () => {
     expect(scrolls.at(-1)).toEqual({ y: 800 + 3 * lineHeight, animated: true });
   });
 
+  it("on the web lets a work steps body scroll sideways itself, so pinned rows keep it as their scroller", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
+    let mounts = 0;
+    function Steps() {
+      React.useEffect(() => { mounts += 1; }, []);
+      return h("Text", null, "a long line");
+    }
+    const steps = (wrap: PreviewActions["wrap"]) => details(h(HoverPreviewBody, { stickySteps: true, children: h(Steps) }), shell(), wrap);
+    const wrapOff = { ...wrapOn, on: false };
+    const sideways = (root: ReactTestInstance) => root.findAll((node) => typeof node.type === "string" && node.props.horizontal === true);
+    const columns = (root: ReactTestInstance) => root.findAll((node) => typeof node.type === "string"
+      && (StyleSheet.flatten(node.props.style) as { width?: unknown } | undefined)?.width === "max-content");
+    act(() => { renderer = TestRenderer.create(steps(wrapOn)); });
+    expect(sideways(renderer!.root)).toHaveLength(0);
+    // Unwrapped: no sideways scroller between the steps and the body; the column is as wide as its widest line.
+    act(() => renderer!.update(steps(wrapOff)));
+    expect(sideways(renderer!.root)).toHaveLength(0);
+    expect(columns(renderer!.root)).toHaveLength(1);
+    expect(StyleSheet.flatten(columns(renderer!.root)[0]!.props.style)).toMatchObject({ minWidth: "100%" });
+    // Turning the wrap keeps the steps mounted, and an opened step open.
+    expect(mounts).toBe(1);
+    // Any other details body still scrolls sideways inside a scroller of its own.
+    act(() => renderer!.update(details(h(HoverPreviewBody, { children: h(Steps) }), shell(), wrapOff)));
+    expect(sideways(renderer!.root)).toHaveLength(1);
+  });
+
   it("words the pill", () => {
     expect(backToLatestText(0)).toBe("Back to latest");
     expect(backToLatestText(1)).toBe("Back to latest · 1 new line");

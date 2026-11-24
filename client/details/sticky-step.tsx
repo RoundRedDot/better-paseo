@@ -3,18 +3,20 @@
  * output scrolls past, until the step ends.
  *
  * The host's sticky header follows the timeline, not the details panel, and
- * a released Paseo has none, so the panel's body drives this itself: on a
- * phone through its scroll offset on the native driver (no frame waits for
- * JS), on the web through its scroll events. The row stays in the step's own
- * view and moves down by a transform clamped to the step: at rest it is 0,
- * pinned it is the scroll past the step's top, and at the step's end its
- * bottom meets the end, so the next step pushes it out.
+ * a released Paseo has none, so the panel's body drives this itself. On a
+ * phone the row moves down by a transform on the native driver (no frame
+ * waits for JS), clamped to the step: at rest it is 0, pinned it is the
+ * scroll past the step's top, and at the step's end its bottom meets the end,
+ * so the next step pushes it out. On the web the browser pins it
+ * (`position: sticky`), held to the step's box the same way; the body is its
+ * nearest scroller (`HoverPreviewBody`'s `stickySteps`). Either way the row
+ * stays in the step's own view.
  *
  * Only the work steps list opts in (`StickyStepContext`); elsewhere in the
  * panel an opened row scrolls as before.
  */
-import { createContext, useCallback, useEffect, useImperativeHandle, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
-import { Animated, StyleSheet, View, type LayoutChangeEvent } from "react-native";
+import { createContext, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import { Animated, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { space } from "../components/theme-tokens";
 import { hairline } from "../ui/tokens/platform";
@@ -100,14 +102,34 @@ export function DetailsStickyCard({ source, tokens, stripe, header, handle, chil
   const settle = useCallback((top: number) => {
     const next = { top, height: height.current, header: headerHeight.current };
     if (next.height <= 0 || next.header <= 0 || !Number.isFinite(top)) return;
-    setGeometry((prev) => prev && Math.abs(prev.top - next.top) < 0.5 && Math.abs(prev.height - next.height) < 0.5
-      && Math.abs(prev.header - next.header) < 0.5 ? prev : next);
+    const prev = latest.current;
+    if (prev && Math.abs(prev.top - next.top) < 0.5 && Math.abs(prev.height - next.height) < 0.5
+      && Math.abs(prev.header - next.header) < 0.5) return;
+    // Read at once by the web fill, in the same scroll event.
+    latest.current = next;
+    setGeometry(next);
   }, []);
   const relocate = useCallback(() => {
     const node = card.current;
     if (node) source.locate(node, settle);
   }, [source, settle]);
   useEffect(() => source.subscribe(relocate), [source, relocate]);
+  // The web does not move the row by `scrollY`: React Native Web's Animated
+  // applies a value through a React render that lands after the frame has
+  // painted, and even a scroll event's own write trails the compositor, which
+  // draws a fast scroll ahead of the page. The row trailed each scroll and,
+  // scrolled fast, left the body's top. The browser pins it instead
+  // (`position: sticky`), held to the step by its own box. Only the fill
+  // follows the scroll event: it changes as the row starts or stops pinning.
+  const web = Platform.OS === "web";
+  const fillNode = useRef<View>(null);
+  const showFill = useCallback(() => {
+    const fill = fillNode.current as unknown as { style?: CSSStyleDeclaration } | null;
+    if (fill?.style) fill.style.opacity = String(Math.min(1, stickyOffset(source.offset(), latest.current)));
+  }, [source]);
+  // After `relocate`: a scroll that moved the step's top is read from the new top.
+  useEffect(() => (web ? source.subscribe(showFill) : undefined), [web, source, showFill]);
+  useLayoutEffect(() => { if (web) showFill(); }, [web, showFill, geometry]);
   // Only the reader closing a pinned row moves the body: unmounting for any
   // other reason (another block, the panel closing) leaves its scroll alone.
   // The rows above do not change, so the row's top stays valid once the
@@ -137,13 +159,16 @@ export function DetailsStickyCard({ source, tokens, stripe, header, handle, chil
     : { inputRange: [0, 1], outputRange: [0, 0], extrapolate: "clamp" }), [source, top, travel]);
   // The fill and the rule come with the first point of travel: at rest the row looks as before.
   const pinned = useMemo(() => translateY.interpolate({ inputRange: [0, 1], outputRange: [0, 1], extrapolate: "clamp" }), [translateY]);
+  // The web's fill is left to `showFill`: a style React never changes is not written back.
+  const rowMotion = web ? styles.webSticky : { transform: [{ translateY }] };
+  const fillMotion = web ? styles.fillAtRest : { opacity: pinned };
 
   return (
     <View ref={card} testID="work-step-sticky" collapsable={false} onLayout={onCardLayout}>
       <Animated.View testID="work-step-sticky-row" onLayout={onHeaderLayout}
-        style={[styles.header, { transform: [{ translateY }] }]}>
-        <Animated.View pointerEvents="none" testID="work-step-sticky-fill"
-          style={[styles.fill, { backgroundColor: tokens.surface0, opacity: pinned }]}>
+        style={[styles.header, rowMotion]}>
+        <Animated.View ref={fillNode} pointerEvents="none" testID="work-step-sticky-fill"
+          style={[styles.fill, { backgroundColor: tokens.surface0 }, fillMotion]}>
           {stripe ? <View style={[StyleSheet.absoluteFill, { backgroundColor: stripe }]} /> : null}
           <View style={[styles.rule, hairline(tokens.platform, "bottom"), { backgroundColor: tokens.v2.border }]} />
         </Animated.View>
@@ -233,4 +258,7 @@ const styles = StyleSheet.create({
   // As wide as the step's stripe: the cell pads its content by `space.md`.
   fill: { position: "absolute", top: 0, bottom: 0, left: -space.md, right: -space.md },
   rule: { position: "absolute", left: 0, right: 0, bottom: 0 },
+  fillAtRest: { opacity: 0 },
+  // Web only: pinned to the nearest scroller's top, which is the details body.
+  webSticky: { position: "sticky", top: 0 } as unknown as ViewStyle,
 });
