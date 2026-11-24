@@ -13,14 +13,15 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
 });
 const host = vi.hoisted(() => {
   const respondToPermission = vi.fn(async (_options: unknown) => {});
-  return { cwd: null as string | null, agent: null as Record<string, unknown> | null, respondToPermission,
+  const rpc = vi.fn(async (_input: unknown) => ({ state: "done", translation: "译文\n\n完整内容", targetLanguageCode: "zh-CN", origin: "https://example.test", model: "test" }));
+  return { rpc, cwd: null as string | null, agent: null as Record<string, unknown> | null, respondToPermission,
     providers: { listModels: vi.fn(), listModes: vi.fn() }, agents: { ref: vi.fn((_id: string) => ({ respondToPermission })) } };
 });
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: (_id: string, select: (agent: Record<string, unknown>) => unknown) =>
     host.agent ? select(host.agent) : host.cwd === null ? null : select({ cwd: host.cwd }),
   useWorkspace: () => undefined,
-  useRpc: () => () => Promise.resolve(null), usePaseo: () => host,
+  useRpc: () => host.rpc, usePaseo: () => host,
   useSettings: () => ({ status: "loading" }),
 }));
 import { buildThemeTokens, withAlpha } from "../../client/components/theme-tokens";
@@ -42,6 +43,8 @@ import { PREVIEW_OPEN_MS } from "../../client/ui/hover-preview";
 import { summarizeTool } from "../../client/tools/summarize";
 import type { AgentMessage } from "../../client/tools/agent-message";
 
+import { publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
+import { resetTranslationStoreForTests } from "../../client/translation/store";
 import { StyleSheet } from "react-native";
 import { Dimensions } from "./helpers/rn-mock";
 import { seedMarkBitmaps } from "../../client/components/marks";
@@ -79,6 +82,8 @@ beforeEach(() => {
   vi.clearAllMocks();
   host.cwd = null;
   host.agent = null;
+  resetTranslationSettingsStoreForTests();
+  resetTranslationStoreForTests();
   seedMarkBitmaps({ "provider:cursor": "data:image/png;base64,cursor", "lobe:grok": "data:image/png;base64,grok" });
 });
 afterEach(() => {
@@ -91,6 +96,25 @@ afterEach(() => {
 });
 
 describe("create_agent preview", () => {
+  it.each(["web", "ios", "android"])("translates the full create prompt and restores the original on %s", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    publishTranslationSettings({ enabled: true, endpoint: "https://example.test/v1", endpointModel: "test" }, "translation-test");
+    const data = classifyTool({ callId: "create", name: "paseo.create_agent", status: "completed", detail: {
+      type: "unknown", input: { title: "Review", provider: "cursor", initialPrompt: prompt }, output: agentId,
+    } });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(PreviewPanelSample, { tokens,
+      children: React.createElement(ToolPreviewContent, { data, tokens, compact: false, resolvePath: (path) => path, translationAgentId: "parent-agent" }),
+    })); });
+    expect(host.rpc).not.toHaveBeenCalled();
+    const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "create-agent-prompt-translate");
+    await act(async () => { button().props.onPress({ stopPropagation() {} }); });
+    expect(host.rpc).toHaveBeenCalledWith(expect.objectContaining({ action: "start", agentId: "parent-agent", text: prompt, sourceKind: "user_message" }));
+    expect(renderer!.root.findByType(MarkdownView).props.text).toBe("译文\n\n完整内容");
+    await act(async () => { button().props.onPress({ stopPropagation() {} }); });
+    expect(renderer!.root.findByType(MarkdownView).props.text).toBe(prompt);
+    expect(host.rpc).toHaveBeenCalledTimes(1);
+  });
+
   it.each(["web", "ios", "android"])("shows the full prompt, toggles once, and copies source and ID on %s", async (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     act(() => { renderer = TestRenderer.create(agentView()); });

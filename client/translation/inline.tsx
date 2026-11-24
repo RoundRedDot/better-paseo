@@ -3,7 +3,7 @@ import { Pressable, Text, View } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
 import type { PluginTheme } from "@getpaseo/plugin";
-import { radiusV2, useThemeTokens } from "../components/theme-tokens";
+import { radiusV2, useThemeTokens, type ExtendedThemeTokens } from "../components/theme-tokens";
 import { ToolbarItem, TooltipSideContext } from "../ui/toolbar-button";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { resolveLanguage } from "../i18n/settings-strings";
@@ -51,9 +51,14 @@ function InlineTranslationSession({ agentId, kind, text, streaming, children }: 
 }
 
 export function InlineTranslateButton({ state, theme, testID, base, timeline = false }: { state: InlineTranslationState; theme: PluginTheme; testID: string; base?: string; timeline?: boolean }) {
-  const settings = useTranslationSettingsState();
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences);
+  return <InlineTranslateButtonWithTokens state={state} tokens={tokens} testID={testID} base={base} timeline={timeline} />;
+}
+
+export function InlineTranslateButtonWithTokens({ state, tokens, testID, base, timeline = false }: { state: InlineTranslationState; tokens: ExtendedThemeTokens; testID: string; base?: string; timeline?: boolean }) {
+  const settings = useTranslationSettingsState();
+  const preferences = useEnhancerPreferences();
   const { hovered, hoverProps } = useHover();
   if (settings.status === "ready" && !settings.values.enabled) return null;
   // While the translation is shown, the button restores the original, and its
@@ -81,6 +86,11 @@ export function InlineTranslateButton({ state, theme, testID, base, timeline = f
 export function InlineTranslationNotice({ state, theme }: { state: InlineTranslationState; theme: PluginTheme }) {
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences);
+  return <InlineTranslationNoticeWithTokens state={state} tokens={tokens} />;
+}
+
+export function InlineTranslationNoticeWithTokens({ state, tokens }: { state: InlineTranslationState; tokens: ExtendedThemeTokens }) {
+  const preferences = useEnhancerPreferences();
   if (!state.active || !state.view || selectionViewLoading(state.view)) return null;
   const message = selectionViewMessage(state.view);
   if (!message) return null;

@@ -52,7 +52,8 @@ import { summarizeToolCall, summarizeToolGroup } from "../tools/group";
 import { toolHasDetail } from "../tools/detail";
 import { mcpServiceIcon } from "../tools/mcp-service-icon";
 import { commandIcon } from "../tools/command-icon";
-import type { CopyItem } from "../details/contracts";
+import { BlockPlacementContext, type CopyItem } from "../details/contracts";
+import { InlineTranslation, InlineTranslateButtonWithTokens, type InlineTranslationState } from "../translation/inline";
 import { useZoomedTokens } from "../ui/text-zoom";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { useHostLanguageVersion } from "../i18n/host-language";
@@ -198,6 +199,7 @@ export function ToolCallout({
   imageFile,
   requestImage,
 }: ToolCalloutProps) {
+  const placement = useContext(BlockPlacementContext);
   const selectionScope = useContext(SelectionTranslationContext);
   const scopeData = Platform.OS === "web" ? selectionScopeDataSet(selectionScope) : null;
   const bindSelectionScope = useCallback((node: View | Text | null) => {
@@ -384,7 +386,7 @@ export function ToolCallout({
           <GroupedPreview calls={groupCalls} resolvePath={resolvePath} tokens={tokens} compact={compact} imageFile={imageFile}
             path={filePath ? resolvePath(filePath) : undefined} revealFile={revealFile} displayPath={displayPath} onViewImage={openViewer} />
         ) : (
-          <ToolPreviewContent key={data.callId ?? data.id} data={data} resolvePath={resolvePath} tokens={tokens} compact={compact}
+          <ToolPreviewContent key={data.callId ?? data.id} data={data} translationAgentId={placement?.agentId ?? selectionScope?.agentId} resolvePath={resolvePath} tokens={tokens} compact={compact}
             imageFile={imageFile} drawsImage={drawsImage} revealFile={revealFile} displayPath={displayPath}
             onViewImage={openViewer} />
         )
@@ -499,7 +501,22 @@ function isMarkdownWrite(data: ToolCallView): boolean {
  * body and the error. Also drawn outside a panel's layer by the settings page
  * (`PreviewPanelSample`), so a reader sees the panel options take effect.
  */
-export function ToolPreviewContent({ data, resolvePath, drawsImage = false, pager, ...rest }: Omit<ToolBodyProps, "preview"> & {
+export function ToolPreviewContent(props: Omit<ToolBodyProps, "preview"> & {
+  translationAgentId?: string;
+  resolvePath: ResolvePath;
+  drawsImage?: boolean;
+  pager?: React.ReactNode;
+}) {
+  const prompt = props.data.paseo?.tool === "create_agent" ? props.data.paseo.createAgent?.initialPrompt : undefined;
+  if (!props.translationAgentId || !prompt) return <ToolPreviewContentInner {...props} />;
+  return <InlineTranslation key={JSON.stringify([props.translationAgentId, props.data.callId ?? props.data.id, prompt])} agentId={props.translationAgentId} kind="user_message" text={prompt} streaming={false}>
+    {(translation) => <ToolPreviewContentInner {...props} translation={translation} />}
+  </InlineTranslation>;
+}
+
+function ToolPreviewContentInner({ data, resolvePath, drawsImage = false, pager, translation, ...rest }: Omit<ToolBodyProps, "preview"> & {
+  translationAgentId?: string;
+  translation?: InlineTranslationState;
   resolvePath: ResolvePath;
   drawsImage?: boolean;
   pager?: React.ReactNode;
@@ -522,7 +539,7 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, page
   }
   const content = (
     <>
-      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} streaming={streaming} fitControls={agentTool || subAgent || Boolean(data.agentStatus)}
+      <ToolPreviewActions call={data} resolvePath={resolvePath} tokens={tokens} translation={translation} streaming={streaming} fitControls={agentTool || subAgent || Boolean(data.agentStatus)}
         pager={<>{pager}{markdown ? <ToolbarButton icon={raw ? "FileText" : "Code"}
           label={raw ? "Render Markdown" : "Show raw text"} onPress={() => setRaw((value) => !value)} tokens={tokens} /> : null}</>}
         meta={drawsImage ? <ImageMeta file={imageFile ?? null} tokens={tokens} /> : undefined} />
@@ -530,7 +547,7 @@ export function ToolPreviewContent({ data, resolvePath, drawsImage = false, page
         {data.filePath ? <PreviewPath path={resolvePath(data.filePath)} tokens={tokens} /> : null}
         {data.agentStatus ? <AgentStatusView data={data.agentStatus} tokens={tokens} raw={raw} compact={rest.compact} /> :
           subAgent ? <SubAgentView data={data} tokens={tokens} raw={raw} compact={rest.compact} /> :
-          agentTool ? <PaseoToolCallout data={data.paseo!} tokens={tokens} raw={raw} compact={rest.compact} error={data.error} /> :
+          agentTool ? <PaseoToolCallout data={data.paseo!} tokens={tokens} raw={raw} compact={rest.compact} error={data.error} promptTranslation={translation} /> :
           markdown && !raw ? <MarkdownView text={data.code!} tokens={tokens} variant="document"
           streaming={streaming} size={blockProseBase(tokens.typography)} /> : <ToolBody data={data} {...rest} preview />}
         {data.error && !drawsOwnError(data) ? <PreviewError text={data.error} tokens={tokens} quiet={data.rejected} /> : null}
@@ -693,7 +710,8 @@ function ToolCopyButtons({ call, resolvePath, tokens }: {
  * The preview's toolbar: a merged row's pager at the left, the tool's icon
  * and name or picture size in the middle, and copies at the right.
  */
-function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, streaming = false, fitControls = false }: {
+function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, translation, streaming = false, fitControls = false }: {
+  translation?: InlineTranslationState;
   call: ToolCallView;
   resolvePath: ResolvePath;
   tokens: ExtendedThemeTokens;
@@ -722,6 +740,7 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, str
       iconLabel={title ?? agentLabel ?? (call.tool === "activity" ? toolbarLabel(summary.verb, language) : summary.verb)}
       left={pager} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>
+        {translation ? <InlineTranslateButtonWithTokens state={translation} tokens={tokens} timeline testID="create-agent-prompt-translate" /> : null}
         {call.paseo?.sendAgentPrompt ? <>
           <ToolbarCopyButton text={call.paseo.sendAgentPrompt.prompt} label="Copy prompt" tokens={tokens} />
           <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />

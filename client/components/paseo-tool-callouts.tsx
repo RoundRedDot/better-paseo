@@ -1,6 +1,7 @@
 import React from "react";
 import { View, Text, StyleSheet } from "react-native";
 import { Glyph } from "./glyph";
+import { InlineTranslationNoticeWithTokens, type InlineTranslationState } from "../translation/inline";
 import { usePaseo } from "@getpaseo/plugin/client";
 import { useCodexProvider } from "../state/provider-family";
 import { surfaceProps } from "./view-props";
@@ -32,6 +33,7 @@ interface PaseoToolCalloutProps {
   compact?: boolean;
   /** The host's error for a failed call, drawn as the card's first line. */
   error?: string;
+  promptTranslation?: InlineTranslationState;
 }
 
 /**
@@ -40,11 +42,11 @@ interface PaseoToolCalloutProps {
  * whose header already names the call and whose open state decides whether
  * this is mounted at all.
  */
-export function PaseoToolCallout({ data, tokens, raw = false, compact = false, error }: PaseoToolCalloutProps) {
+export function PaseoToolCallout({ data, tokens, raw = false, compact = false, error, promptTranslation }: PaseoToolCalloutProps) {
   return (
     <View {...surfaceProps(selectionSurface)} style={styles.body}>
       {data.tool === "create_agent" && data.createAgent && (
-        <CreateAgentView data={data.createAgent} tokens={tokens} raw={raw} compact={compact} error={error} />
+        <CreateAgentView data={data.createAgent} tokens={tokens} raw={raw} compact={compact} error={error} promptTranslation={promptTranslation} />
       )}
       {data.sendAgentPrompt ? <SendAgentPromptView data={data.sendAgentPrompt} tokens={tokens} raw={raw} compact={compact} error={error} /> : null}
       {data.agentOperation ? <AgentOperationView data={data.agentOperation} tokens={tokens} raw={raw} compact={compact} error={error} /> : null}
@@ -57,8 +59,9 @@ const styles = StyleSheet.create({
   body: { gap: 10, ...selectableSurface },
 });
 
-function CreateAgentView({ data, tokens, raw, compact, error }: {
+function CreateAgentView({ data, tokens, raw, compact, error, promptTranslation }: {
   data: PaseoCreateAgentData;
+  promptTranslation?: InlineTranslationState;
   tokens: ExtendedThemeTokens;
   raw: boolean;
   compact: boolean;
@@ -92,8 +95,9 @@ function CreateAgentView({ data, tokens, raw, compact, error }: {
         provider={data.model ? undefined : data.provider} />
       <AgentDivider tokens={tokens} />
       {data.status === "failed" && error ? <AgentErrorLine text={error.split("\n")[0]!} tokens={tokens} /> : null}
+      {promptTranslation ? <InlineTranslationNoticeWithTokens state={promptTranslation} tokens={tokens} /> : null}
       <AgentSection label={raw ? undefined : "Prompt"} tokens={tokens}>
-        <AgentMarkdown text={data.initialPrompt} tokens={tokens} raw={raw} mobile={mobile} /></AgentSection>
+        <AgentMarkdown text={promptTranslation?.active && promptTranslation.view?.status === "done" ? promptTranslation.view.result.translation : data.initialPrompt} tokens={tokens} raw={raw} mobile={mobile} /></AgentSection>
     </View>
   );
 }
