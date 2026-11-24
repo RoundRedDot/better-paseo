@@ -8,6 +8,10 @@ import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { resetSafeInsets } from "../../client/details/shell/safe-area";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
+vi.mock("@getpaseo/plugin/client/ui", async () => {
+  const ReactModule = await import("react");
+  return { Icon: (props: { size: number }) => ReactModule.createElement("View", { style: { width: props.size, height: props.size } }) };
+});
 
 import { Dimensions } from "./helpers/rn-mock";
 import { ChoiceMenuSelect, type MenuChoice } from "../../client/settings-choice-menu";

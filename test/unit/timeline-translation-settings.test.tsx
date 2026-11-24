@@ -237,7 +237,7 @@ describe("timeline translation settings", () => {
 
     const srLatnOption = renderer!.root.find(
       (n) =>
-        n.props.accessibilityRole === "button" &&
+        n.props.accessibilityRole === "radio" &&
         n.props.accessibilityState?.selected === false &&
         n.findAll((c) => (c.type as unknown) === "Text" && c.props.children === "sr-Latn").length > 0,
     );
@@ -876,6 +876,17 @@ describe("translation method settings", () => {
     await openServiceMenu();
     expect(menuNames()).toEqual(["Microsoft", "Google", "Tencent TranSmart"]);
     expect(menuChoice("Google").findAll((node) => node.type === ServiceMarkType)[0]!.props.service).toBe("google");
+  });
+
+  it("draws the service and language dropdowns with the same host chevron", async () => {
+    stubServices();
+    await render({});
+    const chevrons = (label: string) => renderer!.root
+      .find((n) => typeof n.type === "string" && n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label)
+      .findAll((n) => (n.type as unknown) === "Icon").map((n) => ({ name: n.props.name, size: n.props.size, color: n.props.color }));
+    const closed = chevrons("Translation service");
+    expect(closed).toEqual([{ name: "ChevronDown", size: 14, color: makeLook().tokens.foregroundMuted }]);
+    expect(chevrons("Target language")).toEqual(closed);
   });
 
   it("saves a picked service", async () => {

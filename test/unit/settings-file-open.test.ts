@@ -4,6 +4,11 @@ import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
+// The host's Lucide icon, as a box of its size so the layout tests measure it.
+vi.mock("@getpaseo/plugin/client/ui", async () => {
+  const ReactModule = await import("react");
+  return { Icon: (props: { size: number }) => ReactModule.createElement("View", { style: { width: props.size, height: props.size } }) };
+});
 import { seedMarkBitmaps } from "../../client/components/marks";
 import { FileOpenChoices } from "../../client/settings-file-open";
 import type { PageLook } from "../../client/settings-controls";

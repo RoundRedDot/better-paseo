@@ -17,8 +17,8 @@ import {
   TRANSLATION_LANGUAGES,
   type TranslationLanguageEntry,
 } from "../../shared/translation-languages";
-import { radiusV2, space } from "../components/theme-tokens";
 import { settingsTextStyle, type PageLook } from "../settings-controls";
+import { SelectOption, SelectTrigger, selectMenuSurface } from "../settings-select";
 
 /** The menu's chrome around its list: padding, border, search box and gap. */
 const MENU_CHROME = 8 * 2 + 1 * 2 + 36 + 1 + 8;
@@ -66,72 +66,6 @@ export interface SearchableLanguageSelectProps {
   label: string;
   searchPlaceholder: string;
   emptyLabel: string;
-}
-
-function LanguageOptionRow({
-  entry,
-  active,
-  language,
-  look,
-  onSelect,
-}: {
-  entry: TranslationLanguageEntry;
-  active: boolean;
-  language: "en" | "zh";
-  look: PageLook;
-  onSelect: (code: string) => void;
-}) {
-  const { tokens } = look;
-  const [hovered, setHovered] = useState(false);
-  const title = formatTranslationLanguageLabel(entry, language);
-
-  return (
-    <Pressable
-      accessibilityRole="button"
-      accessibilityState={{ selected: active }}
-      onPress={() => onSelect(entry.code)}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-      style={({ pressed }) => [
-        styles.optionRow,
-        (hovered || pressed || active) && { backgroundColor: tokens.v2.surface2 },
-      ]}
-    >
-      <View style={styles.optionTextWrap}>
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.optionTitle,
-            settingsTextStyle(tokens, -1),
-            {
-              color: active ? tokens.accent : tokens.foreground,
-              fontFamily: tokens.fontUi,
-              fontWeight: active ? "500" : "400",
-            },
-          ]}
-        >
-          {title}
-        </Text>
-      </View>
-      <View style={styles.optionRight}>
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.optionCode,
-            {
-              color: active ? tokens.accent : tokens.foregroundMuted,
-              fontFamily: tokens.fontMono,
-            },
-          ]}
-        >
-          {entry.code === FOLLOW_INTERFACE_LANGUAGE_CODE ? "auto" : entry.code}
-        </Text>
-        <View style={styles.checkSlot}>
-          {active ? <Icon name="Check" size={14} color={tokens.accent} /> : null}
-        </View>
-      </View>
-    </Pressable>
-  );
 }
 
 function LanguageOptionList({
@@ -223,13 +157,13 @@ function LanguageOptionList({
           contentContainerStyle={styles.optionsScroll}
         >
           {items.map((entry: TranslationLanguageEntry) => (
-            <LanguageOptionRow
+            <SelectOption
               key={entry.code}
-              entry={entry}
-              active={entry.code === value}
-              language={language}
               look={look}
-              onSelect={onSelect}
+              name={formatTranslationLanguageLabel(entry, language)}
+              trailing={entry.code === FOLLOW_INTERFACE_LANGUAGE_CODE ? "auto" : entry.code}
+              selected={entry.code === value}
+              onPress={() => onSelect(entry.code)}
             />
           ))}
         </ScrollView>
@@ -248,9 +182,8 @@ export function SearchableLanguageSelect({
   searchPlaceholder,
   emptyLabel,
 }: SearchableLanguageSelectProps) {
-  const { tokens, compact } = look;
+  const { tokens } = look;
   const [open, setOpen] = useState(false);
-  const [hovered, setHovered] = useState(false);
   const [query, setQuery] = useState("");
   const triggerRef = useRef<View>(null);
   const menuRef = useRef<View>(null);
@@ -342,51 +275,27 @@ export function SearchableLanguageSelect({
 
   return (
     <View ref={triggerRef} style={styles.anchorWrap}>
-      <Pressable
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityState={{ expanded: open, disabled }}
+      <SelectTrigger
+        look={look}
+        label={label}
+        text={displayLabel}
+        open={open}
         disabled={disabled}
         onPress={() => {
           if (disabled) return;
           if (open) close();
           else setOpen(true);
         }}
-        onHoverIn={() => setHovered(true)}
-        onHoverOut={() => setHovered(false)}
-        style={({ pressed }) => [
-          styles.trigger,
-          compact ? styles.triggerCompact : null,
-          {
-            borderColor: open ? tokens.accent : tokens.v2.border,
-            backgroundColor: hovered || pressed ? tokens.v2.surface2 : tokens.v2.surface0,
-            opacity: disabled ? 0.5 : 1,
-          },
-        ]}
-      >
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.triggerText,
-            settingsTextStyle(tokens, -1),
-            { color: tokens.foreground, fontFamily: tokens.fontUi },
-          ]}
-        >
-          {displayLabel}
-        </Text>
-        <View style={styles.triggerIcon}>
-          <Icon name={open ? "ChevronUp" : "ChevronDown"} size={14} color={tokens.foregroundMuted} />
-        </View>
-      </Pressable>
+        style={styles.trigger}
+      />
 
       {open && Platform.OS === "web" ? (
         <View
           ref={menuRef}
           style={[
             styles.popoverCard,
+            selectMenuSurface(tokens),
             {
-              backgroundColor: tokens.v2.surface0,
-              borderColor: tokens.v2.border,
               // Reset the popover UA inset and centered margins.
               top: placement?.bottom !== undefined ? "auto" : (placement?.top ?? 36),
               bottom: placement?.bottom ?? "auto",
@@ -394,7 +303,6 @@ export function SearchableLanguageSelect({
               right: "auto",
               margin: 0,
               width: placement?.width ?? 300,
-              boxShadow: tokens.isDark ? "0px 8px 32px rgba(0,0,0,0.5)" : "0px 8px 32px rgba(0,0,0,0.12)",
             } as never,
           ]}
         >
@@ -440,39 +348,19 @@ const styles = StyleSheet.create({
     minWidth: 0,
     maxWidth: 260,
   },
-  trigger: {
-    alignSelf: "flex-start",
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: space.sm,
-    minHeight: 36,
-    minWidth: 168,
-    maxWidth: "100%",
-    paddingHorizontal: space.md,
-    borderRadius: radiusV2.block,
-    borderWidth: 1,
-  },
-  triggerCompact: {
-    minHeight: 44,
-  },
-  triggerText: {
-    fontWeight: "500",
-    flexShrink: 1,
-    minWidth: 0,
-  },
-  triggerIcon: { flexShrink: 0, width: 14 },
+  // The language names run longer than the other selects' choices.
+  trigger: { minWidth: 168 },
   popoverCard: {
     position: "fixed" as unknown as "absolute",
     zIndex: 1000,
-    borderWidth: 1,
-    borderRadius: radiusV2.overlay,
-    padding: 8,
+    // Vertical only: the rows and the search box carry the same side inset as the choice menu's rows.
+    paddingVertical: 8,
   },
   listRoot: {
     gap: 4,
   },
   searchBox: {
+    marginHorizontal: 6,
     flexDirection: "row",
     alignItems: "center",
     gap: 8,
@@ -489,34 +377,6 @@ const styles = StyleSheet.create({
   },
   optionsScroll: {
     gap: 2,
-  },
-  optionRow: {
-    flexDirection: "row",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 8,
-    paddingHorizontal: 8,
-    paddingVertical: 7,
-    borderRadius: radiusV2.block,
-  },
-  optionTextWrap: {
-    flex: 1,
-    minWidth: 0,
-  },
-  optionTitle: {},
-  optionRight: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 6,
-    flexShrink: 0,
-  },
-  optionCode: {
-    fontSize: 11,
-    lineHeight: 14,
-  },
-  checkSlot: {
-    width: 14,
-    alignItems: "center",
   },
   emptyState: {
     paddingVertical: 20,

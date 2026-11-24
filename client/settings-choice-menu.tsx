@@ -1,8 +1,8 @@
 import React, { useLayoutEffect, useRef, useState } from "react";
-import { Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
-import { radiusV2, space } from "./components/theme-tokens";
+import { Modal, Platform, Pressable, ScrollView, StyleSheet, View, useWindowDimensions } from "react-native";
 import { useSafeInsets, type Insets } from "./details/shell/safe-area";
-import { settingsTextStyle, type PageLook } from "./settings-controls";
+import { type PageLook } from "./settings-controls";
+import { SelectOption, SelectTrigger, selectMenuSurface, selectOptionHeight } from "./settings-select";
 
 /**
  * A settings select: a bordered button showing the saved choice, and a menu
@@ -13,30 +13,6 @@ export interface MenuChoice {
   value: string;
   name: string;
   logo: React.ReactNode;
-}
-
-/** A stroked chevron drawn here, so the control does not need the host icon set. */
-function Chevron({ color, up }: { color: string; up: boolean }) {
-  const size = 16;
-  const side = size * 0.46;
-  const stroke = Math.max(1.2, size / 8.5);
-  const nudge = size * 0.11;
-  return (
-    <View style={styles.chevron}>
-      <View
-        style={{
-          width: side,
-          height: side,
-          borderRightWidth: stroke,
-          borderBottomWidth: stroke,
-          borderColor: color,
-          transform: [{ rotate: up ? "-135deg" : "45deg" }],
-          marginTop: up ? 0 : -nudge,
-          marginBottom: up ? -nudge : 0,
-        }}
-      />
-    </View>
-  );
 }
 
 interface Anchor { x: number; y: number; width: number; height: number }
@@ -107,7 +83,6 @@ export function ChoiceMenuSelect({
   label: string;
   disabled?: boolean;
 }) {
-  const { tokens, compact } = look;
   const trigger = useRef<View>(null);
   const [open, setOpen] = useState(false);
   const [anchor, setAnchor] = useState<Anchor | null>(null);
@@ -119,37 +94,16 @@ export function ChoiceMenuSelect({
   };
   return (
     <>
-      <Pressable
-        ref={trigger}
-        accessibilityRole="button"
-        accessibilityLabel={label}
-        accessibilityState={{ expanded: open, disabled }}
-        accessibilityValue={selected ? { text: selected.name } : undefined}
+      <SelectTrigger
+        triggerRef={trigger}
+        look={look}
+        label={label}
+        text={selected?.name ?? label}
+        logo={selected?.logo}
+        open={open}
         disabled={disabled}
         onPress={() => open ? setOpen(false) : openMenu()}
-        style={({ pressed }) => [
-          styles.trigger,
-          compact ? styles.triggerCompact : null,
-          {
-            borderColor: tokens.v2.border,
-            backgroundColor: pressed ? tokens.v2.surface2 : tokens.v2.surface0,
-            opacity: disabled ? 0.5 : 1,
-          },
-        ]}
-      >
-        {selected?.logo ?? null}
-        <Text
-          numberOfLines={1}
-          style={[
-            styles.name,
-            settingsTextStyle(tokens, -1),
-            { color: tokens.foreground, fontWeight: "500", fontFamily: tokens.fontUi },
-          ]}
-        >
-          {selected?.name ?? label}
-        </Text>
-        <Chevron color={tokens.foregroundMuted} up={open} />
-      </Pressable>
+      />
       {open && anchor ? (
         <ChoiceMenu
           anchor={anchor}
@@ -191,7 +145,7 @@ function ChoiceMenu({
   // Null on native until its probe has laid out once (web reads zero); the
   // menu stays invisible and untouchable until then.
   const [insets, insetProbe] = useSafeInsets();
-  const rowHeight = compact ? 44 : 32;
+  const rowHeight = selectOptionHeight(compact);
   const width = Math.min(Math.max(anchor.width, 220), Math.max(160, window.width - 16));
   const left = Math.max(8, Math.min(anchor.x, window.width - width - 8));
   const place = placeChoiceMenu(anchor, window.height, insets ?? { top: 0, bottom: 0 }, choices.length * rowHeight + 12, rowHeight);
@@ -235,22 +189,18 @@ function ChoiceMenu({
           top: place.top,
           width,
           maxHeight: place.height,
-          borderRadius: 12,
-          backgroundColor: tokens.v2.surface0,
-          borderColor: tokens.v2.border,
-          borderWidth: StyleSheet.hairlineWidth,
-          boxShadow: tokens.isDark ? "0px 8px 32px rgba(0,0,0,0.5)" : "0px 8px 32px rgba(0,0,0,0.12)",
+          ...selectMenuSurface(tokens),
         }}
       >
         <ScrollView contentContainerStyle={styles.menuPad} showsVerticalScrollIndicator={false} showsHorizontalScrollIndicator={false}>
           <View accessibilityRole="radiogroup" accessibilityLabel={label}>
             {choices.map((choice) => (
-              <ChoiceRow
+              <SelectOption
                 key={choice.value}
-                choice={choice}
-                selected={choice.value === value}
-                height={rowHeight}
                 look={look}
+                name={choice.name}
+                logo={choice.logo}
+                selected={choice.value === value}
                 onPress={() => onSelect(choice.value)}
               />
             ))}
@@ -264,75 +214,6 @@ function ChoiceMenu({
   );
 }
 
-function ChoiceRow({
-  choice,
-  selected,
-  height,
-  look,
-  onPress,
-}: {
-  choice: MenuChoice;
-  selected: boolean;
-  height: number;
-  look: PageLook;
-  onPress(): void;
-}) {
-  const { tokens } = look;
-  const [hovered, setHovered] = useState(false);
-  return (
-    <Pressable
-      accessibilityRole="radio"
-      accessibilityState={{ selected, checked: selected }}
-      aria-checked={selected}
-      accessibilityLabel={choice.name}
-      onPress={onPress}
-      onHoverIn={() => setHovered(true)}
-      onHoverOut={() => setHovered(false)}
-      style={({ pressed }) => ({
-        height,
-        marginHorizontal: 6,
-        paddingHorizontal: 8,
-        borderRadius: radiusV2.block,
-        flexDirection: "row",
-        alignItems: "center",
-        gap: space.sm,
-        backgroundColor: pressed || hovered || selected ? tokens.v2.surface2 : "transparent",
-      })}
-    >
-      {choice.logo}
-      <Text
-        numberOfLines={1}
-        style={[
-          styles.name,
-          settingsTextStyle(tokens, -1),
-          {
-            color: selected ? tokens.foreground : tokens.foregroundMuted,
-            fontWeight: selected ? "500" : "400",
-            fontFamily: tokens.fontUi,
-          },
-        ]}
-      >
-        {choice.name}
-      </Text>
-    </Pressable>
-  );
-}
-
 const styles = StyleSheet.create({
-  trigger: {
-    alignSelf: "flex-start",
-    maxWidth: "100%",
-    flexShrink: 1,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: space.sm,
-    minHeight: 36,
-    paddingHorizontal: space.md,
-    borderRadius: radiusV2.block,
-    borderWidth: 1,
-  },
-  triggerCompact: { minHeight: 44 },
-  name: { flexShrink: 1, minWidth: 0 },
-  chevron: { width: 16, height: 16, flexShrink: 0, marginStart: "auto", alignItems: "center", justifyContent: "center" },
   menuPad: { paddingVertical: 6 },
 });
