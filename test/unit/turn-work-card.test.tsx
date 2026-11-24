@@ -23,7 +23,7 @@ vi.mock("../../client/components/tool-callouts", () => ({
   }),
 }));
 
-import { TurnWorkCard, callKinds } from "../../client/components/turn-work-card";
+import { TurnWorkCard, stepKinds } from "../../client/components/turn-work-card";
 import { buildThemeTokens, radiusV2, withAlpha } from "../../client/components/theme-tokens";
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
@@ -36,6 +36,7 @@ import { Dimensions, StyleSheet } from "react-native";
 import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
 import { PreviewActionsContext, PreviewChromeContext } from "../../client/ui/hover-preview";
 import { resetDisclosureStore } from "../../client/state/disclosure-store";
+import { resetWorkFilterStore } from "../../client/state/work-filter-store";
 import { SELECTION_SCOPE_ATTRIBUTES, SelectionTranslationContext } from "../../client/translation/selection";
 import { DetailsStickySourceContext, StickyStepContext } from "../../client/details/sticky-step";
 
@@ -84,7 +85,7 @@ beforeEach(() => {
   act(() => { renderer = TestRenderer.create(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
 });
 afterEach(() => {
-  act(() => renderer.unmount()); detailsApi.close("agent"); resetDisclosureStore(); vi.restoreAllMocks();
+  act(() => renderer.unmount()); detailsApi.close("agent"); resetDisclosureStore(); resetWorkFilterStore(); vi.restoreAllMocks();
   caps.hover = false; delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
 
@@ -139,8 +140,10 @@ describe("turn work card", () => {
     act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
     expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
     expect(panel.root.findAll((node) => node.children.includes("Check the root first, then fix the path.")).length).toBeGreaterThan(0);
-    // The panel opens with the turn's calls counted by kind.
-    expect(panel.root.findByProps({ testID: "work-kinds" }).props.children).toBe("读取 1 · 编辑 5 · 命令 1");
+    // The panel opens with a filter bar: all of the turn's steps, then each group, counted.
+    const chipLabels = () => panel.root.findByProps({ testID: "work-filter" }).findAll((node) => (node.type as unknown) === "Text")
+      .map((node) => node.children.join(""));
+    expect(chipLabels()).toEqual(["全部 7", "读取 1", "编辑 5", "命令 1"]);
     act(() => panel.unmount());
     pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(openId).toBeNull();
@@ -454,19 +457,58 @@ describe("turn work card", () => {
   });
 });
 
-describe("call kinds", () => {
-  it("counts every call of the turn by kind, a failed call as failed whatever it did", () => {
-    const call = (callId: string, name: string, detail: Record<string, unknown>, status = "completed") =>
-      ({ type: "tool_call", name, callId, status, error: status === "failed" ? "boom" : null, detail }) as unknown as ToolCallTimelineItem;
-    expect(callKinds([
-      call("r1", "Read", { type: "read", filePath: "a.ts" }),
-      call("s1", "Grep", { type: "search", query: "foo" }),
-      call("s2", "Glob", { type: "search", query: "*.ts" }),
-      call("f1", "WebFetch", { type: "fetch", url: "https://example.com" }),
-      call("m1", "mcp__linear__get_issue", { type: "unknown", input: {}, output: null }),
-      call("c1", "Bash", { type: "shell", command: "npm test", exitCode: 1 }, "failed"),
-      call("c2", "Bash", { type: "shell", command: "ls", exitCode: 0 }),
-    ])).toEqual([{ kind: "read", count: 1 }, { kind: "command", count: 1 }, { kind: "search", count: 2 },
-      { kind: "fetch", count: 1 }, { kind: "mcp", count: 1 }, { kind: "failed", count: 1 }]);
+describe("step kinds", () => {
+  it("counts the turn's steps by group, a write as an edit", () => {
+    expect(stepKinds(turn().steps)).toEqual([{ kind: "read", count: 1 }, { kind: "edit", count: 5 }, { kind: "command", count: 1 }]);
+  });
+});
+
+describe("work details filter", () => {
+  function openPanel() {
+    pressText("工作过程 · 7 步 · 7 次工具调用");
+    const block = getBlock("agent", openId!)!;
+    let panel!: TestRenderer.ReactTestRenderer;
+    act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
+    return panel;
+  }
+  const numbers = (panel: TestRenderer.ReactTestRenderer) => panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")
+    .map((node) => node.props.data.callId);
+  const chip = (panel: TestRenderer.ReactTestRenderer, kind: string) => panel.root.findByProps({ testID: `work-filter:${kind}` });
+
+  it("sits outside the scrolling body, so it stays atop the panel", () => {
+    const panel = openPanel();
+    const bar = panel.root.findByProps({ testID: "work-filter" });
+    const bodies = panel.root.findAll((node) => node.props?.testID === "hover-preview-body");
+    expect(bodies.length).toBeGreaterThan(0);
+    expect(bodies.some((body) => body.findAll((node) => node === bar).length > 0)).toBe(false);
+    expect(bodies.some((body) => body.findAll((node) => (node.type as unknown) === "ToolCallout").length > 0)).toBe(true);
+    act(() => panel.unmount());
+  });
+
+  it("narrows the steps to a group, keeping their numbers, and 全部 shows them all again", () => {
+    const panel = openPanel();
+    expect(chip(panel, "all").props.accessibilityState).toEqual({ selected: true });
+    act(() => chip(panel, "edit").props.onPress());
+    expect(chip(panel, "edit").props.accessibilityState).toEqual({ selected: true });
+    expect(chip(panel, "all").props.accessibilityState).toEqual({ selected: false });
+    expect(numbers(panel)).toEqual(["e1", "e2", "e3", "e4", "w1"]);
+    const shownNumbers = panel.root.findAll((node) => node.props?.testID === "work-step-number" && (node.type as unknown) === "Text")
+      .map((node) => node.children.join(""));
+    expect(shownNumbers).toEqual(["2", "3", "4", "5", "6"]);
+    act(() => chip(panel, "command").props.onPress());
+    expect(numbers(panel)).toEqual(["c1"]);
+    act(() => chip(panel, "all").props.onPress());
+    expect(numbers(panel)).toEqual(["r1", "e1", "e2", "e3", "e4", "w1", "c1"]);
+    act(() => panel.unmount());
+  });
+
+  it("keeps the chosen group when the panel mounts again", () => {
+    let panel = openPanel();
+    act(() => chip(panel, "read").props.onPress());
+    act(() => panel.unmount());
+    const block = getBlock("agent", openId!)!;
+    act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
+    expect(numbers(panel)).toEqual(["r1"]);
+    act(() => panel.unmount());
   });
 });
