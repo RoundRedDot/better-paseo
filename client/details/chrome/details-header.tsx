@@ -5,8 +5,8 @@
  * with a pointer. The shell's header handlers ride on it: a vertical drag
  * moves the drawer, a horizontal swipe steps.
  */
-import { useState, type ReactNode } from "react";
-import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
+import { type ReactNode } from "react";
+import { Platform, StyleSheet, Text, View } from "react-native";
 import type { ExtendedThemeTokens } from "../../components/theme-tokens";
 import { space } from "../../components/theme-tokens";
 import { unselectable } from "../../components/selection";
@@ -26,7 +26,6 @@ export const HEADER_BUTTONS: Readonly<Record<"touch" | "pointer", ToolbarMetrics
 };
 const ICON_TILE = 28;
 const TILE_ICON = 16;
-const TITLE_LINES = 4;
 
 export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, streaming = false }: {
   shell: DetailsShellValue;
@@ -44,9 +43,6 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
   const { entry, pointer } = shell;
   const { language } = useEnhancerPreferences();
   const metrics = HEADER_BUTTONS[pointer ? "pointer" : "touch"];
-  // A tap shows up to four lines; another block starts on one again.
-  const [expandedId, setExpandedId] = useState<string | null>(null);
-  const expanded = expandedId === entry.id;
   const text = entry.title || titleText || "";
   const navigable = shell.index > 0 && shell.count > 0;
   const subtitle = subtitleParts(entry, navigable ? `${shell.index} / ${shell.count}` : null);
@@ -71,18 +67,10 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
         {entry.icon ? <TileIcon name={entry.icon} color={entry.iconColor ?? tokens.foregroundMuted} />
           : typeof icon === "string" ? <TileIcon name={icon} color={tokens.foregroundMuted} /> : icon}
       </View>
-      <View style={[styles.text, desktopSide && { gap: 0 }]}>
-        {text ? (
-          <Pressable
-            testID="details-header-title"
-            accessibilityRole="button"
-            accessibilityLabel={text}
-            accessibilityState={{ expanded }}
-            onPress={() => setExpandedId(expanded ? null : entry.id)}
-          >
-            <Text selectable={false} numberOfLines={expanded ? TITLE_LINES : 1} style={titleStyle}>{text}</Text>
-          </Pressable>
-        ) : title ?? null}
+      <View style={styles.text}>
+        <View testID="details-header-title" accessibilityLabel={text || undefined} style={styles.titleContainer}>
+          {text ? <Text selectable={false} numberOfLines={1} style={titleStyle}>{text}</Text> : title ?? null}
+        </View>
         {streaming || subtitle.length > 0 || meta ? (
           <View testID="details-header-subtitle" style={styles.subtitle}>
             {streaming ? (
@@ -161,9 +149,10 @@ const styles = StyleSheet.create({
     flexShrink: 0,
   },
   tile: { width: ICON_TILE, height: ICON_TILE, alignItems: "center", justifyContent: "center", flexShrink: 0 },
-  text: { flex: 1, minWidth: 0, gap: 1 },
+  text: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 10 },
+  titleContainer: { flex: 1, minWidth: 0 },
   title: { fontWeight: "600" },
-  subtitle: { flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0 },
+  subtitle: { flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0, flexShrink: 1 },
   subtitleText: { flexShrink: 1, fontSize: 12, lineHeight: 16 },
   dot: { width: 8, alignItems: "center", justifyContent: "center" },
   meta: { flexShrink: 0 },

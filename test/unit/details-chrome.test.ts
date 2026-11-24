@@ -160,14 +160,15 @@ describe("details header", () => {
     expect(hosts(root, "hover-preview-header")).toHaveLength(0);
   });
 
-  it("opens the title to four lines on a tap, and back to one on another block", () => {
-    const value = shell();
-    const content = rowPreview(callout(bash));
-    const root = mount(details(content, value));
-    act(() => byId(root, "details-header-title").props.onPress());
-    expect(byId(root, "details-header-title").findByType("Text" as never).props.numberOfLines).toBe(4);
-    act(() => renderer!.update(details(content, { ...value, entry: entry({ id: "other" }) })));
-    expect(byId(renderer!.root, "details-header-title").findByType("Text" as never).props.numberOfLines).toBe(1);
+  it("keeps the title and subtitle on one centered row before the buttons", () => {
+    const root = mount(details(rowPreview(callout(bash))));
+    const title = byId(root, "details-header-title");
+    const subtitle = byId(root, "details-header-subtitle");
+    expect(title.parent).toBe(subtitle.parent);
+    expect(StyleSheet.flatten(title.parent!.props.style)).toMatchObject({ flexDirection: "row", alignItems: "center", flex: 1 });
+    expect(StyleSheet.flatten(title.props.style)).toMatchObject({ flex: 1, minWidth: 0 });
+    expect(StyleSheet.flatten(subtitle.props.style)).toMatchObject({ flexShrink: 1 });
+    expect(title.findByType("Text" as never).props.numberOfLines).toBe(1);
   });
 
   it("steps and closes through the shell, disabled at the ends, and spreads its header handlers", () => {
@@ -231,9 +232,7 @@ describe("details header", () => {
     expect(header).toMatchObject({ minHeight: 36, paddingVertical: 0, borderBottomWidth: 1 });
     expect(titleStyle.lineHeight).toBe(18);
     expect(subtitleStyle.lineHeight).toBe(16);
-    expect(StyleSheet.flatten(byId(root, "details-header-title").parent!.props.style).gap).toBe(0);
-    act(() => byId(root, "details-header-title").props.onPress());
-    expect(title.props.numberOfLines).toBe(4);
+    expect(title.props.numberOfLines).toBe(1);
   });
 
   it("leaves out ‹ › and the place for a block outside the sequence (a code block)", () => {
@@ -376,7 +375,8 @@ describe("details toolbar", () => {
     expect(labels(byId(root, "details-toolbar-start"))).toEqual(["Do not wrap lines", "Show raw text"]);
     expect(wrapButton(root)!.props.disabled).toBe(true);
     expect(copyLabels(root)).toEqual(["Copy code"]);
-    expect(labels(byId(root, "details-header"))).toEqual(["Code block · tsx", "Close details"]);
+    expect(textOf(byId(root, "details-header-title"))).toBe("Code block · tsx");
+    expect(labels(byId(root, "details-header"))).toEqual(["Close details"]);
   });
 
   it("titles an agent card in words with its status tone, falling back to the card's own label", () => {
