@@ -103,7 +103,7 @@ describe("turn work card", () => {
   });
   it("closed: the work row and the file header, no paths", () => {
     const shown = texts();
-    expect(shown).toEqual(["工作过程 · 7 步 · 7 次工具调用 · 用时 9秒", "已编辑 4 个文件", "查看变更"]);
+    expect(shown).toEqual(["工作过程 · 7 步 · 7 次工具调用", "已编辑 4 个文件", "查看变更"]);
     expect(renderer.root.findByProps({ testID: "work-files:agent" }).props.accessibilityState).toEqual({ expanded: false });
     expect(byType("ToolCallout")).toHaveLength(0);
     expect(byType("FileEditsPreview")).toHaveLength(0);
@@ -130,11 +130,11 @@ describe("turn work card", () => {
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
     act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={compact} /></>); });
     settleForm("agent", 1000, true);
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(openId).toBe("agent:work:r:10000:done:steps");
     expect(texts()).not.toContain("读取了文件 · 编辑了文件 · 运行了命令");
     const block = getBlock("agent", openId!)!;
-    expect(block.title).toBe("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒 · 读取了文件 · 编辑了文件 · 运行了命令");
+    expect(block.title).toBe("工作过程 · 7 步 · 7 次工具调用 · 读取了文件 · 编辑了文件 · 运行了命令");
     let panel!: TestRenderer.ReactTestRenderer;
     act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
     expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
@@ -142,9 +142,9 @@ describe("turn work card", () => {
     // The panel opens with the turn's calls counted by kind.
     expect(panel.root.findByProps({ testID: "work-kinds" }).props.children).toBe("读取 1 · 编辑 5 · 命令 1");
     act(() => panel.unmount());
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(openId).toBeNull();
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(openId).toBe(block.id);
     act(() => { renderer.update(<><Probe /><TurnWorkCard key="next" agentId="agent" at={11000} work={turn()} store={store} tokens={tokens} compact={compact} /></>); });
     expect(getBlock("agent", block.id)?.mounted).toBe(true);
@@ -152,12 +152,12 @@ describe("turn work card", () => {
 
   it("opens work details even when ordinary block details are disabled", () => {
     act(() => { updateEnhancerPreferences({ blockDetails: false }); });
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(openId).toBe("agent:work:r:10000:done:steps");
   });
 
   it("gives every work step in the independent details the original conversation's tool-output scope", () => {
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     const block = getBlock("agent", openId!)!;
     let panel!: TestRenderer.ReactTestRenderer;
     act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
@@ -177,7 +177,7 @@ describe("turn work card", () => {
       const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
       act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact /></>); });
     }
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     const block = getBlock("agent", openId!)!;
     const shell: DetailsShellValue = {
       agentId: "agent", entry: block, form, detent: "fit", fullscreen: false,
@@ -189,7 +189,7 @@ describe("turn work card", () => {
       <PreviewChromeContext.Provider value="details">{block.render()}</PreviewChromeContext.Provider>
     </DetailsShellContext.Provider>); });
     const title = panel.root.findByProps({ testID: "details-header-title" });
-    expect(title.props.accessibilityLabel).toBe("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒 · 读取了文件 · 编辑了文件 · 运行了命令");
+    expect(title.props.accessibilityLabel).toBe("工作过程 · 7 步 · 7 次工具调用 · 读取了文件 · 编辑了文件 · 运行了命令");
     expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
     const cells = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-cell");
     const list = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-list");
@@ -220,7 +220,7 @@ describe("turn work card", () => {
   it.each([["web", true], ["web", false], ["ios", true], ["ios", false]] as const)(
     "fills the %s details body while keeping cell and intent insets (wrap %s)", (platform, wrap) => {
       (globalThis as { __rnMockOS?: string }).__rnMockOS = platform;
-      pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+      pressText("工作过程 · 7 步 · 7 次工具调用");
       const block = getBlock("agent", openId!)!;
       let panel!: TestRenderer.ReactTestRenderer;
       const actions = { maximizable: false, maximized: false, maximize() {}, close() {}, fill: true,
@@ -249,9 +249,9 @@ describe("turn work card", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
     act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
-    const row = renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    const row = renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "工作过程 · 7 步 · 7 次工具调用");
     expect(row.props.dataSet).toEqual({ bcworkdetails: "agent:work:r:10000:done:steps" });
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     const markers = renderer.root.findAll((node) => (node.type as unknown) === "Animated.View" && node.props?.testID === "details-current-marker");
     expect(markers).toHaveLength(1);
     expect(StyleSheet.flatten(markers[0]!.props.style).borderRadius).toBe(radiusV2.block);
@@ -267,7 +267,7 @@ describe("turn work card", () => {
     settleForm(agentId, 1000, true);
     const markers = () => renderer.root.findAll((node) => (node.type as unknown) === "Animated.View" && node.props?.testID === "details-current-marker");
     expect(markers()).toHaveLength(0);
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(markers()).toHaveLength(1);
     // Another block opens: the title lingers, then lets go.
     act(() => { detailsApi.open(agentId, "other"); });
@@ -276,7 +276,7 @@ describe("turn work card", () => {
     act(() => { vi.advanceTimersByTime(200); });
     expect(markers()).toHaveLength(0);
     // Closed from the panel: the same linger.
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(markers()).toHaveLength(1);
     act(() => { detailsApi.close(agentId); });
     expect(markers()).toHaveLength(1);
@@ -284,7 +284,7 @@ describe("turn work card", () => {
     act(() => { vi.advanceTimersByTime(200); });
     expect(markers()).toHaveLength(0);
     // An outside click clears the marker at once.
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(markers()).toHaveLength(1);
     act(() => { closeDetailsIfCurrent(agentId, `${agentId}:work:r:10000:done:steps`); });
     act(() => { vi.advanceTimersByTime(200); });
@@ -296,41 +296,41 @@ describe("turn work card", () => {
     vi.spyOn(Dimensions, "get").mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 1 });
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
     act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact /></>); });
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(openId).toBe("agent:work:r:10000:done:steps");
     settleForm("agent", 390, false);
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(openId).toBe("agent:work:r:10000:done:steps");
     // A floating panel leaves the row in reach: the tap closes it, as it does a tool row.
     settleForm("agent", 700, false);
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     expect(openId).toBeNull();
   });
 
   it("reports the title's selection to assistive technology, not a collapsed disclosure", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     settleForm("agent", 1000, true);
-    expect(titleRow("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒").props.accessibilityState).toEqual({ selected: false });
-    expect(titleRow("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒").props["aria-expanded"]).toBeUndefined();
-    expect(titleRow("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒").props["aria-pressed"]).toBe(false);
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
-    expect(titleRow("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒").props.accessibilityState).toEqual({ selected: true });
-    expect(titleRow("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒").props["aria-pressed"]).toBe(true);
+    expect(titleRow("工作过程 · 7 步 · 7 次工具调用").props.accessibilityState).toEqual({ selected: false });
+    expect(titleRow("工作过程 · 7 步 · 7 次工具调用").props["aria-expanded"]).toBeUndefined();
+    expect(titleRow("工作过程 · 7 步 · 7 次工具调用").props["aria-pressed"]).toBe(false);
+    pressText("工作过程 · 7 步 · 7 次工具调用");
+    expect(titleRow("工作过程 · 7 步 · 7 次工具调用").props.accessibilityState).toEqual({ selected: true });
+    expect(titleRow("工作过程 · 7 步 · 7 次工具调用").props["aria-pressed"]).toBe(true);
   });
 
   it("shows the details entry's panel icon on hover, not an in-place chevron", () => {
     caps.hover = true;
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
     act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
-    act(() => { titleRow("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒").props.onHoverIn(); });
-    const icons = titleRow("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒").findAll((node) => (node.type as unknown) === "Icon").map((node) => node.props.name);
+    act(() => { titleRow("工作过程 · 7 步 · 7 次工具调用").props.onHoverIn(); });
+    const icons = titleRow("工作过程 · 7 步 · 7 次工具调用").findAll((node) => (node.type as unknown) === "Icon").map((node) => node.props.name);
     expect(icons).toContain("PanelRight");
     expect(icons).not.toContain("ChevronRight");
   });
 
   it("lets a selection of the intent line be translated as the turn's reasoning", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    pressText("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒");
+    pressText("工作过程 · 7 步 · 7 次工具调用");
     const block = getBlock("agent", openId!)!;
     let panel!: TestRenderer.ReactTestRenderer;
     act(() => { panel = TestRenderer.create(<PreviewChromeContext.Provider value="details">{block.render()}</PreviewChromeContext.Provider>); });
@@ -370,7 +370,7 @@ describe("turn work card", () => {
     draw(turn());
     expect(lines()).toEqual([]);
     expect(readDetails("agent").openId).toBe("agent:work:r:10000:done:steps");
-    expect(getBlock("agent", "agent:work:r:10000:done:steps")?.title).toBe("工作过程 · 7 步 · 7 次工具调用 · 用时 9秒 · 读取了文件 · 编辑了文件 · 运行了命令");
+    expect(getBlock("agent", "agent:work:r:10000:done:steps")?.title).toBe("工作过程 · 7 步 · 7 次工具调用 · 读取了文件 · 编辑了文件 · 运行了命令");
   });
 
   it("closes the file card again, and keeps the choice across a remount", () => {

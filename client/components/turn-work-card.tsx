@@ -1,7 +1,7 @@
 /**
  * The standard level's card for one turn's folded work (`state/turn-work.ts`):
  *
- *   ▸ 工作过程 · 9 步 · 12 次工具调用 · 用时 1分18秒   opens the work details and steps
+ *   ▸ 工作过程 · 9 步 · 12 次工具调用   opens the work details and steps
  *   ✎ 已编辑 4 个文件  查看变更       +33 −4
  *     client/paths/format-path.ts       +5 −2      only once the file card
  *     …three paths, then 再显示 N 个文件            is opened
@@ -24,7 +24,6 @@ import { RunningDot } from "../ui/running-dot";
 import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
 import { PathContext, usePathContextValue } from "../ui/path-text";
 import { formatPath } from "../paths/format-path";
-import { formatDuration } from "../ui/time";
 import { useEnhancerPreferences } from "../preferences";
 import { useDisclosure } from "../state/disclosure-store";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
@@ -49,7 +48,7 @@ import type { TurnWork, WorkFile, WorkStep } from "../state/turn-work";
 import type { WorkVerb } from "../tools/standard-fold";
 
 const STRINGS: Record<SettingsLanguage, {
-  worked: string; work: string; read: string; edited: string; ran: string; files: (count: number) => string;
+  work: string; read: string; edited: string; ran: string; files: (count: number) => string;
   someFiles: string; view: string; more: (count: number) => string; fewer: string;
   steps: (count: number) => string; calls: (count: number) => string; thinking: string;
   /** The opened card's count of each kind of call (`callKinds`). */
@@ -58,7 +57,7 @@ const STRINGS: Record<SettingsLanguage, {
   doing: Record<WorkVerb, string>; done: Record<WorkVerb, string>;
 }> = {
   en: {
-    worked: "Worked for {d}", work: "Work", read: "Read files", edited: "Edited files", ran: "Ran commands",
+    work: "Work", read: "Read files", edited: "Edited files", ran: "Ran commands",
     files: (count) => `Edited ${count} ${count === 1 ? "file" : "files"}`, someFiles: "Edited files",
     view: "View changes", more: (count) => `Show ${count} more ${count === 1 ? "file" : "files"}`, fewer: "Show fewer files",
     steps: (count) => `${count} ${count === 1 ? "step" : "steps"}`, thinking: "Thinking",
@@ -69,7 +68,7 @@ const STRINGS: Record<SettingsLanguage, {
     done: { command: "Ran command", read: "Read", edit: "Edited", write: "Wrote" },
   },
   zh: {
-    worked: "用时 {d}", work: "工作过程", read: "读取了文件", edited: "编辑了文件", ran: "运行了命令",
+    work: "工作过程", read: "读取了文件", edited: "编辑了文件", ran: "运行了命令",
     files: (count) => `已编辑 ${count} 个文件`, someFiles: "已编辑的文件",
     view: "查看变更", more: (count) => `再显示 ${count} 个文件`, fewer: "收起文件",
     steps: (count) => `${count} 步`, thinking: "正在思考",
@@ -171,11 +170,9 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   const { language } = useEnhancerPreferences();
   const text = STRINGS[resolveLanguage(language)] ?? STRINGS.en;
   const registration = useRef<{ id: string; handle: BlockRegistration } | null>(null);
-  const lang = resolveLanguage(language);
-  // A settled turn names the card, says how many steps folded into it, how many tools it called, then how long it took.
-  const counts = `${text.work} \u00b7 ${text.steps(work.steps.length)} \u00b7 ${text.calls(work.toolCalls)}`;
-  const label = !work.running && work.complete && work.durationMs !== null
-    ? `${counts} \u00b7 ${text.worked.replace("{d}", formatDuration(work.durationMs, lang))}`
+  // A settled turn names the card, then says how many steps folded into it and how many tools it called.
+  const label = !work.running && work.complete
+    ? `${text.work} \u00b7 ${text.steps(work.steps.length)} \u00b7 ${text.calls(work.toolCalls)}`
     : work.running && work.steps.length ? `${text.work} \u00b7 ${text.steps(work.steps.length)}` : text.work;
   const styles = useCardStyles(tokens);
   const summary = workVerbs(work.steps).map((verb) => text[verb]).join(" · ");
