@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useLayoutEffect, useRef, useState, type RefObject } from "react";
+import React, { useContext, useEffect, useLayoutEffect, useRef, useState, type ReactNode, type RefObject } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type ViewProps } from "react-native";
 import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -9,6 +9,10 @@ import { toolbarLabel } from "../i18n/toolbar-strings";
 import { useCopy } from "./use-copy";
 import { PreviewScrollerContext } from "./preview-scroller";
 import { claimContentTouch } from "../details/touch-claim";
+import { SelectionTranslationContext, selectionViewLoading, useSelectionTranslation, type SelectionTranslationScopeValue } from "../translation/selection";
+import { SelectionTranslationPanel, TranslationSheet, TRANSLATE_ICON } from "../translation/ui";
+import { useTranslationSettingsState } from "../translation/settings-store";
+import { SpinnerRing } from "../tasks/cards/status-icon";
 
 const HOLD_MS = 400;
 const MOVE_SLOP = 8;
@@ -320,34 +324,82 @@ function menuTop(band: { top: number; height: number }, bottom: number): number 
   return below + MENU_HEIGHT <= bottom ? below : band.top + MENU_GAP;
 }
 
-/** The phone's Copy for a gutter range, drawn like the web selection bar, icon and all. */
+/**
+ * The phone's Copy, and Translate where the preview belongs to a conversation,
+ * for a gutter range, drawn like the web selection bar, icons and all.
+ */
 export function LineSelectionMenu({ top, text, tokens, dismiss }: {
   top: number;
   text: string;
   tokens: ExtendedThemeTokens;
   dismiss(): void;
 }) {
+  const scope = useContext(SelectionTranslationContext);
+  const settings = useTranslationSettingsState();
+  // Off in settings hides Translate; any other state explains itself in the sheet.
+  const translatable = scope !== null && !(settings.status === "ready" && !settings.values.enabled);
   const { copy } = useCopy();
   const { language } = useEnhancerPreferences();
-  return (
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  const copyButton = (
+    <Pressable accessibilityRole="button" accessibilityLabel="Copy selected lines"
+      onPress={() => { void copy(text, { feedback: "toast" }).then((ok) => { if (ok && mounted.current) dismiss(); }); }}
+      style={({ pressed }) => [styles.button, pressed && { backgroundColor: floatPressed(tokens) }]}>
+      <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+      <Text selectable={false} style={[unselectable, styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+        {toolbarLabel("Copy", language)}
+      </Text>
+    </Pressable>
+  );
+  const frame = (children: ReactNode) => (
     <View pointerEvents="box-none" style={[styles.slot, { top }]}>
       <View testID="preview-line-selection-menu" style={[styles.menu, tokens.v2.elevation.overlay, {
         backgroundColor: tokens.surface0,
         borderColor: tokens.v2.border,
       }]}>
-        <View style={styles.raise}>
-          <Pressable accessibilityRole="button" accessibilityLabel="Copy selected lines"
-            onPress={() => { void copy(text, { feedback: "toast" }).then((ok) => { if (ok) dismiss(); }); }}
-            style={({ pressed }) => [styles.button, pressed && { backgroundColor: floatPressed(tokens) }]}>
-            <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
-            <Text selectable={false} style={[unselectable, styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
-              {toolbarLabel("Copy", language)}
-            </Text>
-          </Pressable>
-        </View>
+        <View style={styles.raise}>{children}</View>
       </View>
     </View>
   );
+  return translatable
+    ? <LineTranslate scope={scope} text={text} tokens={tokens} dismiss={dismiss} copyButton={copyButton} frame={frame} />
+    : frame(copyButton);
+}
+
+function LineTranslate({ scope, text, tokens, dismiss, copyButton, frame }: {
+  scope: SelectionTranslationScopeValue;
+  text: string;
+  tokens: ExtendedThemeTokens;
+  dismiss(): void;
+  copyButton: ReactNode;
+  frame(children: ReactNode): ReactNode;
+}) {
+  const { language } = useEnhancerPreferences();
+  const { view, start } = useSelectionTranslation(scope, text);
+  const loading = selectionViewLoading(view);
+  // Once shown, the sheet stays through Retry and closes with the selection.
+  const [opened, setOpened] = useState(false);
+  const sheet = view !== null && (opened || !loading);
+  if (sheet && !opened) setOpened(true);
+  if (sheet) {
+    return <TranslationSheet close={dismiss}>
+      <SelectionTranslationPanel original={text} view={view} tokens={tokens} onRetry={start} onClose={dismiss} sheet />
+    </TranslationSheet>;
+  }
+  return frame(<>
+    {copyButton}
+    <View testID="translation-menu-separator" accessible={false} style={[styles.separator, { backgroundColor: tokens.v2.border }]} />
+    <Pressable accessibilityRole="button" accessibilityLabel="Translate selected lines" accessibilityState={{ busy: loading }}
+      onPress={loading ? undefined : start}
+      style={({ pressed }) => [styles.button, pressed && { backgroundColor: floatPressed(tokens) }]}>
+      {loading ? <SpinnerRing size={FLOAT.iconSize} color={tokens.foregroundMuted} testID="selected-lines-translate-spinner" />
+        : <Icon icon={TRANSLATE_ICON} size={FLOAT.iconSize} color={tokens.foregroundMuted} />}
+      <Text selectable={false} style={[unselectable, styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+        {toolbarLabel("Translate", language)}
+      </Text>
+    </Pressable>
+  </>);
 }
 
 const styles = StyleSheet.create({
@@ -358,5 +410,6 @@ const styles = StyleSheet.create({
   // Sized by its icon and label: a `flex: 1` item in a frame sized by its
   // content shrinks to its minimum on iOS and Android, and the label spills out.
   button: { minWidth: 64, paddingHorizontal: 14, borderRadius: FLOAT.itemRadius, flexDirection: "row", gap: FLOAT.iconText, justifyContent: "center", alignItems: "center" },
+  separator: { width: 0.5, height: 20, alignSelf: "center", marginHorizontal: 2 },
   label: { fontSize: 13, fontWeight: "500" },
 });
