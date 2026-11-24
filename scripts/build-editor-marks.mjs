@@ -3,8 +3,8 @@
 //   assets/service-marks/*.{svg,png} as `service:<file name>` (free translation services)
 // An editor .png source is the editor's own macOS app icon, taken from its
 // official app bundle; a .svg source is drawn for marks that have no app icon.
-// Service marks are the vendor logo (Microsoft, Google) or the product's own
-// icon (Tencent TranSmart's site icon).
+// Service marks are the translator product icons (Google Translate, Microsoft
+// logo, Tencent TranSmart site icon).
 //
 //   node scripts/build-editor-marks.mjs
 //
