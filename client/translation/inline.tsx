@@ -10,7 +10,7 @@ import { resolveLanguage } from "../i18n/settings-strings";
 import { useEnhancerPreferences } from "../preferences";
 import { selectionViewLoading, selectionViewMessage, selectionViewRetryable, createSelectionTranslation, type SelectionTranslationView } from "./selection";
 import { useTranslationSettingsState } from "./settings-store";
-import { translationAgentConfigStoreFor, useTranslateCaller, type TranslationSourceKind } from "./store";
+import { useTranslateCaller, type TranslationSourceKind } from "./store";
 import { SHOW_ORIGINAL_ICON, TRANSLATE_ICON } from "./ui";
 import { useHover } from "../ui/use-hover";
 import { hoverFill } from "../tasks/hover-fill";
@@ -33,7 +33,7 @@ function InlineTranslationSession({ agentId, kind, text, streaming, children }: 
   const caller = useTranslateCaller();
   const paseo = usePaseo();
   const translation = useMemo(() => createSelectionTranslation({ agentId, kind, text, streaming, translator: caller,
-    configStore: paseo ? translationAgentConfigStoreFor(paseo) : undefined, host: paseo ?? undefined }), [agentId, kind, text, paseo]);
+    host: paseo ?? undefined }), [agentId, kind, text, paseo]);
   useEffect(() => { translation.setStreaming(streaming); }, [translation, streaming]);
   useEffect(() => { translation.setTranslator(caller); }, [translation, caller]);
   useEffect(() => () => translation.dispose(), [translation]);

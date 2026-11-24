@@ -3,8 +3,8 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
-import { createTimelineTranslator } from "../../server/translation/service";
-import { timelineTranslationSettingsSchema, translationConfigSignature } from "../../shared/timeline-translation";
+import { createTimelineTranslator } from "../../server/translation/helper-service";
+import { timelineTranslationSettingsSchema, translationConfigSignature } from "../../shared/translation-helper-legacy";
 import { connect, createPrivateDaemon, listAllAgents, listAllWorkspaces, paseo, paseoBin, type Connection, type PrivateDaemon } from "./helpers/real-daemon";
 
 const PROVIDER = "bp-lanes";

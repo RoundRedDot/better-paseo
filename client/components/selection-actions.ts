@@ -10,7 +10,6 @@ import { getEnhancerPreferences } from "../preferences";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { translationSettingsSync } from "../translation/settings-store";
-import { translationAgentConfigStoreFor } from "../translation/store";
 import {
   SELECTION_SCOPE_ATTRIBUTES,
   createSelectionTranslation,
@@ -25,8 +24,6 @@ import {
 } from "../translation/selection";
 import { selectionViewTitle } from "../translation/view-text";
 import { openTranslationSettings } from "../translation/navigation";
-import { markId, normalizeProvider } from "./provider-logo";
-import { MONO_MARKS, readMark, requestMark, subscribeMarks } from "./marks";
 import { SYNCED_LOADER_FRAMES } from "../ui/synced-loader";
 
 /**
@@ -377,7 +374,6 @@ const BAR_CSS = `
 .drag-handle { display: none; flex: 1 1 auto; min-width: 24px; align-self: stretch; cursor: move; align-items: center; padding-left: 8px; color: var(--bc-bar-text); font-size: 13px; font-weight: 600; }
 .bar.translating .drag-handle { display: flex; }
 .resize-handle { display: none; position: absolute; right: 0; bottom: 0; width: 16px; height: 16px; cursor: nwse-resize; touch-action: none; }
-.resize-handle::after { content: ""; position: absolute; right: 4px; bottom: 4px; width: 6px; height: 6px; border-right: 1px solid var(--bc-bar-icon); border-bottom: 1px solid var(--bc-bar-icon); opacity: 0.6; }
 .bar.translating .resize-handle { display: block; }
 .resize-edge { display: none; position: absolute; touch-action: none; }
 .bar.translating .resize-edge { display: block; }
@@ -426,7 +422,6 @@ const BAR_CSS = `
 .bar.translating .translate-action { display: none; }
 .row .panel-settings { margin-left: auto; padding: 0; width: 28px; height: 28px; justify-content: center; }
 .panel-model { display: flex; align-items: center; gap: 5px; min-width: 0; }
-.panel-model img, .panel-model .model-mark { width: 11px; height: 11px; flex: 0 0 auto; }
 .panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-grid { display: grid; grid-template-columns: repeat(2, ${10 / 3}px); grid-template-rows: repeat(3, ${10 / 3}px); gap: 2px; width: ${26 / 3}px; height: 14px; flex: 0 0 auto; }
 .activity-dot { width: ${10 / 3}px; height: ${10 / 3}px; border-radius: 50%; background: var(--bc-bar-text); animation-duration: 950ms; animation-timing-function: steps(1, end); animation-iteration-count: infinite; animation-delay: var(--bc-loader-phase); }
@@ -456,7 +451,9 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
 .panel-body::-webkit-scrollbar { width: 4px; height: 4px; }
 .panel-body::-webkit-scrollbar-track { background: transparent; }
 .panel-body::-webkit-scrollbar-thumb { border-radius: 2px; background: color-mix(in srgb, var(--bc-bar-subtle) 40%, transparent); }
-.panel-actions { display: flex; justify-content: flex-end; gap: ${FLOAT.inset}px; }
+.panel-footer { display: flex; align-items: center; gap: 6px; min-width: 0; }
+.panel-head { flex: 1 1 auto; }
+.panel-actions { display: flex; flex: 0 0 auto; justify-content: flex-end; gap: ${FLOAT.inset}px; }
 .panel-actions .btn { position: relative; width: 28px; height: 28px; padding: 0; justify-content: center; }
 .panel-actions .btn span { display: none; }
 .panel-actions .btn::after {
@@ -795,33 +792,16 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     head.appendChild(element("span", "panel-title", selectionViewTitle(view, lang)));
     if (view.modelInfo) {
       const model = element("div", "panel-model");
-      const id = markId(normalizeProvider(view.modelInfo.provider));
-      const uri = readMark(id);
-      if (id && uri === undefined) requestMark(id);
-      if (uri) {
-        if (id && MONO_MARKS.has(id)) {
-          const mark = element("div", "model-mark");
-          mark.style.backgroundColor = "var(--bc-bar-subtle)";
-          mark.style.mask = `url("${uri}") center / contain no-repeat`;
-          model.appendChild(mark);
-        } else {
-          const image = element("img", "model-mark");
-          image.src = uri;
-          image.alt = "";
-          model.appendChild(image);
-        }
-      }
       model.appendChild(element("span", "model-label", view.modelInfo.model));
       head.appendChild(model);
     }
-    panel.appendChild(head);
 
     const text = originalVisible ? source : selectionViewText(view) ?? (view as SelectionTranslationView & { partialText?: string }).partialText ?? null;
-    const message = text && view.status !== "error" && view.status !== "stale" && view.status !== "config-error" ? null : selectionViewMessage(view);
+    const message = text && view.status !== "error" && view.status !== "stale" ? null : selectionViewMessage(view);
     if (text) panel.appendChild(element("div", "panel-body", text));
     if (message) {
       const line = element("div", "panel-message");
-      if (view.status === "running" || view.status === "config-loading" || view.status === "settings-loading") {
+      if (view.status === "running" || view.status === "settings-loading") {
         const grid = element("span", "activity-grid");
         grid.setAttribute("aria-hidden", "true");
         grid.style.setProperty("--bc-loader-phase", `${-(Date.now() % 950)}ms`);
@@ -835,6 +815,8 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     }
 
     const done = view.status === "done" ? view.result.translation : null;
+    const footer = element("div", "panel-footer");
+    footer.appendChild(head);
     if (done !== null || selectionViewRetryable(view)) {
       const buttons = element("div", "panel-actions");
       if (done !== null) {
@@ -850,8 +832,9 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
         const retry = makeButton(buttons, "Retry", "retry", () => actions.retry());
         retry.dataset.action = "retry";
       }
-      panel.appendChild(buttons);
+      footer.appendChild(buttons);
     }
+    panel.appendChild(footer);
   };
 
   const place = (rect: DOMRect, arriving: boolean) => {
@@ -903,7 +886,6 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
   };
 
   const hidden = () => host.style.getPropertyValue("display") === "none";
-  const unsubscribeMarks = subscribeMarks(() => { if (view?.modelInfo) renderPanel(); });
 
   return {
     host,
@@ -1000,7 +982,6 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
       window.clearTimeout(doneTimer);
       window.clearTimeout(leaveTimer);
       window.clearTimeout(copiedTimer);
-      unsubscribeMarks();
       bar.removeEventListener("mousedown", holdSelection);
       host.remove();
     },
@@ -1126,7 +1107,6 @@ function createBlockTranslation(blocks: SelectionBlock[]): SelectionTranslation 
     text: block.text,
     streaming: streaming.some(Boolean),
     translator: block.scope.lent?.translator,
-    configStore: block.scope.lent ? translationAgentConfigStoreFor(block.scope.lent.paseo) : undefined,
     host: block.scope.lent?.paseo,
     blockIndex: index,
   }));
@@ -1256,7 +1236,6 @@ function startController(): Controller {
       text: snapshot.text,
       streaming,
       translator: lent?.translator,
-      configStore: lent ? translationAgentConfigStoreFor(lent.paseo) : undefined,
       host: lent?.paseo,
     });
     const release = job.subscribe(() => {

@@ -3,7 +3,6 @@ import { Platform } from "react-native";
 import { usePaseo } from "@getpaseo/plugin/client";
 import type { PaseoApi } from "@getpaseo/client";
 import type {
-  ConversationAgentModelConfig,
   TimelineTranslationSettings,
   TranslateTimelineItemInput,
   TranslationJobState,
@@ -14,11 +13,8 @@ import { resolveLanguage } from "../i18n/settings-strings";
 import { translationSettingsSync, type TranslationSettingsSnapshot } from "./settings-store";
 import {
   hashTranslationText,
-  translationAgentConfigStoreFor,
   translationStore,
   useTranslateCaller,
-  type AgentConfigState,
-  type TranslationAgentConfigStore,
   type TranslationEntry,
   type TranslationSourceKind,
 } from "./store";
@@ -89,7 +85,6 @@ export function selectionScopeFromDataset(dataset: Record<string, string | undef
 
 export interface SelectionTranslator {
   call(input: TranslateTimelineItemInput): Promise<TranslationJobState>;
-  watch(helperId: string, onChunk: () => void): () => void;
 }
 
 export interface LentTranslator {
@@ -140,12 +135,12 @@ export type SelectionTranslationView = (
   | { status: "disabled" }
   | { status: "streaming"; kind: TranslationSourceKind }
   | { status: "unavailable" }
-  | { status: "config-loading" }
-  | { status: "config-error" }
-  /** The result this selection started under no longer matches the settings or model. */
+  /** Translation is on, but no endpoint or model is set: nothing is sent. */
+  | { status: "unconfigured" }
+  /** The result this selection started under no longer matches the settings. */
   | { status: "stale" }
   | { status: "running"; text?: string; targetCode: string }
-  | { status: "done"; result: ResultNoticeInput; disableThinking: boolean }
+  | { status: "done"; result: ResultNoticeInput }
   | { status: "error"; error: string; targetCode: string }) & { modelInfo?: { provider: string; model: string } };
 
 export interface SelectionTranslationOptions {
@@ -154,7 +149,6 @@ export interface SelectionTranslationOptions {
   text: string;
   streaming: boolean;
   translator: SelectionTranslator | undefined;
-  configStore: TranslationAgentConfigStore | undefined;
   /** The host the text came from (its `PaseoApi`); part of the cache key. */
   host?: object;
   /** Distinguishes repeated text in separate blocks of the same selection. */
@@ -189,7 +183,7 @@ function sameView(a: SelectionTranslationView | null, b: SelectionTranslationVie
     }
     case "done": {
       const other = b as typeof a;
-      return a.result === other.result && a.disableThinking === other.disableThinking;
+      return a.result === other.result;
     }
     case "error": {
       const other = b as typeof a;
@@ -207,10 +201,10 @@ function sameView(a: SelectionTranslationView | null, b: SelectionTranslationVie
 
 /**
  * One reader's Translate press for one selection. It does nothing until
- * `start()`; then it waits for the settings and, without a custom model, for
- * this conversation's model before sending. A result is shown only while it
- * still matches the configuration it was made under: a later settings or model
- * change turns it stale rather than silently showing or re-sending.
+ * `start()`; then it waits for the settings before sending. Without an
+ * endpoint and model nothing is sent. A result is shown only while it still
+ * matches the configuration it was made under: a later settings change turns
+ * it stale rather than silently showing or re-sending.
  *
  * Disposing it (the menu closed or the selection moved) stops listening, and
  * a later `start()` picks up again. A job already in flight still lands in the
@@ -229,20 +223,11 @@ export function createSelectionTranslation(options: SelectionTranslationOptions)
   /** Retry asks for a new job even when a valid one is cached. */
   let force = false;
   let startedJob: string | null = null;
-  /** Listening to settings, the model and the cache; only between `start()` and `dispose()`. */
+  /** Listening to settings and the cache; only between `start()` and `dispose()`. */
   let active = false;
-  let releaseConfig: (() => void) | null = null;
   let releaseSettings: (() => void) | null = null;
   let releaseEntries: (() => void) | null = null;
   let current: SelectionTranslationView | null = null;
-
-  const configState = (): AgentConfigState =>
-    options.configStore ? options.configStore.read(options.agentId) : { status: "error" };
-
-  const holdConfig = (settings: TimelineTranslationSettings) => {
-    if (settings.customModel || releaseConfig || !options.configStore) return;
-    releaseConfig = options.configStore.subscribe(options.agentId, update);
-  };
 
   const compute = (): SelectionTranslationView | null => {
     if (!requested) return null;
@@ -254,22 +239,16 @@ export function createSelectionTranslation(options: SelectionTranslationOptions)
     if (!settings.enabled) return { status: "disabled" };
     if (streaming) return { status: "streaming", kind: options.kind };
     if (!translator) return { status: "unavailable" };
-    holdConfig(settings);
-    let agentConfig: ConversationAgentModelConfig | null = null;
-    if (!settings.customModel) {
-      const config = configState();
-      if (config.status !== "ready") return { status: config.status === "loading" ? "config-loading" : "config-error" };
-      agentConfig = config.config;
-    }
+    if (!settings.endpoint || !settings.endpointModel) return { status: "unconfigured" };
     const lang = interfaceLanguage();
     const targetCode = resolveTranslationTarget(settings.targetLanguage, lang).code;
-    const entry = translationStore.readValid(sourceKey, options.text, settings, lang, agentConfig);
+    const entry = translationStore.readValid(sourceKey, options.text, settings, lang);
     const reusable = entry && !force && (entry.state.state === "running" || entry.state.state === "done" ||
       (entry.state.state === "error" && entry.jobId === startedJob));
     if (!reusable) {
       if (startedJob !== null && !force) {
-        // The job this press made is no longer valid for the current settings
-        // or model; another job needs another press.
+        // The job this press made is no longer valid for the current
+        // settings; another job needs another press.
         return { status: "stale" };
       }
       force = false;
@@ -281,17 +260,15 @@ export function createSelectionTranslation(options: SelectionTranslationOptions)
           text: options.text,
           interfaceLanguage: lang,
           settings,
-          agentConfig,
         },
         translator.call,
-        translator.watch,
       );
-      const started = translationStore.readValid(sourceKey, options.text, settings, lang, agentConfig);
+      const started = translationStore.readValid(sourceKey, options.text, settings, lang);
       startedJob = started?.jobId ?? null;
-      return viewOf(started, targetCode, settings, agentConfig);
+      return viewOf(started, targetCode, settings);
     }
     startedJob ??= entry.jobId;
-    return viewOf(entry, targetCode, settings, agentConfig);
+    return viewOf(entry, targetCode, settings);
   };
 
   // Starting a job notifies the cache, which calls back here; the outer pass
@@ -325,12 +302,7 @@ export function createSelectionTranslation(options: SelectionTranslationOptions)
       active = true;
       // A second press on a shown result, or Retry, makes a new job.
       force = requested && (current?.status === "error" || current?.status === "done" ||
-        current?.status === "stale" || current?.status === "config-error");
-      if (force && current?.status === "config-error") {
-        // Other rows may hold the same feed: ask it to read the model again.
-        options.configStore?.retry(options.agentId);
-        force = false;
-      }
+        current?.status === "stale");
       if (current?.status === "stale") startedJob = null;
       requested = true;
       releaseSettings ??= settingsSource.subscribe(update);
@@ -356,10 +328,9 @@ export function createSelectionTranslation(options: SelectionTranslationOptions)
     },
     dispose() {
       active = false;
-      releaseConfig?.();
       releaseSettings?.();
       releaseEntries?.();
-      releaseConfig = releaseSettings = releaseEntries = null;
+      releaseSettings = releaseEntries = null;
     },
   };
 }
@@ -368,15 +339,13 @@ function viewOf(
   entry: TranslationEntry | undefined,
   targetCode: string,
   settings: TimelineTranslationSettings,
-  agentConfig: ConversationAgentModelConfig | null,
 ): SelectionTranslationView {
-  const provider = settings.customModel ? settings.provider : agentConfig?.provider;
-  const model = settings.customModel ? settings.model : agentConfig?.model;
-  const modelInfo = provider && model ? { provider, model } : undefined;
+  // `provider` picks the logo: the endpoint names its service (`api.openai.com`, ...).
+  const modelInfo = { provider: settings.endpoint, model: settings.endpointModel };
   if (!entry || entry.state.state === "idle") return { status: "running", targetCode, modelInfo };
   switch (entry.state.state) {
     case "running": return { status: "running", text: entry.state.text || undefined, targetCode, modelInfo };
-    case "done": return { status: "done", result: entry.state, disableThinking: settings.disableThinking, modelInfo: { provider: entry.state.provider, model: entry.state.model } };
+    case "done": return { status: "done", result: entry.state, modelInfo: { provider: entry.state.origin, model: entry.state.model } };
     case "error": return { status: "error", error: entry.state.error, targetCode, modelInfo };
   }
 }
@@ -401,7 +370,6 @@ export function useSelectionTranslation(scope: SelectionTranslationScopeValue, t
     text,
     streaming: scope.streaming,
     translator: caller,
-    configStore: paseo ? translationAgentConfigStoreFor(paseo) : undefined,
     host: paseo ?? undefined,
   }), [scope.agentId, scope.kind, text, paseo]);
   useEffect(() => {
@@ -421,7 +389,7 @@ const subscribeIdle = () => startIdle;
 const idleView = () => null;
 
 export function selectionViewLoading(view: SelectionTranslationView | null): boolean {
-  return view?.status === "running" || view?.status === "settings-loading" || view?.status === "config-loading";
+  return view?.status === "running" || view?.status === "settings-loading";
 }
 
 /** The English line a view shows besides the translation itself; `toolbarLabel` localizes it. */
@@ -436,18 +404,17 @@ export function selectionViewMessage(view: SelectionTranslationView): string | n
         ? "Wait until the thought finishes streaming"
         : "Wait until the reply finishes streaming";
     case "unavailable": return "Translation is unavailable for this conversation";
-    case "config-loading": return "Loading conversation model...";
-    case "config-error": return "Could not load conversation model";
-    case "stale": return "Settings or the conversation model changed. Translate again.";
+    case "unconfigured": return "Set a translation endpoint and model in settings";
+    case "stale": return "Translation settings changed. Translate again.";
     case "running": return "Translating...";
     case "error": return "Translation failed";
     case "done": return null;
   }
 }
 
-/** Views a second press can act on: a new job, or a fresh read of the model. */
+/** Views a second press can act on: a new job. */
 export function selectionViewRetryable(view: SelectionTranslationView): boolean {
-  return view.status === "error" || view.status === "done" || view.status === "stale" || view.status === "config-error";
+  return view.status === "error" || view.status === "done" || view.status === "stale";
 }
 
 /** The translation text a view has so far, if any. */

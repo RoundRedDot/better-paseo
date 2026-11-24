@@ -3,7 +3,6 @@ import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-n
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
-import { ProviderLogo } from "../components/provider-logo";
 import { openTranslationSettings, TranslationSettingsParentCloseContext } from "./navigation";
 import { SyncedLoader } from "../ui/synced-loader";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
@@ -88,23 +87,11 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
   const message = text ? null : selectionViewMessage(view);
   const danger = tokens.danger ?? tokens.foreground;
   const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
-  const running = view.status === "running" || view.status === "config-loading" || view.status === "settings-loading";
+  const running = view.status === "running" || view.status === "settings-loading";
   return (
     <View testID="selection-translation-panel" style={[styles.panel, resized && { flex: 1, minHeight: 0 }]}>
       <View testID="translation-header" style={styles.header}>
-        <View style={styles.headerInfo}>
-          <Icon icon={TRANSLATE_ICON} size={12} color={muted} />
-          <Text testID="translation-language" selectable={false} numberOfLines={1}
-            style={[styles.title, { color: muted, fontFamily: tokens.fontUi }]}>
-            {selectionViewTitle(view, lang)}
-          </Text>
-          {view.modelInfo ? <View style={styles.model}>
-            <ProviderLogo provider={view.modelInfo.provider} size={12} neutralColor={muted} />
-            <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: muted, fontFamily: tokens.fontUi }]}>
-              {view.modelInfo.model}
-            </Text>
-          </View> : <View style={{ flex: 1 }} />}
-        </View>
+        <View style={{ flex: 1 }} />
         <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
           <TooltipAlignContext.Provider value="end">
             {view.status === "done" ? <ToolbarItem label={showingOriginal ? "Show translation" : "Show original"} onPress={() => setShowingOriginal(!showingOriginal)} tokens={tokens} hitSlop={8}>
@@ -141,8 +128,21 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
           </SelectionTranslationContext.Provider>
         </ScrollView>
       ) : null}
-      {view.status === "done" || selectionViewRetryable(view) ? (
-        <View style={styles.actions}>
+      <View testID="translation-footer" style={styles.actions}>
+        <View testID="translation-footer-info" style={styles.headerInfo}>
+          <Icon icon={TRANSLATE_ICON} size={12} color={muted} />
+          <Text testID="translation-language" selectable={false} numberOfLines={1}
+            style={[styles.title, { color: muted, fontFamily: tokens.fontUi }]}>
+            {selectionViewTitle(view, lang)}
+          </Text>
+          {view.modelInfo ? <View style={styles.model}>
+            <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: muted, fontFamily: tokens.fontUi }]}>
+              {view.modelInfo.model}
+            </Text>
+          </View> : <View style={{ flex: 1 }} />}
+        </View>
+        {view.status === "done" || selectionViewRetryable(view) ? (
+        <View style={styles.actionButtons}>
           <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
             <TooltipSideContext.Provider value="above"><TooltipAlignContext.Provider value="end">
             {view.status === "done" ? (
@@ -154,7 +154,8 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
             </TooltipAlignContext.Provider></TooltipSideContext.Provider>
           </ToolbarMetricsContext.Provider>
         </View>
-      ) : null}
+        ) : null}
+      </View>
     </View>
   );
 }
@@ -170,5 +171,6 @@ const styles = StyleSheet.create({
   model: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 },
   messageRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   message: { flexShrink: 1, fontSize: 12.5, lineHeight: 18 },
-  actions: { flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 6 },
+  actions: { flexDirection: "row", alignItems: "center", gap: 6 },
+  actionButtons: { flexDirection: "row", alignItems: "center", gap: 6 },
 });

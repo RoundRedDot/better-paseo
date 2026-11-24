@@ -494,7 +494,7 @@ export default function contribute(server: PluginServerContext) {
   server.handle(openTerminalRpc, () => openSystemTerminal(updateCommand()));
   // The Tasks board's settings and its stop RPCs.
   registerTasksServer(server);
-  // Timeline translation helper RPCs and settings.
+  // Timeline translation RPCs and settings.
   registerTimelineTranslation(server);
   // Each turn's token usage, kept on disk for the turn details.
   registerTurnUsageServer(server);

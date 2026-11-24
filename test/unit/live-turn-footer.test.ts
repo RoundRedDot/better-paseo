@@ -186,7 +186,7 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
   });
 
   it("copies and translates the full reply from one footer after a long reply splits into rows", async () => {
-    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "codex", model: "sol" }, "footer");
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "sol" }, "footer");
     const text = Array.from({ length: 60 }, (_, index) => `## Part ${index}\n\n${"Paragraph. ".repeat(40)}\n\n`).join("");
     const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page([
       entry({ type: "user_message", text: "prompt" }, 1, 1000, "long"),

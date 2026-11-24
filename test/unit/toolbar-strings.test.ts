@@ -25,8 +25,8 @@ const TOOLBAR = ["Copied", "Couldn't copy", "Copy thought", "Copy section", "Cop
   "Translate", "Translating...", "Copy translation", "Translation", "Translation failed", "Retry",
   "Wait until the reply finishes streaming", "Wait until the thought finishes streaming", "Loading translation settings...",
   "Translation settings are invalid", "Could not load translation settings", "Translation is turned off in settings",
-  "Loading conversation model...", "Could not load conversation model", "Translation is unavailable for this conversation",
-  "Settings or the conversation model changed. Translate again."];
+  "Translation is unavailable for this conversation", "Set a translation endpoint and model in settings",
+  "Translation settings changed. Translate again."];
 
 describe("toolbar hover names", () => {
   it("includes the copied model name without changing its spelling", () => {

@@ -9,8 +9,6 @@ import {
   timelineTranslationSettingsSchema,
   type TimelineTranslationSettings,
 } from "../../shared/timeline-translation";
-import { ProviderLogo } from "../../client/components/provider-logo";
-import { ModelSettingsControls } from "../../client/model-settings-controls";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { DEFAULT_PREFERENCES, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { Section, SectionFooter, SettingRow } from "../../client/settings-controls";
@@ -23,14 +21,26 @@ import {
 
 const mocks = vi.hoisted(() => ({
   settingsState: null as unknown,
-  modelsRpc: vi.fn(),
+  rpc: vi.fn(),
+  /** The `PaseoApi` of the host whose installation renders the page; one per host. */
+  host: {} as object,
+  // The host's `useRpc` keeps one caller per installation and contract (`useCallback` on context and contract).
+  callers: new WeakMap<object, Map<string, (input: unknown) => unknown>>(),
   saveSpy: vi.fn<(next: TimelineTranslationSettings, rev: string) => Promise<boolean>>(async () => true),
 }));
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", () => ({
   useSettings: () => mocks.settingsState,
-  useRpc: () => mocks.modelsRpc,
+  usePaseo: () => mocks.host,
+  useRpc: (contract: { name: string }) => {
+    const host = mocks.host;
+    let callers = mocks.callers.get(host);
+    if (!callers) mocks.callers.set(host, callers = new Map());
+    let caller = callers.get(contract.name);
+    if (!caller) callers.set(contract.name, caller = (input: unknown) => mocks.rpc(contract.name, input, host));
+    return caller;
+  },
 }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const ReactModule = await import("react");
@@ -51,11 +61,8 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
 });
 
 import { placeLanguageMenu } from "../../client/translation/language-picker";
-import {
-  TimelineTranslationSettings as TimelineTranslationSettingsSection,
-  describeThinkingStatus,
-  resetTranslationSettingsCatalogForTests,
-} from "../../client/translation/settings";
+import { TimelineTranslationSettings as TimelineTranslationSettingsSection } from "../../client/translation/settings";
+import { createEndpointStatusStore } from "../../client/translation/endpoint-status";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -115,35 +122,27 @@ beforeEach(() => {
   resetEnhancerPreferences();
   updateEnhancerPreferences({ language: "en" });
   resetTranslationSettingsStoreForTests();
-  resetTranslationSettingsCatalogForTests();
+  // A fresh host per test: its endpoint status store starts empty.
+  mocks.host = {};
   mocks.saveSpy.mockReset();
-  mocks.modelsRpc.mockReset();
-  mocks.modelsRpc.mockResolvedValue({
-    providers: ["claude", "codex"],
-    providerLabels: { claude: "Claude", codex: "Codex" },
-    models: [
-      {
-        id: "claude-sonnet-4-5",
-        label: "Claude Sonnet 4.5",
-        thinkingOptions: [
-          { id: "minimal", label: "Minimal" },
-          { id: "high", label: "High" },
-        ],
-        defaultThinkingOptionId: "high",
-      },
-      {
-        id: "claude-opus-4-1",
-        label: "Claude Opus 4.1",
-        thinkingOptions: [
-          { id: "off", label: "Off" },
-          { id: "high", label: "High" },
-        ],
-        defaultThinkingOptionId: "high",
-      },
-    ],
-    error: null,
+  mocks.rpc.mockReset();
+  mocks.rpc.mockImplementation(async (name: string, input: { endpoint?: string }) => {
+    if (name === "translation.endpoint-status") return statusFor(input.endpoint ?? "", { status: "none" });
+    throw new Error(`unexpected RPC ${name}`);
   });
 });
+
+const OK_ENDPOINT = "https://api.example.test/v1";
+
+/** What the daemon would answer for `endpoint`; tests only need the ok and invalid shapes. */
+function statusFor(endpoint: string, key: unknown) {
+  if (!endpoint) return { endpoint: { status: "empty" }, key };
+  if (endpoint.startsWith("http://") && !endpoint.startsWith("http://127.0.0.1")) {
+    return { endpoint: { status: "invalid", problem: "insecure_remote" }, key };
+  }
+  const origin = new URL(endpoint).origin;
+  return { endpoint: { status: "ok", requestUrl: `${endpoint.replace(/\/$/, "")}/chat/completions`, origin, loopback: false }, key };
+}
 
 afterEach(() => {
   if (renderer) act(() => renderer!.unmount());
@@ -158,64 +157,6 @@ describe("timeline translation settings", () => {
     expect(timelineTranslationSettingsSchema.parse({ enabled: true }).enabled).toBe(true);
   });
 
-  it("describes thinking capability honestly without claiming unsupported models disable thinking", () => {
-    const base = timelineTranslationSettingsSchema.parse({
-      customModel: true,
-      disableThinking: true,
-      provider: "claude",
-      model: "claude-sonnet-4-5",
-    });
-
-    const supported = describeThinkingStatus(
-      base,
-      {
-        id: "claude-sonnet-4-5",
-        label: "Sonnet",
-        thinkingOptions: [
-          { id: "off", label: "Off" },
-          { id: "high", label: "High" },
-        ],
-        defaultThinkingOptionId: "high",
-      },
-      false,
-      "en",
-    );
-    expect(supported.tone).toBe("accent");
-    expect(supported.text).toContain("off");
-
-    const unsupported = describeThinkingStatus(
-      base,
-      {
-        id: "claude-sonnet-4-5",
-        label: "Sonnet",
-        thinkingOptions: [
-          { id: "minimal", label: "Minimal" },
-          { id: "low", label: "Low" },
-        ],
-        defaultThinkingOptionId: "low",
-      },
-      false,
-      "en",
-    );
-    expect(unsupported.tone).toBe("warning");
-    expect(unsupported.text).toContain("NOT silently downgrade");
-
-    const none = describeThinkingStatus(
-      base,
-      {
-        id: "plain",
-        label: "Plain",
-        thinkingOptions: [],
-        defaultThinkingOptionId: null,
-      },
-      false,
-      "en",
-    );
-    expect(none.tone).toBe("neutral");
-    expect(none.text).toContain("no selectable thinking switch");
-    expect(none.text).not.toContain("thinking is disabled");
-  });
-
   it("toggles master switch, searches 119 languages, and saves selected target language", async () => {
     mocks.settingsState = makeReadySettings({ enabled: true, targetLanguage: "interface" });
 
@@ -226,7 +167,7 @@ describe("timeline translation settings", () => {
     });
 
     const masterSwitch = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable selection translation",
+      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable translation",
     );
     await act(async () => {
       masterSwitch.props.onPress();
@@ -241,7 +182,7 @@ describe("timeline translation settings", () => {
       langTrigger.props.onPress();
     });
 
-    const searchInput = renderer!.root.find((n) => (n.type as unknown) === "TextInput");
+    const searchInput = renderer!.root.find((n) => (n.type as unknown) === "TextInput" && n.props.placeholder === "Search language or code...");
     await act(async () => {
       searchInput.props.onChangeText("sr-latn");
     });
@@ -336,307 +277,176 @@ describe("timeline translation settings", () => {
     }
   });
 
-  it("shows provider logos in the shared menu and refreshes beside the model", async () => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5", thinkingOptionId: "high" });
-    const originalModels = await mocks.modelsRpc({ provider: "claude" });
-    mocks.modelsRpc.mockClear();
-    mocks.modelsRpc.mockImplementation(async ({ provider }: { provider: string }) => provider === "codex"
-      ? { ...originalModels, models: [{ id: "gpt-first", label: "GPT First", thinkingOptions: [{ id: "high", label: "High" }, { id: "low", label: "Low" }], defaultThinkingOptionId: "high" }, { id: "gpt-second", label: "GPT Second", thinkingOptions: [], defaultThinkingOptionId: null }] }
-      : originalModels);
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    const provider = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
-    expect(provider.findAllByType(ProviderLogo).length).toBe(1);
-    await act(async () => { provider.props.onPress(); });
-    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
-    expect(option.findAllByType(ProviderLogo).length).toBe(1);
-    await act(async () => { option.props.onPress(); });
-    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex", model: "gpt-first", thinkingOptionId: "high" }), "rev-1");
-    const refresh = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
-    expect(refresh.findAll((n) => n.props.name === "RefreshCw").length).toBeGreaterThan(0);
-    await act(async () => { refresh.props.onPress(); });
-    expect(mocks.modelsRpc).toHaveBeenCalledWith({ provider: "claude" });
-  });
-
-  it.each([
-    { current: "", expected: "low" },
-    { current: "ultra", expected: "low" },
-    { current: "high", expected: "high" },
-  ])("picks a supported thinking level on provider change: $current → $expected", async ({ current, expected }) => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5", thinkingOptionId: current });
-    mocks.modelsRpc.mockResolvedValue({
-      providers: ["claude", "codex"], providerLabels: { claude: "Claude", codex: "Codex" },
-      models: [{ id: "first", label: "First", thinkingOptions: [{ id: "high", label: "High" }, { id: "low", label: "Low" }], defaultThinkingOptionId: "high" }], error: null,
-    });
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    const provider = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
-    await act(async () => { provider.props.onPress(); });
-    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
-    await act(async () => { option.props.onPress(); });
-    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex", model: "first", thinkingOptionId: expected }), "rev-1");
-  });
-
-  it.each([
-    { current: "high", expected: "high" },
-    { current: "", expected: "minimal" },
-    { current: "ultra", expected: "minimal" },
-  ])("keeps or picks a supported level when the model changes: $current → $expected", async ({ current, expected }) => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-opus-4-1", thinkingOptionId: current });
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
-    await act(async () => { trigger.props.onPress(); });
-    const model = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Claude Sonnet 4.5");
-    await act(async () => { model.props.onPress(); });
-    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ model: "claude-sonnet-4-5", thinkingOptionId: expected }), "rev-1");
-  });
-
-  it("saves the new provider with no model when its catalog is empty", async () => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5", thinkingOptionId: "high" });
-    mocks.modelsRpc.mockResolvedValue({ providers: ["claude", "codex"], providerLabels: { codex: "Codex" }, models: [], error: null });
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
-    await act(async () => { trigger.props.onPress(); });
-    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
-    await act(async () => { option.props.onPress(); });
-    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "codex", model: "", thinkingOptionId: "" }), "rev-1");
-  });
-
-  it("keeps the current provider when its new model catalog fails to load", async () => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
-    mocks.modelsRpc.mockImplementation(async ({ provider }: { provider: string }) => provider === "codex"
-      ? { providers: ["claude", "codex", "cursor"], providerLabels: { codex: "Codex", cursor: "Cursor" }, models: [], error: "Catalog unavailable" }
-      : { providers: ["claude", "codex"], providerLabels: { codex: "Codex" }, models: [], error: null });
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
-    await act(async () => { trigger.props.onPress(); });
-    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
-    await act(async () => { option.props.onPress(); });
-    expect(mocks.saveSpy).not.toHaveBeenCalled();
-    expect(textValues(renderer!.root)).toContain("Catalog unavailable");
-    await act(async () => { trigger.props.onPress(); });
-    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" &&
-      n.props.accessibilityLabel?.startsWith("Cursor")).length).toBeGreaterThan(0);
-  });
-
-  it("shows when no providers are enabled", async () => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "", model: "" });
-    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error: null });
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    expect(textValues(renderer!.root)).toContain("No providers are enabled in Paseo.");
-    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
-    expect(trigger.props.disabled).toBe(true);
-    expect(mocks.saveSpy).not.toHaveBeenCalled();
-  });
-
-  it.each(["en", "zh"] as const)("keeps the saved provider visible when the host lists no enabled providers (%s)", async (lang) => {
-    updateEnhancerPreferences({ language: lang });
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "high" });
-    mocks.modelsRpc.mockResolvedValue({ providers: [], providerLabels: {}, models: [], error: "Provider unavailable" });
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(false, lang) })); });
-    const texts = () => textValues(renderer!.root);
-    // The saved provider still names the control, but is not a choice.
-    expect(texts()).toContain("Oh My Pi");
-    for (const label of [lang === "zh" ? "Provider" : "Provider", lang === "zh" ? "模型" : "Model"]) {
-      const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
-      expect(trigger.props.disabled).toBe(true);
-    }
-    expect(texts()).toContain(lang === "zh"
-      ? "Paseo 中没有启用的 Provider。"
-      : "No providers are enabled in Paseo.");
-    expect(mocks.saveSpy).not.toHaveBeenCalled();
-  });
-
-  it.each(["en", "zh"] as const)("offers enabled providers when the saved one is unavailable (%s)", async (lang) => {
-    updateEnhancerPreferences({ language: lang });
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "high" });
-    const good = await mocks.modelsRpc({ provider: "claude" });
-    mocks.modelsRpc.mockReset().mockImplementation(async ({ provider }: { provider: string }) => provider === "omp"
-      ? { providers: ["claude"], providerLabels: { claude: "Claude" }, models: [], error: 'Provider "omp" is unavailable.' }
-      : { ...good, providers: ["claude"], providerLabels: { claude: "Claude" } });
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook(false, lang) })); });
-    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
-    await act(async () => { trigger.props.onPress(); });
-    expect([...new Set(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel))]).toEqual(["Claude"]);
-    expect(textValues(renderer!.root)).toContain(lang === "zh"
-      ? "已保存的 Provider「Oh My Pi」当前不可用。可从列表中选择已启用的 Provider 来更改设置。"
-      : "The saved provider Oh My Pi is unavailable. Choose an enabled provider to change the saved selection.");
-    expect(mocks.saveSpy).not.toHaveBeenCalled();
-    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Claude");
-    await act(async () => { option.props.onPress(); });
-    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ provider: "claude", model: "claude-sonnet-4-5" }), "rev-1");
-  });
-
-  it("stops offering a provider's cached models once the host no longer lists that provider", async () => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "omp", model: "omp-model", thinkingOptionId: "" });
-    const ompModels = [{ id: "omp-model", label: "OMP Model", thinkingOptions: [], defaultThinkingOptionId: null }, { id: "omp-other", label: "OMP Other", thinkingOptions: [], defaultThinkingOptionId: null }];
-    let supported = ["claude", "omp"];
-    mocks.modelsRpc.mockReset().mockImplementation(async ({ provider }: { provider: string }) => supported.includes(provider) || !provider
-      ? { providers: supported, providerLabels: { claude: "Claude" }, models: provider === "omp" ? ompModels : [], error: null }
-      : { providers: supported, providerLabels: { claude: "Claude" }, models: [], error: `Provider "${provider}" is unavailable.` });
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    const radios = () => [...new Set(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel))];
-    const open = async (label: string) => {
-      const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
-      await act(async () => { trigger.props.onPress(); });
-    };
-    await open("Model");
-    expect(radios()).toEqual(["OMP Model", "OMP Other"]);
-    act(() => renderer!.unmount());
-
-    // The host stops reporting omp; its models are still in the page's cache.
-    supported = ["claude"];
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    const refresh = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
-    await act(async () => { refresh.props.onPress(); });
-    await open("Model");
-    expect(radios()).toEqual([]);
-    // The saved model still names the control; nothing was cleared or saved.
-    expect(textValues(renderer!.root)).toContain("omp-model");
-    expect(mocks.saveSpy).not.toHaveBeenCalled();
-  });
-
-  it("still offers a saved provider and model the catalog lacks by default, as title generation expects", async () => {
-    const noop = () => {};
+  const input = (label: string) => renderer!.root.find((n) => (n.type as unknown) === "TextInput" && n.props.accessibilityLabel === label);
+  const pressable = (label: string) => renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
+  const render = async (values: Partial<TimelineTranslationSettings>, lang: "en" | "zh" = "en") => {
+    mocks.settingsState = makeReadySettings({ enabled: true, ...values });
+    const page = <TimelineTranslationSettingsSection look={makeLook(false, lang)} />;
     await act(async () => {
-      renderer = TestRenderer.create(React.createElement(ModelSettingsControls, {
-        look: makeLook(), language: "en", provider: "omp", model: "omp-model", thinkingOptionId: "", disableThinking: false,
-        disabledThinkingLabel: "", disabled: false, loading: false, providers: ["claude"], providerLabels: { claude: "Claude" }, models: [],
-        onProvider: noop, onModel: noop, onThinking: noop, onRefresh: noop,
-      }));
+      if (renderer) renderer.update(page);
+      else renderer = TestRenderer.create(page);
     });
-    const radios = () => [...new Set(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio").map((n) => n.props.accessibilityLabel))];
-    for (const [label, expected] of [["Provider", ["Claude", "Oh My Pi"]], ["Model", ["omp-model"]]] as const) {
-      const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
-      await act(async () => { trigger.props.onPress(); });
-      expect(radios()).toEqual(expected);
-      await act(async () => { trigger.props.onPress(); });
-    }
-  });
+    await act(async () => {});
+  };
 
-  it("reads a provider's catalog again on the next visit after it failed", async () => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
-    const good = await mocks.modelsRpc({ provider: "claude" });
-    mocks.modelsRpc.mockReset().mockResolvedValueOnce({ ...good, models: [], error: "Catalog unavailable" }).mockResolvedValue(good);
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    expect(textValues(renderer!.root)).toContain("Catalog unavailable");
-    act(() => renderer!.unmount());
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    expect(mocks.modelsRpc).toHaveBeenCalledTimes(2);
-    expect(textValues(renderer!.root)).not.toContain("Catalog unavailable");
-    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
-    await act(async () => { trigger.props.onPress(); });
-    expect(renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Claude Opus 4.1").length).toBeGreaterThan(0);
-  });
-
-  it("keeps the newest catalog when an earlier page's read answers after a later page's", async () => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
-    const good = await mocks.modelsRpc({ provider: "claude" });
-    const older = { ...good, models: [{ id: "old-model", label: "Old Model", thinkingOptions: [], defaultThinkingOptionId: null }] };
-    let answerFirst!: (value: unknown) => void;
-    mocks.modelsRpc.mockReset()
-      .mockImplementationOnce(() => new Promise((resolve) => { answerFirst = resolve; }))
-      .mockResolvedValue(good);
-    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook() });
-    // The page opens and closes while its read hangs; the next page reads again and answers first.
-    await act(async () => { renderer = TestRenderer.create(page()); });
-    act(() => renderer!.unmount());
-    await act(async () => { renderer = TestRenderer.create(page()); });
-    act(() => renderer!.unmount());
-    await act(async () => { answerFirst(older); });
-    await act(async () => { renderer = TestRenderer.create(page()); });
-    expect(mocks.modelsRpc).toHaveBeenCalledTimes(2);
-    const trigger = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Model");
-    await act(async () => { trigger.props.onPress(); });
-    const radio = (label: string) => renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === label).length;
-    expect(radio("Claude Opus 4.1")).toBeGreaterThan(0);
-    expect(radio("Old Model")).toBe(0);
-  });
-
-  it.each([false, true])("ignores a provider selection overtaken by a catalog read (unmounted=%s)", async (unmount) => {
-    const cached = makeReadySettings({ enabled: true, customModel: true, provider: "claude" });
-    mocks.settingsState = cached;
-    const good = await mocks.modelsRpc({ provider: "claude" });
-    let finish!: (value: unknown) => void;
-    mocks.modelsRpc.mockReset().mockResolvedValueOnce(good)
-      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }))
-      .mockResolvedValue(good);
-    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook() });
-    await act(async () => { renderer = TestRenderer.create(page()); });
-    const provider = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
-    await act(async () => { provider.props.onPress(); });
-    await act(async () => { renderer!.root.findAll((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex")[0]!.props.onPress(); });
-    if (unmount) {
-      await act(async () => renderer!.unmount());
-      renderer = undefined;
-    } else {
-      // The settings query can change the current provider independently of this page.
-      mocks.settingsState = { ...makeReadySettings({ enabled: true, customModel: true, provider: "cursor" }), revision: "rev-2" };
-      await act(async () => { renderer!.update(page()); });
-      expect(mocks.modelsRpc).toHaveBeenLastCalledWith({ provider: "cursor" });
-    }
-    await act(async () => { finish(good); });
+  it("keeps edits as drafts until Save configuration and saves them together", async () => {
+    await render({ endpoint: "", endpointModel: "" });
+    await act(async () => input("API Base URL").props.onChangeText(`  ${OK_ENDPOINT} `));
+    await act(async () => input("Model").props.onChangeText("gpt-test"));
     expect(mocks.saveSpy).not.toHaveBeenCalled();
+    await act(async () => pressable("Save configuration").props.onPress());
+    expect(mocks.saveSpy).toHaveBeenLastCalledWith(expect.objectContaining({ endpoint: OK_ENDPOINT, endpointModel: "gpt-test" }), "rev-1");
+  });
+
+  it("tests unsaved values and reports the result without saving", async () => {
+    mocks.rpc.mockImplementation(async (name: string, request: { endpoint: string }) => {
+      if (name === "translation.test") return { ok: true };
+      return statusFor(request.endpoint, { status: "none" });
+    });
+    await render({ endpoint: "", endpointModel: "" });
+    await act(async () => input("API Base URL").props.onChangeText(OK_ENDPOINT));
+    await act(async () => input("API key").props.onChangeText("example-key"));
+    await act(async () => input("Model").props.onChangeText("model-one"));
+    await act(async () => pressable("Test connection").props.onPress());
+    expect(mocks.rpc).toHaveBeenCalledWith("translation.test", { endpoint: OK_ENDPOINT, model: "model-one", apiKey: "example-key" }, mocks.host);
+    expect(textValues(renderer!.root)).toContain("Connection successful. The model responded.");
+    expect(mocks.saveSpy).not.toHaveBeenCalled();
+    await act(async () => input("Model").props.onChangeText("model-two"));
+    expect(textValues(renderer!.root)).not.toContain("Connection successful. The model responded.");
+  });
+
+  it("shows a failed connection test and allows retry", async () => {
+    mocks.rpc.mockImplementation(async (name: string, request: { endpoint: string }) => {
+      if (name === "translation.test") throw new Error("HTTP 401");
+      return statusFor(request.endpoint, { status: "none" });
+    });
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    await act(async () => pressable("Test connection").props.onPress());
+    expect(textValues(renderer!.root)).toContain("Connection failed: HTTP 401");
+    expect(pressable("Test connection").props.disabled).toBe(false);
+  });
+
+  it("saves a key only after its endpoint and clears the write-only draft", async () => {
+    const key = "sk-settings-SECRET-42";
+    let saved = false;
+    mocks.rpc.mockImplementation(async (name: string, request: { endpoint: string; action?: string }) => {
+      if (name === "translation.api-key") saved = request.action === "save";
+      return statusFor(request.endpoint, saved ? { status: "saved", origin: "https://api.example.test", matches: true } : { status: "none" });
+    });
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    expect(input("API key").props.secureTextEntry).toBe(true);
+    await act(async () => pressable("Show API key").props.onPress());
+    expect(input("API key").props.secureTextEntry).toBe(false);
+    await act(async () => input("API key").props.onChangeText(key));
+    await act(async () => pressable("Save configuration").props.onPress());
+    expect(mocks.saveSpy).toHaveBeenCalledOnce();
+    expect(mocks.rpc).toHaveBeenCalledWith("translation.api-key", { action: "save", endpoint: OK_ENDPOINT, apiKey: key }, mocks.host);
+    expect(input("API key").props.value).toBe("");
+    expect(input("API key").props.secureTextEntry).toBe(true);
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain(key);
+    await act(async () => pressable("Clear key").props.onPress());
+    expect(mocks.rpc).toHaveBeenLastCalledWith("translation.api-key", { action: "clear", endpoint: OK_ENDPOINT }, mocks.host);
+  });
+
+  it("does not send the key if saving the endpoint fails", async () => {
+    mocks.settingsState = makeReadySettings({ enabled: true, endpoint: OK_ENDPOINT, endpointModel: "m" }, { saveResult: false });
+    await act(async () => { renderer = TestRenderer.create(<TimelineTranslationSettingsSection look={makeLook()} />); });
+    await act(async () => input("API Base URL").props.onChangeText("https://new.example.test/v1"));
+    await act(async () => input("API key").props.onChangeText("draft-key"));
+    await act(async () => pressable("Save configuration").props.onPress());
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === "translation.api-key")).toEqual([]);
+    expect(input("API key").props.value).toBe("draft-key");
+    expect(textValues(renderer!.root)).toContain("Could not save configuration.");
+  });
+
+  it("does not carry one host's saved key status into another host", async () => {
+    const hostA = {};
+    const hostB = {};
+    mocks.rpc.mockImplementation(async (_name: string, request: { endpoint: string }, host: object) => statusFor(request.endpoint,
+      host === hostA ? { status: "saved", origin: "https://api.example.test", matches: true } : { status: "none" }));
+    mocks.host = hostA;
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    expect(textValues(renderer!.root)).toContain("A key is saved for https://api.example.test.");
+    mocks.host = hostB;
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    expect(textValues(renderer!.root)).not.toContain("A key is saved for https://api.example.test.");
+    expect(textValues(renderer!.root)).toContain("No key saved: requests carry no Authorization header.");
+  });
+
+  it("reads again when a key write is overtaken by a read on the same host", async () => {
+    const store = createEndpointStatusStore();
+    const deferred = () => {
+      let resolve!: (value: unknown) => void;
+      const promise = new Promise<never>((done) => { resolve = done as never; });
+      return { promise, resolve };
+    };
+    const write = deferred();
+    const firstRead = deferred();
+    const reads = vi.fn()
+      .mockImplementationOnce(() => firstRead.promise)
+      .mockImplementationOnce(async () => statusFor(OK_ENDPOINT, { status: "saved", origin: "https://api.example.test", matches: true }));
+    const writing = store.write(OK_ENDPOINT, () => write.promise);
+    void store.read(OK_ENDPOINT, reads);
+    // The read went out before the write was applied: it still sees no key.
+    firstRead.resolve(statusFor(OK_ENDPOINT, { status: "none" }));
+    await Promise.resolve(); await Promise.resolve();
+    expect(store.snapshot()).toMatchObject({ status: "ready", value: { key: { status: "none" } } });
+    write.resolve(statusFor(OK_ENDPOINT, { status: "saved", origin: "https://api.example.test", matches: true }));
+    expect(await writing).toEqual({ kind: "superseded" });
+    // The overtaken write does not publish its own answer, but the latest read runs once more.
+    await vi.waitFor(() => expect(reads).toHaveBeenCalledTimes(2));
+    await vi.waitFor(() => expect(store.snapshot()).toMatchObject({ status: "ready", value: { key: { status: "saved" } } }));
+  });
+
+  it("keeps the draft and shows the error when saving a key fails", async () => {
+    mocks.rpc.mockImplementation(async (name: string, request: { endpoint: string }) => {
+      if (name === "translation.api-key") throw new Error("The API key must be printable ASCII without spaces.");
+      return statusFor(request.endpoint, { status: "none" });
+    });
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    await act(async () => input("API key").props.onChangeText("has space"));
+    await act(async () => pressable("Save configuration").props.onPress());
+    expect(input("API key").props.value).toBe("has space");
+    expect(textValues(renderer!.root)).toContain("The API key must be printable ASCII without spaces.");
+  });
+
+  it("warns that a key saved for another origin blocks translation", async () => {
+    mocks.rpc.mockImplementation(async (_name: string, request: { endpoint: string }) =>
+      statusFor(request.endpoint, { status: "saved", origin: "https://old.example.test", matches: false }));
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    expect(textValues(renderer!.root)).toContain(
+      "The saved key belongs to https://old.example.test. Translation is blocked until you save a key for this endpoint or clear it.");
+    expect(pressable("Clear key").props.disabled).toBe(false);
   });
 
   it.each([
-    { provider: "cursor" }, { customModel: false }, { enabled: false }, { targetLanguage: "ja" },
-  ])("ignores a provider selection after settings change to %j without another catalog read", async (patch) => {
-    const good = await mocks.modelsRpc({ provider: "claude" });
-    let finish!: (value: unknown) => void;
-    mocks.modelsRpc.mockReset().mockResolvedValueOnce(good).mockResolvedValueOnce(good)
-      .mockImplementationOnce(() => new Promise((resolve) => { finish = resolve; }));
-    const original = { enabled: true, customModel: true, provider: "claude" };
-    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook() });
-    mocks.settingsState = makeReadySettings({ ...original, provider: "cursor" });
-    await act(async () => { renderer = TestRenderer.create(page()); });
-    mocks.settingsState = makeReadySettings(original);
-    await act(async () => { renderer!.update(page()); });
-    const provider = renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Provider");
-    await act(async () => { provider.props.onPress(); });
-    const option = renderer!.root.find((n) => n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === "Codex");
-    await act(async () => { option.props.onPress(); });
-    mocks.settingsState = { ...makeReadySettings({ ...original, ...patch }), revision: "rev-2" };
-    await act(async () => { renderer!.update(page()); });
-    expect(mocks.modelsRpc.mock.calls).toEqual([[{ provider: "cursor" }], [{ provider: "claude" }], [{ provider: "codex" }]]);
-    await act(async () => { finish(good); });
-    expect(mocks.saveSpy).not.toHaveBeenCalled();
+    ["en", ["directly to the endpoint above", "The request offers no tools", "Stored unencrypted", "does not use the conversation's provider, model or account"]],
+    ["zh", ["直接发送到上方端点", "请求不提供任何工具", "以明文保存在 daemon 所在机器", "不使用会话的 Provider、模型或账号"]],
+  ] as const)("states where text goes and how the key is stored (%s)", async (lang, phrases) => {
+    updateEnhancerPreferences({ language: lang });
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" }, lang);
+    const texts = textValues(renderer!.root).join("\n");
+    for (const phrase of phrases) expect(texts).toContain(phrase);
+    expect(texts).not.toMatch(/helper agent|辅助 Agent/);
   });
 
-  it("fetches the active provider's models after previously fetching only the provider list", async () => {
-    const good = await mocks.modelsRpc({ provider: "claude" });
-    mocks.modelsRpc.mockReset().mockResolvedValueOnce({ ...good, models: [] }).mockResolvedValueOnce(good);
-    const page = () => React.createElement(TimelineTranslationSettingsSection, { look: makeLook() });
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "" });
-    await act(async () => { renderer = TestRenderer.create(page()); });
-    mocks.settingsState = { ...makeReadySettings({ enabled: true, customModel: true, provider: "claude" }), revision: "rev-2" };
-    await act(async () => { renderer!.update(page()); });
-    expect(mocks.modelsRpc.mock.calls).toEqual([[{ provider: "" }], [{ provider: "claude" }]]);
+  it("shows only the latest endpoint status when an earlier read answers last", async () => {
+    let answerFirst!: (value: unknown) => void;
+    mocks.rpc.mockImplementationOnce(() => new Promise((resolve) => { answerFirst = resolve; }));
+    await render({ endpoint: "https://first.example.test/v1", endpointModel: "m" });
+    await render({ endpoint: OK_ENDPOINT, endpointModel: "m" });
+    expect(textValues(renderer!.root)).toContain("The Paseo daemon sends selected text to POST https://api.example.test/v1/chat/completions.");
+    await act(async () => answerFirst(statusFor("https://first.example.test/v1", { status: "none" })));
+    const texts = textValues(renderer!.root);
+    expect(texts).toContain("The Paseo daemon sends selected text to POST https://api.example.test/v1/chat/completions.");
+    expect(texts.join("\n")).not.toContain("first.example.test");
   });
 
-  it("shows only the latest catalog read's error and loading state", async () => {
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: "claude-sonnet-4-5" });
-    const good = await mocks.modelsRpc({ provider: "claude" });
-    let failFirst!: (error: Error) => void;
-    mocks.modelsRpc.mockReset()
-      .mockImplementationOnce(() => new Promise((_, reject) => { failFirst = reject; }))
-      .mockResolvedValue(good);
-    await act(async () => { renderer = TestRenderer.create(React.createElement(TimelineTranslationSettingsSection, { look: makeLook() })); });
-    const refresh = () => renderer!.root.find((n) => n.props.accessibilityRole === "button" && n.props.accessibilityLabel === "Refresh models");
-    expect(refresh().props.disabled).toBe(true);
-    // The reader refreshes while the first read hangs; the refresh answers first.
-    await act(async () => { refresh().props.onPress(); });
-    expect(refresh().props.disabled).toBe(false);
-    await act(async () => { failFirst(new Error("offline")); });
-    expect(textValues(renderer!.root)).not.toContain("offline");
-    expect(refresh().props.disabled).toBe(false);
-  });
-
-  it("loads the model catalog without an unsupported-thinking warning and edits/resets prompt", async () => {
+  it("lists the endpoint rows in order and edits/resets the prompt", async () => {
     mocks.settingsState = makeReadySettings({
       enabled: true,
-      customModel: true,
-      provider: "claude",
-      model: "claude-sonnet-4-5",
-      disableThinking: true,
+      endpoint: OK_ENDPOINT,
+      endpointModel: "test-model",
     });
 
     await act(async () => {
@@ -646,14 +456,12 @@ describe("timeline translation settings", () => {
     });
     await act(async () => {});
 
-    expect(mocks.modelsRpc).toHaveBeenCalledWith({ provider: "claude" });
+    expect(mocks.rpc).toHaveBeenCalledWith("translation.endpoint-status", { endpoint: OK_ENDPOINT }, mocks.host);
     const allTexts = textValues(renderer!.root).join("\n");
-    expect(allTexts).not.toContain("does not expose an off, none, or disabled thinking option");
-    expect(allTexts).toContain("Disable thinking when supported");
+    expect(allTexts).not.toMatch(/Provider|Thinking level|Disable thinking/);
     const section = renderer!.root.findByType(Section);
     expect(section.findAllByType(SettingRow).map((row) => row.props.title)).toEqual([
-      "Enable selection translation", "Target language", "Choose provider and model",
-      "Provider", "Model", "Thinking level", "Disable thinking when supported",
+      "Enable translation", "API Base URL", "API key", "Model", "Test connection", "Target language",
       "Translation prompt", "Restore default translation settings",
     ]);
     expect(section.findByType(SectionFooter)).toBeDefined();
@@ -699,9 +507,11 @@ describe("timeline translation settings", () => {
       confirmBtn.props.onPress();
     });
     expect(mocks.saveSpy).toHaveBeenLastCalledWith(
-      expect.objectContaining({ prompt: DEFAULT_TRANSLATION_PROMPT, enabled: false, targetLanguage: "interface" }),
+      expect.objectContaining({ prompt: DEFAULT_TRANSLATION_PROMPT, enabled: false, targetLanguage: "interface", endpoint: "", endpointModel: "" }),
       "rev-1",
     );
+    // Restoring defaults leaves the saved key alone: no key RPC.
+    expect(mocks.rpc.mock.calls.filter(([name]) => name === "translation.api-key")).toEqual([]);
   });
 
   it("shows an untouched earlier default prompt as the default and saves the current text", async () => {
@@ -738,7 +548,7 @@ describe("timeline translation settings", () => {
     await act(async () => button("Cancel").props.onPress());
 
     const masterSwitch = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable selection translation",
+      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable translation",
     );
     await act(async () => {
       masterSwitch.props.onPress();
@@ -756,9 +566,9 @@ describe("timeline translation settings", () => {
   });
 
   it("keeps the footer in place while saving and shows errors in context", async () => {
-    const ready = makeReadySettings({ enabled: true, customModel: true, provider: "claude" });
+    const ready = makeReadySettings({ enabled: true, endpoint: OK_ENDPOINT, endpointModel: "m" });
     mocks.settingsState = ready;
-    mocks.modelsRpc.mockResolvedValue({ providers: ["claude"], models: [], error: "Model catalog offline" });
+    mocks.rpc.mockRejectedValue(new Error("Status offline"));
     const look = makeLook();
     const page = <TimelineTranslationSettingsSection look={look} />;
     await act(async () => { renderer = TestRenderer.create(page); });
@@ -776,46 +586,44 @@ describe("timeline translation settings", () => {
     await updateState({ ...ready, saving: true });
     expect(root().props["aria-busy"]).toBe(true);
     expect(footerTop()).toBe(topBeforeSave);
-    const enabled = renderer!.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Enable selection translation");
+    const enabled = renderer!.root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Enable translation");
     expect(enabled.props.disabled).toBe(true);
     await updateState({ ...ready, saveError: "Write rejected" });
     expect(root().props["aria-busy"]).toBe(false);
-    expect(alerts().map((node) => node.children.join(""))).toEqual(["Model catalog offline", "Write rejected"]);
+    expect(alerts().map((node) => node.children.join(""))).toEqual(["Write rejected"]);
     for (const alert of alerts()) expect(alert.props.style).toContainEqual(expect.objectContaining({ color: look.tokens.danger }));
     const texts = textValues(renderer!.root);
-    expect(texts.indexOf("Model catalog offline")).toBeGreaterThan(texts.indexOf("Thinking level"));
-    expect(texts.indexOf("Model catalog offline")).toBeLessThan(texts.lastIndexOf("Disable thinking when supported"));
+    const statusLine = texts.findIndex((text) => text === "Could not check the endpoint: Status offline");
+    expect(statusLine).toBeGreaterThan(texts.indexOf("API Base URL"));
+    expect(statusLine).toBeLessThan(texts.indexOf("Model"));
     expect(texts.indexOf("Write rejected")).toBeGreaterThan(texts.indexOf("Restore default translation settings"));
     expect(texts.indexOf("Write rejected")).toBeLessThan(texts.indexOf("Manual only"));
     await updateState({ ...ready, status: "error", error: "Host offline" });
     expect(alerts()).toHaveLength(1);
     expect(alerts()[0]!.children.join("")).toContain("Host offline");
     const failedTexts = textValues(renderer!.root);
-    expect(failedTexts.findIndex((text) => text.includes("Host offline"))).toBeLessThan(failedTexts.indexOf("Enable selection translation"));
+    expect(failedTexts.findIndex((text) => text.includes("Host offline"))).toBeLessThan(failedTexts.indexOf("Enable translation"));
   });
 
-  it.each([[false, 280, 32], [false, 320, 32], [false, 440, 32], [true, 320, 44]])("fits the dropdowns at a large text size (compact %s, width %i)", async (compact, width, refreshSize) => {
-    const model = { id: "model", label: "A model with a very long display name", thinkingOptions: [], defaultThinkingOptionId: null };
-    mocks.modelsRpc.mockResolvedValue({ providers: ["claude"], models: [model], error: null });
-    mocks.settingsState = makeReadySettings({ enabled: true, customModel: true, provider: "claude", model: model.id });
+  it.each([[false, 280], [false, 320], [false, 440], [true, 320]])("fits the language menu and key row at a large text size (compact %s, width %i)", async (compact, width) => {
+    mocks.settingsState = makeReadySettings({ enabled: true, endpoint: OK_ENDPOINT, endpointModel: "a-model-with-a-very-long-identifier" });
     await act(async () => {
-      renderer = TestRenderer.create(<TimelineTranslationSettingsSection look={makeLook(compact)} />);
+      renderer = TestRenderer.create(<TimelineTranslationSettingsSection look={makeLook(compact as boolean)} />);
     });
     const root = renderer!.root.findByType(Section).findAll((node) => node.type === ("View" as React.ElementType))[0]!;
-    const frames = measureHostTree(root, { width, wrapText: true, textScale: 1.4 });
-    const buttonFrame = (label: string) => frames.get(root.find((node) =>
-      typeof node.type === "string" && node.props.accessibilityRole === "button" && node.props.accessibilityLabel === label,
+    const frames = measureHostTree(root, { width: width as number, wrapText: true, textScale: 1.4 });
+    const frameOf = (label: string) => frames.get(root.find((node) =>
+      typeof node.type === "string" && node.props.accessibilityLabel === label &&
+      (node.props.accessibilityRole === "button" || (node.type as unknown) === "TextInput"),
     ))!;
-    for (const label of ["Target language", "Provider", "Model", "Thinking level"]) {
-      const frame = buttonFrame(label);
-      if (label === "Target language") expect(frame.width).toBeGreaterThanOrEqual(168);
-      if (label === "Provider") expect(frame.width).toBeLessThan(168);
-      expect(frame.left + frame.width, label).toBeLessThanOrEqual(width - 16);
+    expect(frameOf("Target language").width).toBeGreaterThanOrEqual(168);
+    for (const label of ["Target language", "API Base URL", "Model", "API key", "Show API key", "Test connection", "Save configuration"]) {
+      const frame = frameOf(label);
+      expect(frame.width, label).toBeGreaterThan(0);
+      expect(frame.left + frame.width, label).toBeLessThanOrEqual((width as number) - 16);
     }
     const target = root.find((node) => typeof node.type === "string" && node.props.accessibilityLabel === "Target language");
-    const chevron = target.findByType("Icon" as never);
-    expect(frames.get(chevron)?.width).toBe(14);
-    expect(buttonFrame("Refresh models")).toMatchObject({ width: refreshSize, height: refreshSize });
+    expect(frames.get(target.findByType("Icon" as never))?.width).toBe(14);
   });
 
   it("renders natively in Chinese and uses Modal for language picker on iOS", async () => {
@@ -855,7 +663,7 @@ describe("timeline translation settings", () => {
     expect(getTranslationSettingsState()).toMatchObject({ status: "ready", revision: "rev-1", values: { enabled: true } });
 
     const masterSwitch = renderer!.root.find(
-      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable selection translation",
+      (n) => n.props.accessibilityRole === "switch" && n.props.accessibilityLabel === "Enable translation",
     );
     await act(async () => {
       masterSwitch.props.onPress();

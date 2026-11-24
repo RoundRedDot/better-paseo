@@ -16,7 +16,6 @@ import {
   resetTranslationSettingsStoreForTests,
 } from "../../client/translation/settings-store";
 import {
-  createTranslationAgentConfigStore,
   resetTranslationStoreForTests,
   translationStore,
 } from "../../client/translation/store";
@@ -192,6 +191,8 @@ function collectTexts(root: ReactTestInstance): string[] {
 let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 let agentApi: ReturnType<typeof createMockAgentApi>;
 
+const CONFIGURED = { ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "test-model" };
+
 beforeEach(() => {
   (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
   mocks.hover = true;
@@ -202,7 +203,7 @@ beforeEach(() => {
   resetEnhancerPreferences();
   updateEnhancerPreferences({ language: "en", assistantMarkdown: true });
   resetTranslationSettingsStoreForTests();
-  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "init-1");
+  publishTranslationSettings(CONFIGURED, "init-1");
   resetTranslationStoreForTests();
 });
 
@@ -212,147 +213,18 @@ afterEach(() => {
   delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
 });
 
-describe("timeline translation agent configuration", () => {
-  it("shares one feed per host and one initial refresh per visible agent", async () => {
-    const config = createTranslationAgentConfigStore(agentApi.api);
-    const retireReply = config.subscribe("agent-1", vi.fn());
-    const retireThought = config.subscribe("agent-1", vi.fn());
-    const retireOther = config.subscribe("agent-2", vi.fn());
-    expect(config.read("agent-1")).toEqual({ status: "loading" });
-    expect(agentApi.refresh).not.toHaveBeenCalled();
-
-    await vi.waitFor(() => expect(config.read("agent-1").status).toBe("ready"));
-    expect(agentApi.list).toHaveBeenCalledOnce();
-    expect(agentApi.refresh.mock.calls).toEqual([["agent-1"], ["agent-2"]]);
-
-    const otherApi = createMockAgentApi();
-    otherApi.setAgent({ effectiveThinkingOptionId: "low" });
-    const otherHost = createTranslationAgentConfigStore(otherApi.api);
-    const retireHost = otherHost.subscribe("agent-1", vi.fn());
-    await vi.waitFor(() => expect(otherHost.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "low" } }));
-    expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "high" } });
-
-    const feed = agentApi.subscriptions[0]!;
-    retireReply();
-    retireThought();
-    expect(feed.release).not.toHaveBeenCalled();
-    retireOther();
-    expect(feed.unobserve).toHaveBeenCalledOnce();
-    expect(feed.release).toHaveBeenCalledOnce();
-    expect(otherApi.subscriptions[0]!.release).not.toHaveBeenCalled();
-    retireHost();
-  });
-
-  it("refreshes on reconnect and keeps live configuration ahead of late reads", async () => {
-    const config = createTranslationAgentConfigStore(agentApi.api);
-    const listener = vi.fn();
-    const retire = config.subscribe("agent-1", listener);
-    await vi.waitFor(() => expect(config.read("agent-1").status).toBe("ready"));
-    const feed = agentApi.subscriptions[0]!;
-    const delayed = deferred<{ agent: RawAgentConfig }>();
-    agentApi.refresh.mockReturnValueOnce(delayed.promise);
-    feed.reconnect();
-    expect(config.read("agent-1")).toEqual({ status: "loading" });
-    expect(agentApi.refresh).toHaveBeenCalledTimes(2);
-
-    const beforeUpdate = listener.mock.calls.length;
-    agentApi.setAgent({ effectiveThinkingOptionId: "low", updatedAt: "2026-11-19T10:01:00.000Z" }, "agent-1");
-    expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "low" } });
-    feed.update("agent-1", initialAgent);
-    delayed.resolve({ agent: initialAgent });
-    await delayed.promise;
-    expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "low" } });
-    expect(listener).toHaveBeenCalledTimes(beforeUpdate + 1);
-
-    agentApi.setAgent({ effectiveThinkingOptionId: null, thinkingOptionId: "off" }, "other-agent");
-    feed.reconnect();
-    await vi.waitFor(() => expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "off" } }));
-    expect(agentApi.list).toHaveBeenCalledOnce();
-    retire();
-  });
-
-  it("releases a late feed after the last row leaves and ignores refreshes from retired entries", async () => {
-    const firstFeed = await agentApi.list({});
-    const opening = deferred<typeof firstFeed>();
-    agentApi.list.mockClear().mockReturnValueOnce(opening.promise);
-    const config = createTranslationAgentConfigStore(agentApi.api);
-    const retire = config.subscribe("agent-1", vi.fn());
-    retire();
-    expect(agentApi.list.mock.calls[0]?.[0].signal?.aborted).toBe(true);
-
-    const oldRefresh = deferred<{ agent: RawAgentConfig }>();
-    agentApi.refresh.mockReturnValueOnce(oldRefresh.promise);
-    const retireOld = config.subscribe("agent-1", vi.fn());
-    await vi.waitFor(() => expect(agentApi.refresh).toHaveBeenCalledOnce());
-    opening.resolve(firstFeed);
-    await opening.promise;
-    expect(firstFeed.subscription.release).toHaveBeenCalledOnce();
-    expect(agentApi.refresh).toHaveBeenCalledOnce();
-
-    retireOld();
-    agentApi.setAgent({ effectiveThinkingOptionId: "medium" });
-    const retireNew = config.subscribe("agent-1", vi.fn());
-    await vi.waitFor(() => expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "medium" } }));
-    oldRefresh.resolve({ agent: initialAgent });
-    await oldRefresh.promise;
-    expect(config.read("agent-1")).toMatchObject({ config: { thinkingOptionId: "medium" } });
-    retireNew();
-  });
-
-  it("does not restart a failed feed when retry notification removes its last reader", async () => {
-    agentApi.list.mockRejectedValueOnce(new Error("offline"));
-    const config = createTranslationAgentConfigStore(agentApi.api);
-    const retire = config.subscribe("agent-1", () => {
-      if (config.read("agent-1").status === "loading") retire();
-    });
-    await vi.waitFor(() => expect(config.read("agent-1").status).toBe("error"));
-    config.retry("agent-1");
-    expect(agentApi.list).toHaveBeenCalledOnce();
-  });
-
-  it("does not refresh a conversation that drops its last reader during retry", async () => {
-    agentApi.refresh.mockResolvedValueOnce(null);
-    const config = createTranslationAgentConfigStore(agentApi.api);
-    const retire = config.subscribe("agent-1", () => {
-      if (config.read("agent-1").status === "loading") retire();
-    });
-    await vi.waitFor(() => expect(config.read("agent-1").status).toBe("error"));
-    config.retry("agent-1");
-    expect(agentApi.refresh).toHaveBeenCalledOnce();
-    expect(agentApi.subscriptions[0]!.release).toHaveBeenCalledOnce();
-  });
-
-  it("stops the failed feed from publishing after a reader restarts it", async () => {
-    const config = createTranslationAgentConfigStore(agentApi.api);
-    const retireFirst = config.subscribe("agent-1", () => {
-      if (config.read("agent-1").status === "error") config.retry("agent-1");
-    });
-    const retireSecond = config.subscribe("agent-2", vi.fn());
-    await vi.waitFor(() => expect(config.read("agent-2").status).toBe("ready"));
-    agentApi.subscriptions[0]!.fail(new Error("offline"));
-    expect(config.read("agent-2").status).toBe("loading");
-    await vi.waitFor(() => expect(config.read("agent-2").status).toBe("ready"));
-    expect(agentApi.list).toHaveBeenCalledTimes(2);
-    retireFirst();
-    retireSecond();
-  });
-});
-
-
 function doneState(translation: string, extra: Record<string, unknown> = {}) {
   return {
     state: "done" as const,
     translation,
     targetLanguageCode: "zh-CN",
-    provider: "claude",
-    model: "claude-sonnet-4-5",
-    thinkingMode: "disabled" as const,
-    thinkingOptionId: "off",
+    origin: "https://api.example.test",
+    model: "test-model",
     ...extra,
   };
 }
 
-const translator = () => ({ call: mocks.rpc as never, watch: () => () => {} });
+const translator = () => ({ call: mocks.rpc as never });
 
 describe.each(["web", "ios", "android"] as const)("%s whole-message translation", (platform) => {
   it("hides the action when translation is disabled", async () => {
@@ -454,7 +326,7 @@ describe.each(["web", "ios", "android"] as const)("%s thought translation", (pla
     publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false }, "thought-off");
     await act(async () => { renderer = TestRenderer.create(card); });
     expect(renderer!.root.findAll((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate")).toHaveLength(0);
-    await act(async () => { publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "thought-on"); });
+    await act(async () => { publishTranslationSettings(CONFIGURED, "thought-on"); });
     const pending = deferred<ReturnType<typeof doneState>>();
     mocks.rpc.mockReturnValueOnce(pending.promise);
     const button = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "reasoning-translate");
@@ -474,7 +346,7 @@ describe.each(["web", "ios", "android"] as const)("%s thought translation", (pla
 });
 
 it("uses each message's own host for whole-message translation", async () => {
-  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "claude", model: "model" }, "custom");
+  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "model" }, "custom");
   const other = createMockAgentApi();
   const firstRpc = vi.fn().mockResolvedValue(doneState("first"));
   const secondRpc = vi.fn().mockResolvedValue(doneState("second"));
@@ -499,7 +371,6 @@ function selection(text: string, overrides: Partial<Parameters<typeof createSele
     text,
     streaming: false,
     translator: translator(),
-    configStore: createTranslationAgentConfigStore(agentApi.api),
     interfaceLanguage: () => "en",
     ...overrides,
   });
@@ -512,35 +383,46 @@ async function settle() {
 }
 
 describe("selection translation", () => {
-  it("sends nothing until Translate, then exactly the selected text with the observed model", async () => {
+  it("sends nothing until Translate, then exactly the selected text under the configured endpoint", async () => {
     mocks.rpc.mockResolvedValue(doneState("你好"));
     const job = selection("Hello there");
     await settle();
     expect(job.view()).toBeNull();
-    expect(agentApi.refresh).not.toHaveBeenCalled();
     expect(mocks.rpc).not.toHaveBeenCalled();
 
     job.start();
-    expect(job.view()).toEqual({ status: "config-loading" });
+    expect(job.view()).toMatchObject({ status: "running", modelInfo: { provider: "https://api.example.test/v1", model: "test-model" } });
     await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
     expect(mocks.rpc).toHaveBeenCalledOnce();
     const input = mocks.rpc.mock.calls[0]![0];
     expect(input).toMatchObject({
       action: "start", agentId: "agent-1", text: "Hello there", sourceKind: "assistant_message", interfaceLanguage: "en",
     });
-    expect(JSON.parse(input.configSignature)).toMatchObject({ provider: "claude", model: "claude-sonnet-4-5", thinkingOptionId: "high" });
-    expect(job.view()).toMatchObject({ status: "done", result: { translation: "你好" } });
+    expect(JSON.parse(input.configSignature)).toEqual({
+      enabled: true, targetCode: "en", endpoint: "https://api.example.test/v1", endpointModel: "test-model", prompt: CONFIGURED.prompt,
+    });
+    expect(job.view()).toMatchObject({ status: "done", result: { translation: "你好" }, modelInfo: { provider: "https://api.example.test", model: "test-model" } });
+    // The conversation's own provider and model are never read.
+    expect(agentApi.refresh).not.toHaveBeenCalled();
+    expect(agentApi.list).not.toHaveBeenCalled();
     job.dispose();
   });
 
-  it("uses the custom model without reading the conversation model", async () => {
-    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "codex", model: "gpt-5" }, "custom");
+  it.each([
+    ["no endpoint", { endpoint: "" }],
+    ["no model", { endpointModel: "" }],
+  ])("sends nothing with %s and says what to set", async (_label, patch) => {
+    // Settings migrated from the helper translator: enabled, a provider and model, no endpoint.
+    publishTranslationSettings({ ...CONFIGURED, customModel: true, provider: "codex", model: "gpt-5", ...patch }, "unconfigured");
     mocks.rpc.mockResolvedValue(doneState("好"));
     const job = selection("Fine");
     job.start();
+    await settle();
+    expect(job.view()).toEqual({ status: "unconfigured" });
+    expect(mocks.rpc).not.toHaveBeenCalled();
+    publishTranslationSettings(CONFIGURED, "configured");
     await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
-    expect(agentApi.list).not.toHaveBeenCalled();
-    expect(JSON.parse(mocks.rpc.mock.calls[0]![0].configSignature)).toMatchObject({ provider: "codex", model: "gpt-5" });
+    expect(mocks.rpc).toHaveBeenCalledOnce();
     job.dispose();
   });
 
@@ -559,7 +441,7 @@ describe("selection translation", () => {
     expect(mocks.rpc).not.toHaveBeenCalled();
     job.dispose();
 
-    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true }, "on");
+    publishTranslationSettings(CONFIGURED, "on");
     const streaming = selection("Partial", { streaming: true, kind: "reasoning" });
     streaming.start();
     expect(streaming.view()).toEqual({ status: "streaming", kind: "reasoning" });
@@ -612,14 +494,17 @@ describe("selection translation", () => {
     again.dispose();
   });
 
-  it("turns stale instead of re-sending when settings or the model change, and errors offer retry", async () => {
+  it("turns stale instead of re-sending when settings change, and errors offer retry", async () => {
     mocks.rpc.mockResolvedValueOnce(doneState("一")).mockRejectedValueOnce(new Error("quota")).mockResolvedValue(doneState("二"));
     const job = selection("One", { agentId: "agent-model-switch" });
     job.start();
     await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
+    // The conversation switching models does not touch an endpoint translation.
     agentApi.setAgent({ model: "claude-opus-4-5", updatedAt: "2026-11-19T10:05:00.000Z" });
+    expect(job.view()?.status).toBe("done");
+    publishTranslationSettings({ ...CONFIGURED, endpointModel: "other-model" }, "model");
     expect(job.view()).toEqual({ status: "stale" });
-    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, targetLanguage: "ja" }, "ja");
+    publishTranslationSettings({ ...CONFIGURED, endpointModel: "other-model", targetLanguage: "ja" }, "ja");
     expect(job.view()).toEqual({ status: "stale" });
     await settle();
     expect(mocks.rpc).toHaveBeenCalledOnce();
@@ -627,65 +512,12 @@ describe("selection translation", () => {
     job.start();
     await vi.waitFor(() => expect(job.view()?.status).toBe("error"));
     expect(job.view()).toMatchObject({ status: "error", error: "quota" });
-    expect(JSON.parse(mocks.rpc.mock.calls[1]![0].configSignature)).toMatchObject({ model: "claude-opus-4-5", targetCode: "ja" });
+    expect(JSON.parse(mocks.rpc.mock.calls[1]![0].configSignature)).toMatchObject({ endpointModel: "other-model", targetCode: "ja" });
     job.start();
     await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
     expect(mocks.rpc).toHaveBeenCalledTimes(3);
     job.dispose();
   });
-
-  it("reports a model read failure and reads again on retry", async () => {
-    agentApi.refresh.mockResolvedValueOnce(null);
-    mocks.rpc.mockResolvedValue(doneState("好"));
-    const job = selection("Model");
-    job.start();
-    await vi.waitFor(() => expect(job.view()).toEqual({ status: "config-error" }));
-    expect(mocks.rpc).not.toHaveBeenCalled();
-    job.start();
-    await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
-    expect(agentApi.refresh).toHaveBeenCalledTimes(2);
-    job.dispose();
-    // Disposing releases the model feed it held.
-    expect(agentApi.subscriptions[0]!.release).toHaveBeenCalled();
-  });
-
-  it("reads the model again on retry while another row of the same conversation holds it", async () => {
-    agentApi.refresh.mockResolvedValueOnce(null);
-    mocks.rpc.mockResolvedValue(doneState("好"));
-    const config = createTranslationAgentConfigStore(agentApi.api);
-    const retireRow = config.subscribe("agent-1", vi.fn());
-    await vi.waitFor(() => expect(config.read("agent-1")).toEqual({ status: "error" }));
-    const job = selection("Model", { configStore: config });
-    job.start();
-    expect(job.view()).toEqual({ status: "config-error" });
-    job.start();
-    await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
-    expect(agentApi.refresh).toHaveBeenCalledTimes(2);
-    job.dispose();
-    retireRow();
-  });
-
-  it("restarts a failed model feed on retry while other conversations keep it open", async () => {
-    agentApi.list.mockRejectedValueOnce(new Error("offline"));
-    mocks.rpc.mockResolvedValue(doneState("好"));
-    const config = createTranslationAgentConfigStore(agentApi.api);
-    const otherListener = vi.fn();
-    const retireOther = config.subscribe("agent-2", otherListener);
-    await vi.waitFor(() => expect(config.read("agent-2")).toEqual({ status: "error" }));
-    const job = selection("Model", { configStore: config });
-    job.start();
-    expect(job.view()).toEqual({ status: "config-error" });
-    job.start();
-    await vi.waitFor(() => expect(job.view()?.status).toBe("done"));
-    expect(agentApi.list).toHaveBeenCalledTimes(2);
-    // The other conversation's row recovers with the same feed.
-    expect(config.read("agent-2")).toMatchObject({ status: "ready" });
-    expect(otherListener).toHaveBeenCalled();
-    job.dispose();
-    retireOther();
-    expect(agentApi.subscriptions[0]!.release).toHaveBeenCalledOnce();
-  });
-
 
 });
 
@@ -1059,7 +891,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(0);
 
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(2), { timeout: 2500 });
-    await act(async () => reply.resolve(doneState("第二段。", { thinkingMode: "unsupported_off", thinkingOptionId: "low" })));
+    await act(async () => reply.resolve(doneState("第二段。")));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。"));
     expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-menu")).toHaveLength(0);
     expect(button("Copy translation")).toHaveLength(1);
@@ -1099,11 +931,13 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     } finally {
       vi.useRealTimers();
     }
-    expect(collectTexts(renderer!.root.findByProps({ testID: "translation-model" })).join(" ")).toBe("claude-sonnet-4-5");
+    expect(collectTexts(renderer!.root.findByProps({ testID: "translation-model" })).join(" ")).toBe("test-model");
     const header = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header");
     expect(header.props.style).toMatchObject({ minHeight: 36, alignItems: "center" });
-    expect(header.findAll((node) => node.props.testID === "translation-language").length).toBeGreaterThan(0);
-    expect(header.findAll((node) => node.props.testID === "translation-model").length).toBeGreaterThan(0);
+    const footer = renderer!.root.findByProps({ testID: "translation-footer" });
+    expect(footer.findAll((node) => node.props.testID === "translation-language").length).toBeGreaterThan(0);
+    expect(footer.findAll((node) => node.props.testID === "translation-model").length).toBeGreaterThan(0);
+    expect(header.findAll((node) => node.props.testID === "translation-language")).toHaveLength(0);
     const divider = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header-divider");
     expect(divider.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ height: 0.5 })]));
     expect(collectTexts(header).join(" ")).not.toContain("Translation ·");

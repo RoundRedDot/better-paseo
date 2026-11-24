@@ -3,7 +3,7 @@ import type { PaseoApi } from "../../server/paseo-types";
 import { readModelCatalog } from "../../server/model-catalog";
 import { modelSelection } from "../../shared/model-catalog";
 import { titleModelsRpc } from "../../shared/title-generation";
-import { translationModelsRpc } from "../../shared/timeline-translation";
+import { translationModelsRpc } from "../../shared/translation-helper-legacy";
 
 describe("shared model catalog", () => {
   it("uses the same catalog contract and keeps selectable models in provider order", async () => {

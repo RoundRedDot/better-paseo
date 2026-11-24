@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from "vitest";
-import { registerTimelineTranslation } from "../../server/translation/service";
+import { registerTimelineTranslation } from "../../server/translation/helper-service";
 import type { PaseoApi } from "../../server/paseo-types";
-import { translationModelsRpc } from "../../shared/timeline-translation";
+import { translationModelsRpc } from "../../shared/translation-helper-legacy";
 
 describe("translation model catalog", () => {
   it("lists enabled providers and their models on a host without a tool-free API", async () => {

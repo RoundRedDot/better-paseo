@@ -102,7 +102,7 @@ const hosts = new Map<typeof call, object>();
 /** One API object per translator: each stands for a host. */
 const lent = (fn: typeof call) => {
   if (!hosts.has(fn)) hosts.set(fn, {});
-  return { translator: { call: fn, watch: () => () => {} }, paseo: hosts.get(fn) as never };
+  return { translator: { call: fn }, paseo: hosts.get(fn) as never };
 };
 
 /** A scoped Markdown root as `MarkdownView` binds it, translator included (`via`, null for none). */
@@ -129,8 +129,7 @@ async function flush() {
   await act(async () => { for (let i = 0; i < 6; i += 1) await Promise.resolve(); });
 }
 function done(translation: string) {
-  return { state: "done", translation, targetLanguageCode: "zh-CN", provider: "codex", model: "gpt-5",
-    thinkingMode: "custom", thinkingOptionId: null };
+  return { state: "done", translation, targetLanguageCode: "zh-CN", origin: "https://api.example.test", model: "gpt-5" };
 }
 
 beforeEach(() => {
@@ -173,8 +172,8 @@ beforeEach(() => {
   resetEnhancerPreferences();
   updateEnhancerPreferences({ language: "en" });
   resetTranslationSettingsStoreForTests();
-  // A custom model: the bar needs no conversation model read.
-  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "codex", model: "gpt-5" }, "custom");
+  // A configured endpoint and model: the bar needs no conversation model read.
+  publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "gpt-5" }, "custom");
   resetTranslationStoreForTests();
   call.mockReset();
   copy.mockClear();
@@ -386,7 +385,7 @@ describe("selection bar Translate", () => {
     doc.dispatchEvent(new Event("selectionchange")); vi.advanceTimersByTime(0);
     button("Translate")!.click(); await flush();
     expect(call).toHaveBeenCalledTimes(2);
-    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "codex", model: "gpt-5", targetLanguage: "ja" }, "changed");
+    publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "gpt-5", targetLanguage: "ja" }, "changed");
     await flush(); expect(call).toHaveBeenCalledTimes(2);
     button("Retry")!.click(); await flush();
     expect(call.mock.calls.map((args) => args[0].text)).toEqual(["First", "Second", "First", "Second"]);
@@ -488,7 +487,7 @@ describe("selection bar Translate", () => {
     const retry = vi.fn();
     const settings = vi.fn();
     const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close, retry, settings }, "Original message");
-    popup.setView({ status: "done", result: done("完整译文") as never, disableThinking: false });
+    popup.setView({ status: "done", result: done("完整译文") as never });
     expect(bar().classList.contains("standalone")).toBe(true);
     expect(host().querySelector(".panel-heading")?.textContent).toBe("Translate");
     button("Show original")!.click();
@@ -500,7 +499,7 @@ describe("selection bar Translate", () => {
     updateEnhancerPreferences({ language: "zh" });
     popup.setView({ status: "running", targetCode: "zh-CN", text: "译文" });
     expect(host().querySelector(".panel-heading")?.textContent).toBe("翻译");
-    popup.setView({ status: "done", result: done("完整译文") as never, disableThinking: false });
+    popup.setView({ status: "done", result: done("完整译文") as never });
     expect(panel().textContent).toContain("完整译文");
     const bodyPress = new Event("mousedown", { cancelable: true });
     Object.defineProperty(bodyPress, "target", { value: panel().querySelector(".panel-body") });
@@ -659,6 +658,9 @@ describe("selection bar Translate", () => {
     expect(head.querySelector(".activity-grid")).toBeNull();
     expect(head.querySelector(".panel-model")?.textContent).toBe("gpt-5");
     expect(head.querySelector(".panel-title")?.textContent).toBe("English");
+    expect(head.parentElement?.className).toBe("panel-footer");
+    expect(panel().querySelector(".panel-footer")?.children[0]).toBe(head);
+    expect(head.querySelector(".model-mark")).toBeNull();
     expect(head.textContent).not.toContain("Translation ·");
     expect(button("Translation settings")?.parentElement?.className).toBe("row");
     expect(button("Translation settings")?.hidden).toBe(false);
@@ -673,7 +675,7 @@ describe("selection bar Translate", () => {
 
     const markup = '<img src=x onerror="alert(1)">';
     await vi.waitFor(() => expect(call).toHaveBeenCalledTimes(2), { timeout: 2500 });
-    await act(async () => finish({ ...done(markup), thinkingMode: "unsupported_off", thinkingOptionId: "low" }));
+    await act(async () => finish(done(markup)));
     await flush();
     const text = panel().querySelector(".panel-body")!;
     expect(text.textContent).toBe(markup);
@@ -701,7 +703,7 @@ describe("selection bar Translate", () => {
     expect(Number.parseInt(host().style.getPropertyValue("top"), 10)).toBeGreaterThanOrEqual(8);
   });
 
-  it("redraws a fading panel that showed the original after its selection is gone", async () => {
+  it("keeps a fading panel stable after its selection is gone", async () => {
     const { seedMarkBitmaps } = await import("../../client/components/marks");
     call.mockResolvedValue(done("译文"));
     select("the selected words", surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
@@ -714,9 +716,8 @@ describe("selection bar Translate", () => {
     selected = null;
     doc.dispatchEvent(Object.assign(new Event("keydown"), { key: "Escape" }));
     expect(() => seedMarkBitmaps({ "lobe:codex": "data:image/png;base64,AA==" })).not.toThrow();
-    expect(panel().querySelector(".panel-body")?.textContent).toBe("译文");
-    expect(button("Copy translation")).toBeDefined();
-    expect(button("Copy original")).toBeUndefined();
+    expect(panel().querySelector(".panel-body")?.textContent).toBe("the selected words");
+    expect(button("Copy original")).toBeDefined();
     vi.advanceTimersByTime(200);
     expect(display()).toBe("none");
   });

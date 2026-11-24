@@ -564,7 +564,7 @@ function InlineReplyBlock({ state, theme, tokens: given, compact, text, firstBlo
     [source, metrics, ruleHeight, monoLineHeight, firstBlock, codexDirectives]);
   const top = gap + center - REPLY_TRANSLATE_GUTTER / 2;
   const enabled = settings.status !== "ready" || settings.values.enabled;
-  const loading = state.active && state.view && ["running", "settings-loading", "config-loading"].includes(state.view.status);
+  const loading = state.active && state.view && ["running", "settings-loading"].includes(state.view.status);
   const gutter = enabled ? REPLY_TRANSLATE_GUTTER : 0;
   // The slot is positioned in the content's own box, so a status notice above
   // the content does not shift it, and that box spans the gutter so the slot

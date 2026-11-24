@@ -1,4 +1,3 @@
-import { modelCatalogSchema } from "./model-catalog";
 import { defineRpc, defineSettings } from "@getpaseo/plugin";
 import { z } from "zod";
 import {
@@ -36,42 +35,22 @@ function currentDefaultPrompt(prompt: string): string {
   return PREVIOUS_DEFAULT_TRANSLATION_PROMPTS.includes(prompt) ? DEFAULT_TRANSLATION_PROMPT : prompt;
 }
 
-/**
- * Only these option IDs represent genuinely disabling thinking on a model.
- * Non-off levels such as "minimal" or "low" are never treated as disabled.
- */
-export const THINKING_OFF_IDS = ["off", "none", "disabled"] as const;
-
-export interface ThinkingOptionInfo {
-  id: string;
-  label: string;
-}
-
-export type ThinkingCapability =
-  | { status: "supported"; offOption: ThinkingOptionInfo; options: readonly ThinkingOptionInfo[] }
-  | { status: "unsupported_off"; options: readonly ThinkingOptionInfo[] }
-  | { status: "none" };
-
-export function isRealThinkingOffId(id: string | null | undefined): boolean {
-  if (!id) return false;
-  const normalized = id.trim().toLowerCase();
-  return (THINKING_OFF_IDS as readonly string[]).includes(normalized);
-}
-
-export function resolveThinkingCapability(
-  options: readonly ThinkingOptionInfo[] | null | undefined,
-): ThinkingCapability {
-  const list = options ?? [];
-  if (list.length === 0) return { status: "none" };
-  for (const offId of THINKING_OFF_IDS) {
-    const match = list.find((option) => option.id.trim().toLowerCase() === offId);
-    if (match) return { status: "supported", offOption: match, options: list };
-  }
-  return { status: "unsupported_off", options: list };
-}
+export const TRANSLATION_ENDPOINT_MAX_LENGTH = 2048;
+export const TRANSLATION_MODEL_MAX_LENGTH = 256;
 
 export const timelineTranslationSettingsSchema = z.object({
   enabled: z.boolean().catch(false),
+  /**
+   * The OpenAI-compatible base URL (or full `/chat/completions` URL) the
+   * daemon sends translations to. Empty means nothing is ever sent. The server
+   * checks it before every request; a stored value is never trusted as valid.
+   */
+  endpoint: z.string().trim().max(TRANSLATION_ENDPOINT_MAX_LENGTH).catch(""),
+  /** The model id sent to `endpoint`; chosen by the user, never inferred. */
+  endpointModel: z.string().trim().max(TRANSLATION_MODEL_MAX_LENGTH).catch(""),
+  // Legacy fields from the helper-agent translator (Paseo provider, model and
+  // thinking). Nothing reads them; they stay in the schema so a save keeps
+  // what an earlier version stored instead of dropping it.
   customModel: z.boolean().catch(false),
   disableThinking: z.boolean().catch(true),
   provider: z.string().catch(""),
@@ -90,56 +69,30 @@ export const TIMELINE_TRANSLATION_SETTINGS = defineSettings({
   schema: timelineTranslationSettingsSchema,
 });
 
-export interface ConversationAgentModelConfig {
-  provider?: string | null;
-  model?: string | null;
-  thinkingOptionId?: string | null;
-  effectiveThinkingOptionId?: string | null;
-}
-
 export function translationConfigSignature(
   settings: TimelineTranslationSettings,
   interfaceLanguage: "en" | "zh",
-  agentConfig?: ConversationAgentModelConfig | null,
 ): string {
   const target = resolveTranslationTarget(settings.targetLanguage, interfaceLanguage);
-  const provider = settings.customModel ? settings.provider : (agentConfig?.provider ?? "");
-  const model = settings.customModel ? settings.model : (agentConfig?.model ?? "");
-  const thinkingOptionId = settings.customModel
-    ? settings.thinkingOptionId
-    : (agentConfig?.effectiveThinkingOptionId ?? agentConfig?.thinkingOptionId ?? "");
   return JSON.stringify({
     enabled: settings.enabled,
     targetCode: target.code,
-    customModel: settings.customModel,
-    provider,
-    model,
-    disableThinking: settings.disableThinking,
-    thinkingOptionId,
+    endpoint: settings.endpoint,
+    endpointModel: settings.endpointModel,
     prompt: settings.prompt,
   });
 }
 
-export const translationThinkingModeSchema = z.enum([
-  "disabled",
-  "unsupported_off",
-  "none",
-  "custom",
-  "inherited",
-]);
-export type TranslationThinkingMode = z.output<typeof translationThinkingModeSchema>;
-
 export const translationJobStateSchema = z.discriminatedUnion("state", [
   z.object({ state: z.literal("idle") }),
-  z.object({ state: z.literal("running"), text: z.string().optional(), helperId: z.string().optional() }),
+  z.object({ state: z.literal("running"), text: z.string().optional() }),
   z.object({
     state: z.literal("done"),
     translation: z.string(),
     targetLanguageCode: z.string(),
-    provider: z.string(),
+    /** Where the text was sent: the endpoint's origin, e.g. `https://api.example.com`. */
+    origin: z.string(),
     model: z.string(),
-    thinkingMode: translationThinkingModeSchema,
-    thinkingOptionId: z.string().nullable(),
   }),
   z.object({ state: z.literal("error"), error: z.string() }),
 ]);
@@ -167,8 +120,84 @@ export const translateTimelineItemRpc = defineRpc({
 
 export type TranslateTimelineItemInput = z.output<typeof translateTimelineItemRpc.input>;
 
-export const translationModelsRpc = defineRpc({
-  name: "translation.models",
-  input: z.object({ provider: z.string() }),
-  output: modelCatalogSchema,
+/** Why a configured endpoint is refused; the server decides, the client only shows it. */
+export const translationEndpointProblemSchema = z.enum([
+  /** Not an absolute URL. */
+  "invalid_url",
+  /** Neither `https:` nor `http:`. */
+  "unsupported_protocol",
+  /** `http:` to a host other than this machine's loopback. */
+  "insecure_remote",
+  /** A user name or password in the URL: it would sit in readable settings. */
+  "embedded_credentials",
+  /** A query string or fragment: keys and options belong elsewhere. */
+  "query_or_fragment",
+]);
+export type TranslationEndpointProblem = z.output<typeof translationEndpointProblemSchema>;
+
+export const translationEndpointCheckSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("empty") }),
+  z.object({ status: z.literal("invalid"), problem: translationEndpointProblemSchema }),
+  z.object({
+    status: z.literal("ok"),
+    /** The exact URL a translation is POSTed to. */
+    requestUrl: z.string(),
+    origin: z.string(),
+    loopback: z.boolean(),
+  }),
+]);
+export type TranslationEndpointCheck = z.output<typeof translationEndpointCheckSchema>;
+
+/** What the daemon holds as an API key. The key itself never leaves the daemon. */
+export const translationKeyStateSchema = z.discriminatedUnion("status", [
+  z.object({ status: z.literal("none") }),
+  /** `matches`: `origin` is the origin of the endpoint this status was asked for. */
+  z.object({ status: z.literal("saved"), origin: z.string(), matches: z.boolean() }),
+  z.object({ status: z.literal("error"), error: z.string() }),
+]);
+export type TranslationKeyState = z.output<typeof translationKeyStateSchema>;
+
+export const translationEndpointStatusSchema = z.object({
+  endpoint: translationEndpointCheckSchema,
+  key: translationKeyStateSchema,
+});
+export type TranslationEndpointStatus = z.output<typeof translationEndpointStatusSchema>;
+
+export const translationEndpointStatusRpc = defineRpc({
+  name: "translation.endpoint-status",
+  input: z.object({ endpoint: z.string().max(TRANSLATION_ENDPOINT_MAX_LENGTH) }),
+  output: translationEndpointStatusSchema,
+});
+
+export const TRANSLATION_API_KEY_MAX_LENGTH = 4096;
+
+/**
+ * Write-only: saves the key bound to `endpoint`'s origin, or clears it. The
+ * answer is the same status as `translation.endpoint-status`, never the key.
+ */
+export const translationApiKeyRpc = defineRpc({
+  name: "translation.api-key",
+  input: z.discriminatedUnion("action", [
+    z.object({
+      action: z.literal("save"),
+      endpoint: z.string().max(TRANSLATION_ENDPOINT_MAX_LENGTH),
+      apiKey: z.string().max(TRANSLATION_API_KEY_MAX_LENGTH),
+    }),
+    z.object({
+      action: z.literal("clear"),
+      endpoint: z.string().max(TRANSLATION_ENDPOINT_MAX_LENGTH),
+    }),
+  ]),
+  output: translationEndpointStatusSchema,
+});
+
+/** Verify the configured service with a short fixed prompt and no tools. */
+export const translationTestRpc = defineRpc({
+  name: "translation.test",
+  input: z.object({
+    endpoint: z.string().max(TRANSLATION_ENDPOINT_MAX_LENGTH),
+    model: z.string().trim().min(1).max(TRANSLATION_MODEL_MAX_LENGTH),
+    apiKey: z.string().max(TRANSLATION_API_KEY_MAX_LENGTH).optional(),
+  }),
+  output: z.object({ ok: z.literal(true) }),
 });

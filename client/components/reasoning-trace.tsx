@@ -428,7 +428,7 @@ function ReasoningCardContent({ segmentation: originalSegmentation, streaming, d
     <FadeIn>
       <View {...surfaceProps(selectionSurface)} style={[styles.body, selectableSurface]}>
         {notice}
-        <View style={inline?.active && inline.view && ["running", "settings-loading", "config-loading"].includes(inline.view.status) ? { opacity: 0.55 } : undefined}>
+        <View style={inline?.active && inline.view && ["running", "settings-loading"].includes(inline.view.status) ? { opacity: 0.55 } : undefined}>
         <ReasoningSectionsView
           segmentation={segmentation}
           tokens={tokens}

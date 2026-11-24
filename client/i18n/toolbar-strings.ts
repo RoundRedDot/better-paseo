@@ -159,10 +159,9 @@ const ZH: Readonly<Record<string, string>> = {
   "Translation settings are invalid": "翻译设置无效",
   "Could not load translation settings": "无法加载翻译设置",
   "Translation is turned off in settings": "翻译已在设置中关闭",
-  "Loading conversation model...": "正在读取对话模型…",
-  "Could not load conversation model": "无法读取对话模型",
   "Translation is unavailable for this conversation": "当前对话无法翻译",
-  "Settings or the conversation model changed. Translate again.": "翻译设置或对话模型已变更，请重新翻译。",
+  "Set a translation endpoint and model in settings": "请先在设置中填写翻译端点和模型",
+  "Translation settings changed. Translate again.": "翻译设置已变更，请重新翻译。",
 };
 
 /** A button's English label as the reader's chosen language shows it; an unknown label stays English. */

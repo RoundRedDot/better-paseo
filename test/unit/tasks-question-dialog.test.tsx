@@ -452,13 +452,13 @@ describe("agent note above the question", () => {
   });
 
   it("translates the note in place and restores the original without disturbing the answer", async () => {
-    translateRpc.mockReset().mockResolvedValue({ state: "done", translation: "Translated note", targetLanguageCode: "zh-CN", provider: "claude", model: "model", thinkingMode: "disabled", thinkingOptionId: "off" });
+    translateRpc.mockReset().mockResolvedValue({ state: "done", translation: "Translated note", targetLanguageCode: "zh-CN", origin: "https://api.example.test", model: "model" });
     try {
       const { paseo } = timeline([{ error: null, entries: rows }]);
       const store = createQuestionDialogStore();
       const current = asked();
       await act(async () => { store.open(current); tree = TestRenderer.create(<TaskQuestionDialog store={store} paseo={paseo as never} cardById={() => current} submit={vi.fn(async () => {})} theme={theme} language="zh" />); });
-      await act(async () => { await publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, customModel: true, provider: "claude", model: "model" }, "question-note"); });
+      await act(async () => { await publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "model" }, "question-note"); });
       await act(async () => host("task-question-option-0-0").props.onPress());
       await act(async () => host("task-question-note-translate").props.onPress({ stopPropagation() {} }));
       await vi.waitFor(() => expect(shown()).toContain("Translated note"));

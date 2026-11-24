@@ -307,7 +307,7 @@ describe("preferences read while the plugin loads", () => {
     const { contribute, slot, React, renderer } = await load();
     const store = await import("../../client/translation/settings-store");
     const reload = vi.fn(() => Promise.resolve());
-    const first = { status: "ready", revision: "t1", values: { enabled: true, customModel: true, provider: "codex", model: "gpt-5", targetLanguage: "en" }, save: vi.fn(), reset: vi.fn(), reload };
+    const first = { status: "ready", revision: "t1", values: { enabled: true, endpoint: "https://api.example.test/v1", endpointModel: "gpt-5", targetLanguage: "en" }, save: vi.fn(), reset: vi.fn(), reload };
     // The daemon's record; the plugin's own reads answer when the test lets them.
     let daemon: { status: string; revision: string; values: unknown } = first;
     const answers: (() => void)[] = [];
@@ -334,9 +334,9 @@ describe("preferences read while the plugin loads", () => {
 
     // A selection translated under t1 sits in the session cache.
     const { createSelectionTranslation } = await import("../../client/translation/selection");
-    const call = vi.fn(async () => ({ state: "done", translation: "Hello", targetLanguageCode: "en", provider: "codex", model: "gpt-5", thinkingMode: "custom", thinkingOptionId: null }));
+    const call = vi.fn(async () => ({ state: "done", translation: "Hello", targetLanguageCode: "en", origin: "https://api.example.test", model: "gpt-5" }));
     const select = () => createSelectionTranslation({ agentId: "agent-1", kind: "assistant_message", text: "你好", streaming: false,
-      translator: { call: call as never, watch: () => () => {} }, configStore: undefined, interfaceLanguage: () => "en" });
+      translator: { call: call as never }, interfaceLanguage: () => "en" });
     const earlier = select();
     earlier.start();
     await flush();

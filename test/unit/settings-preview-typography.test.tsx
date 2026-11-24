@@ -6,8 +6,11 @@ import "./helpers/quiet-renderer";
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client", async (original) => {
   const rpc = async () => ({ state: "idle", entries: [], error: null });
+  // Every plugin surface renders under its installation's Paseo client.
+  const paseo = {};
   return {
     ...await original<object>(),
+    usePaseo: () => paseo,
     useRpc: () => rpc,
     useSettings: () => ({ status: "loading", saving: false, saveError: null, save: async () => true, reset: async () => true }),
   };

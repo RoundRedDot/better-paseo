@@ -32,6 +32,8 @@ const INITIAL_SNAPSHOT: TranslationSettingsSnapshot = {
 function sameValues(a: TimelineTranslationSettings, b: TimelineTranslationSettings): boolean {
   return (
     a.enabled === b.enabled &&
+    a.endpoint === b.endpoint &&
+    a.endpointModel === b.endpointModel &&
     a.customModel === b.customModel &&
     a.disableThinking === b.disableThinking &&
     a.provider === b.provider &&
