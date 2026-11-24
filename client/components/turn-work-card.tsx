@@ -14,10 +14,11 @@
  */
 import React, { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type StyleProp, type TextStyle } from "react-native";
+import { Icon } from "@getpaseo/plugin/client/ui";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { space, withAlpha } from "./theme-tokens";
-import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-header";
+import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon, RowPaletteContext } from "../ui/disclosure-header";
 import { useHover } from "../ui/use-hover";
 import { hairline } from "../ui/tokens/platform";
 import { RunningDot } from "../ui/running-dot";
@@ -70,6 +71,15 @@ const STRINGS: Record<SettingsLanguage, {
     done: { command: "运行了命令", read: "读取了", edit: "编辑了", write: "写入了" },
   },
 };
+
+const BARE_FOOTPRINTS = {
+  svg: '<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor"><path d="M5.1 7.3c-1.9.3-2.5 2.3-1.8 4.1.4 1.1 1.1 1.9 1 3.1-.1 1.5.4 2.5 1.7 2.6 1.2.1 1.9-.8 1.9-2.1 0-1.2.5-2 1-3.2.9-2.2-1-4.9-3.8-4.5Z"/><circle cx="4.2" cy="5.4" r="1.1"/><circle cx="6.3" cy="4.6" r="1.2"/><circle cx="8.4" cy="5.2" r=".9"/><circle cx="9.7" cy="6.5" r=".7"/><path d="M18.9 11.3c1.9.3 2.5 2.3 1.8 4.1-.4 1.1-1.1 1.9-1 3.1.1 1.5-.4 2.5-1.7 2.6-1.2.1-1.9-.8-1.9-2.1 0-1.2-.5-2-1-3.2-.9-2.2 1-4.9 3.8-4.5Z"/><circle cx="19.8" cy="9.4" r="1.1"/><circle cx="17.7" cy="8.6" r="1.2"/><circle cx="15.6" cy="9.2" r=".9"/><circle cx="14.3" cy="10.5" r=".7"/></svg>',
+};
+
+function BareFootprints() {
+  const palette = useContext(RowPaletteContext);
+  return <Icon icon={BARE_FOOTPRINTS} size={DISCLOSURE_HEADER.icon} color={palette?.icon ?? "currentColor"} />;
+}
 
 /** A folded call as its own row would read it. */
 function viewOf(item: ToolCallTimelineItem): ToolCallView {
@@ -189,7 +199,7 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
         <BlockPlacementContext.Provider value={null}>
           <DisclosureHeader expanded={false} onToggle={toggleSteps}
             detailsMarker={{ agentId, id: entry.id, selected: phase === "on" }}
-            tokens={tokens} compact={compact} icon={<RowIcon name="Footprints" />} verb={label} keepVerb />
+            tokens={tokens} compact={compact} icon={<BareFootprints />} verb={label} keepVerb />
         </BlockPlacementContext.Provider>
       ) : null}
       {work.files.length ? <FileCard agentId={agentId} at={at} work={work} store={store} text={text} tokens={tokens} compact={compact} /> : null}
