@@ -347,9 +347,8 @@ function ReasoningPreviewContent({ text, streaming, tokens, translation, inline 
 }) {
   const shown = inline?.active && inline.view?.status === "done" ? inline.view.result.translation : text;
   return <>
-    <HoverPreviewHeader tokens={tokens} streaming={streaming}>
+    <HoverPreviewHeader tokens={tokens} streaming={streaming} left={inline && translation ? <InlineTranslateButton state={inline} theme={translation.theme} testID="reasoning-preview-translate" timeline /> : null}>
       <View style={styles.previewActions}>
-        {inline && translation ? <InlineTranslateButton state={inline} theme={translation.theme} testID="reasoning-preview-translate" timeline /> : null}
         <ToolbarCopyButton text={text} tokens={tokens} label="Copy thought" />
       </View>
     </HoverPreviewHeader>

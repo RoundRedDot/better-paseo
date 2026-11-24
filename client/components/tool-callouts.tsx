@@ -743,10 +743,9 @@ function ToolPreviewActions({ call, resolvePath, tokens, title, pager, meta, tra
     <HoverPreviewHeader tokens={tokens} streaming={streaming} icon={meta ? "Image" : <RowIcon
       name={agent?.icon ?? toolCallIconName(call)} color={agentColor ?? tokens.foregroundMuted} />}
       iconLabel={title ?? agentLabel ?? (call.tool === "activity" ? toolbarLabel(summary.verb, language) : summary.verb)}
-      left={pager} center={meta} fitControls={fitControls}>
+      left={<>{pager}{translations && translationGroupState(translations) ? <InlineTranslateButtonWithTokens state={translationGroupState(translations)!} tokens={tokens} timeline
+        testID={call.paseo?.createAgent ? "create-agent-prompt-translate" : "detail-translate"} /> : null}</>} center={meta} fitControls={fitControls}>
       <View style={styles.previewActions}>
-        {translations && translationGroupState(translations) ? <InlineTranslateButtonWithTokens state={translationGroupState(translations)!} tokens={tokens} timeline
-          testID={call.paseo?.createAgent ? "create-agent-prompt-translate" : "detail-translate"} /> : null}
         {call.paseo?.sendAgentPrompt ? <>
           <ToolbarCopyButton text={call.paseo.sendAgentPrompt.prompt} icon={COPY_ICON.prompt} label="Copy prompt" tokens={tokens} />
           <ToolCopyButtons call={call} resolvePath={resolvePath} tokens={tokens} />

@@ -671,6 +671,7 @@ describe("whole detail translations", () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
     configured();
     await act(async () => { renderer = TestRenderer.create(draw(agentTool("send_agent_prompt", { success: true }))); });
+    expect(renderer!.root.findByProps({ testID: "hover-preview-start" }).findAllByProps({ testID: "detail-translate" }).length).toBeGreaterThan(0);
     await act(async () => translateButton().props.onPress({ stopPropagation() {} }));
     expect(host.rpc).toHaveBeenCalledWith(expect.objectContaining({ action: "start", text: statusBody, sourceKind: "user_message" }));
     expect(renderer!.root.findByType(MarkdownView).props.text).toBe("译文\n\n完整内容");
