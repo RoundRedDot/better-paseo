@@ -46,11 +46,14 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
     <View testID="timeline-level-menu" style={{ margin: -8 }}>
       <View style={{ flexDirection: "row", alignItems: "center", height: rowHeight, paddingHorizontal: 8 }}>
         <Text style={{ flex: 1, color: colors.foreground, fontSize: 14, lineHeight: 18, fontWeight: "normal" }}>{text.title}</Text>
+        <Pressable accessibilityRole="button" accessibilityLabel={text.settings} onPress={openSettings}
+          style={{ width: rowHeight, height: rowHeight, alignItems: "center", justifyContent: "center" }}>
+          <Icon name="Settings" size={16} color={colors.foregroundMuted} />
+        </Pressable>
       </View>
       <View style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} />
       {preferences.chatEnabled ? <>{levels}<View testID="chat-switch-divider" style={{ height: 0.5, backgroundColor: colors.border, marginVertical: 4 }} /></> : null}
       {chatSwitch}
-      {settings}
     </View>
   );
 }
