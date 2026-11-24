@@ -1,15 +1,14 @@
 /**
  * The standard level's card for one turn's folded work (`state/turn-work.ts`):
  *
- *   ▸ 用时 1分18秒            first press: the intent line and what kinds of
- *                              work it was; second: the steps themselves
+ *   ▸ 用时 1分18秒            opens the work details and steps
  *   ✎ 已编辑 4 个文件  查看变更       +33 −4
  *     client/paths/format-path.ts       +5 −2      only once the file card
  *     …three paths, then 再显示 N 个文件            is opened
  *
  * Closed, the card is those rows and nothing else: steps, command output,
  * the file paths and every diff mount only when opened, and unmount when
- * closed. Both cards' choices outlive a remount (`disclosure-store`). A diff opens in the details panel, one file at a time; with block
+ * closed. The file card's choice outlives a remount (`disclosure-store`). A diff opens in the details panel, one file at a time; with block
  * details off it opens under the card. Line counts are the turn's edit events
  * added up, not the file's net change, and are measured once per call.
  */
@@ -22,7 +21,6 @@ import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-h
 import { useHover } from "../ui/use-hover";
 import { hairline } from "../ui/tokens/platform";
 import { RunningDot } from "../ui/running-dot";
-import { FadeIn } from "../ui/fade-in";
 import { HoverPreviewBody, HoverPreviewHeader } from "../ui/hover-preview";
 import { PathContext, usePathContextValue } from "../ui/path-text";
 import { formatPath } from "../paths/format-path";
@@ -83,15 +81,6 @@ export function workFilesKey(agentId: string, work: Pick<TurnWork, "files">): st
   return `${agentId}:work-files:${work.files[0]?.callIds[0] ?? ""}`;
 }
 
-/**
- * Where the step list's open state is kept, by the turn's first folded step.
- * The running card is redrawn under each newer row and turns into the settled
- * card when the turn ends; the reader's choice goes with it.
- */
-export function workStepsKey(agentId: string, work: Pick<TurnWork, "steps">): string {
-  return `${agentId}:work-steps:${work.steps[0]?.callId ?? ""}`;
-}
-
 /** Paths an opened file card lists before "show more". */
 export const FILE_ROWS_CLOSED = 3;
 
@@ -140,9 +129,6 @@ interface CardProps {
 export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, store, tokens, compact }: CardProps) {
   const { language } = useEnhancerPreferences();
   const text = STRINGS[resolveLanguage(language)] ?? STRINGS.en;
-  const [open, setOpen] = useDisclosure(workStepsKey(agentId, work), false);
-  // Only a list opened here fades in: one carried over from the previous row draws at once.
-  const [fade, setFade] = useState(false);
   const registration = useRef<BlockRegistration | null>(null);
   const lang = resolveLanguage(language);
   const label = !work.running && work.complete && work.durationMs !== null
@@ -150,16 +136,19 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
     : work.running && work.steps.length ? `${text.work} \u00b7 ${text.steps(work.steps.length)}` : text.work;
   const styles = useCardStyles(tokens);
   const summary = workVerbs(work.steps).map((verb) => text[verb]).join(" · ");
+  const intent = firstLine(work.intent);
   const entry = useMemo<BlockEntry>(() => ({
     id: `${agentId}:work:${work.key}:steps`, agentId, at, kind: "tool", seq: 0,
     mounted: true, navigable: false, hasBody: true, title: summary, titleMono: false,
     subtitle: [], icon: "List", readsImage: false, dismissOnOutside: true, reserveTimeline: true,
     render: () => <>
       <HoverPreviewHeader tokens={tokens} />
-      <HoverPreviewBody><WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>
+      <HoverPreviewBody>{intent ? <Text style={styles.intent}>{intent}</Text> : null}
+        <WorkSteps agentId={agentId} at={at} steps={work.steps} tokens={tokens} compact={compact} /></HoverPreviewBody>
     </>,
     copies: () => [],
-  }), [agentId, at, compact, summary, tokens, work.key, work.steps]);
+  }), [agentId, at, compact, intent, styles, summary, tokens, work.key, work.steps]);
+  const phase = useMarkerPhase(agentId, entry.id);
   // A step list open in the details panel stays attached to the card drawn
   // under the next row: it registers before the previous card releases.
   useLayoutEffect(() => {
@@ -168,19 +157,18 @@ export const TurnWorkCard = memo(function TurnWorkCard({ agentId, at, work, stor
   useEffect(() => { registration.current?.update(entry); }, [entry]);
   useEffect(() => () => { registration.current?.release(); registration.current = null; }, [agentId, work.key]);
   const toggleSteps = () => {
+    if (phase === "on") { detailsApi.close(agentId); return; }
     if (registration.current) registration.current.update(entry);
     else registration.current = registerBlock(entry);
     detailsApi.open(agentId, entry.id, { independent: true, navigable: false });
   };
-  const steps = open ? <WorkSummary agentId={agentId} entryId={entry.id} work={work} text={text} tokens={tokens}
-    compact={compact} onToggle={toggleSteps} /> : null;
   return (
     <View style={styles.card}>
       {work.steps.length ? (
         <BlockPlacementContext.Provider value={null}>
-          <DisclosureHeader expanded={open} onToggle={() => { setFade(true); setOpen(!open); }}
+          <DisclosureHeader expanded={false} onToggle={toggleSteps}
+            detailsMarker={{ agentId, id: entry.id, selected: phase === "on" }}
             tokens={tokens} compact={compact} icon={<RowIcon name="Footprints" />} verb={label} keepVerb />
-          {open ? (fade ? <FadeIn style={styles.indent}>{steps}</FadeIn> : <View style={styles.indent}>{steps}</View>) : null}
         </BlockPlacementContext.Provider>
       ) : null}
       {work.files.length ? <FileCard agentId={agentId} at={at} work={work} store={store} text={text} tokens={tokens} compact={compact} /> : null}
@@ -215,23 +203,6 @@ function ActivityLine({ work, text, tokens }: { work: TurnWork; text: (typeof ST
 function activityTarget(step: WorkStep): string | null {
   if (step.verb === "command") return step.item.detail.type === "shell" ? step.item.detail.command ?? null : null;
   return step.filePath ?? null;
-}
-
-function WorkSummary({ agentId, entryId, work, text, tokens, compact, onToggle }: {
-  agentId: string; entryId: string; work: TurnWork; text: (typeof STRINGS)["en"]; tokens: ExtendedThemeTokens; compact: boolean; onToggle(): void;
-}) {
-  const styles = useCardStyles(tokens);
-  const phase = useMarkerPhase(agentId, entryId);
-  const intent = useMemo(() => firstLine(work.intent), [work.intent]);
-  const summary = workVerbs(work.steps).map((verb) => text[verb]).join(" · ");
-  return (
-    <>
-      {intent ? <Text style={styles.intent} numberOfLines={2}>{intent}</Text> : null}
-      <DisclosureHeader expanded={false} onToggle={onToggle} tokens={tokens} compact={compact}
-        detailsMarker={{ agentId, id: entryId, selected: phase === "on" }}
-        icon={<RowIcon name="List" />} verb={summary} keepVerb />
-    </>
-  );
 }
 
 /** Mounted only while the steps are open; each command can open its output. */
@@ -471,7 +442,6 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
     paddingLeft: DISCLOSURE_HEADER.iconSlot + space.sm + space.xs, paddingRight: space.xs, borderRadius: 6 };
   return StyleSheet.create({
     card: { marginBottom: space.sm },
-    indent: { paddingLeft: space.md },
     slot: { width: 16, alignItems: "center", justifyContent: "center" },
     intent: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: block.label.size,
       lineHeight: block.label.lineHeight, paddingVertical: space.xs / 2 },

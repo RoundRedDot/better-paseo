@@ -23,14 +23,13 @@ import { buildThemeTokens, withAlpha } from "../../client/components/theme-token
 import { createTurnFooterStore } from "../../client/state/turn-footers";
 import { collectTurnWork, splitTurns } from "../../client/state/turn-work";
 import { updateEnhancerPreferences, getEnhancerPreferences } from "../../client/preferences";
-import { closeDetailsIfCurrent, detailsApi, MARKER_LINGER_MS, useDetails } from "../../client/details/details-store";
+import { detailsApi, useDetails } from "../../client/details/details-store";
 import { getBlock } from "../../client/details/block-registry";
 import { timelineEntry as entry } from "./helpers/turn-timeline";
 import { Dimensions } from "react-native";
 import { DetailsShellContext, type DetailsShellValue } from "../../client/details/contracts";
 import { PreviewChromeContext } from "../../client/ui/hover-preview";
 import { resetDisclosureStore } from "../../client/state/disclosure-store";
-import { FadeIn } from "../../client/ui/fade-in";
 import { SelectionTranslationContext } from "../../client/translation/selection";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -105,32 +104,35 @@ describe("turn work card", () => {
     expect(shown).not.toContain("+7");
   });
 
-  it("opens the desktop work steps in details rather than expanding the timeline", () => {
+  it.each([false, true])("opens and closes work details in one press, compact=%s", (compact) => {
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={compact} /></>); });
     pressText("用时 9秒");
-    expect(texts()).toContain("Check the root first, then fix the path.");
-    expect(texts()).toContain("读取了文件 · 编辑了文件 · 运行了命令");
-    expect(byType("ToolCallout")).toHaveLength(0);
-    pressText("读取了文件 · 编辑了文件 · 运行了命令");
     expect(openId).toBe("agent:work:r:10000:done:steps");
-    expect(getBlock("agent", openId!)?.reserveTimeline).toBe(true);
-    expect(byType("ToolCallout")).toHaveLength(0);
-    pressText("用时 9秒");
-    expect(byType("ToolCallout")).toHaveLength(0);
     expect(texts()).not.toContain("读取了文件 · 编辑了文件 · 运行了命令");
+    const block = getBlock("agent", openId!)!;
+    expect(block.title).toBe("读取了文件 · 编辑了文件 · 运行了命令");
+    let panel!: TestRenderer.ReactTestRenderer;
+    act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
+    expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
+    expect(panel.root.findAll((node) => node.children.includes("Check the root first, then fix the path.")).length).toBeGreaterThan(0);
+    act(() => panel.unmount());
+    pressText("用时 9秒");
+    expect(openId).toBeNull();
+    pressText("用时 9秒");
+    expect(openId).toBe(block.id);
+    act(() => { renderer.update(<><Probe /><TurnWorkCard key="next" agentId="agent" at={11000} work={turn()} store={store} tokens={tokens} compact={compact} /></>); });
+    expect(getBlock("agent", block.id)?.mounted).toBe(true);
   });
 
-  it("opens work steps when ordinary block details are disabled", () => {
+  it("opens work details even when ordinary block details are disabled", () => {
     act(() => { updateEnhancerPreferences({ blockDetails: false }); });
     pressText("用时 9秒");
-    pressText("读取了文件 · 编辑了文件 · 运行了命令");
     expect(openId).toBe("agent:work:r:10000:done:steps");
-    expect(byType("ToolCallout")).toHaveLength(0);
-    expect(getEnhancerPreferences().blockDetails).toBe(false);
   });
 
   it("gives every work step in the independent details the original conversation's tool-output scope", () => {
     pressText("用时 9秒");
-    pressText("读取了文件 · 编辑了文件 · 运行了命令");
     const block = getBlock("agent", openId!)!;
     let panel!: TestRenderer.ReactTestRenderer;
     act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
@@ -142,52 +144,6 @@ describe("turn work card", () => {
     act(() => panel.unmount());
   });
 
-  it("marks the selected work row for outside-click handling on web", () => {
-    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
-    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
-    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
-    pressText("用时 9秒");
-    const row = renderer.root.find((node) => (node.type as unknown) === "Pressable" &&
-      node.props.accessibilityLabel === "读取了文件 · 编辑了文件 · 运行了命令");
-    expect(row.props.dataSet).toEqual({ bcworkdetails: "agent:work:r:10000:done:steps" });
-    delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
-  });
-
-  it.each([true, false])("marks the work row while selected with block details %s", (enabled) => {
-    vi.useFakeTimers();
-    act(() => { updateEnhancerPreferences({ blockDetails: enabled }); });
-    const agentId = `selection-${enabled}`;
-    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
-    act(() => { renderer.update(<TurnWorkCard agentId={agentId} at={10000} work={turn()} store={store} tokens={tokens} compact={false} />); });
-    pressText("用时 9秒");
-    const markers = () => renderer.root.findAll((node) => (node.type as unknown) === "Animated.View" && node.props?.testID === "details-current-marker");
-    expect(markers()).toHaveLength(0);
-    pressText("读取了文件 · 编辑了文件 · 运行了命令");
-    expect(markers()).toHaveLength(1);
-    pressText("用时 9秒");
-    expect(markers()).toHaveLength(0);
-    pressText("用时 9秒");
-    expect(markers()).toHaveLength(1);
-    act(() => { detailsApi.open(agentId, "other"); });
-    expect(markers()).toHaveLength(1);
-    act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
-    act(() => { vi.advanceTimersByTime(200); });
-    expect(markers()).toHaveLength(0);
-    pressText("读取了文件 · 编辑了文件 · 运行了命令");
-    expect(markers()).toHaveLength(1);
-    act(() => { detailsApi.close(agentId); });
-    expect(markers()).toHaveLength(1);
-    act(() => { vi.advanceTimersByTime(MARKER_LINGER_MS); });
-    act(() => { vi.advanceTimersByTime(200); });
-    expect(markers()).toHaveLength(0);
-    pressText("读取了文件 · 编辑了文件 · 运行了命令");
-    expect(markers()).toHaveLength(1);
-    act(() => { closeDetailsIfCurrent(agentId, `${agentId}:work:r:10000:done:steps`); });
-    act(() => { vi.advanceTimersByTime(200); });
-    expect(markers()).toHaveLength(0);
-    vi.useRealTimers();
-  });
-
   it.each([["side", true], ["side", false], ["drawer", true], ["drawer", false]] as const)(
     "shows the work title and a working close button in %s when block details are %s", (form, enabled) => {
     act(() => { updateEnhancerPreferences({ blockDetails: enabled }); });
@@ -197,7 +153,6 @@ describe("turn work card", () => {
       act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact /></>); });
     }
     pressText("用时 9秒");
-    pressText("读取了文件 · 编辑了文件 · 运行了命令");
     const block = getBlock("agent", openId!)!;
     const shell: DetailsShellValue = {
       agentId: "agent", entry: block, form, detent: "fit", fullscreen: false,
@@ -232,31 +187,15 @@ describe("turn work card", () => {
     act(() => panel.unmount());
   });
 
-  it("opens the complete work steps in the phone drawer", () => {
-    vi.spyOn(Dimensions, "get").mockReturnValue({ width: 390, height: 844, scale: 3, fontScale: 1 });
+  it("marks the title row while details are selected", () => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
-    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact /></>); });
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn()} store={store} tokens={tokens} compact={false} /></>); });
+    const row = renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "用时 9秒");
+    expect(row.props.dataSet).toEqual({ bcworkdetails: "agent:work:r:10000:done:steps" });
     pressText("用时 9秒");
-    pressText("读取了文件 · 编辑了文件 · 运行了命令");
-    expect(openId).toBe("agent:work:r:10000:done:steps");
-    expect(byType("ToolCallout")).toHaveLength(0);
-    const block = getBlock("agent", openId!);
-    expect(block?.title).toBe("读取了文件 · 编辑了文件 · 运行了命令");
-  });
-
-  it("keeps the opened steps across the move to the next row: drawn at once, the details panel still attached", () => {
-    pressText("用时 9秒");
-    expect(renderer.root.findAllByType(FadeIn)).toHaveLength(1);
-    pressText("读取了文件 · 编辑了文件 · 运行了命令");
-    const id = openId!;
-    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
-    // The running card is redrawn under the newest row: a new mount, in the commit that drops the old one.
-    act(() => { renderer.update(<><Probe /><TurnWorkCard key="next-row" agentId="agent" at={11000} work={turn()} store={store}
-      tokens={tokens} compact={false} /></>); });
-    expect(texts()).toContain("Check the root first, then fix the path.");
-    expect(renderer.root.findAllByType(FadeIn)).toHaveLength(0);
-    expect(openId).toBe(id);
-    expect(getBlock("agent", id)?.mounted).toBe(true);
+    expect(renderer.root.findAll((node) => (node.type as unknown) === "Animated.View" && node.props?.testID === "details-current-marker")).toHaveLength(1);
+    delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
   });
 
   it("keeps one status line while the turn runs: what runs, then a thought, then the newest finished step", () => {
@@ -276,6 +215,9 @@ describe("turn work card", () => {
     draw(running);
     expect(texts()).toContain("\u5de5\u4f5c\u8fc7\u7a0b \u00b7 1 \u6b65");
     expect(lines()).toEqual(["\u6b63\u5728\u8fd0\u884c\u547d\u4ee4 npm test"]);
+    pressText("工作过程 · 1 步");
+    expect(getBlock("agent", "agent:work:live:steps")?.title).toBe("编辑了文件");
+    expect(lines()).toEqual(["正在运行命令 npm test"]);
     // The command ends: the same line names the newest finished step, it does not leave.
     draw({ ...running, current: null, latest: running.steps[0]! });
     expect(lines()).toEqual(["\u7f16\u8f91\u4e86 a.ts"]);

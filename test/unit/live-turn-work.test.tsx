@@ -37,7 +37,7 @@ vi.mock("../../client/components/selection-actions", () => ({ useSelectionAction
 vi.mock("../../client/components/tool-callouts", () => ({ ToolCallout: () => null, FileEditsPreview: () => null }));
 vi.mock("../../client/components/markdown/markdown-view", async () => {
   const rn = await import("./helpers/rn-mock");
-  return { MarkdownView: ({ text }: { text: string }) => React.createElement(rn.Text, { testID: "reply-markdown" }, text) };
+  return { TimelineProseContext: React.createContext(false), MarkdownView: ({ text }: { text: string }) => React.createElement(rn.Text, { testID: "reply-markdown" }, text) };
 });
 
 import { LiveAssistantRenderer, LiveUserMessageRenderer, type LiveAssistantPayload, type LiveUserMessagePayload } from "../../client/live-renderers";
@@ -133,9 +133,9 @@ describe("standard level work card while a turn runs", () => {
       [card] = cards(renderer);
       expect(card?.props.work.files.map((file: { path: string }) => file.path)).toEqual(["a.ts", "b.ts"]);
       expect(card?.props.work.current).toEqual({ callId: "c1", verb: "command", target: "npm test" });
-      // Opened by the reader; a remount would close it again.
+      // The work title opens the independent details directly.
       await act(async () => card!.findAllByType(DisclosureHeader)[0]!.props.onToggle());
-      expect(cards(renderer)[0]!.findAllByType(DisclosureHeader)[0]!.props.expanded).toBe(true);
+      expect(cards(renderer)[0]!.findAllByType(DisclosureHeader)[0]!.props.detailsMarker.selected).toBe(true);
       // The file card too, though the running card's key is not the settled one's.
       const filesHeader = () => renderer.root.findAll((node) => node.props?.testID?.startsWith?.("work-files:") &&
         typeof node.props.onPress === "function").at(-1)!;
@@ -157,7 +157,6 @@ describe("standard level work card while a turn runs", () => {
       const settled = cards(renderer);
       expect(settled).toHaveLength(1);
       expect(settled[0]!.props.work).toMatchObject({ running: false, files: [{ path: "a.ts" }, { path: "b.ts" }] });
-      expect(settled[0]!.findAllByType(DisclosureHeader)[0]!.props.expanded).toBe(true);
       expect(filesHeader().props.accessibilityState).toEqual({ expanded: true });
     } finally { await act(async () => renderer.unmount()); }
   });
