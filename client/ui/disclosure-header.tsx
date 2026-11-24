@@ -247,7 +247,7 @@ export interface DisclosureHeaderProps {
  *   [slot] Verb  target……………………  meta
  *
  * No frame and no fill of its own. Hover, a press or a held
- * long-press paints `surface2`. There is no chevron at rest: the whole row is the
+ * long-press paints a translucent highlight. There is no chevron at rest: the whole row is the
  * control. Where the pointer can hover, the slot shows a chevron while the row
  * is hovered, in place of the icon, so nothing moves; an opened row keeps a
  * down chevron there.
@@ -550,8 +550,8 @@ export function DisclosureHeader({
                 style={({ pressed: pressedState }) => [
                   styles.row,
                   { height, borderRadius: radiusV2.block },
-                  hovered && { backgroundColor: tokens.v2.surface2 },
-                  (pressedState || (detailsEnabled && (menuOpen || actionsActive || pressed))) && { backgroundColor: tokens.v2.surface2 },
+                  hovered && { backgroundColor: tokens.row.hover },
+                  (pressedState || (detailsEnabled && (menuOpen || actionsActive || pressed))) && { backgroundColor: tokens.row.hover },
                 ]}
               >
                 {detailsEnabled && hasMarker.current ? <CurrentMarker agentId={placement!.agentId} id={previewKey!} tokens={tokens} radius={radiusV2.block} /> : null}

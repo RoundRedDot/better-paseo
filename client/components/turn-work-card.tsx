@@ -512,7 +512,7 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
     spacer: { flexGrow: 1 },
     viewButton: { paddingHorizontal: space.xs + 2, paddingVertical: 2, borderRadius: 6 },
     viewLabel: { color: tokens.accent, fontFamily: tokens.fontUi, fontSize: block.button.size, lineHeight: block.button.lineHeight },
-    hovered: { backgroundColor: tokens.v2.surface2 },
+    hovered: { backgroundColor: tokens.row.hover },
     fileRow: listRow,
     path: { flexGrow: 1, flexShrink: 1, flexBasis: 0, minWidth: 0, color: tokens.row.target, fontFamily: tokens.fontMono,
       fontSize: block.target.size, lineHeight: block.target.lineHeight },

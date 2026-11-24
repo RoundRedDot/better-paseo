@@ -91,6 +91,12 @@ function settleForm(agentId: string, width: number, pointer: boolean) {
 const titleRow = (label: string) => renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === label);
 
 describe("turn work card", () => {
+  it("uses the same translucent highlight for the file header", () => {
+    const header = () => renderer.root.find((node) => (node.type as unknown) === "Pressable" && node.props.testID === "work-files:agent");
+    act(() => header().props.onHoverIn());
+    expect(StyleSheet.flatten(header().props.style).backgroundColor).toBe(tokens.row.hover);
+    expect(tokens.row.hover).toMatch(/^rgba\(/);
+  });
   it("closed: the work row and the file header, no paths", () => {
     const shown = texts();
     expect(shown).toEqual(["用时 9秒", "已编辑 4 个文件", "查看变更"]);

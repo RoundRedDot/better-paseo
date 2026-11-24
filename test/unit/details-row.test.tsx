@@ -95,15 +95,36 @@ afterEach(() => {
 });
 
 describe("details row press zones and registration", () => {
+  it.each([
+    { surface: "#ffffff", foreground: "#111111", alpha: 0.08 },
+    { surface: "#181818", foreground: "#eeeeee", alpha: 0.1 },
+  ])("uses a translucent highlight over plain and striped $surface backgrounds", ({ surface, foreground, alpha }) => {
+    const themed = buildThemeTokens({ surface0: surface, surface1: surface, surface2: surface, border: surface,
+      foreground, foregroundMuted: foreground, accent: "#0000ff", accentForeground: "#ffffff",
+      statusSuccess: "#198754", statusWarning: "#a36a00", statusDanger: "#d92d20" });
+    render(header({ tokens: themed }));
+    act(() => row().props.onHoverIn());
+    const fill = StyleSheet.flatten(row().props.style).backgroundColor as string;
+    const match = /^rgba\((\d+), (\d+), (\d+), ([\d.]+)\)$/.exec(fill);
+    expect(match).not.toBeNull();
+    expect(Number(match![4])).toBe(alpha);
+    const background = parseInt(surface.slice(1, 3), 16);
+    const ink = Number(match![1]);
+    const stripe = background * (1 - 0.04) + ink * 0.04;
+    const composite = (base: number) => base * (1 - alpha) + ink * alpha;
+    expect(Math.abs(composite(background) - background)).toBeGreaterThan(5);
+    expect(Math.abs(composite(stripe) - stripe)).toBeGreaterThan(5);
+    expect(composite(stripe)).not.toBe(composite(background));
+  });
   it.each([false, true])("uses the footer button radius for row highlights (compact=%s)", (compact) => {
     const toggle = vi.fn();
     render(header({ compact, onToggle: toggle }));
     const expectedHeight = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
     expect(StyleSheet.flatten(row().props.style)).toMatchObject({ height: expectedHeight, borderRadius: radiusV2.block });
     act(() => row().props.onHoverIn());
-    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: radiusV2.block, backgroundColor: tokens.v2.surface2 });
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: radiusV2.block, backgroundColor: tokens.row.hover });
     act(() => row().props.onPressIn());
-    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: radiusV2.block, backgroundColor: tokens.v2.surface2 });
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: radiusV2.block, backgroundColor: tokens.row.hover });
     act(() => row().props.onPressOut());
   });
   it("registers, updates the render thunk and releases only on unmount", () => {
@@ -145,7 +166,7 @@ describe("details row press zones and registration", () => {
     expect(buttons().some((node) => node.props.testID === "details-chevron")).toBe(false);
     act(() => row().props.onPress());
     expect(state.open).not.toHaveBeenCalled(); expect(toggle).not.toHaveBeenCalled();
-    expect(StyleSheet.flatten(row().props.style).backgroundColor).toBe(tokens.v2.surface2);
+    expect(StyleSheet.flatten(row().props.style).backgroundColor).toBe(tokens.row.hover);
     act(() => { vi.advanceTimersByTime(120); }); expect(StyleSheet.flatten(row().props.style).backgroundColor).toBeUndefined();
     expect(state.register.mock.calls[0]![0]).toMatchObject({ hasBody: false, navigable: false });
     act(() => row().props.onLongPress()); expect(menuLabels()).toEqual(["Copy title"]);
@@ -182,7 +203,7 @@ describe("details row press zones and registration", () => {
     expect(itemStyle.borderRadius).toBe(Number(itemStyle.height) / 2);
     act(() => item.props.onHoverIn());
     expect(StyleSheet.flatten(buttons("Copy command")[0]!.props.style).backgroundColor).toBe(tokens.v2.surface2);
-    expect(StyleSheet.flatten(row().props.style).backgroundColor).toBe(tokens.v2.surface2);
+    expect(StyleSheet.flatten(row().props.style).backgroundColor).toBe(tokens.row.hover);
     expect(renderer!.root.findByType("Modal" as never).props.animationType).toBe("none");
     act(() => buttons("Close menu")[0]!.props.onPress());
     expect(menuLabels()).toEqual([]);
@@ -349,7 +370,7 @@ describe("other detail callers", () => {
     expect(title.props.delayLongPress).toBe(500);
     act(() => title.props.onLongPress());
     expect(menuLabels()).toEqual(["Copy", "Open details", "Collapse in timeline"]);
-    expect(StyleSheet.flatten(row().props.style).backgroundColor).toBe(tokens.v2.surface2);
+    expect(StyleSheet.flatten(row().props.style).backgroundColor).toBe(tokens.row.hover);
     expect(renderer!.root.findAll((node) => node.props.testID === "hover-preview")).toHaveLength(0);
   });
   it("keeps a task activity key stable across data updates", () => {

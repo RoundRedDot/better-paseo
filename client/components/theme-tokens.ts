@@ -147,6 +147,8 @@ export interface ExtendedThemeTokens {
    * colours; see `rowTone` in `disclosure-header.tsx`.
    */
   row: {
+    /** Translucent highlight over both plain and striped row backgrounds. */
+    hover: string;
     /** Command, path, verb: `foregroundMuted`. */
     target: string;
     /** A running row's target, halfway back to `foreground`. */
@@ -376,6 +378,7 @@ export function buildThemeTokens(
     borderSubtle,
 
     row: {
+      hover: withAlpha(fg, isDark ? 0.1 : 0.08),
       target: colors.foregroundMuted,
       targetActive: mix(colors.foregroundMuted, fg, 0.5),
       meta: mix(colors.foregroundMuted, colors.surface0, 0.1),

@@ -21,7 +21,7 @@ function fire(target: EventTarget, type: string, eventTarget?: unknown, pointerT
   act(() => { target.dispatchEvent(event); });
 }
 const row = () => renderer.root.findByType("Pressable" as never);
-const lit = () => (row().props.style as unknown[]).some(style => (style as { backgroundColor?: string })?.backgroundColor === tokens.v2.surface2);
+const lit = () => (row().props.style as unknown[]).some(style => (style as { backgroundColor?: string })?.backgroundColor === tokens.row.hover);
 function enter() {
   // Both versions enter the real row; the regression begins after entry.
   if (row().props.onMouseEnter) act(() => row().props.onMouseEnter());
