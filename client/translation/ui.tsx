@@ -8,6 +8,7 @@ import { openTranslationSettings, TranslationSettingsParentCloseContext } from "
 import { SyncedLoader } from "../ui/synced-loader";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { MarkdownView } from "../components/markdown/markdown-view";
+import { lexBlockTokens } from "../components/markdown/lex";
 import { ResizedToolbarDetailsContext, ToolbarButton, ToolbarCopyButton, ToolbarItem, ToolbarMetricsContext, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
 import { useEnhancerPreferences } from "../preferences";
 import { resolveLanguage } from "../i18n/settings-strings";
@@ -91,7 +92,6 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
   const running = view.status === "running" || view.status === "settings-loading";
   return (
     <View testID="selection-translation-panel" style={[styles.panel, (resized || sheet) && { flex: 1, minHeight: 0 }]}>
-      {sheet ? <View testID="translation-sheet-header-cover" pointerEvents="none" style={[styles.headerCover, { backgroundColor: tokens.surface0 }]} /> : null}
       <View testID="translation-header" style={styles.header}>
         <View style={{ flex: 1 }} />
         <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
@@ -124,7 +124,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
         <ScrollView testID="selection-translation-body" nestedScrollEnabled
           style={resized || sheet ? { flex: 1, minHeight: 0 } : { maxHeight: Math.max(120, Math.round(window.height * 0.45)) }}>
           <SelectionTranslationContext.Provider value={null}>
-            <MarkdownView text={text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
+            <MarkdownView text={sheet ? withoutLeadingRule(text) : text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
           </SelectionTranslationContext.Provider>
         </ScrollView>
       ) : null}
@@ -163,6 +163,12 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
 
 const TRANSLATION_TOOLBAR_METRICS = { button: 28, icon: 16 };
 
+function withoutLeadingRule(text: string) {
+  const firstLine = text.match(/^(?:[ \t]*\r?\n)*[^\r\n]*(?:\r?\n|$)/)?.[0] ?? "";
+  if (!lexBlockTokens(firstLine, false).some((token) => token.type === "hr")) return text;
+  return text.slice(firstLine.length).replace(/^(?:[ \t]*\r?\n)*/, "");
+}
+
 /** The translator's greyscale logo; faded so it sits at the weight of the muted text beside it. */
 function ModelMark({ id }: { id: string }) {
   const uri = useMarkBitmap(id);
@@ -173,8 +179,6 @@ function ModelMark({ id }: { id: string }) {
 
 const styles = StyleSheet.create({
   panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
-  // The host modal always draws a header border; cover it only in this sheet.
-  headerCover: { position: "absolute", top: -1, left: 0, right: 0, height: 1, zIndex: 2 },
   header: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 },
   headerInfo: { height: 24, flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
   divider: { height: 0.5, marginHorizontal: -12 },

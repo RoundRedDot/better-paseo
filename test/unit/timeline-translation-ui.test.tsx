@@ -148,7 +148,7 @@ import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { SelectionTranslationScope } from "../../client/translation/ui";
 import { MessageTranslateButton } from "../../client/translation/message-button";
 import { InlineTranslateButtonWithTokens } from "../../client/translation/inline";
-import { ToolbarMetricsContext } from "../../client/ui/toolbar-button";
+import { ToolbarCopyButton, ToolbarMetricsContext } from "../../client/ui/toolbar-button";
 import { ReasoningCard } from "../../client/components/reasoning-trace";
 import { segmentReasoning } from "../../client/reasoning/segment";
 import { DisclosureHeader } from "../../client/ui/disclosure-header";
@@ -999,14 +999,16 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(renderer!.root.findAll((node) => String(node.type) === "Modal")).toHaveLength(0);
 
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledTimes(2), { timeout: 2500 });
-    await act(async () => reply.resolve(doneState("第二段。")));
+    const translation = "---\n\n第二段。\n\n---\n\n末尾";
+    await act(async () => reply.resolve(doneState(translation)));
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("第二段。"));
     expect(renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "markdown-block-menu")).toHaveLength(0);
     expect(button("Copy translation")).toHaveLength(1);
     await act(async () => button("Show original")[0]!.props.onPress());
     expect(renderer!.root.findByProps({ testID: "selection-translation-panel" }).findByType(MarkdownView).props.text).toBe("Second paragraph.");
     await act(async () => button("Show translation")[0]!.props.onPress());
-    expect(renderer!.root.findByProps({ testID: "selection-translation-panel" }).findByType(MarkdownView).props.text).toBe("第二段。");
+    expect(renderer!.root.findByProps({ testID: "selection-translation-panel" }).findByType(MarkdownView).props.text).toBe("第二段。\n\n---\n\n末尾");
+    expect(renderer!.root.findByType(ToolbarCopyButton).props.text).toBe(translation);
     const copyButton = button("Copy translation")[0]!;
     const retryButton = button("Retry")[0]!;
     const copyIcon = copyButton.find((node) => String(node.type) === "Icon");
@@ -1048,9 +1050,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(header.findAll((node) => node.props.testID === "translation-language")).toHaveLength(0);
     const divider = renderer!.root.findByProps({ testID: "translation-header-divider" });
     expect(divider.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ height: 0.5 })]));
-    const cover = renderer!.root.findByProps({ testID: "translation-sheet-header-cover" });
-    expect(cover.props.pointerEvents).toBe("none");
-    expect(cover.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ position: "absolute", top: -1, height: 1 })]));
+    expect(renderer!.root.findAll((node) => node.props.testID === "translation-sheet-header-cover")).toHaveLength(0);
     expect(collectTexts(header).join(" ")).not.toContain("Translation ·");
     expect(collectTexts(header).join(" ")).not.toContain("Claude ·");
     expect(panelText()).not.toContain("Thinking was NOT disabled");
