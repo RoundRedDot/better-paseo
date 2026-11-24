@@ -1053,7 +1053,11 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(panelText()).not.toContain("Thinking was NOT disabled");
     // Touching translated prose must not cancel the source block and unmount the modal.
     const body = renderer!.root.find((node) => String(node.type) === "SheetContent");
-    expect(body.props.scrollable).toBe(true);
+    expect(body.props.scrollable).toBe(false);
+    const scroll = body.findByProps({ testID: "selection-translation-body" });
+    expect(scroll.findByType(MarkdownView)).toBeTruthy();
+    expect(scroll.findAll((node) => node.props.testID === "translation-header")).toHaveLength(0);
+    expect(scroll.findAll((node) => node.props.testID === "translation-header-divider")).toHaveLength(0);
     expect(body.findAll((node) => node.props.testID === "markdown-block-selection")).toHaveLength(0);
     const translatedMarkdown = body.findByType(MarkdownView);
     const markdownRoot = translatedMarkdown.find((node) => String(node.type) === "View");

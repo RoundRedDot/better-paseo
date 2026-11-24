@@ -63,7 +63,7 @@ export function TranslationSheet({ close, children }: { close(): void; children:
   const closeParent = useContext(TranslationSettingsParentCloseContext);
   const { language } = useEnhancerPreferences();
   return <Modal title={toolbarLabel("Translate", language)} open onOpenChange={(open) => { if (!open) close(); }}>
-    <Modal.Content scrollable contentContainerStyle={{ padding: 0, gap: 0 }}>
+    <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0, gap: 0 }}>
       <TranslationSettingsParentCloseContext.Provider value={closeParent}>{children}</TranslationSettingsParentCloseContext.Provider>
     </Modal.Content>
   </Modal>;
@@ -90,7 +90,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
   const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
   const running = view.status === "running" || view.status === "settings-loading";
   return (
-    <View testID="selection-translation-panel" style={[styles.panel, resized && { flex: 1, minHeight: 0 }]}>
+    <View testID="selection-translation-panel" style={[styles.panel, (resized || sheet) && { flex: 1, minHeight: 0 }]}>
       <View testID="translation-header" style={styles.header}>
         <View style={{ flex: 1 }} />
         <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
@@ -119,11 +119,9 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
           </Text>
         </View>
       ) : null}
-      {text && sheet ? <SelectionTranslationContext.Provider value={null}>
-        <MarkdownView text={text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
-      </SelectionTranslationContext.Provider> : text ? (
+      {text ? (
         <ScrollView testID="selection-translation-body" nestedScrollEnabled
-          style={resized ? { flex: 1, minHeight: 0 } : { maxHeight: Math.max(120, Math.round(window.height * 0.45)) }}>
+          style={resized || sheet ? { flex: 1, minHeight: 0 } : { maxHeight: Math.max(120, Math.round(window.height * 0.45)) }}>
           <SelectionTranslationContext.Provider value={null}>
             <MarkdownView text={text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
           </SelectionTranslationContext.Provider>
