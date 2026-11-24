@@ -5,7 +5,7 @@
 import type { PluginTimelineTransformResult } from "@getpaseo/plugin";
 import type { CompactionTimelineItem, ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import { toolErrorText } from "./error-text";
-import { isTaskEcho } from "./task-notification";
+import { isUndrawnCall } from "./undrawn-call";
 import { readCodexAsyncQuestions } from "./codex-questions";
 import { agentMessageFromDetail, agentMessageSchema, senderlessAgentMessage } from "./agent-message";
 import { showToolAtLevel } from "./timeline-level";
@@ -16,11 +16,6 @@ type JsonValue = boolean | null | number | string | JsonValue[] | { [key: string
 
 function toJsonValue(value: unknown): JsonValue {
   return value as JsonValue;
-}
-
-function isEmptyTerminalPoll(detail: unknown): boolean {
-  const plain = detail as { type?: unknown; label?: unknown; text?: unknown };
-  return plain.type === "plain_text" && !plain.label && !plain.text;
 }
 
 /** What a task notification's row reads of its metadata. */
@@ -72,9 +67,8 @@ export function transformToolCall({ item, phase }: {
   // The rest can be large and no row reads it.
   // A task notification that only repeats its command's row is not drawn at all.
   const taskNotification = item.name === "task_notification";
-  if (taskNotification && isTaskEcho(item.detail as Record<string, unknown>, item.metadata)) return { items: [] };
-  // Codex polling a terminal it names nothing about says nothing at all.
-  if (item.name === "terminal" && item.status === "completed" && isEmptyTerminalPoll(item.detail)) return { items: [] };
+  // So does Codex polling a terminal it names nothing about.
+  if (isUndrawnCall(item)) return { items: [] };
   const approved = item.metadata?.approved;
   const metadata = item.metadata;
   const questionData = Array.isArray(metadata?.questions) ? {

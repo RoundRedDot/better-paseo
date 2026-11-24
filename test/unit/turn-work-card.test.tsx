@@ -528,6 +528,9 @@ describe("work details filter", () => {
   const unfolded = [
     { ...tool("x1", { type: "shell", command: "npm run lint", output: "boom", exitCode: 1 }, "Bash"), status: "failed", error: "boom" } as ToolCallTimelineItem,
     tool("s1", { type: "search", query: "foo" } as ToolCallTimelineItem["detail"], "Grep"),
+    // The timeline draws no row for a notification that only repeats its command: not counted, not listed.
+    { ...tool("task_notification_1", { type: "plain_text", label: "npm test", text: "npm test", icon: "wrench" } as ToolCallTimelineItem["detail"],
+      "task_notification"), metadata: { synthetic: true, source: "claude_task_notification", taskId: "t1", status: "completed" } } as ToolCallTimelineItem,
   ];
   beforeEach(() => {
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));

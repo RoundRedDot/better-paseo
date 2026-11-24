@@ -10,6 +10,7 @@ import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import { isAssistantPlaceholder } from "../assistant-text";
 import { parseSystemEnvelope } from "../system-envelope";
 import { foldedFilePath, foldedWorkVerb, type WorkVerb } from "../tools/standard-fold";
+import { isUndrawnCall } from "../tools/undrawn-call";
 import { startsTurn, type Entry, type TurnMarks } from "./turn-duration";
 
 export interface WorkStep {
@@ -128,10 +129,11 @@ export function collectTurnWork(entries: readonly Entry[], span: TurnSpan, key: 
   let intent: string | null = null;
   for (let index = span.start; index <= span.end; index++) {
     const item = entries[index]!.item;
-    if (item.type === "tool_call") calls.set(item.callId, item);
+    // A call the timeline does not draw is not counted or listed either.
+    if (item.type === "tool_call" && !isUndrawnCall(item)) calls.set(item.callId, item);
     else if (item.type === "reasoning" && intent === null && item.text.trim()) intent = item.text;
   }
-  if (span.active && live) for (const [callId, item] of live) calls.set(callId, item);
+  if (span.active && live) for (const [callId, item] of live) if (!isUndrawnCall(item)) calls.set(callId, item);
   const steps: WorkStep[] = [];
   const files = new Map<string, string[]>();
   let current: TurnWork["current"] = null;
