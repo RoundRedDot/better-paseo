@@ -4,7 +4,10 @@
 // An editor .png source is the editor's own macOS app icon, taken from its
 // official app bundle; a .svg source is drawn for marks that have no app icon.
 // Service marks are the translator product icons (Google Translate, Microsoft
-// logo, Tencent TranSmart site icon).
+// logo, Tencent TranSmart site icon). Each service also gets a greyscale copy,
+// `service-gray:<file name>`, for the translation panel footer, where the mark
+// sits beside muted text: tinting would flatten the icons to silhouettes and
+// lose their inner shapes, so the grey comes from the colours themselves.
 //
 //   node scripts/build-editor-marks.mjs
 //
@@ -19,7 +22,7 @@ import path from "node:path";
 const root = path.resolve(import.meta.dirname, "..");
 const SOURCES = [
   { dir: path.join(root, "assets", "editor-marks"), prefix: "editor" },
-  { dir: path.join(root, "assets", "service-marks"), prefix: "service" },
+  { dir: path.join(root, "assets", "service-marks"), prefix: "service", gray: "service-gray" },
 ];
 const target = path.join(root, "server", "mark-bitmaps.ts");
 // The menu draws a mark at 20pt (LOGO in client/settings-file-open.tsx); 60px covers a three-times display.
@@ -30,7 +33,7 @@ const work = mkdtempSync(path.join(tmpdir(), "editor-marks-"));
 let text = readFileSync(target, "utf8");
 const built = [];
 try {
-  for (const { dir, prefix } of SOURCES) for (const file of readdirSync(dir).filter((name) => /\.(svg|png)$/.test(name)).sort()) {
+  for (const { dir, prefix, gray } of SOURCES) for (const file of readdirSync(dir).filter((name) => /\.(svg|png)$/.test(name)).sort()) {
     const id = `${prefix}:${file.slice(0, -4)}`;
     const source = path.join(dir, file);
     let raw = source;
@@ -39,13 +42,17 @@ try {
       raw = path.join(work, `${file}.png`);
       execFileSync("resvg", ["-w", String(SIZE), "-h", String(SIZE), source, raw]);
     }
-    execFileSync("magick", [raw, "-resize", `${SIZE}x${SIZE}`, "-strip", "-define", "png:compression-level=9", `PNG32:${png}`]);
-    execFileSync("oxipng", ["-q", "-o", "max", "--strip", "all", png]);
-    const uri = `data:image/png;base64,${readFileSync(png).toString("base64")}`;
-    const entry = new RegExp(`(  "${id}":\\n    ")[^"]*(")`);
-    if (entry.test(text)) text = text.replace(entry, `$1${uri}$2`);
-    else text = text.replace('  "mark:file":\n', `  "${id}":\n    "${uri}",\n  "mark:file":\n`);
-    built.push(id);
+    const variants = [{ id, args: [] }];
+    if (gray) variants.push({ id: `${gray}:${file.slice(0, -4)}`, args: ["-colorspace", "Gray"] });
+    for (const variant of variants) {
+      execFileSync("magick", [raw, "-resize", `${SIZE}x${SIZE}`, ...variant.args, "-strip", "-define", "png:compression-level=9", `PNG32:${png}`]);
+      execFileSync("oxipng", ["-q", "-o", "max", "--strip", "all", png]);
+      const uri = `data:image/png;base64,${readFileSync(png).toString("base64")}`;
+      const entry = new RegExp(`(  "${variant.id}":\\n    ")[^"]*(")`);
+      if (entry.test(text)) text = text.replace(entry, `$1${uri}$2`);
+      else text = text.replace('  "mark:file":\n', `  "${variant.id}":\n    "${uri}",\n  "mark:file":\n`);
+      built.push(variant.id);
+    }
   }
 } finally {
   rmSync(work, { recursive: true, force: true });

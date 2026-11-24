@@ -504,7 +504,40 @@ describe("selection bar Translate", () => {
     }
     expect(css).toContain(`.panel-actions .btn { position: relative; width: ${FLOAT.item}px; height: ${FLOAT.item}px;`);
     expect(css).not.toMatch(/28px/);
+    // Less inset under the footer: its buttons already pad their icons.
+    expect(css).toContain(`padding: ${PREVIEW_HEADER.bodyInset}px ${PREVIEW_HEADER.bodyInset}px ${PREVIEW_HEADER.footerInset}px;`);
+    expect(PREVIEW_HEADER.footerInset).toBeLessThan(PREVIEW_HEADER.bodyInset);
     popup.dispose();
+  });
+  it("shows a free service's greyscale logo before its name once the daemon sends it", async () => {
+    const { setMarkLoader } = await import("../../client/components/marks");
+    act(() => renderer?.unmount());
+    renderer = undefined;
+    let answer!: (marks: Record<string, string>) => void;
+    const loader = vi.fn(() => new Promise<Record<string, string>>((resolve) => { answer = resolve; }));
+    setMarkLoader(loader);
+    try {
+      const anchor = Object.assign(new ElementMock(), {
+        getBoundingClientRect: () => ({ left: 120, top: 200, bottom: 220, width: 100, height: 20 }),
+      });
+      body.appendChild(anchor);
+      const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close: vi.fn(), retry: vi.fn(), settings: vi.fn() }, "Original");
+      popup.setView({
+        status: "done", result: done("译文") as never,
+        modelInfo: { provider: "https://edge.microsoft.com", model: "Microsoft Translator", mark: "service-gray:microsoft" },
+      });
+      const model = () => panel().querySelector(".panel-model")!;
+      expect(model().children[0]!.className).toBe("model-mark");
+      expect(model().textContent).toBe("Microsoft Translator");
+      await flush();
+      expect(loader).toHaveBeenCalledWith(["service-gray:microsoft"]);
+      await act(async () => answer({ "service-gray:microsoft": "data:image/png;base64,AAAA" }));
+      await flush();
+      expect((model().children[0] as unknown as { src: string }).src).toBe("data:image/png;base64,AAAA");
+      popup.dispose();
+    } finally {
+      setMarkLoader(null);
+    }
   });
   it("uses the same movable panel for whole messages and cleans it up", () => {
     act(() => renderer?.unmount());

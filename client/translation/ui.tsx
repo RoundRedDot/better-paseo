@@ -1,5 +1,6 @@
 import React, { useContext, useMemo, useState, type ReactNode } from "react";
-import { ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
+import { useMarkBitmap } from "../components/marks";
 import type { PluginIcon } from "@getpaseo/plugin/client";
 import { Icon, Modal } from "@getpaseo/plugin/client/ui";
 import { usePaseo } from "@getpaseo/plugin/client";
@@ -136,6 +137,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
             {selectionViewTitle(view, lang)}
           </Text>
           {view.modelInfo ? <View style={styles.model}>
+            {view.modelInfo.mark ? <ModelMark id={view.modelInfo.mark} /> : null}
             <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: muted, fontFamily: tokens.fontUi }]}>
               {view.modelInfo.model}
             </Text>
@@ -162,13 +164,22 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
 
 const TRANSLATION_TOOLBAR_METRICS = { button: 28, icon: 16 };
 
+/** The translator's greyscale logo; faded so it sits at the weight of the muted text beside it. */
+function ModelMark({ id }: { id: string }) {
+  const uri = useMarkBitmap(id);
+  return <View testID="translation-model-mark" style={styles.modelMark}>
+    {uri ? <Image accessible={false} source={{ uri }} resizeMode="contain" style={[styles.modelMark, { opacity: 0.7 }]} /> : null}
+  </View>;
+}
+
 const styles = StyleSheet.create({
   panel: { paddingHorizontal: 12, paddingVertical: 10, gap: 6 },
   header: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 },
   headerInfo: { height: 24, flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", gap: 6 },
   divider: { height: 0.5, marginHorizontal: -12 },
   title: { flexShrink: 1, fontSize: 11, lineHeight: 14, fontWeight: "500", includeFontPadding: false, textAlignVertical: "center" },
-  model: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 6, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  model: { flexDirection: "row", alignItems: "center", justifyContent: "flex-start", gap: 4, flexGrow: 1, flexShrink: 1, minWidth: 0 },
+  modelMark: { width: 12, height: 12, flexShrink: 0 },
   messageRow: { flexDirection: "row", alignItems: "center", gap: 6 },
   message: { flexShrink: 1, fontSize: 12.5, lineHeight: 18 },
   actions: { flexDirection: "row", alignItems: "center", gap: 6 },

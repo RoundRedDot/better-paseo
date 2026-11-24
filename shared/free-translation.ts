@@ -332,6 +332,16 @@ export function autoFreeService(): FreeTranslationService | null {
   return autoService;
 }
 
+/** The service a finished translation came from, by the origin it recorded. */
+export function freeServiceForOrigin(origin: string): FreeTranslationService | null {
+  return FREE_TRANSLATION_SERVICES.find((service) => FREE_SERVICE_INFO[service].origin === origin) ?? null;
+}
+
+/** The service a choice uses now: `auto` only once it has settled on one. */
+export function currentFreeService(choice: FreeServiceChoice): FreeTranslationService | null {
+  return choice === "auto" ? autoService : choice;
+}
+
 /** What to name a choice before it answers: `auto` names the service it settled on, if any. */
 export function freeServiceInfo(choice: FreeServiceChoice): FreeServiceInfo {
   const service = choice === "auto" ? autoService : choice;

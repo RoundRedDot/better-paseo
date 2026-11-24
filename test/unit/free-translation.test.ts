@@ -8,7 +8,10 @@ import {
   translateFree,
   unescapeHtml,
 } from "../../shared/free-translation";
-import { createTranslationStore } from "../../client/translation/store";
+// The selection view imports the client graph; the store and services do not need it.
+vi.mock("react-native", () => import("./helpers/rn-mock"));
+
+import { createTranslationStore, resetTranslationStoreForTests } from "../../client/translation/store";
 import { timelineTranslationSettingsSchema } from "../../shared/timeline-translation";
 
 interface Call { url: string; init: RequestInit }
@@ -194,5 +197,40 @@ describe("free translation: client store", () => {
     const settings = timelineTranslationSettingsSchema.parse({ enabled: true, mode: "free", freeService: "google" });
     store.startTranslation({ sourceKey: "k", sourceKind: "reasoning", agentId: "a", text: "Hello", interfaceLanguage: "zh", settings }, vi.fn());
     await vi.waitFor(() => expect(store.read("k")?.state).toEqual({ state: "error", error: "Could not reach Google Translate." }));
+  });
+});
+
+describe("free translation: footer mark", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    resetTranslationStoreForTests();
+  });
+
+  it("names the free service with its greyscale mark while running and when done; an endpoint gets none", async () => {
+    const { createSelectionTranslation } = await import("../../client/translation/selection");
+    const { fetch } = fakeServices();
+    vi.stubGlobal("fetch", fetch);
+    const sourceFor = (values: object) => {
+      const snapshot = { status: "ready" as const, values: timelineTranslationSettingsSchema.parse(values), error: null, revision: "r" };
+      return { snapshot: () => snapshot, subscribe: () => () => {} };
+    };
+    const translator = { call: vi.fn(async () => ({ state: "running" as const })) };
+    const free = createSelectionTranslation({
+      agentId: "a", kind: "assistant_message", text: "Hello there", streaming: false, translator,
+      settings: sourceFor({ enabled: true, mode: "free", freeService: "google" }), interfaceLanguage: () => "en",
+    });
+    free.start();
+    expect(free.view()).toMatchObject({ status: "running", modelInfo: { model: "Google Translate", mark: "service-gray:google" } });
+    await vi.waitFor(() => expect(free.view()?.status).toBe("done"));
+    expect(free.view()?.modelInfo).toEqual({ provider: "https://translate-pa.googleapis.com", model: "Google Translate", mark: "service-gray:google" });
+    free.dispose();
+
+    const endpoint = createSelectionTranslation({
+      agentId: "a", kind: "assistant_message", text: "Other text", streaming: false, translator,
+      settings: sourceFor({ enabled: true, mode: "openai", endpoint: "https://api.example.test/v1", endpointModel: "m" }), interfaceLanguage: () => "en",
+    });
+    endpoint.start();
+    expect(endpoint.view()?.modelInfo).toEqual({ provider: "https://api.example.test/v1", model: "m" });
+    endpoint.dispose();
   });
 });

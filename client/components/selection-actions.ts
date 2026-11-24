@@ -26,6 +26,7 @@ import {
 import { selectionViewTitle } from "../translation/view-text";
 import { openTranslationSettings } from "../translation/navigation";
 import { SYNCED_LOADER_FRAMES } from "../ui/synced-loader";
+import { readMark, requestMark, subscribeMarks } from "./marks";
 
 /**
  * A floating Copy / Add to chat bar for highlighted callout text.
@@ -402,7 +403,9 @@ const BAR_CSS = `
   display: none;
   flex-direction: column;
   gap: 6px;
-  padding: ${PREVIEW_HEADER.bodyInset}px;
+  /* The footer's buttons carry their own box around the icon, so the bottom
+     needs less inset than the sides to look even. */
+  padding: ${PREVIEW_HEADER.bodyInset}px ${PREVIEW_HEADER.bodyInset}px ${PREVIEW_HEADER.footerInset}px;
 }
 .bar.translating .panel { display: flex; }
 .panel-head {
@@ -436,7 +439,9 @@ const BAR_CSS = `
 .bar.translating .panel-heading { display: flex; }
 .bar.translating .translate-action { display: none; }
 .row .panel-settings { margin-left: auto; padding: 0; width: ${FLOAT.item}px; height: ${FLOAT.item}px; justify-content: center; }
-.panel-model { display: flex; align-items: center; gap: 5px; min-width: 0; }
+.panel-model { display: flex; align-items: center; gap: 4px; min-width: 0; }
+/* Faded so the logo sits at the weight of the muted text beside it. */
+.model-mark { width: 11px; height: 11px; flex: 0 0 auto; object-fit: contain; opacity: 0.7; }
 .panel-model span { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .activity-grid { display: grid; grid-template-columns: repeat(2, ${10 / 3}px); grid-template-rows: repeat(3, ${10 / 3}px); gap: 2px; width: ${26 / 3}px; height: 14px; flex: 0 0 auto; }
 .activity-dot { width: ${10 / 3}px; height: ${10 / 3}px; border-radius: 50%; background: var(--bc-bar-text); animation-duration: 950ms; animation-timing-function: steps(1, end); animation-iteration-count: infinite; animation-delay: var(--bc-loader-phase); }
@@ -786,6 +791,28 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     return node;
   };
 
+  /**
+   * A translator's greyscale logo. The daemon serves marks on request, so a
+   * mark not here yet fills in once it arrives; the box keeps its space.
+   */
+  const markImage = (id: string) => {
+    const image = element("img", "model-mark");
+    image.alt = "";
+    image.setAttribute("aria-hidden", "true");
+    const show = () => {
+      const uri = readMark(id);
+      if (uri) image.src = uri;
+      return uri !== undefined;
+    };
+    if (!show()) {
+      const release = subscribeMarks(() => {
+        if (show() || !image.isConnected) release();
+      });
+      requestMark(id);
+    }
+    return image;
+  };
+
   /** Rebuilds the panel for `view`; the translation goes in as text, never as HTML. */
   const renderPanel = () => {
     panel.replaceChildren();
@@ -808,6 +835,7 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     head.appendChild(element("span", "panel-title", selectionViewTitle(view, lang)));
     if (view.modelInfo) {
       const model = element("div", "panel-model");
+      if (view.modelInfo.mark) model.appendChild(markImage(view.modelInfo.mark));
       model.appendChild(element("span", "model-label", view.modelInfo.model));
       head.appendChild(model);
     }

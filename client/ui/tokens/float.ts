@@ -61,6 +61,8 @@ export const PREVIEW_HEADER = {
   border: 1,
   /** The body's inset under the header. */
   bodyInset: space.md,
+  /** Under a footer of icon buttons, whose boxes already pad the icons. */
+  footerInset: 6,
 } as const;
 
 export function previewHeaderLook(tokens: ExtendedThemeTokens): { backgroundColor: string; borderBottomColor: string } {

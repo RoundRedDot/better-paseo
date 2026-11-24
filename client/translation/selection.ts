@@ -10,7 +10,7 @@ import type {
 import { resolveTranslationTarget } from "../../shared/translation-languages";
 import { getEnhancerPreferences } from "../preferences";
 import { resolveLanguage } from "../i18n/settings-strings";
-import { freeServiceInfo } from "../../shared/free-translation";
+import { currentFreeService, freeServiceForOrigin, freeServiceInfo } from "../../shared/free-translation";
 import { translationSettingsSync, type TranslationSettingsSnapshot } from "./settings-store";
 import {
   hashTranslationText,
@@ -142,7 +142,18 @@ export type SelectionTranslationView = (
   | { status: "stale" }
   | { status: "running"; text?: string; targetCode: string }
   | { status: "done"; result: ResultNoticeInput }
-  | { status: "error"; error: string; targetCode: string }) & { modelInfo?: { provider: string; model: string } };
+  | { status: "error"; error: string; targetCode: string }) & { modelInfo?: ModelInfo };
+
+/**
+ * Who translates. `mark`: a greyscale logo shown before the name, for
+ * services Better Paseo knows (the free services); an OpenAI-compatible
+ * endpoint has none.
+ */
+export interface ModelInfo { provider: string; model: string; mark?: string }
+
+function freeMark(service: string | null): { mark?: string } {
+  return service ? { mark: `service-gray:${service}` } : {};
+}
 
 export interface SelectionTranslationOptions {
   agentId: string;
@@ -178,7 +189,8 @@ function currentInterfaceLanguage(): "en" | "zh" {
 function sameView(a: SelectionTranslationView | null, b: SelectionTranslationView | null): boolean {
   if (a === b) return true;
   if (!a || !b || a.status !== b.status) return false;
-  if (a.modelInfo?.provider !== b.modelInfo?.provider || a.modelInfo?.model !== b.modelInfo?.model) return false;
+  if (a.modelInfo?.provider !== b.modelInfo?.provider || a.modelInfo?.model !== b.modelInfo?.model ||
+    a.modelInfo?.mark !== b.modelInfo?.mark) return false;
   switch (a.status) {
     case "running": {
       const other = b as typeof a;
@@ -344,13 +356,13 @@ function viewOf(
   settings: TimelineTranslationSettings,
 ): SelectionTranslationView {
   // `provider` picks the logo: the endpoint names its service (`api.openai.com`, ...).
-  const modelInfo = settings.mode === "free"
-    ? { provider: freeServiceInfo(settings.freeService).origin, model: freeServiceInfo(settings.freeService).name }
+  const modelInfo: ModelInfo = settings.mode === "free"
+    ? { provider: freeServiceInfo(settings.freeService).origin, model: freeServiceInfo(settings.freeService).name, ...freeMark(currentFreeService(settings.freeService)) }
     : { provider: settings.endpoint, model: settings.endpointModel };
   if (!entry || entry.state.state === "idle") return { status: "running", targetCode, modelInfo };
   switch (entry.state.state) {
     case "running": return { status: "running", text: entry.state.text || undefined, targetCode, modelInfo };
-    case "done": return { status: "done", result: entry.state, modelInfo: { provider: entry.state.origin, model: entry.state.model } };
+    case "done": return { status: "done", result: entry.state, modelInfo: { provider: entry.state.origin, model: entry.state.model, ...freeMark(freeServiceForOrigin(entry.state.origin)) } };
     case "error": return { status: "error", error: entry.state.error, targetCode, modelInfo };
   }
 }

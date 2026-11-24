@@ -157,6 +157,9 @@ export const MARK_IDS: ReadonlySet<string> = new Set([
   "service:microsoft",
   "service:google",
   "service:tencent",
+  "service-gray:microsoft",
+  "service-gray:google",
+  "service-gray:tencent",
   "mark:file",
   "mark:folder",
 ]);
