@@ -101,7 +101,7 @@ describe("details row press zones and registration", () => {
     const expectedHeight = compact ? tokens.typography.block.rowHeight.compact : tokens.typography.block.rowHeight.desktop;
     expect(StyleSheet.flatten(row().props.style)).toMatchObject({ height: expectedHeight, borderRadius: radiusV2.block });
     act(() => row().props.onHoverIn());
-    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: radiusV2.block, backgroundColor: tokens.v2.surface1 });
+    expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: radiusV2.block, backgroundColor: tokens.v2.surface2 });
     act(() => row().props.onPressIn());
     expect(StyleSheet.flatten(row().props.style)).toMatchObject({ borderRadius: radiusV2.block, backgroundColor: tokens.v2.surface2 });
     act(() => row().props.onPressOut());
