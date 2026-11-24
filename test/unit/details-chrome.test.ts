@@ -142,8 +142,8 @@ describe("details header", () => {
     const root = mount(details(rowPreview(callout(bash))));
     const header = byId(root, "details-header");
     expect(header.props.style).toEqual(expect.arrayContaining([expect.objectContaining({ minHeight: 52 })]));
-    expect(byId(root, "details-header-icon").props.style).toEqual(expect.arrayContaining([
-      expect.objectContaining({ width: 28, height: 28, borderRadius: 7 }), { backgroundColor: tokens.v2.surface1 }]));
+    expect(StyleSheet.flatten(byId(root, "details-header-icon").props.style)).toMatchObject({ width: 28, height: 28 });
+    expect(StyleSheet.flatten(byId(root, "details-header-icon").props.style).backgroundColor).toBeUndefined();
     const title = byId(root, "details-header-title").findByType("Text" as never);
     expect(textOf(title)).toBe("npm run build");
     expect(title.props.numberOfLines).toBe(1);

@@ -66,7 +66,7 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
       style={[styles.header, { minHeight: desktopSide ? 36 : DETAILS_HEADER[pointer ? "pointer" : "touch"] },
         desktopSide && { paddingVertical: 3, borderBottomWidth: 1, borderBottomColor: tokens.v2.borderSubtle }]}
     >
-      <View testID="details-header-icon" style={[styles.tile, { backgroundColor: tokens.v2.surface1 }]}>
+      <View testID="details-header-icon" style={styles.tile}>
         {entry.icon ? <TileIcon name={entry.icon} color={entry.iconColor ?? tokens.foregroundMuted} />
           : typeof icon === "string" ? <TileIcon name={icon} color={tokens.foregroundMuted} /> : icon}
       </View>
@@ -159,7 +159,7 @@ const styles = StyleSheet.create({
     paddingVertical: space.xs,
     flexShrink: 0,
   },
-  tile: { width: ICON_TILE, height: ICON_TILE, borderRadius: 7, alignItems: "center", justifyContent: "center", flexShrink: 0 },
+  tile: { width: ICON_TILE, height: ICON_TILE, alignItems: "center", justifyContent: "center", flexShrink: 0 },
   text: { flex: 1, minWidth: 0, gap: 1 },
   title: { fontWeight: "600" },
   subtitle: { flexDirection: "row", alignItems: "center", gap: space.xs, minWidth: 0 },
