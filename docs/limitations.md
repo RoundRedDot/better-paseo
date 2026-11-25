@@ -39,7 +39,7 @@ switches to an official API once Paseo has one.
 | --- | --- | --- |
 | Label colours and project icons | The plugin's server reads the label definitions and project icons from the daemon (`tasks.labels`, `tasks.project-icons`). The board asks the plugin API first, so on a Paseo that exposes them it uses the official calls by itself. If neither answers, labels take a colour picked by their name and projects a generated initial. | [#7482](https://github.com/getpaseo/paseo/pull/7482), open ([Discussion #7481](https://github.com/getpaseo/paseo/discussions/7481)) |
 | Stop | Runs `paseo agent stop`; hidden where the CLI is not found. | nothing filed |
-| Unarchive | Runs `paseo agent reload`; hidden where the CLI is not found. | nothing filed |
+| Unarchive | Runs `paseo agent reload`; hidden where the CLI is not found. When archiving the workspace removed its worktree, Paseo's `restoreWorkspace` rebuilds it first (uncommitted files are not recovered). | nothing filed |
 | Mark as read | Clears the agent's attention over the server's own daemon connection; hidden where that connection is unavailable. | [#7647](https://github.com/getpaseo/paseo/pull/7647) (a CLI command), open |
 | Provider sub-agent cards | The server reads a session's sub-agents from the daemon and follows their updates; without the connection the board shows none. | nothing filed |
 

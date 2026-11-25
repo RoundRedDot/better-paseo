@@ -749,7 +749,7 @@ subscription, and the board's code is not fetched. Its options are listed under
   prompt, unless a turn or sub-agent fails after it.
 - **Archive** on a done card archives the agent, as Paseo's own Archive does. An archived task has
   **Unarchive** where Open was, because Paseo cannot keep an archived agent's tab open for a plugin;
-  Open returns once the task is back.
+  Open returns once the task is back. If archiving the workspace removed its worktree and Paseo can recover the workspace, Unarchive has Paseo rebuild it first, as Paseo's own Restore does.
 - On desktop and web a right-click opens the card's menu: open the tab; copy its session ID,
   title, workspace or project; Stop, Mark as read, Archive or Unarchive as the card allows.
 - **Automatically update title** generates a title without adding another card. Configure its
