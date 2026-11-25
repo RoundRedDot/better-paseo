@@ -19,15 +19,15 @@ import { SpinnerRing } from "../tasks/cards/status-icon";
 
 export type InlineTranslationState = { view: SelectionTranslationView | null; active: boolean; toggle(): void };
 
-export function InlineTranslation({ agentId, kind, text, streaming, children }: {
-  agentId: string; kind: TranslationSourceKind; text: string; streaming: boolean;
+export function InlineTranslation({ agentId, kind, text, streaming, initialActive = false, children }: {
+  agentId: string; kind: TranslationSourceKind; text: string; streaming: boolean; initialActive?: boolean;
   children(state: InlineTranslationState): ReactNode;
 }) {
-  return <InlineTranslationSession agentId={agentId} kind={kind} text={text} streaming={streaming}>{children}</InlineTranslationSession>;
+  return <InlineTranslationSession agentId={agentId} kind={kind} text={text} streaming={streaming} initialActive={initialActive}>{children}</InlineTranslationSession>;
 }
 
-function InlineTranslationSession({ agentId, kind, text, streaming, children }: {
-  agentId: string; kind: TranslationSourceKind; text: string; streaming: boolean;
+function InlineTranslationSession({ agentId, kind, text, streaming, initialActive, children }: {
+  agentId: string; kind: TranslationSourceKind; text: string; streaming: boolean; initialActive: boolean;
   children(state: InlineTranslationState): ReactNode;
 }) {
   const caller = useTranslateCaller();
@@ -38,7 +38,8 @@ function InlineTranslationSession({ agentId, kind, text, streaming, children }: 
   useEffect(() => { translation.setTranslator(caller); }, [translation, caller]);
   useEffect(() => () => translation.dispose(), [translation]);
   const view = useSyncExternalStore(translation.subscribe, translation.view, translation.view);
-  const [choice, setChoice] = useState({ translation, active: false });
+  const [choice, setChoice] = useState({ translation, active: initialActive });
+  useEffect(() => { if (initialActive) translation.start(); }, []);
   const active = choice.translation === translation && choice.active;
   const setActive = (active: boolean) => setChoice({ translation, active });
   const start = translation.start;
@@ -50,13 +51,13 @@ function InlineTranslationSession({ agentId, kind, text, streaming, children }: 
   return <>{children({ view, active, toggle })}</>;
 }
 
-export function InlineTranslateButton({ state, theme, testID, base, timeline = false, alignRight = false }: { state: InlineTranslationState; theme: PluginTheme; testID: string; base?: string; timeline?: boolean; alignRight?: boolean }) {
+export function InlineTranslateButton({ state, theme, testID, base, timeline = false, alignRight = false, size = 32 }: { state: InlineTranslationState; theme: PluginTheme; testID: string; base?: string; timeline?: boolean; alignRight?: boolean; size?: number }) {
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences);
-  return <InlineTranslateButtonWithTokens state={state} tokens={tokens} testID={testID} base={base} timeline={timeline} alignRight={alignRight} />;
+  return <InlineTranslateButtonWithTokens state={state} tokens={tokens} testID={testID} base={base} timeline={timeline} alignRight={alignRight} size={size} />;
 }
 
-export function InlineTranslateButtonWithTokens({ state, tokens, testID, base, timeline = false, alignRight = false }: { state: InlineTranslationState; tokens: ExtendedThemeTokens; testID: string; base?: string; timeline?: boolean; alignRight?: boolean }) {
+export function InlineTranslateButtonWithTokens({ state, tokens, testID, base, timeline = false, alignRight = false, size = 32 }: { state: InlineTranslationState; tokens: ExtendedThemeTokens; testID: string; base?: string; timeline?: boolean; alignRight?: boolean; size?: number }) {
   const settings = useTranslationSettingsState();
   const preferences = useEnhancerPreferences();
   const { hovered, hoverProps } = useHover();
@@ -73,7 +74,7 @@ export function InlineTranslateButtonWithTokens({ state, tokens, testID, base, t
     : showingTranslation
       ? <Icon icon={SHOW_ORIGINAL_ICON} size={iconSize} color={tokens.foregroundMuted} />
       : <Icon icon={TRANSLATE_ICON} size={iconSize} color={tokens.foregroundMuted} />;
-  if (timeline) return <View style={{ width: 32, height: 32, alignItems: alignRight ? "flex-end" : "center", justifyContent: "center" }}><TooltipSideContext.Provider value="auto"><ToolbarItem testID={testID} label={label} tokens={tokens} align="end"
+  if (timeline) return <View style={{ width: size, height: size, alignItems: alignRight ? "flex-end" : "center", justifyContent: "center" }}><TooltipSideContext.Provider value="auto"><ToolbarItem testID={testID} label={label} tokens={tokens} align="end"
     buttonStyle={{ width: 24, height: 24, borderRadius: radiusV2.block }}
     onPress={(event) => { event.stopPropagation(); state.toggle(); }}>
     <View pointerEvents="none" testID={`${testID}-fill`}>{icon}</View>

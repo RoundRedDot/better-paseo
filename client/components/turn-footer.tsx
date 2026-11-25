@@ -18,7 +18,7 @@ import type { TurnUsage } from "./user-message";
 import { useEnhancerPreferences } from "../preferences";
 import { resolveLanguage } from "../i18n/settings-strings";
 import { toolbarLabel } from "../i18n/toolbar-strings";
-import { MessageTranslateButton } from "../translation/message-button";
+import { WholeReplyTranslateButton } from "../translation/reply-whole";
 import { useTranslationSettingsState } from "../translation/settings-store";
 
 /**
@@ -48,7 +48,7 @@ interface AssistantFooterProps {
   startedAt?: number | null;
   usage?: TurnUsage | null;
   tokens: ExtendedThemeTokens;
-  translation?: { agentId: string; theme: PluginTheme; replyKey?: string };
+  translation?: { agentId: string; theme: PluginTheme; replyKey: string };
   /** `layout.compact`: a 44pt touch target for Copy. */
   compact?: boolean;
 }
@@ -157,8 +157,7 @@ export function AssistantFooter({ text, at, agentName, modelId, modelName, think
           />
         </ToolbarItem>
         {translation && canTranslate ? (
-          <MessageTranslateButton {...translation} kind="assistant_message" text={text} streaming={false}
-            testID="footer-translate" size={FOOTER_HEIGHT} />
+          <WholeReplyTranslateButton agentId={translation.agentId} replyKey={translation.replyKey} text={text} theme={translation.theme} />
         ) : null}
         {modelName && fit.model ? (
           <ToolbarItem

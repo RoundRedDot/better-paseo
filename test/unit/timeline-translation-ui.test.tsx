@@ -151,6 +151,7 @@ import { LiveAssistantRenderer, LiveReasoningRenderer } from "../../client/live-
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { SelectionTranslationScope } from "../../client/translation/ui";
 import { MessageTranslateButton } from "../../client/translation/message-button";
+import { WholeReplyTranslateButton } from "../../client/translation/reply-whole";
 import { replyTranslationKey } from "../../client/translation/reply-pending";
 import { InlineTranslateButtonWithTokens } from "../../client/translation/inline";
 import { ToolbarCopyButton, ToolbarMetricsContext } from "../../client/ui/toolbar-button";
@@ -839,8 +840,8 @@ describe("timeline translation", () => {
       // A long reply split into rows: they share the source item's timestamp.
       React.createElement(LiveAssistantRenderer, assistantProps({ text: "Split one", phase: "complete", blockIndex: 0 }) as never),
       React.createElement(LiveAssistantRenderer, assistantProps({ text: "Split two", phase: "complete", blockIndex: 1, messageText: "Split one\n\nSplit two" }) as never),
-      React.createElement(MessageTranslateButton, { agentId: "agent-1", kind: "assistant_message", text: "Split one\n\nSplit two",
-        streaming: false, theme, testID: "footer-translate", replyKey: replyTranslationKey("agent-1", at.getTime()) }))); });
+      React.createElement(WholeReplyTranslateButton, { agentId: "agent-1", text: "Split one\n\nSplit two",
+        theme, replyKey: replyTranslationKey("agent-1", at.getTime()) }))); });
     // The wrapper that holds each row's Markdown, keyed by the text it shows.
     const dimmed = () => renderer!.root.findAll((node) => String(node.type) === "View"
       && StyleSheet.flatten(node.props.style)?.opacity === 0.55).map((node) => textContent(node));
@@ -852,6 +853,64 @@ describe("timeline translation", () => {
     expect(dimmed().join("|")).not.toContain("Earlier reply");
     await act(async () => pending.resolve(doneState("整条译文")));
     expect(dimmed()).toEqual([]);
+    expect(JSON.stringify(renderer!.toJSON())).toContain("整条译文");
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("Split one");
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("Split two");
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Earlier reply");
+    const footer = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "footer-translate");
+    expect(footer().props.accessibilityLabel).toBe("Show original");
+    await act(async () => footer().props.onPress({ stopPropagation() {} }));
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Split one");
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Split two");
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("整条译文");
+    await act(async () => footer().props.onPress({ stopPropagation() {} }));
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+    expect(JSON.stringify(renderer!.toJSON())).toContain("整条译文");
+  });
+
+  it("keeps the whole translation when its footer remounts", async () => {
+    mocks.rpc.mockResolvedValue(doneState("持久译文"));
+    const key = replyTranslationKey("agent-1", new Date("2026-11-19T10:00:00Z").getTime());
+    const row = React.createElement(LiveAssistantRenderer, assistantProps({ text: "Remount original", phase: "complete" }) as never);
+    const footer = () => React.createElement(WholeReplyTranslateButton, { agentId: "agent-1", text: "Remount original", theme, replyKey: key });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null, row, footer())); });
+    await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "footer-translate").props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("持久译文"));
+    await act(async () => renderer!.update(React.createElement(React.Fragment, null, row)));
+    expect(JSON.stringify(renderer!.toJSON())).toContain("持久译文");
+    await act(async () => renderer!.update(React.createElement(React.Fragment, null, row, footer())));
+    await vi.waitFor(() => expect(renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "footer-translate").props.accessibilityLabel).toBe("Show original"));
+    expect(mocks.rpc).toHaveBeenCalledOnce();
+  });
+
+  it("does not retain a whole translation across settings changes while the footer is unmounted", async () => {
+    mocks.rpc.mockResolvedValue(doneState("旧译文"));
+    const key = replyTranslationKey("agent-1", new Date("2026-11-19T10:00:00Z").getTime());
+    const row = React.createElement(LiveAssistantRenderer, assistantProps({ text: "Settings original", phase: "complete" }) as never);
+    const footer = React.createElement(WholeReplyTranslateButton, { agentId: "agent-1", text: "Settings original", theme, replyKey: key });
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null, row, footer)); });
+    await act(async () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "footer-translate").props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("旧译文"));
+    await act(async () => renderer!.update(React.createElement(React.Fragment, null, row)));
+    await act(async () => { publishTranslationSettings({ ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, targetLanguage: "ja" }); });
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Settings original");
+    expect(JSON.stringify(renderer!.toJSON())).not.toContain("旧译文");
+  });
+
+  it("retries a failed whole reply translation without hiding the original", async () => {
+    mocks.rpc.mockResolvedValueOnce({ state: "error", error: "offline" }).mockResolvedValueOnce(doneState("完整译文"));
+    const at = new Date("2026-11-19T10:00:00Z");
+    await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,
+      React.createElement(LiveAssistantRenderer, assistantProps({ text: "Whole original", phase: "complete" }) as never),
+      React.createElement(WholeReplyTranslateButton, { agentId: "agent-1", text: "Whole original", theme,
+        replyKey: replyTranslationKey("agent-1", at.getTime()) }))); });
+    const footer = () => renderer!.root.find((node) => String(node.type) === "Pressable" && node.props.testID === "footer-translate");
+    await act(async () => footer().props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(footer().props.accessibilityLabel).toBe("Retry"));
+    expect(JSON.stringify(renderer!.toJSON())).toContain("Whole original");
+    await act(async () => footer().props.onPress({ stopPropagation() {} }));
+    await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("完整译文"));
+    expect(mocks.rpc).toHaveBeenCalledTimes(2);
   });
 
   it("keeps the original visible during translation and offers retry on failure", async () => {

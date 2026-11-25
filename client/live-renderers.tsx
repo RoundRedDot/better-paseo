@@ -65,6 +65,7 @@ import { probeCard, textItemKey } from "./debug/perf";
 import { SelectionTranslationScope } from "./translation/ui";
 import { InlineTranslation, InlineTranslateButton, InlineTranslationNotice, type InlineTranslationState } from "./translation/inline";
 import { replyTranslationKey, useReplyTranslationPending } from "./translation/reply-pending";
+import { useWholeReplyTranslation } from "./translation/reply-whole";
 import {
   assistantPropsEqual,
   noticePropsEqual,
@@ -579,7 +580,8 @@ function InlineReplyBlock({ state, replyKey, theme, tokens: given, compact, text
     [source, metrics, ruleHeight, monoLineHeight, firstBlock, codexDirectives]);
   const top = gap + center - REPLY_TRANSLATE_GUTTER / 2;
   const enabled = (settings.status !== "ready" || settings.values.enabled) && !isImageOnlyReply(originalText, codexDirectives);
-  const replyPending = useReplyTranslationPending(replyKey);
+  const whole = useWholeReplyTranslation(replyKey);
+  const replyPending = useReplyTranslationPending(replyKey) || (whole?.active && whole.view?.status === "running");
   const loading = replyPending || (state.active && state.view && ["running", "settings-loading"].includes(state.view.status));
   const gutter = enabled ? REPLY_TRANSLATE_GUTTER : 0;
   // The slot is positioned in the content's own box, so a status notice above
@@ -611,7 +613,10 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp, inlin
   }, [cwd, revealPath, toast]);
   const probe = probeCard("assistant", textItemKey("assistant", item.data.text), false);
   const hostSlotKey = useRef(`assistant:${agentId}:${timestamp.getTime()}:${item.data.blockIndex ?? "block"}`).current;
+  const whole = useWholeReplyTranslation(replyTranslationKey(agentId, timestamp.getTime()));
+  const wholeShown = whole?.active && whole.view?.status === "done";
   const shown = inline.active && inline.view?.status === "done" ? inline.view.result.translation : item.data.text;
+  if (wholeShown) return null;
   const codexDirectives = codex;
   return <View {...surfaceProps(itemRootFont(preferences.uiFont), pluginRoot)} {...probe.viewProps}
     style={assistantBlockStyles.continuation}>
@@ -642,7 +647,9 @@ function LiveAssistantMessageRenderer({
 }: PluginTimelineItemProps<LiveAssistantPayload> & { inline?: InlineTranslationState }) {
   const messageText = item.data.messageText ?? item.data.text;
   const streaming = item.data.phase === "streaming";
-  const translated = inline?.active && inline.view?.status === "done" ? inline.view.result.translation : null;
+  const whole = useWholeReplyTranslation(replyTranslationKey(agentId, timestamp.getTime()));
+  const wholeTranslated = whole?.active && whole.view?.status === "done" ? whole.view.result.translation : null;
+  const translated = wholeTranslated ?? (inline?.active && inline.view?.status === "done" ? inline.view.result.translation : null);
   const provider = useAgent(agentId, (agent) => agent.provider);
   const codex = useCodexProvider(provider);
   const codexDirectives = codex;
@@ -710,10 +717,10 @@ function LiveAssistantMessageRenderer({
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
         <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={streaming}>
-          {inline ? <InlineReplyBlock state={inline} replyKey={replyTranslationKey(agentId, timestamp.getTime())} theme={theme} tokens={tokens} compact={layout.compact} text={translated ?? revealed} originalText={item.data.text} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives}
+          {inline ? <InlineReplyBlock state={inline} replyKey={replyTranslationKey(agentId, timestamp.getTime())} theme={theme} tokens={tokens} compact={layout.compact} text={translated ?? revealed} originalText={item.data.text} codexDirectives={codexDirectives} firstBlock={wholeTranslated !== null || item.data.blockIndex === undefined || item.data.blockIndex === 0} listContinuation={wholeTranslated !== null ? false : item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives}
             text={translated ?? revealed}
-            firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
-            listContinuation={item.data.listContinuation}
+            firstBlock={wholeTranslated !== null || item.data.blockIndex === undefined || item.data.blockIndex === 0}
+            listContinuation={wholeTranslated !== null ? false : item.data.listContinuation}
             tokens={tokens}
             variant={preferences.markdownVariant}
             compact={layout.compact}
