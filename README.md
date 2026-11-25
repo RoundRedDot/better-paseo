@@ -858,6 +858,7 @@ and hides the Tool calls, Spacing, Messages and Hover previews groups. The Tasks
 | --- | --- | --- | --- |
 | General | Enable Better Paseo chat | On | Draws tool calls, reasoning, checklists, notices, compaction rows, prompts and replies with this plugin. Off leaves the whole chat to Paseo, so its Summary tool call display can fold tool calls. |
 | General | Language | Follow Paseo | English or 简体中文 for the settings page, the Tasks board and the timeline's own words. Follow Paseo uses Paseo's language, or the device's when Paseo follows the system. |
+| General | Show Agent steps button | On | Shows the Agent steps button above the composer. Off hides only the button, without changing the selected level. You can still change the level in General or with `/bp-timeline`. |
 | Appearance | Accent colour | Theme | Follow the Paseo theme, or Jade, Violet, Amber or Rose. Only the accent changes. |
 | Appearance | Interface font | Follow Paseo | Paseo's interface font, Inter (web only, fetched from the daemon) or the system face. |
 | Appearance | Inline code on mobile | Dark grey | Text colour of inline code on iOS and Android: Dark grey, Blue, Violet, Green or Coral. Web keeps its grey chip. |

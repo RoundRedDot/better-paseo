@@ -972,6 +972,19 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
               </Pressable>
             ))}
           </View>} /> : null}
+        <SettingRow
+          title={t.showTimelineLevelPillTitle}
+          description={t.showTimelineLevelPillDescription}
+          control={
+            <Toggle
+              value={preferences.showTimelineLevelPill}
+              onChange={(showTimelineLevelPill) => updateEnhancerPreferences({ showTimelineLevelPill })}
+              label={t.showTimelineLevelPillTitle}
+              look={look}
+            />
+          }
+          look={look}
+        />
       </Section>
 
       {/* Translation also serves the Tasks board, which does not depend on the chat switch. */}

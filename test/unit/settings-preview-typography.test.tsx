@@ -109,7 +109,7 @@ describe("translation settings placement", () => {
     release();
   });
 
-  it("places its own section immediately after the timeline mode", async () => {
+  it("places its own section immediately after the Agent steps controls", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     resetEnhancerPreferences();
     setSettingsTab("display");
@@ -122,7 +122,10 @@ describe("translation settings placement", () => {
     const generalIndex = sections.findIndex((section) => section.props.title === SETTINGS_STRINGS.en.sectionGeneral);
     expect(generalIndex).toBeGreaterThanOrEqual(0);
     const general = sections[generalIndex]!;
-    expect(general.findAllByType(SettingRow).at(-1)?.props.title).toBe(SETTINGS_STRINGS.en.timelineTitle);
+    expect(general.findAllByType(SettingRow).slice(-2).map((row) => row.props.title)).toEqual([
+      SETTINGS_STRINGS.en.timelineTitle,
+      SETTINGS_STRINGS.en.showTimelineLevelPillTitle,
+    ]);
     expect(sections[generalIndex + 1]?.props.title).toBe("Translation");
   });
 

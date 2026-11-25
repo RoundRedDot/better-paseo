@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { ReactTestRenderer } from "react-test-renderer";
+import type { PluginButton, PluginComposerPillContribution, PluginClientSlashCommandContribution } from "@getpaseo/plugin/client";
 import "./helpers/quiet-renderer";
 
 // contribute() asks the daemon for the stored preferences itself, so iOS and
@@ -240,6 +241,46 @@ describe("preferences read while the plugin loads", () => {
     for (const id of TRANSFORMERS) expect(plugin.active(id)).toHaveLength(1);
     cleanup();
     expect(plugin.registrations.every((entry) => entry.removed)).toBe(true);
+  });
+
+  it("syncs button visibility from another client without reprojecting the timeline", async () => {
+    const { contribute, preferences } = await load();
+    let record = { status: "ready", revision: "r1", values: { showTimelineLevelPill: false, timelineLevel: "standard", language: "en" } };
+    const plugin = fakeClient(() => Promise.resolve(record));
+    let button!: PluginButton;
+    let command!: PluginClientSlashCommandContribution;
+    const removePill = vi.fn();
+    const cleanup = contribute({
+      ...plugin.client,
+      addComposerPill(contribution: PluginComposerPillContribution) {
+        button = contribution.button;
+        return { update(patch: Partial<PluginButton>) { button = { ...button, ...patch }; }, remove: removePill };
+      },
+      addSlashCommand(contribution: PluginClientSlashCommandContribution) {
+        if (contribution.name === "bp-timeline") command = contribution;
+        return () => {};
+      },
+    } as never);
+    try {
+      await flush();
+      command.onSubmit({ args: "2", agent: { id: "a1", workspaceId: "w1" } } as never);
+      expect(button).toMatchObject({ visible: false, label: "Standard" });
+      const registrations = plugin.registrations.length;
+      record = { ...record, revision: "r2", values: { ...record.values, showTimelineLevelPill: true } };
+      plugin.push("presentation");
+      await flush();
+      expect(button).toMatchObject({ visible: true, label: "Standard" });
+      expect(preferences.getEnhancerPreferences()).toMatchObject({ showTimelineLevelPill: true, timelineLevel: "standard" });
+      record = { ...record, revision: "r3", values: { ...record.values, showTimelineLevelPill: false } };
+      plugin.push("presentation");
+      await flush();
+      expect(button).toMatchObject({ visible: false, label: "Standard" });
+      expect(plugin.registrations).toHaveLength(registrations);
+    } finally {
+      cleanup();
+    }
+    expect(removePill).toHaveBeenCalledOnce();
+    expect(plugin.observers.size).toBe(0);
   });
 
   it("turns the chat back on from another client after the settings page closed", async () => {

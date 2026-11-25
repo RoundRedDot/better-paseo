@@ -139,6 +139,35 @@ describe("file open setting", () => {
   });
 });
 
+describe("Agent steps button setting", () => {
+  it.each([
+    ["en", true, "Show Agent steps button", "Agent steps"],
+    ["en", false, "Show Agent steps button", "Agent steps"],
+    ["zh", true, "显示工作过程按钮", "工作过程"],
+    ["zh", false, "显示工作过程按钮", "工作过程"],
+  ] as const)("toggles only button visibility in %s with chat enabled=%s", async (language, chatEnabled, label, levelLabel) => {
+    updateEnhancerPreferences({ language, chatEnabled, timelineLevel: "detailed" });
+    const renderer = await renderPage();
+    try {
+      const toggle = () => switchControl(renderer.root, label);
+      expect(toggle().props.accessibilityState.checked).toBe(true);
+      act(() => toggle().props.onPress());
+      expect(toggle().props.accessibilityState.checked).toBe(false);
+      expect(getEnhancerPreferences()).toMatchObject({ showTimelineLevelPill: false, timelineLevel: "detailed", chatEnabled });
+      if (chatEnabled) {
+        const radios = choiceGroup(renderer.root, levelLabel)!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+        act(() => radios[0]!.props.onPress());
+        expect(getEnhancerPreferences()).toMatchObject({ showTimelineLevelPill: false, timelineLevel: "simple" });
+      }
+      act(() => toggle().props.onPress());
+      expect(toggle().props.accessibilityState.checked).toBe(true);
+      expect(getEnhancerPreferences()).toMatchObject({ showTimelineLevelPill: true, timelineLevel: chatEnabled ? "simple" : "detailed", chatEnabled });
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+});
+
 describe("block details settings", () => {
   it("keeps the timeline modes selectable after changing their illustrations", async () => {
     updateEnhancerPreferences({ language: "en" });
