@@ -802,17 +802,15 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
     filterEdge: { position: "relative", zIndex: 1 },
     // 6 points between the pills and the bar's edges.
     filterBar: { flexDirection: "row", alignItems: "center", gap: space.xs, padding: space.xs + 2 },
-    // As tall as its label and 4 points above and below it; a pill's round ends need room beside the
-    // label. The border comes out of the padding.
-    chip: { justifyContent: "center", paddingVertical: space.xs - StyleSheet.hairlineWidth,
-      paddingHorizontal: space.md - StyleSheet.hairlineWidth, borderRadius: 999,
+    // The border comes out of the padding.
+    chip: { justifyContent: "center", paddingVertical: space.xs / 2 - StyleSheet.hairlineWidth,
+      paddingHorizontal: space.sm - StyleSheet.hairlineWidth, borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth, borderColor: mix(tokens.border, tokens.foreground, tokens.isDark ? 0.08 : 0.05) },
-    chipDesktop: { paddingHorizontal: space.sm + 2 - StyleSheet.hairlineWidth },
+    chipDesktop: { paddingVertical: space.xs - StyleSheet.hairlineWidth, paddingHorizontal: space.sm + 2 - StyleSheet.hairlineWidth },
     chipSelected: { backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.surface2 },
-    chipLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontWeight: "500", fontSize: block.label.size,
-      lineHeight: block.label.lineHeight, fontVariant: ["tabular-nums"] },
-    // Two steps smaller beside a desktop panel's denser rows.
-    chipLabelDesktop: { fontSize: block.caption.size - 1, lineHeight: block.caption.lineHeight - 2 },
+    chipLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: block.caption.size,
+      lineHeight: block.caption.lineHeight, fontVariant: ["tabular-nums"] },
+    chipLabelDesktop: { fontWeight: "500", fontSize: block.caption.size - 1, lineHeight: block.caption.lineHeight - 2 },
     moreLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: block.button.size, lineHeight: block.button.lineHeight },
   });
 }

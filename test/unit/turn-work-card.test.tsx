@@ -607,13 +607,21 @@ describe("work details filter", () => {
     act(() => panel.unmount());
   });
 
-  it("keeps the label size and 12 points beside it on a phone", () => {
+  it("uses the caption size, regular weight and tighter padding on a phone", () => {
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
     act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn(unfolded)} store={store} tokens={tokens} compact /></>); });
     const panel = openPanel();
-    const label = StyleSheet.flatten(chip(panel, "all").findByType("Text" as never).props.style);
-    expect(label).toMatchObject({ fontSize: tokens.typography.block.label.size, lineHeight: tokens.typography.block.label.lineHeight });
-    expect(StyleSheet.flatten(chip(panel, "all").props.style({ pressed: false })).paddingHorizontal).toBe(12 - StyleSheet.hairlineWidth);
+    const caption = tokens.typography.block.caption;
+    const hair = StyleSheet.hairlineWidth;
+    for (const kind of ["all", "edit"]) {
+      const group = chip(panel, kind);
+      const label = StyleSheet.flatten(group.findByType("Text" as never).props.style);
+      expect(label).toMatchObject({ fontSize: caption.size, lineHeight: caption.lineHeight });
+      expect(label.fontWeight).toBeUndefined();
+      expect(StyleSheet.flatten(group.props.style({ pressed: false }))).toMatchObject({
+        paddingVertical: 2 - hair, paddingHorizontal: 8 - hair,
+      });
+    }
     act(() => panel.unmount());
   });
 
