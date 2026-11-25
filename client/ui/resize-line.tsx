@@ -12,14 +12,15 @@ export const resizeIndicatorProps = { dataSet: { bcresizeindicator: "" } } as un
 /** The shared one-pixel line inside a resize hit area. */
 export function ResizeLine({ indicator, inset = false }: { indicator: RefObject<View | null>; inset?: boolean }) {
   return (
-    <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: inset ? 4 : 0, bottom: inset ? 12 : 0, left: 0, width: 1, overflow: "hidden" }}>
+    <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: inset ? 4 : 0, bottom: inset ? 12 : 0, left: 3.5, width: 1, overflow: "hidden" }}>
       <View ref={indicator} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
     </View>
   );
 }
 
 /**
- * A 1px line visible while dragging, fading its last 20px at both ends. It carries an
+ * Linear's split handle: a 1px line that stays hidden until the pointer rests
+ * on the strip for 100ms, fades its last 20px at both ends, and carries an
  * indicator twice the strip's height that is darkest at the pointer and
  * tapers off. The indicator follows the pointer's height, sliding out from
  * the middle when the line first shows. While a drag runs the line stays up
@@ -32,8 +33,8 @@ function rules(foreground: string): string {
     #00000073 0% 30%, #0009 36%, #000c 42% 47%, #000000e6 48.5%,
     #000 49.5% 50.5%,
     #000000e6 51.5%, #000c 53% 58%, #0009 64%, #00000073 70% 100%)`;
-  const shown = `[data-bcresize][${RESIZING_ATTR}] [data-bcresizetrack]`;
-  const moving = `[data-bcresize][${RESIZING_ATTR}] [data-bcresizeindicator]`;
+  const shown = `[data-bcresize]:hover [data-bcresizetrack], [data-bcresize][${RESIZING_ATTR}] [data-bcresizetrack]`;
+  const moving = `[data-bcresize]:hover [data-bcresizeindicator], [data-bcresize][${RESIZING_ATTR}] [data-bcresizeindicator]`;
   return `
 [data-bcresizetrack] {
   opacity: 0;
@@ -49,7 +50,7 @@ function rules(foreground: string): string {
 ${shown} {
   opacity: 1;
   transition-duration: 0s;
-  transition-delay: 0s;
+  transition-delay: 100ms;
 }
 [data-bcresize][${RESIZING_ATTR}] [data-bcresizetrack] {
   transition-delay: 0s;
