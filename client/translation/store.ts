@@ -1,4 +1,5 @@
 import { useCallback, useMemo, useSyncExternalStore } from "react";
+import { Platform } from "react-native";
 import { useRpc } from "@getpaseo/plugin/client";
 import {
   translateTimelineItemRpc,
@@ -7,7 +8,7 @@ import {
   type TranslateTimelineItemInput,
   type TranslationJobState,
 } from "../../shared/timeline-translation";
-import { FREE_SERVICE_INFO, translateFree } from "../../shared/free-translation";
+import { FREE_SERVICE_INFO, translateFree, translateWithFreeService } from "../../shared/free-translation";
 import { resolveTranslationTarget } from "../../shared/translation-languages";
 
 export type TranslationSourceKind = "assistant_message" | "user_message" | "reasoning" | "tool_output";
@@ -67,8 +68,12 @@ type TranslateFree = typeof translateFree;
 /** Free mode: the client asks the service itself; there is no daemon job to poll. */
 async function translateLocally(input: TranslationRequestInput, free: TranslateFree): Promise<TranslationJobState> {
   const target = resolveTranslationTarget(input.settings.targetLanguage, input.interfaceLanguage);
-  const service = input.settings.freeService;
-  const translation = await free({ service, text: input.text, targetCode: target.code });
+  const { translation, service } = await translateWithFreeService({
+    service: input.settings.freeService,
+    text: input.text,
+    targetCode: target.code,
+    yandexAvailable: Platform.OS !== "web",
+  }, free);
   return {
     state: "done",
     translation,

@@ -4,7 +4,7 @@ import { useMarkBitmap } from "../components/marks";
 import { ChoiceMenuSelect, type MenuChoice } from "../settings-choice-menu";
 import { Glyph } from "../components/glyph";
 import { usePaseo, useRpc, useSettings } from "@getpaseo/plugin/client";
-import { TextInput } from "@getpaseo/plugin/client/ui";
+import { Icon, TextInput } from "@getpaseo/plugin/client/ui";
 import {
   DEFAULT_TRANSLATION_PROMPT,
   TIMELINE_TRANSLATION_SETTINGS,
@@ -16,12 +16,15 @@ import {
   translationRevealKeyRpc,
   translationEndpointStatusRpc,
   translationTestRpc,
-  FREE_TRANSLATION_SERVICES,
+  FREE_TRANSLATION_CHOICES,
+  TRANSLATION_MODES,
+  type FreeTranslationChoice,
   type FreeTranslationService,
   type TimelineTranslationSettings,
   type TranslationEndpointProblem,
+  type TranslationMode,
 } from "../../shared/timeline-translation";
-import { translateFree } from "../../shared/free-translation";
+import { translateWithFreeService } from "../../shared/free-translation";
 import { resolveTranslationTarget } from "../../shared/translation-languages";
 import { radiusV2, space } from "../components/theme-tokens";
 import { TYPE } from "../ui/tokens/typography";
@@ -30,7 +33,6 @@ import { useEnhancerPreferences } from "../preferences";
 import {
   PlainButton,
   Section,
-  Segmented,
   ResetRow,
   RowNotice,
   SectionFooter,
@@ -61,17 +63,20 @@ const STRINGS = {
     agentWaiting: "Needs a newer Paseo. Agent translation requires the host to start a helper agent without any tools (no files, commands or MCP), so the text being translated cannot make it act. That support is in an upstream Paseo pull request (getpaseo/paseo#10394); once it ships, this option becomes available. Until then, use Free or OpenAI compatible.",
     serviceTitle: "Translation service",
     serviceDescription: "These are the unofficial endpoints the vendors' web and browser translators use. They come with no guarantee and may be rate-limited or stop working; if one fails, switch to another or use OpenAI compatible.",
-    services: { microsoft: "Microsoft", google: "Google", tencent: "Tencent TranSmart" },
+    services: { automatic: "Automatic", microsoft: "Microsoft", google: "Google", tencent: "Tencent TranSmart", yandex: "Yandex" },
     serviceNotes: {
       microsoft: "The translator built into Microsoft Edge.",
       google: "The endpoint Chrome's page translation uses.",
       tencent: "Tencent TranSmart. Good at Chinese and English; supports fewer target languages.",
+      yandex: "The translator built into Yandex Browser.",
     },
+    automaticNote: (order: string) => `This device tries ${order} in order. If a service fails, the same text may be sent to the next one.`,
+    yandexUnavailable: "Yandex is available in the native app. Pick another service to translate here.",
     serviceNetwork: "This device sends the request itself, so whether a service is reachable depends on its network. If one fails, try another.",
     serviceTest: "Test service",
     serviceTesting: "Testing...",
     serviceTestIdle: "Send one sample sentence to check that this device can reach the service.",
-    serviceTestOk: (result: string, seconds: string) => `Connected: "Hello, world" -> "${result}" in ${seconds} s.`,
+    serviceTestOk: (service: string, result: string, seconds: string) => `Connected: ${service} translated "Hello, world" -> "${result}" in ${seconds} s.`,
     serviceTestFailed: (error: string) => `Could not use this service: ${error}`,    targetTitle: "Target language",
     targetDescription: "Follows the interface language by default. Search by language name or code.",
     targetPlaceholder: "Search language or code...",
@@ -133,7 +138,7 @@ const STRINGS = {
       },
       {
         label: "Where text goes",
-        text: "This device sends the selected text straight to the chosen service, not through the Paseo daemon, and no key is needed. Code blocks are never sent; inline code, links and URLs are swapped for placeholders and put back after translation. What the service does with the text is up to that service and its policies.",
+        text: "This device sends the selected text directly to the translation service, without using the Paseo daemon or an API key. Automatic may send the same text to another service if an attempt fails. Code blocks are never sent; inline code, links and URLs are swapped for placeholders and put back after translation. Each service handles the text according to its policies.",
       },
       {
         label: "Session cache",
@@ -174,17 +179,20 @@ const STRINGS = {
     agentWaiting: "需要新版 Paseo。Agent 翻译要求宿主能启动一个不带任何工具的 helper agent（不读文件、不跑命令、不连 MCP），防止被翻译的文本诱导 agent 执行操作。这项能力在 Paseo 上游 PR（getpaseo/paseo#10394）中，合入并发布后这里会开放。在此之前，请使用免费翻译或 OpenAI 兼容方式。",
     serviceTitle: "翻译服务",
     serviceDescription: "这些是厂商网页或浏览器内置翻译使用的非公开接口，没有服务保证，可能限流或停用。失败时可换一个服务，或改用 OpenAI 兼容方式。",
-    services: { microsoft: "微软", google: "Google", tencent: "腾讯交互翻译" },
+    services: { automatic: "自动", microsoft: "微软", google: "Google", tencent: "腾讯交互翻译", yandex: "Yandex" },
     serviceNotes: {
       microsoft: "Microsoft Edge 内置的翻译接口。",
       google: "Chrome 网页翻译使用的接口。",
       tencent: "腾讯 TranSmart，中英互译表现较好，支持的目标语言较少。",
+      yandex: "Yandex 浏览器内置的翻译接口。",
     },
+    automaticNote: (order: string) => `当前设备依次尝试 ${order}。服务失败时，同一段文本可能会发送给下一个服务。`,
+    yandexUnavailable: "Yandex 仅支持原生客户端。请在这里选择其他翻译服务。",
     serviceNetwork: "翻译请求由当前设备直接发出，能否连通取决于本机网络；连不上时可换一个服务。",
     serviceTest: "测试服务",
     serviceTesting: "正在测试...",
     serviceTestIdle: "用一句示例文本测试当前设备能否连上所选服务。",
-    serviceTestOk: (result: string, seconds: string) => `连接成功：「Hello, world」→「${result}」，用时 ${seconds} 秒。`,
+    serviceTestOk: (service: string, result: string, seconds: string) => `连接成功：${service} 将「Hello, world」译为「${result}」，用时 ${seconds} 秒。`,
     serviceTestFailed: (error: string) => `无法使用该服务：${error}`,    targetTitle: "目标语言",
     targetDescription: "默认跟随当前界面语言，可在下拉菜单中按语言名或代码搜索。",
     targetPlaceholder: "搜索语言名称或代码...",
@@ -246,7 +254,7 @@ const STRINGS = {
       },
       {
         label: "数据去向",
-        text: "选中的文本由当前设备直接发给所选服务，不经过 Paseo daemon，也不需要 Key。代码块不会发送；行内代码、链接和 URL 会先替换成占位符，译完再换回。服务方如何处理这些文本取决于该服务及其政策。",
+        text: "当前设备直接向翻译服务发送选中的文本，无需 Paseo daemon 或 API Key。自动模式下，服务失败时同一段文本可能会发送给下一家服务。代码块不会发送；行内代码、链接和 URL 会先替换成占位符，译完再换回。各服务按自己的政策处理这些文本。",
       },
       {
         label: "会话缓存",
@@ -278,6 +286,7 @@ type Strings = (typeof STRINGS)["en" | "zh"];
 
 /** The file-open editor menu's logo size (LOGO in client/settings-file-open.tsx). */
 const SERVICE_MARK = 20;
+const MODE_ICONS = { free: "Globe", openai: "Plug", agent: "Bot" } as const;
 
 function endpointNotice(t: Strings, settings: TimelineTranslationSettings, status: EndpointStatusSnapshot):
   { text: string; tone: "neutral" | "warning" | "danger" } | null {
@@ -346,7 +355,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   const [noticeLine, setNoticeLine] = useState<{ text: string; tone: "neutral" | "accent" | "danger" } | null>(null);
   // Agent mode is not available yet: choosing it only shows why, nothing is saved.
   const [agentPreview, setAgentPreview] = useState(false);
-  const [serviceTest, setServiceTest] = useState<{ service: FreeTranslationService; tone: "neutral" | "accent" | "danger"; text: string } | null>(null);
+  const [serviceTest, setServiceTest] = useState<{ service: FreeTranslationChoice; tone: "neutral" | "accent" | "danger"; text: string } | null>(null);
   const serviceTestSequence = useRef(0);
 
   const endpoint = settings.endpoint;
@@ -444,6 +453,8 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   };
 
   const shownMode = agentPreview ? "agent" as const : settings.mode;
+  const yandexAvailable = Platform.OS !== "web";
+  const serviceUnavailable = settings.freeService === "yandex" && !yandexAvailable;
   const testService = async () => {
     const sequence = ++serviceTestSequence.current;
     const service = settings.freeService;
@@ -451,9 +462,9 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
     const started = Date.now();
     try {
       const target = resolveTranslationTarget(settings.targetLanguage, lang);
-      const result = await translateFree({ service, text: "Hello, world", targetCode: target.code });
+      const result = await translateWithFreeService({ service, yandexAvailable, text: "Hello, world", targetCode: target.code });
       if (sequence !== serviceTestSequence.current) return;
-      setServiceTest({ service, tone: "accent", text: t.serviceTestOk(result, ((Date.now() - started) / 1000).toFixed(1)) });
+      setServiceTest({ service, tone: "accent", text: t.serviceTestOk(t.services[result.service], result.translation, ((Date.now() - started) / 1000).toFixed(1)) });
     } catch (error) {
       if (sequence !== serviceTestSequence.current) return;
       setServiceTest({ service, tone: "danger", text: t.serviceTestFailed(error instanceof Error ? error.message : String(error)) });
@@ -461,10 +472,20 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   };
   const serviceLine = serviceTest?.service === settings.freeService ? serviceTest : null;
   const serviceTesting = serviceLine?.text === t.serviceTesting;
-  // The settings page's dropdown, like the file-open editor menu.
-  const serviceChoices: MenuChoice[] = FREE_TRANSLATION_SERVICES.map((service) => ({
-    value: service, name: t.services[service], logo: <ServiceMark service={service} />,
+  const modeChoices: MenuChoice[] = [...TRANSLATION_MODES, "agent" as const].map((mode) => ({
+    value: mode, name: t.modes[mode], logo: <Icon name={MODE_ICONS[mode]} size={SERVICE_MARK} color={tokens.foregroundMuted} />,
   }));
+  const serviceChoices: MenuChoice[] = FREE_TRANSLATION_CHOICES.map((service) => ({
+    value: service,
+    name: t.services[service],
+    logo: service === "automatic"
+      ? <Icon name="Shuffle" size={SERVICE_MARK} color={tokens.foregroundMuted} />
+      : <ServiceMark service={service} />,
+  }));
+  const availableServices = yandexAvailable ? serviceChoices : serviceChoices.filter((choice) => choice.value !== "yandex");
+  const serviceNote = serviceUnavailable ? t.yandexUnavailable : settings.freeService === "automatic"
+    ? t.automaticNote(availableServices.slice(1).map((choice) => choice.name).join(" → "))
+    : `${t.serviceNotes[settings.freeService]}${lang === "zh" ? "" : " "}${t.serviceNetwork}`;
 
   // Saving does not disable the rows (that dimmed the whole group on every
   // change); `savePatch` refuses a second write while one is in flight.
@@ -539,21 +560,18 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
       {settings.enabled ? <>
       <SettingRow
         stacked title={t.modeTitle} description={t.modeDescription}
-        control={<Segmented<"free" | "openai" | "agent"> wrap label={t.modeTitle} value={shownMode}
-          options={[
-            { value: "free", label: t.modes.free },
-            { value: "openai", label: t.modes.openai },
-            { value: "agent", label: t.modes.agent },
-          ]}
+        control={<ChoiceMenuSelect label={t.modeTitle} value={shownMode}
+          selected={modeChoices.find((choice) => choice.value === shownMode) ?? null}
+          choices={modeChoices}
           onChange={(mode) => {
             if (mode === "agent") {
               setAgentPreview(true);
               return;
             }
             setAgentPreview(false);
-            if (mode !== settings.mode) void savePatch({ mode });
+            if (mode !== settings.mode) void savePatch({ mode: mode as TranslationMode });
           }}
-          look={look}
+          look={look} disabled={controlsDisabled}
         />}
         look={look} disabled={controlsDisabled}
         below={notice(agentPreview ? { text: t.agentWaiting, tone: "warning" } : { text: t.modeNotes[settings.mode], tone: "neutral" })}
@@ -564,16 +582,16 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
         title={t.serviceTitle} description={t.serviceDescription} wrapControl
         control={<ChoiceMenuSelect label={t.serviceTitle} value={settings.freeService}
           selected={serviceChoices.find((choice) => choice.value === settings.freeService) ?? null}
-          choices={serviceChoices}
-          onChange={(next) => { if (next !== settings.freeService) void savePatch({ freeService: next as FreeTranslationService }); }}
+          choices={availableServices}
+          onChange={(next) => { if (next !== settings.freeService) void savePatch({ freeService: next as FreeTranslationChoice }); }}
           look={look} disabled={controlsDisabled}
         />}
         look={look} disabled={controlsDisabled}
-        below={notice({ text: `${t.serviceNotes[settings.freeService]}${lang === "zh" ? "" : " "}${t.serviceNetwork}`, tone: "neutral" })}
+        below={notice({ text: serviceNote, tone: serviceUnavailable ? "warning" : "neutral" })}
       />
       <SettingRow title={t.serviceTest}
         control={<PlainButton label={t.serviceTest} look={look} loading={serviceTesting}
-          disabled={controlsDisabled || serviceTesting} onPress={() => void testService()} />}
+          disabled={controlsDisabled || serviceUnavailable || serviceTesting} onPress={() => void testService()} />}
         look={look} wrapControl disabled={controlsDisabled}
         below={<RowNotice look={look} text={serviceLine?.text ?? t.serviceTestIdle} tone={serviceLine?.tone ?? "neutral"} />}
       />

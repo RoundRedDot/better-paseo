@@ -46,15 +46,17 @@ export const TRANSLATION_MODEL_MAX_LENGTH = 256;
 export const TRANSLATION_MODES = ["free", "openai"] as const;
 export type TranslationMode = (typeof TRANSLATION_MODES)[number];
 
-/** In menu order; the first is the default. */
-export const FREE_TRANSLATION_SERVICES = ["microsoft", "google", "tencent"] as const;
+/** Concrete providers in automatic attempt order. */
+export const FREE_TRANSLATION_SERVICES = ["microsoft", "google", "tencent", "yandex"] as const;
 export type FreeTranslationService = (typeof FREE_TRANSLATION_SERVICES)[number];
+export const FREE_TRANSLATION_CHOICES = ["automatic", ...FREE_TRANSLATION_SERVICES] as const;
+export type FreeTranslationChoice = (typeof FREE_TRANSLATION_CHOICES)[number];
 
 export const timelineTranslationSettingsSchema = z.object({
   enabled: z.boolean().catch(false),
   mode: z.enum(TRANSLATION_MODES).catch("free"),
-  // An earlier build stored "auto"; it and any unknown value read as the first service.
-  freeService: z.enum(FREE_TRANSLATION_SERVICES).catch(FREE_TRANSLATION_SERVICES[0]),
+  // Keep the existing interpretation of explicitly stored legacy "auto" and unknown values.
+  freeService: z.enum(FREE_TRANSLATION_CHOICES).default("automatic").catch(FREE_TRANSLATION_SERVICES[0]),
   /**
    * The OpenAI-compatible base URL (or full `/chat/completions` URL) the
    * daemon sends translations to. Empty means nothing is ever sent. The server

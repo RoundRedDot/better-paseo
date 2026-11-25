@@ -11,7 +11,7 @@
  *
  * Keep comments and regexes strictly ASCII for Hermes bundle compilation.
  */
-import { FREE_TRANSLATION_SERVICES, type FreeTranslationService } from "./timeline-translation";
+import { FREE_TRANSLATION_SERVICES, type FreeTranslationChoice, type FreeTranslationService } from "./timeline-translation";
 
 export interface FreeServiceInfo {
   /** Shown as the "model" of a translation. */
@@ -24,6 +24,7 @@ export const FREE_SERVICE_INFO: Record<FreeTranslationService, FreeServiceInfo> 
   microsoft: { name: "Microsoft Translator", origin: "https://edge.microsoft.com" },
   google: { name: "Google Translate", origin: "https://translate-pa.googleapis.com" },
   tencent: { name: "Tencent TranSmart", origin: "https://transmart.qq.com" },
+  yandex: { name: "Yandex Translate", origin: "https://api.browser.yandex.com" },
 };
 
 export const FREE_TRANSLATION_TIMEOUT_MS = 30_000;
@@ -73,6 +74,10 @@ function isFreeError(error: unknown): boolean {
 export function freeServiceLanguage(service: FreeTranslationService, code: string): string {
   if (service === "microsoft") return MICROSOFT_CODES[code] ?? code;
   if (service === "google") return GOOGLE_CODES[code] ?? code;
+  if (service === "yandex") {
+    if (code === "zh-TW") throw freeError("Yandex Translate cannot translate into zh-TW. Pick another service or target language.");
+    return code === "zh-CN" ? "zh" : code;
+  }
   const mapped = TENCENT_CODES[code];
   if (!mapped) {
     throw freeError(`${FREE_SERVICE_INFO.tencent.name} cannot translate into ${code}. Pick another service or target language.`);
@@ -283,10 +288,36 @@ async function tencent({ texts, to, fetch: send, signal }: ServiceRequest): Prom
   return stringsOrThrow(body.auto_translation, texts.length, FREE_SERVICE_INFO.tencent.name);
 }
 
+async function yandex({ texts, to, fetch: send, signal }: ServiceRequest): Promise<string[]> {
+  const info = FREE_SERVICE_INFO.yandex;
+  // The browser translator takes one string. Its reply must keep one line per input.
+  const text = texts.join("\n");
+  if (text.length > 5000) throw freeError(`${info.name} cannot translate a line longer than 5000 characters.`);
+  const body = new URLSearchParams({
+    text, brandID: "int", statLang: to, targetLang: "auto", locale: to,
+    clid: "2270494", disable: "serp", use_llm_srv: "0",
+  });
+  const response = await send(`${info.origin}/instaserp/translate`, {
+    method: "POST",
+    headers: { "Content-Type": "application/x-www-form-urlencoded" },
+    body: body.toString(),
+    credentials: "omit",
+    signal,
+  });
+  const reply = await readJson(response, info.name);
+  const first = Array.isArray(reply) ? reply[0] as { text?: unknown; to?: unknown } | undefined : undefined;
+  const lines = first?.to === to && typeof first.text === "string" ? first.text.split(/\r?\n/) : null;
+  if (lines?.length !== texts.length || lines.some((line) => !line.trim())) {
+    throw freeError(`${info.name} answered in an unexpected format or language.`);
+  }
+  return lines;
+}
+
 const SERVICES: Record<FreeTranslationService, (request: ServiceRequest) => Promise<string[]>> = {
   microsoft,
   google,
   tencent,
+  yandex,
 };
 
 function batches(texts: readonly string[]): string[][] {
@@ -353,4 +384,28 @@ export async function translateFree(request: FreeTranslationRequest): Promise<st
   }).join("");
   if (!out.trim()) throw freeError(`${info.name} returned an empty translation.`);
   return out;
+}
+
+/** Returns the provider that completed the entire translation. */
+export async function translateWithFreeService(
+  request: Omit<FreeTranslationRequest, "service"> & { service: FreeTranslationChoice; yandexAvailable: boolean },
+  translate = translateFree,
+): Promise<{ translation: string; service: FreeTranslationService }> {
+  const { service, yandexAvailable, ...input } = request;
+  if (service === "yandex" && !yandexAvailable) {
+    throw freeError("Yandex Translate is only available in native clients. Pick another service.");
+  }
+  if (service !== "automatic") return { translation: await translate({ ...input, service }), service };
+
+  const failures: string[] = [];
+  for (const candidate of FREE_TRANSLATION_SERVICES) {
+    if (candidate === "yandex" && !yandexAvailable) continue;
+    try {
+      return { translation: await translate({ ...input, service: candidate }), service: candidate };
+    } catch (error) {
+      if (!(error instanceof Error) || !isFreeError(error)) throw error;
+      failures.push(error.message);
+    }
+  }
+  throw freeError(failures.join(" "));
 }

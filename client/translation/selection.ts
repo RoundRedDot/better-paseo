@@ -356,9 +356,11 @@ function viewOf(
   settings: TimelineTranslationSettings,
 ): SelectionTranslationView {
   // `provider` picks the logo: the endpoint names its service (`api.openai.com`, ...).
-  const modelInfo: ModelInfo = settings.mode === "free"
-    ? { provider: FREE_SERVICE_INFO[settings.freeService].origin, model: FREE_SERVICE_INFO[settings.freeService].name, ...freeMark(settings.freeService) }
-    : { provider: settings.endpoint, model: settings.endpointModel };
+  const service = settings.freeService;
+  const modelInfo: ModelInfo | undefined = settings.mode === "openai"
+    ? { provider: settings.endpoint, model: settings.endpointModel }
+    : service === "automatic" ? undefined
+    : { provider: FREE_SERVICE_INFO[service].origin, model: FREE_SERVICE_INFO[service].name, ...freeMark(service) };
   if (!entry || entry.state.state === "idle") return { status: "running", targetCode, modelInfo };
   switch (entry.state.state) {
     case "running": return { status: "running", text: entry.state.text || undefined, targetCode, modelInfo };

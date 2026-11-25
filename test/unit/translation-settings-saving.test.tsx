@@ -99,7 +99,7 @@ async function mount() {
   await act(async () => { tree = TestRenderer.create(<TimelineTranslationSettings look={look} />); });
 }
 const rows = () => tree!.root.findAllByType(SettingRow);
-const service = () => tree!.root.findByType(ChoiceMenuSelect);
+const service = () => tree!.root.findAllByType(ChoiceMenuSelect).find((menu) => menu.props.label === "Translation service")!;
 
 describe("translation settings while a change is saving", () => {
   it("keeps every row enabled and shows the new service until the save lands", async () => {

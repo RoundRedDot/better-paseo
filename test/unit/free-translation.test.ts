@@ -4,6 +4,7 @@ import {
   restorePlaceholders,
   splitMarkdown,
   translateFree,
+  translateWithFreeService,
   unescapeHtml,
 } from "../../shared/free-translation";
 // The selection view imports the client graph; the store and services do not need it.
@@ -22,6 +23,10 @@ function fakeServices(options: { down?: string[]; answer?: (text: string) => str
     const url = String(input);
     calls.push({ url, init });
     if (options.down?.some((host) => url.includes(host))) throw new TypeError("Network request failed");
+    if (url.includes("api.browser.yandex.com")) {
+      const form = new URLSearchParams(String(init.body));
+      return Response.json([{ to: form.get("locale"), text: form.get("text")!.split("\n").map(answer).join("\n") }]);
+    }
     const body = JSON.parse(String(init.body));
     if (url.includes("edge.microsoft.com")) {
       return Response.json((body as string[]).map((text) => ({ translations: [{ text: answer(text), to: "x" }] })));
@@ -145,7 +150,7 @@ describe("free translation: services", () => {
 
 describe("free translation: chosen service", () => {
   it("starts on the first service, and reads an old automatic choice as it", () => {
-    expect(timelineTranslationSettingsSchema.parse({}).freeService).toBe("microsoft");
+    expect(timelineTranslationSettingsSchema.parse({}).freeService).toBe("automatic");
     expect(timelineTranslationSettingsSchema.parse({ freeService: "auto" }).freeService).toBe("microsoft");
     expect(timelineTranslationSettingsSchema.parse({ freeService: "google" }).freeService).toBe("google");
   });
@@ -162,6 +167,65 @@ describe("free translation: chosen service", () => {
     await expect(translateFree({ service: "tencent", text: "Hello", targetCode: "sw", fetch }))
       .rejects.toThrow("Tencent TranSmart cannot translate into sw.");
     expect(calls).toHaveLength(0);
+  });
+});
+
+describe("free translation: Automatic", () => {
+  const request = { service: "automatic", text: "Hello", targetCode: "en", yandexAvailable: true } as const;
+  const hosts = (calls: Call[]) => calls.map((call) => new URL(call.url).host);
+
+  it("stops after the first successful provider", async () => {
+    const { fetch, calls } = fakeServices();
+    await expect(translateWithFreeService({ ...request, fetch })).resolves.toEqual({ translation: "T:Hello", service: "microsoft" });
+    expect(hosts(calls)).toEqual(["edge.microsoft.com"]);
+  });
+
+  it("moves to Google after Microsoft times out", async () => {
+    const { fetch, calls } = fakeServices();
+    const send: typeof fetch = (url, init) => String(url).includes("edge.microsoft.com")
+      ? new Promise<Response>((_resolve, reject) => init!.signal!.addEventListener("abort", () => reject(new Error("aborted"))))
+      : fetch(url, init);
+    await expect(translateWithFreeService({ ...request, fetch: send, timeoutMs: 5 })).resolves.toEqual({
+      service: "google", translation: "T:Hello",
+    });
+    expect(hosts(calls)).toEqual(["translate-pa.googleapis.com"]);
+  });
+
+  it("reaches Yandex last and preserves protected Markdown in the form request", async () => {
+    const { fetch, calls } = fakeServices({ down: ["edge.microsoft.com", "translate-pa.googleapis.com", "transmart.qq.com"] });
+    const text = "Use `npm test`.\nHello & goodbye.\n\n```\ncode\n```";
+    await expect(translateWithFreeService({ ...request, text, targetCode: "zh-CN", fetch })).resolves.toEqual({
+      service: "yandex", translation: "T:Use `npm test`.\nT:Hello & goodbye.\n\n```\ncode\n```",
+    });
+    expect(hosts(calls)).toEqual(["edge.microsoft.com", "translate-pa.googleapis.com", "transmart.qq.com", "api.browser.yandex.com"]);
+    expect(calls[3]).toMatchObject({ url: "https://api.browser.yandex.com/instaserp/translate", init: { method: "POST", credentials: "omit" } });
+    const form = new URLSearchParams(String(calls[3]!.init.body));
+    expect(form.get("text")).toBe("Use {0}.\nHello & goodbye.");
+    expect(form.get("locale")).toBe("zh");
+  });
+
+  it("reports each attempted failure and skips Yandex on web", async () => {
+    const { fetch, calls } = fakeServices({ down: ["edge.microsoft.com", "translate-pa.googleapis.com", "transmart.qq.com"] });
+    await expect(translateWithFreeService({ ...request, yandexAvailable: false, fetch })).rejects.toThrow(
+      /Could not reach Microsoft Translator\..*Could not reach Google Translate\..*Could not reach Tencent TranSmart\./,
+    );
+    expect(hosts(calls)).toEqual(["edge.microsoft.com", "translate-pa.googleapis.com", "transmart.qq.com"]);
+  });
+
+  it("does not substitute another provider for a saved Yandex choice on web", async () => {
+    const { fetch, calls } = fakeServices();
+    await expect(translateWithFreeService({ ...request, service: "yandex", yandexAvailable: false, fetch }))
+      .rejects.toThrow("Yandex Translate is only available in native clients.");
+    expect(calls).toHaveLength(0);
+  });
+
+  it("rejects an unexpected Yandex language or line count", async () => {
+    const fetch = vi.fn<() => Promise<Response>>();
+    const selected = { ...request, service: "yandex", fetch, text: "Hello\nGood morning" } as const;
+    fetch.mockResolvedValueOnce(Response.json([{ to: "fr", text: "Bonjour\nBonjour" }]));
+    await expect(translateWithFreeService(selected)).rejects.toThrow("unexpected format or language");
+    fetch.mockResolvedValueOnce(Response.json([{ to: "en", text: "Hello" }]));
+    await expect(translateWithFreeService(selected)).rejects.toThrow("unexpected format or language");
   });
 });
 
@@ -187,6 +251,16 @@ describe("free translation: client store", () => {
     const settings = timelineTranslationSettingsSchema.parse({ enabled: true, mode: "free", freeService: "google" });
     store.startTranslation({ sourceKey: "k", sourceKind: "reasoning", agentId: "a", text: "Hello", interfaceLanguage: "zh", settings }, vi.fn());
     await vi.waitFor(() => expect(store.read("k")?.state).toEqual({ state: "error", error: "Could not reach Google Translate." }));
+  });
+
+  it("reports the actual provider when Automatic switches services", async () => {
+    const { fetch } = fakeServices({ down: ["edge.microsoft.com", "translate-pa.googleapis.com", "transmart.qq.com"] });
+    const store = createTranslationStore({ translateFree: (request) => translateFree({ ...request, fetch }) });
+    const settings = timelineTranslationSettingsSchema.parse({ enabled: true, mode: "free", targetLanguage: "en" });
+    store.startTranslation({ sourceKey: "k", sourceKind: "reasoning", agentId: "a", text: "Hello", interfaceLanguage: "en", settings }, vi.fn());
+    await vi.waitFor(() => expect(store.read("k")?.state).toMatchObject({
+      state: "done", origin: "https://api.browser.yandex.com", model: "Yandex Translate",
+    }));
   });
 });
 

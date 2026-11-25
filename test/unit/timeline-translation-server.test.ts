@@ -110,9 +110,9 @@ describe("translation settings migration", () => {
     const parsed = timelineTranslationSettingsSchema.parse(earlier);
     // The old provider and model never become an endpoint or model, and
     // translation starts free.
-    expect(parsed).toEqual({ ...earlier, mode: "free", freeService: "microsoft", endpoint: "", endpointModel: "" });
+    expect(parsed).toEqual({ ...earlier, mode: "free", freeService: "automatic", endpoint: "", endpointModel: "" });
     expect(JSON.parse(translationConfigSignature(parsed, "en"))).toEqual({
-      enabled: true, targetCode: "ja", mode: "free", freeService: "microsoft",
+      enabled: true, targetCode: "ja", mode: "free", freeService: "automatic",
     });
     expect(JSON.parse(translationConfigSignature({ ...parsed, mode: "openai" }, "en"))).toEqual({
       enabled: true, targetCode: "ja", endpoint: "", endpointModel: "", prompt: "Keep it terse.",
