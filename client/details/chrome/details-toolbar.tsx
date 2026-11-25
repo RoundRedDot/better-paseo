@@ -78,6 +78,7 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
   children?: ReactNode;
 }) {
   const metrics = HEADER_BUTTONS[shell.pointer ? "pointer" : "touch"];
+  const desktopSide = Platform.OS === "web" && shell.pointer && shell.form === "side";
   const [width, setWidth] = useState<number | null>(null);
   const [leftWidth, setLeftWidth] = useState(0);
   const [zoomWidth, setZoomWidth] = useState(0);
@@ -99,7 +100,8 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
       <View
         testID="details-toolbar"
         onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
-        style={[styles.toolbar, { minHeight: DETAILS_TOOLBAR[shell.pointer ? "pointer" : "touch"], borderBottomColor: tokens.v2.borderSubtle }]}
+        style={[styles.toolbar, { minHeight: DETAILS_TOOLBAR[shell.pointer ? "pointer" : "touch"],
+          borderBottomColor: desktopSide ? tokens.border : tokens.v2.borderSubtle }]}
       >
         <View testID="details-toolbar-start" onLayout={(event: LayoutChangeEvent) => setLeftWidth(event.nativeEvent.layout.width)}
           style={styles.start}>

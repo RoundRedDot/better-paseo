@@ -61,7 +61,7 @@ export function DetailsHeader({ shell, tokens, icon, titleText, title, meta, str
       testID="details-header"
       {...(shell.headerHandlers ?? {})}
       style={[styles.header, { minHeight: desktopSide ? 36 : DETAILS_HEADER[pointer ? "pointer" : "touch"] },
-        desktopSide && { paddingVertical: 0, borderBottomWidth: 1, borderBottomColor: tokens.v2.borderSubtle }]}
+        desktopSide && { paddingVertical: 0, borderBottomWidth: 1, borderBottomColor: tokens.border }]}
     >
       <View testID="details-header-icon" style={styles.tile}>
         {entry.icon ? <TileIcon name={entry.icon} color={entry.iconColor ?? tokens.foregroundMuted} />
