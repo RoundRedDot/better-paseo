@@ -400,8 +400,18 @@ Every tool call, notice and grouped call is one disclosure row (`DISCLOSURE_HEAD
   `OctagonX` at weight 500; error and fatal add a 2 pt left rule. Long or technical text opens in
   a mono block on `surfaceCode`. The host's own background-job notice and error item both transform
   into this row; nothing about a notice is drawn as a tinted card.
-- **Turn footer**: one line 24 high, 8 above and 16 below: Copy, the model with its provider logo,
-  the clock, the duration. On a phone it drops the clock, then the model, rather than wrap.
+- The **reply block translation** control (`InlineReplyBlock`) is an icon-only 24 × 24 pt button
+  in a reserved 32 pt right gutter. The button's right edge is flush with the reply content
+  column's right edge. Its centre follows the first visible line of the original or translated
+  block, including the header of a code block. The gutter keeps the control clear of the text
+  without adding a row or changing the gap between blocks. Show it on hover with a pointer,
+  on touch, and while translation is active. Translate and Show original share the same button
+  box and right alignment, with their own icons and action hints. Image-only reply blocks
+  have no inline translation control or gutter.
+- The **turn footer** fits on one line 24 high, with 8 above and 16 below. It holds Copy,
+  Translate when available, the model with its provider logo, the clock and the duration.
+  The footer's Translate opens a preview of the whole reply. On a phone the footer drops the
+  clock, then the model, to stay on one line.
 - Rows take back 12 of the host's 16 between timeline items (`ROW_GAP_COMPENSATION`).
 
 ### Markdown
