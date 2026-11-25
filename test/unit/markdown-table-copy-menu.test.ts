@@ -6,13 +6,19 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 
-const { copyText, toastShow, toastError, copyElementImage, capabilities } = vi.hoisted(() => ({
+const { copyText, toastShow, toastError, copyElementImage, capabilities, translate, webTranslation, paseo } = vi.hoisted(() => ({
   copyText: vi.fn(async (_text: string) => {}),
   toastShow: vi.fn(),
   toastError: vi.fn(),
   copyElementImage: vi.fn(async (_element: unknown, _options: { background: string }) => {}),
   capabilities: { hover: true, touch: false },
+  translate: vi.fn(async (_input: unknown) => ({
+    state: "done", translation: "一", targetLanguageCode: "zh", origin: "https://example.com", model: "test",
+  })),
+  webTranslation: vi.fn((_props: { close(): void }) => null),
+  paseo: {},
 }));
+vi.mock("../../client/translation/message-button", () => ({ WebMessageTranslation: webTranslation }));
 vi.mock("react-native", () => import("./helpers/rn-mock"));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -28,8 +34,8 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined,
   useWorkspace: () => undefined,
-  useRpc: () => () => Promise.resolve(null),
-  usePaseo: () => ({}),
+  useRpc: () => translate,
+  usePaseo: () => paseo,
   useSettings: () => ({ data: undefined, status: "loading" }),
 }));
 vi.mock("../../client/ui/use-input-capabilities", () => ({
@@ -43,6 +49,8 @@ const { default: TestRenderer, act } = await import("react-test-renderer");
 const { buildThemeTokens } = await import("../../client/components/theme-tokens");
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
 const { ChatComposerContext } = await import("../../client/ui/chat-composer");
+const { SelectionTranslationContext } = await import("../../client/translation/selection");
+const { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, translationSettingsSync } = await import("../../client/translation/settings-store");
 const { getEnhancerPreferences, updateEnhancerPreferences } = await import("../../client/preferences");
 const { StyleSheet, Animated } = await import("./helpers/rn-mock");
 const { floatShadow } = await import("../../client/ui/tokens/float");
@@ -61,11 +69,13 @@ let renderer: ReturnType<typeof TestRenderer.create> | undefined;
 type TestInstance = ReturnType<typeof TestRenderer.create>["root"];
 let previousLanguage = getEnhancerPreferences().language;
 
-function render(text = SOURCE, composer?: { appendText(text: string): boolean }) {
+function render(text = SOURCE, composer?: { appendText(text: string): boolean }, scoped = false) {
   act(() => {
     renderer = TestRenderer.create(
-      React.createElement(ChatComposerContext.Provider, { value: composer },
-        React.createElement(MarkdownView, { text, tokens, variant: "document" })),
+      React.createElement(SelectionTranslationContext.Provider, {
+        value: scoped ? { agentId: "table-agent", kind: "assistant_message", streaming: false } : null,
+      }, React.createElement(ChatComposerContext.Provider, { value: composer },
+        React.createElement(MarkdownView, { text, tokens, variant: "document" }))),
       { createNodeMock: (element) => domNode((element.props as { style?: unknown; testID?: string }).style,
         (element.props as { testID?: string }).testID) },
     );
@@ -156,6 +166,9 @@ afterEach(() => {
   toastShow.mockClear();
   toastError.mockClear();
   copyElementImage.mockReset();
+  translate.mockClear();
+  webTranslation.mockClear();
+  translationSettingsSync.report({ status: "loading" });
   vi.restoreAllMocks();
   vi.unstubAllGlobals();
 });
@@ -222,9 +235,41 @@ describe("Markdown table copy menu", () => {
   }
 
   const selectedCopy = () => entry("Copy selected cell");
+  const translateButton = () => renderer!.root.findAll((node) => String(node.type) === "Pressable"
+    && node.props.accessibilityLabel === "Translate selected cells");
   const selectedCells = () => renderer!.root.findAll((node) => String(node.type) === "Text"
     && node.props.testID === "markdown-table-cell"
     && StyleSheet.flatten(node.props.style).backgroundColor === tokens.textSelection);
+
+  it("translates the selected cell in the existing desktop popup and releases the selection", async () => {
+    translationSettingsSync.report({
+      status: "ready", revision: "enabled",
+      values: { ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, mode: "openai", endpoint: "https://example.com/v1", endpointModel: "test" },
+    });
+    render(SOURCE, undefined, true);
+    doubleClick(2);
+    const button = translateButton()[0]!;
+    expect(button.findAll((node) => String(node.type) === "Text")[0]!.children).toEqual(["翻译"]);
+    expect(translate).not.toHaveBeenCalled();
+    await act(async () => button.props.onPress());
+    expect(translate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      action: "start", agentId: "table-agent", sourceKind: "assistant_message", text: "one",
+    }));
+    expect(webTranslation.mock.lastCall?.[0]).toMatchObject({ original: "one", view: { status: "done" } });
+    expect(selectedCells()).toHaveLength(0);
+    act(() => webTranslation.mock.lastCall?.[0].close());
+    expect(renderer!.root.findAllByType(webTranslation)).toHaveLength(0);
+  });
+
+  it.each([false, true])("keeps copy available without translation (scoped: %s)", (scoped) => {
+    translationSettingsSync.report(scoped ? {
+      status: "ready", revision: "disabled", values: { ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: false },
+    } : { status: "loading" });
+    render(SOURCE, undefined, scoped);
+    doubleClick(2);
+    expect(selectedCopy()).toBeDefined();
+    expect(translateButton()).toHaveLength(0);
+  });
 
   it("adds a double-clicked cell through the desktop input with an icon and translated label", () => {
     const appendText = vi.fn(() => true);

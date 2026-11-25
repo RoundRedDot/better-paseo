@@ -75,7 +75,7 @@ function MessageTranslationButton(props: Props) {
   </View>;
 }
 
-function WebMessageTranslation(props: {
+export function WebMessageTranslation(props: {
   original: string;
   anchor: React.RefObject<View | null>;
   view: NonNullable<ReturnType<typeof useSelectionTranslation>["view"]>;

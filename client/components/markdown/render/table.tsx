@@ -206,7 +206,12 @@ export function MdTable({
       {/* Over the scroller rather than in it: a scroller clips what passes its
           edges, and the open menu's border and shadow reach past the left one. */}
       <TableCopyMenu source={source} frame={frameRef} tokens={context.tokens}
-        selected={selectedText && !selection.dragging ? { text: selectedText, dismiss: selection.dismiss, keeps } : undefined} />
+        selected={selectedText && !selection.dragging ? {
+          text: selectedText,
+          translationText: () => rangeText(token, ranges, context.literalCodex, "translate"),
+          dismiss: selection.dismiss,
+          keeps,
+        } : undefined} />
     </View>
   );
 }

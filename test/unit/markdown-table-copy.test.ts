@@ -1,10 +1,12 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
 import React from "react";
 
-const { copyText, toastShow, motionSetting } = vi.hoisted(() => ({
+const { copyText, toastShow, motionSetting, translate, paseo } = vi.hoisted(() => ({
   copyText: vi.fn(async (_text: string) => {}),
   toastShow: vi.fn(),
   motionSetting: { reduced: false },
+  translate: vi.fn(async (_input: unknown) => ({ state: "error", error: "Test translation error" })),
+  paseo: {},
 }));
 vi.mock("../../client/ui/use-reduced-motion", () => ({ useReducedMotion: () => motionSetting.reduced }));
 function listContext() {
@@ -18,7 +20,7 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
     Icon: (props: Record<string, unknown>) => React.createElement("Icon", props),
     TextInput: rn.TextInput,
     ScrollView: rn.ScrollView,
-    Modal: rn.View,
+    Modal: Object.assign((props: React.ComponentProps<typeof rn.View>) => React.createElement(rn.View, props), { Content: rn.View }),
     copyText,
     useToast: () => ({ show: toastShow, error() {}, success() {} }),
   };
@@ -26,8 +28,8 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
 vi.mock("@getpaseo/plugin/client", () => ({
   useAgent: () => undefined,
   useWorkspace: () => undefined,
-  useRpc: () => () => Promise.resolve(null),
-  usePaseo: () => ({}),
+  useRpc: () => translate,
+  usePaseo: () => paseo,
   useSettings: () => ({ data: undefined, status: "loading" }),
 }));
 
@@ -37,6 +39,8 @@ const { buildThemeTokens } = await import("../../client/components/theme-tokens"
 const { ACCENT_PRESETS, DEFAULT_PREFERENCES } = await import("../../client/preferences");
 const PRESET: keyof typeof ACCENT_PRESETS = "rose";
 const { MarkdownView } = await import("../../client/components/markdown/markdown-view");
+const { SelectionTranslationContext } = await import("../../client/translation/selection");
+const { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, translationSettingsSync } = await import("../../client/translation/settings-store");
 const { ChatComposerContext, quoteCell } = await import("../../client/ui/chat-composer");
 const { StyleSheet, Animated, TurboModuleRegistry } = await import("./helpers/rn-mock");
 const { columnWidths } = await import("../../client/components/markdown/render/table");
@@ -68,10 +72,12 @@ const createNodeMock = () => ({
   measureLayout: (_node: unknown, done: (left: number, top: number) => void) => done(1, measuredRow++ * 30),
 });
 
-function render(text: string, streaming = false, variant: "document" | "compact" | "terminal" = "document", offset?: { current: number }) {
+function render(text: string, streaming = false, variant: "document" | "compact" | "terminal" = "document", offset?: { current: number }, scoped = false) {
   act(() => {
-    const markdown = React.createElement(ChatComposerContext.Provider, { value: { appendText } },
-      React.createElement(MarkdownView, { text, tokens, variant, streaming }));
+    const markdown = React.createElement(SelectionTranslationContext.Provider, {
+      value: scoped ? { agentId: "native-table-agent", kind: "assistant_message", streaming: false } : null,
+    }, React.createElement(ChatComposerContext.Provider, { value: { appendText } },
+      React.createElement(MarkdownView, { text, tokens, variant, streaming })));
     const view = offset ? React.createElement(listContext().Provider,
       { value: { getScrollMetrics: () => ({ offset: offset.current }) } }, markdown) : markdown;
     if (renderer) renderer.update(view);
@@ -90,6 +96,8 @@ afterEach(() => {
   renderer = undefined;
   copyText.mockClear();
   toastShow.mockClear();
+  translate.mockClear();
+  translationSettingsSync.report({ status: "loading" });
   vi.useRealTimers();
   vi.unstubAllGlobals();
   vi.restoreAllMocks();
@@ -126,6 +134,30 @@ describe("Markdown table copy", () => {
     act(() => touchFrame().props.onTouchStart(touchAt(index, timestamp)));
     act(() => touchFrame().props.onTouchEnd(touchAt(index, timestamp + 30)));
   };
+
+  it.each(["ios", "android"])("on %s translates a cell range in the translation sheet", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    vi.useFakeTimers();
+    translationSettingsSync.report({
+      status: "ready", revision: "enabled",
+      values: { ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, mode: "openai", endpoint: "https://example.com/v1", endpointModel: "test" },
+    });
+    render("| A | B |\n| --- | --- |\n| one | two |\n| three | four |", false, "document", undefined, true);
+    act(() => touchFrame().props.onTouchStart(touchAt(2, 0)));
+    act(() => { vi.advanceTimersByTime(350); });
+    act(() => touchFrame().props.onTouchMove(touchAt(5, 400)));
+    act(() => touchFrame().props.onTouchEnd(touchAt(5, 500)));
+    const button = renderer!.root.findAll((node) => String(node.type) === "Pressable"
+      && node.props.accessibilityLabel === "Translate selected cells")[0]!;
+    expect(translate).not.toHaveBeenCalled();
+    await act(async () => button.props.onPress());
+    expect(translate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
+      action: "start", agentId: "native-table-agent", text: "|  |  |\n| --- | --- |\n| one | two |\n| three | four |",
+    }));
+    expect(renderer!.root.findAll((node) => String(node.type) === "View"
+      && node.props.testID === "selection-translation-panel")).toHaveLength(1);
+    expect(selectedCopy()).toHaveLength(0);
+  });
 
   it.each(["ios", "android"])("on %s adds the complete selected cell as a quote and dismisses", (os) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = os;

@@ -17,10 +17,15 @@ import { toolbarLabel } from "../../../i18n/toolbar-strings";
 import { bindTouchDismiss, suppressTouchCallout } from "../../../web";
 import { ChatComposerContext, quoteCell } from "../../../ui/chat-composer";
 import { insertIntoComposer } from "../../selection-actions";
+import { SelectionTranslationContext, useSelectionTranslation, type SelectionTranslationScopeValue } from "../../../translation/selection";
+import { useTranslationSettingsState } from "../../../translation/settings-store";
+import { SelectionTranslationPanel, TranslationSheet, TRANSLATE_ICON } from "../../../translation/ui";
+import { WebMessageTranslation } from "../../../translation/message-button";
 
 /** The selected cells' copy, how to drop them, and which outside presses keep them. */
 export interface TableSelected {
   text: string;
+  translationText(): string;
   dismiss(): void;
   /** A press that adds to the selection rather than leaving it. */
   keeps?(event: PointerEvent): boolean;
@@ -49,7 +54,7 @@ function TableCopyMenuBody({ source, frame, tokens, selected }: {
   const control = Platform.OS === "web" && canCopyImage()
     ? <ExpandingMenu source={source} frame={frame} tokens={tokens} trigger={hover ? "hover" : "longPress"} />
     : <ToolbarCopyButton text={source} tokens={tokens} label="Copy Markdown table" align="start" outlined />;
-  return <SelectionCopyMenu selected={selected} tokens={tokens}>{control}</SelectionCopyMenu>;
+  return <SelectionCopyMenu selected={selected} tokens={tokens} frame={frame}>{control}</SelectionCopyMenu>;
 }
 
 /** Memoised: a streamed chunk redraws the table, not its closed corner. */
@@ -62,21 +67,49 @@ export const TableCopyMenu = memo(TableCopyMenuBody);
  * selected. The menu mounts with the first selection and stays through its
  * exit, which a new selection can interrupt.
  */
-function SelectionCopyMenu({ children, selected, tokens }: {
+function SelectionCopyMenu({ children, selected, tokens, frame }: {
   children: ReactNode;
   selected?: TableSelected;
   tokens: ExtendedThemeTokens;
+  frame: RefObject<View | null>;
 }) {
+  const scope = useContext(SelectionTranslationContext);
   const [held, setHeld] = useState(false);
+  const [translation, setTranslation] = useState<{ agentId: string; kind: SelectionTranslationScopeValue["kind"]; text: string } | null>(null);
+  const close = () => setTranslation(null);
   if (selected !== undefined && !held) setHeld(true);
-  if (!held && selected === undefined) {
-    return (
+  return <>
+    {held || selected ? <SelectionMenu selected={selected} tokens={tokens} onHidden={() => setHeld(false)}
+      onTranslate={scope && selected ? () => {
+        setTranslation({ agentId: scope.agentId, kind: scope.kind, text: selected.translationText() });
+        selected.dismiss();
+      } : undefined} /> : (
       <View testID="table-native-copy-slot" style={[styles.nativeSlot, { backgroundColor: tokens.surface0 }]}>
         {children}
       </View>
-    );
+    )}
+    {scope && translation?.agentId === scope.agentId && translation.kind === scope.kind
+      ? <TableSelectionTranslation key={translation.text} scope={scope} original={translation.text} frame={frame} tokens={tokens} close={close} />
+      : null}
+  </>;
+}
+
+function TableSelectionTranslation({ scope, original, frame, tokens, close }: {
+  scope: SelectionTranslationScopeValue;
+  original: string;
+  frame: RefObject<View | null>;
+  tokens: ExtendedThemeTokens;
+  close(): void;
+}) {
+  const { view, start } = useSelectionTranslation(scope, original);
+  useEffect(() => { start(); }, [start]);
+  if (!view) return null;
+  if (Platform.OS === "web") {
+    return <WebMessageTranslation original={original} anchor={frame} view={view} tokens={tokens} retry={start} close={close} />;
   }
-  return <SelectionMenu selected={selected} tokens={tokens} onHidden={() => setHeld(false)} />;
+  return <TranslationSheet close={close}>
+    <SelectionTranslationPanel original={original} view={view} tokens={tokens} onRetry={start} onClose={close} sheet />
+  </TranslationSheet>;
 }
 
 /**
@@ -85,15 +118,18 @@ function SelectionCopyMenu({ children, selected, tokens }: {
  * mounted meanwhile; the frame paints its own fill and covers the control's
  * place at every width, so no full-width backing remains during the exit.
  */
-function SelectionMenu({ selected, tokens, onHidden }: {
+function SelectionMenu({ selected, tokens, onHidden, onTranslate }: {
   selected?: TableSelected;
   tokens: ExtendedThemeTokens;
   /** The exit has finished: the closed control returns. */
   onHidden(): void;
+  onTranslate?: () => void;
 }) {
   const { copy } = useCopy();
   const composer = useContext(ChatComposerContext);
   const { language } = useEnhancerPreferences();
+  const settings = useTranslationSettingsState();
+  const translate = onTranslate && !(settings.status === "ready" && !settings.values.enabled);
   const reducedMotion = useReducedMotion();
   const windowWidth = useWindowDimensions().width;
   const open = selected !== undefined;
@@ -188,6 +224,19 @@ function SelectionMenu({ selected, tokens, onHidden }: {
                   <Text selectable={false} numberOfLines={1}
                     style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
                     {toolbarLabel("Add to chat", language)}
+                  </Text>
+                </Pressable>
+              </Animated.View>
+            ) : null}
+            {translate ? (
+              <Animated.View style={{ opacity: reveal,
+                transform: [{ translateX: reveal.interpolate({ inputRange: [0, 1], outputRange: [-4, 0] }) }] }}>
+                <Pressable accessibilityRole="button" accessibilityLabel="Translate selected cells" onPress={onTranslate}
+                  style={({ pressed }) => [styles.selected, { backgroundColor: pressed ? floatPressed(tokens) : tokens.surface0 }]}>
+                  <Icon icon={TRANSLATE_ICON} size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+                  <Text selectable={false} numberOfLines={1}
+                    style={[styles.label, unselectable, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
+                    {toolbarLabel("Translate", language)}
                   </Text>
                 </Pressable>
               </Animated.View>
