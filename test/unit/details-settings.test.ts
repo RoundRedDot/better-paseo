@@ -37,6 +37,7 @@ vi.mock("../../client/components/embed-fonts", () => ({ ensureEmbeddedFonts() {}
 
 import { DEFAULT_PREFERENCES, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 import { BetterPaseoSettingsPage } from "../../client/settings-page";
+import { SettingRow } from "../../client/settings-controls";
 import { toolbarLabel } from "../../client/i18n/toolbar-strings";
 import { preferencesSchema } from "../../shared/preferences-settings";
 import { FILE_OPEN_APPS, FILE_OPEN_LABELS } from "../../shared/file-open-apps";
@@ -136,6 +137,49 @@ describe("file open setting", () => {
     expect(choiceGroup(renderer.root, "Open files with")).toBeUndefined();
     expect(renderer.root.findAll((node) => node.props.accessibilityRole === "alert").some((node) => textOf(node).includes("File open setting unavailable"))).toBe(true);
     act(() => renderer.unmount());
+  });
+});
+
+describe("Agent steps button setting", () => {
+  it.each([
+    ["en", true, "Show button above composer", "Agent steps"],
+    ["en", false, "Show button above composer", "Agent steps"],
+    ["zh", true, "在输入框上方显示按钮", "工作过程"],
+    ["zh", false, "在输入框上方显示按钮", "工作过程"],
+  ] as const)("groups the selector and visibility switch in %s with chat enabled=%s", async (language, chatEnabled, label, levelLabel) => {
+    updateEnhancerPreferences({ language, chatEnabled, timelineLevel: "detailed" });
+    const renderer = await renderPage();
+    try {
+      const rows = renderer.root.findAllByType(SettingRow);
+      const agentSteps = rows.filter((row) => row.props.title === levelLabel);
+      expect(agentSteps).toHaveLength(1);
+      const row = agentSteps[0]!;
+      expect(rows.some((item) => item.props.title === label)).toBe(false);
+      expect(textOf(row)).toContain(label);
+      const toggle = () => switchControl(row, `${levelLabel} · ${label}`);
+      const group = choiceGroup(row, levelLabel);
+      if (chatEnabled) {
+        expect(group).toBeDefined();
+        expect(group!.findAll((node) => node.props.accessibilityRole === "switch")).toHaveLength(0);
+      } else {
+        expect(group).toBeUndefined();
+        expect(row.props.description).toBeUndefined();
+      }
+      expect(toggle().props.accessibilityState.checked).toBe(true);
+      act(() => toggle().props.onPress());
+      expect(toggle().props.accessibilityState.checked).toBe(false);
+      expect(getEnhancerPreferences()).toMatchObject({ showTimelineLevelPill: false, timelineLevel: "detailed", chatEnabled });
+      if (chatEnabled) {
+        const radios = choiceGroup(row, levelLabel)!.findAll((node) => typeof node.type === "string" && node.props.accessibilityRole === "radio");
+        act(() => radios[0]!.props.onPress());
+        expect(getEnhancerPreferences()).toMatchObject({ showTimelineLevelPill: false, timelineLevel: "simple" });
+      }
+      act(() => toggle().props.onPress());
+      expect(toggle().props.accessibilityState.checked).toBe(true);
+      expect(getEnhancerPreferences()).toMatchObject({ showTimelineLevelPill: true, timelineLevel: chatEnabled ? "simple" : "detailed", chatEnabled });
+    } finally {
+      act(() => renderer.unmount());
+    }
   });
 });
 

@@ -18,7 +18,7 @@ import {
 } from "../../client/timeline-level-control";
 import { SETTINGS_STRINGS } from "../../client/i18n/settings-page-strings";
 import { setSettingsTab, settingsTab } from "../../client/settings-tab";
-import { DEFAULT_PREFERENCES, getEnhancerPreferences, resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
+import { applyStoredPreferences, DEFAULT_PREFERENCES, getEnhancerPreferences, parsePreferences, resetEnhancerPreferences, storedPart, updateEnhancerPreferences } from "../../client/preferences";
 
 interface FakePill {
   contribution: PluginComposerPillContribution;
@@ -292,6 +292,69 @@ describe("timeline level pill", () => {
     remove();
   });
 
+  it("hides existing and new pills without changing the level or replacing registrations", () => {
+    updateEnhancerPreferences({ language: "en", timelineLevel: "detailed" });
+    const client = fakeClient();
+    const control = createTimelineLevelControl(client);
+    try {
+      control.request("a1", "w1");
+      control.request("a2", "w2");
+      expect(client.pills.map((pill) => pill.button.visible)).toEqual([true, true]);
+      updateEnhancerPreferences({ showTimelineLevelPill: false });
+      expect(getEnhancerPreferences().timelineLevel).toBe("detailed");
+      expect(client.pills.map((pill) => pill.button.visible)).toEqual([false, false]);
+      expect(client.pills.every((pill) => !pill.removed)).toBe(true);
+      control.request("a1", "w1");
+      control.request("a3", "w3");
+      expect(client.pills).toHaveLength(3);
+      expect(client.pills[2]!.button.visible).toBe(false);
+      updateEnhancerPreferences({ timelineLevel: "simple", language: "zh", chatEnabled: false });
+      expect(client.pills.every((pill) => pill.button.visible === false && pill.button.label === "简洁")).toBe(true);
+      updateEnhancerPreferences({ showTimelineLevelPill: true });
+      expect(client.pills.every((pill) => pill.button.visible === true && pill.button.label === "简洁")).toBe(true);
+      expect(getEnhancerPreferences()).toMatchObject({ timelineLevel: "simple", chatEnabled: false });
+      expect(client.pills).toHaveLength(3);
+    } finally {
+      control.remove();
+    }
+  });
+
+  it("follows remotely applied visibility and level preferences", () => {
+    const client = fakeClient();
+    const control = createTimelineLevelControl(client);
+    try {
+      control.request("a1", "w1");
+      applyStoredPreferences(storedPart(parsePreferences({ showTimelineLevelPill: false, timelineLevel: "detailed", language: "en" })));
+      expect(client.pills[0]!.button).toMatchObject({ visible: false, label: "Detailed" });
+      control.request("a2", "w2");
+      expect(client.pills[1]!.button).toMatchObject({ visible: false, label: "Detailed" });
+      applyStoredPreferences(storedPart(parsePreferences({ showTimelineLevelPill: true, timelineLevel: "simple", language: "en" })));
+      for (const pill of client.pills) expect(pill.button).toMatchObject({ visible: true, label: "Simple" });
+    } finally {
+      control.remove();
+    }
+  });
+
+  it("keeps pills hidden when slash commands change levels or register a new agent", () => {
+    updateEnhancerPreferences({ language: "en", showTimelineLevelPill: false });
+    const client = fakeClient();
+    const remove = installTimelineLevelControl(client as never);
+    try {
+      const command = client.commands.find((entry) => entry.name === "bp-timeline")!;
+      command.onSubmit({ args: "3", agent: { id: "a1", workspaceId: "w1" } } as never);
+      expect(getEnhancerPreferences()).toMatchObject({ timelineLevel: "detailed", showTimelineLevelPill: false });
+      expect(client.pills[0]!.button).toMatchObject({ visible: false, label: "Detailed" });
+      command.onSubmit({ args: "", agent: { id: "a2", workspaceId: "w2" } } as never);
+      for (const pill of client.pills) expect(pill.button).toMatchObject({ visible: false, label: "Simple" });
+      updateEnhancerPreferences({ showTimelineLevelPill: true });
+      for (const pill of client.pills) expect(pill.button).toMatchObject({ visible: true, label: "Simple" });
+    } finally {
+      remove();
+    }
+    expect(client.commands[0]!.removed).toBe(true);
+    expect(client.pills.every((pill) => pill.removed)).toBe(true);
+  });
+
   it("leaves the pills alone when an unrelated preference changes", () => {
     const client = fakeClient();
     const control = createTimelineLevelControl(client);
@@ -310,7 +373,7 @@ describe("timeline level pill", () => {
     control.request("a1", "w1");
     control.remove();
     expect(client.pills[0]!.removed).toBe(true);
-    updateEnhancerPreferences({ timelineLevel: "simple" });
+    updateEnhancerPreferences({ timelineLevel: "simple", showTimelineLevelPill: false });
     expect(client.pills[0]!.updates).toBe(0);
     control.request("a3", "w1");
     expect(client.pills).toHaveLength(1);
@@ -378,6 +441,30 @@ describe("agent steps pills before the chat opens", () => {
     // No workspace yet: the host cannot place the pill, so a later update or row asks.
     expect(client.pills.map((pill) => [pill.contribution.agentId, pill.contribution.workspaceId])).toEqual([["a1", "w1"], ["a2", "w2"]]);
     remove();
+  });
+
+  it("keeps initial, new and reconnected agent pills hidden", async () => {
+    updateEnhancerPreferences({ showTimelineLevelPill: false });
+    const paseo = fakePaseo([{ id: "a1", workspaceId: "w1" }]);
+    const client = { ...fakeClient(), paseo };
+    const remove = installTimelineLevelControl(client as never);
+    try {
+      await settle();
+      expect(client.pills[0]!.button.visible).toBe(false);
+      const observer = paseo.observers[0]!;
+      observer.update({ type: "agent_update", payload: { kind: "upsert", agent: { id: "a2", workspaceId: "w2" } } });
+      observer.snapshot({ entries: [{ agent: { id: "a3", workspaceId: "w3" } }] });
+      expect(client.pills).toHaveLength(3);
+      expect(client.pills.every((pill) => pill.button.visible === false)).toBe(true);
+    } finally {
+      remove();
+    }
+    expect(paseo.released).toBe(1);
+    expect(paseo.observers).toHaveLength(0);
+    const updates = client.pills.map((pill) => pill.updates);
+    updateEnhancerPreferences({ showTimelineLevelPill: true });
+    expect(client.pills.map((pill) => pill.updates)).toEqual(updates);
+    expect(client.pills.every((pill) => pill.removed)).toBe(true);
   });
 
   it("adds a new agent's pill when the daemon reports it, once", async () => {

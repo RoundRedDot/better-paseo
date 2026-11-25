@@ -132,6 +132,7 @@ export interface EnhancerPreferences {
   /** Draw the chat with the plugin. Off leaves every chat row to Paseo; the Tasks board does not depend on it. */
   chatEnabled: boolean;
   timelineLevel: TimelineLevel;
+  showTimelineLevelPill: boolean;
   /**
    * Paseo maps a stream item to the plugin timeline item before any transformer
    * runs, and that mapping carries only the text. Pasted images therefore never
@@ -238,6 +239,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   previewStripes: true,
   chatEnabled: true,
   timelineLevel: "standard",
+  showTimelineLevelPill: true,
   enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,

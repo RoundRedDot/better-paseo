@@ -961,17 +961,28 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           look={look}
           stacked
         />
-        {chat ? <SettingRow title={t.timelineTitle} description={t.timelineDescription} look={look} stacked
-          control={<View accessibilityRole="radiogroup" accessibilityLabel={t.timelineTitle} style={{ width: look.compact ? "100%" : 300, maxWidth: "100%", flexDirection: "row", gap: space.sm }}>
-            {([ ["simple", t.timelineSimple, t.timelineSimpleDescription], ["standard", t.timelineStandard, t.timelineStandardDescription], ["detailed", t.timelineDetailed, t.timelineDetailedDescription] ] as const).map(([value, label, description]) => (
-              <Pressable key={value} accessibilityRole="radio" aria-checked={preferences.timelineLevel === value} accessibilityState={{ checked: preferences.timelineLevel === value }} onPress={() => updateEnhancerPreferences({ timelineLevel: value })}
-                style={{ flex: 1, minWidth: 0, padding: space.sm, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.card, borderColor: preferences.timelineLevel === value ? tokens.accent : tokens.v2.border }}>
-                <TimelineLevelIllustration level={value} tokens={tokens} />
-                <Text style={[settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{label}{value === "standard" ? ` · ${t.timelineDefault}` : ""}</Text>
-                <Text style={[settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{description}</Text>
-              </Pressable>
-            ))}
-          </View>} /> : null}
+        <SettingRow title={t.timelineTitle} description={chat ? t.timelineDescription : undefined} look={look} stacked
+          control={<View style={{ width: look.compact ? "100%" : 300, maxWidth: "100%", gap: space.md }}>
+            {chat ? <View accessibilityRole="radiogroup" accessibilityLabel={t.timelineTitle} style={{ flexDirection: "row", gap: space.sm }}>
+              {([ ["simple", t.timelineSimple, t.timelineSimpleDescription], ["standard", t.timelineStandard, t.timelineStandardDescription], ["detailed", t.timelineDetailed, t.timelineDetailedDescription] ] as const).map(([value, label, description]) => (
+                <Pressable key={value} accessibilityRole="radio" aria-checked={preferences.timelineLevel === value} accessibilityState={{ checked: preferences.timelineLevel === value }} onPress={() => updateEnhancerPreferences({ timelineLevel: value })}
+                  style={{ flex: 1, minWidth: 0, padding: space.sm, gap: space.sm, borderWidth: 1, borderRadius: radiusV2.card, borderColor: preferences.timelineLevel === value ? tokens.accent : tokens.v2.border }}>
+                  <TimelineLevelIllustration level={value} tokens={tokens} />
+                  <Text style={[settingsTextStyle(tokens), { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{label}{value === "standard" ? ` · ${t.timelineDefault}` : ""}</Text>
+                  <Text style={[settingsTextStyle(tokens, -1), { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{description}</Text>
+                </Pressable>
+              ))}
+            </View> : null}
+            <View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", gap: space.md }}>
+              <Text style={[settingsTextStyle(tokens, -1), { color: tokens.foreground, fontFamily: tokens.fontUi, flex: 1 }]}>{t.showTimelineLevelPillTitle}</Text>
+              <Toggle
+                value={preferences.showTimelineLevelPill}
+                onChange={(showTimelineLevelPill) => updateEnhancerPreferences({ showTimelineLevelPill })}
+                label={`${t.timelineTitle} · ${t.showTimelineLevelPillTitle}`}
+                look={look}
+              />
+            </View>
+          </View>} />
       </Section>
 
       {/* Translation also serves the Tasks board, which does not depend on the chat switch. */}

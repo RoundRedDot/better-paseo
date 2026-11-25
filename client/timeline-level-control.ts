@@ -109,14 +109,14 @@ export function timelineLevelButton(preferences: EnhancerPreferences, openSettin
     title: text.title,
     label: text.levels[preferences.timelineLevel],
     icon: "ListCollapse",
-    visible: true,
+    visible: preferences.showTimelineLevelPill,
     behavior: { kind: "popover", Content: (props) => createElement(TimelineLevelMenu, { ...props, select: switchLevel, openSettings }) },
   };
 }
 
 /** What the pill shows; a change in anything else leaves the pills alone. */
 function buttonKey(preferences: EnhancerPreferences): string {
-  return `${preferences.timelineLevel}|${resolveLanguage(preferences.language)}`;
+  return `${preferences.timelineLevel}|${resolveLanguage(preferences.language)}|${preferences.showTimelineLevelPill}`;
 }
 
 export interface TimelineLevelControl {

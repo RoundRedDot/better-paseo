@@ -34,6 +34,16 @@ const V1 = {
 };
 
 describe("preferences v2 defaults", () => {
+  it("shows the Agent steps button by default and rejects invalid visibility values", () => {
+    expect(DEFAULT_PREFERENCES.showTimelineLevelPill).toBe(true);
+    expect(parsePreferences({}).showTimelineLevelPill).toBe(true);
+    for (const showTimelineLevelPill of [null, "false", 0, 1, {}]) {
+      expect(preferencesSchema.parse({ showTimelineLevelPill }).showTimelineLevelPill).toBe(true);
+    }
+    expect(parsePreferences({ showTimelineLevelPill: false, timelineLevel: "detailed" }))
+      .toMatchObject({ showTimelineLevelPill: false, timelineLevel: "detailed" });
+  });
+
   it("keeps interactive reply handoff off until explicitly enabled", () => {
     expect(DEFAULT_PREFERENCES.liveUiReplies).toBe(false);
     expect(parsePreferences({}).liveUiReplies).toBe(false);
@@ -316,6 +326,19 @@ describe("daemon-backed store (S5 fix round 1)", () => {
     mod.applyStoredPreferences({ ...storedPart(DEFAULT_PREFERENCES), hoverDelaySeconds: 2 });
     expect(mod.getEnhancerPreferences().hoverDelaySeconds).toBe(2);
   });
+  it("persists a hidden Agent steps button without changing the level and restores its default", async () => {
+    const { mod, local } = await freshModule();
+    const persist = vi.fn();
+    mod.setPreferencePersister(persist);
+    mod.updateEnhancerPreferences({ timelineLevel: "detailed", showTimelineLevelPill: false });
+    expect(persist).toHaveBeenLastCalledWith(expect.objectContaining({ showTimelineLevelPill: false, timelineLevel: "detailed" }));
+    expect(readStoredPreferences(local)).toMatchObject({ showTimelineLevelPill: false, timelineLevel: "detailed" });
+    const { mod: reloaded } = await freshModule({ [STORAGE_KEY]: local.getItem(STORAGE_KEY)! });
+    expect(reloaded.getEnhancerPreferences()).toMatchObject({ showTimelineLevelPill: false, timelineLevel: "detailed" });
+    reloaded.resetEnhancerPreferences();
+    expect(reloaded.getEnhancerPreferences().showTimelineLevelPill).toBe(true);
+  });
+
   it("persists disabled hover previews and restores them when resetting defaults", async () => {
     const { mod, local } = await freshModule();
     const persist = vi.fn();
