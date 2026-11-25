@@ -1029,8 +1029,13 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     expect(button("Translate selected block")).toHaveLength(0);
     select(1);
     expect(button("Copy selected block")).toHaveLength(1);
+    const menu = renderer!.root.findByProps({ testID: "markdown-block-menu" });
+    expect(StyleSheet.flatten(menu.props.style)).toMatchObject({ minHeight: 34, borderWidth: StyleSheet.hairlineWidth });
+    for (const label of ["Copy selected block", "Translate selected block"]) {
+      expect(StyleSheet.flatten(button(label)[0]!.props.style)).toMatchObject({ paddingHorizontal: 8 });
+    }
     const separator = renderer!.root.findByProps({ testID: "translation-menu-separator" });
-    expect(separator.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ width: 0.5 })]));
+    expect(StyleSheet.flatten(separator.props.style)).toMatchObject({ width: StyleSheet.hairlineWidth, height: 12 });
     expect(mocks.rpc).not.toHaveBeenCalled();
     await act(async () => button("Translate selected block")[0]!.props.onPress());
     await vi.waitFor(() => expect(mocks.rpc).toHaveBeenCalledOnce());

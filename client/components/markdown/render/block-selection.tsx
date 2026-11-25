@@ -5,7 +5,7 @@ import type { Token, Tokens } from "../../../vendor/marked";
 import type { ExtendedThemeTokens } from "../../theme-tokens";
 import { useCopy } from "../../../ui/use-copy";
 import { useScrollDismiss } from "../../../ui/scroll-anchor";
-import { FLOAT, floatPressed } from "../../../ui/tokens/float";
+import { floatPressed } from "../../../ui/tokens/float";
 import { useEnhancerPreferences } from "../../../preferences";
 import { toolbarLabel } from "../../../i18n/toolbar-strings";
 import { SelectionTranslationContext, selectionViewLoading, useSelectionTranslation, type SelectionTranslationScopeValue } from "../../../translation/selection";
@@ -29,6 +29,7 @@ export function blockSelectionPlatform(os: string = Platform.OS): boolean {
 const DOUBLE_TAP_MS = 300;
 const TAP_MS = 250;
 const MOVE_SLOP = 10;
+const MENU_ICON_SIZE = 13;
 interface Tap { time: number; x: number; y: number }
 
 let active: { cancel(): void } | null = null;
@@ -145,7 +146,7 @@ function BlockCopyMenu({ text, tokens, dismiss }: { text: string; tokens: Extend
   const copyButton = <Pressable accessibilityRole="button" accessibilityLabel="Copy selected block"
     style={({ pressed }) => [styles.item, pressed && { backgroundColor: floatPressed(tokens) }]}
     onPress={() => { void copy(text, { feedback: "toast" }).then((ok) => { if (ok && mounted.current) dismiss(); }); }}>
-    <Icon name="Copy" size={FLOAT.iconSize} color={tokens.foregroundMuted} />
+    <Icon name="Copy" size={MENU_ICON_SIZE} color={tokens.foregroundMuted} />
     <Text selectable={false} style={[styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
       {toolbarLabel("Copy selected", language)}
     </Text>
@@ -181,8 +182,8 @@ function BlockTranslate({ scope, text, tokens, dismiss, copyButton, menuStyle }:
       <Pressable accessibilityRole="button" accessibilityLabel="Translate selected block" accessibilityState={{ busy: loading }}
         style={({ pressed }) => [styles.item, pressed && { backgroundColor: floatPressed(tokens) }]}
         onPress={loading ? undefined : start}>
-        {loading ? <SpinnerRing size={FLOAT.iconSize} color={tokens.foregroundMuted} testID="selected-block-translate-spinner" />
-          : <Icon icon={TRANSLATE_ICON} size={FLOAT.iconSize} color={tokens.foregroundMuted} />}
+        {loading ? <SpinnerRing size={MENU_ICON_SIZE} color={tokens.foregroundMuted} testID="selected-block-translate-spinner" />
+          : <Icon icon={TRANSLATE_ICON} size={MENU_ICON_SIZE} color={tokens.foregroundMuted} />}
         <Text selectable={false} style={[styles.label, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>
           {toolbarLabel("Translate", language)}
         </Text>
@@ -197,9 +198,9 @@ function BlockTranslate({ scope, text, tokens, dismiss, copyButton, menuStyle }:
 const styles = StyleSheet.create({
   block: { position: "relative" },
   slot: { position: "absolute", top: 0, right: 0, zIndex: 2 },
-  menu: { minHeight: 40, borderWidth: 1, borderRadius: FLOAT.radius, overflow: "hidden",
+  menu: { minHeight: 34, padding: 2, borderWidth: StyleSheet.hairlineWidth, borderRadius: 10,
     flexDirection: "row", alignItems: "stretch" },
-  separator: { width: 0.5, height: 20, alignSelf: "center" },
-  item: { paddingHorizontal: 12, flexDirection: "row", alignItems: "center", gap: FLOAT.iconText },
-  label: { fontSize: 13, fontWeight: "500" },
+  separator: { width: StyleSheet.hairlineWidth, height: 12, alignSelf: "center" },
+  item: { paddingHorizontal: 8, paddingVertical: 4, borderRadius: 7, flexDirection: "row", alignItems: "center", gap: 4 },
+  label: { fontSize: 12, fontWeight: "500" },
 });
