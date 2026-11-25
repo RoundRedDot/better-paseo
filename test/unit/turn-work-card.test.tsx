@@ -618,9 +618,12 @@ describe("work details filter", () => {
     const bar = panel.root.findAll((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "work-filter")[0]!;
     expect(bar).toBeDefined();
     expect(bar.props.horizontal).toBe(true);
-    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ flexGrow: 0, flexShrink: 0 });
+    // Ruled off from the steps below, as the toolbar above is from the bar.
+    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ flexGrow: 0, flexShrink: 0, borderBottomWidth: 1,
+      borderBottomColor: tokens.v2.borderSubtle });
     const row = StyleSheet.flatten(bar.props.contentContainerStyle);
     expect(row.flexDirection).toBe("row");
+    expect(row.paddingVertical).toBe(8);
     expect(row.flexWrap).toBeUndefined();
     act(() => panel.unmount());
   });

@@ -20,6 +20,7 @@ import { mix, space, withAlpha } from "./theme-tokens";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-header";
 import { useHover } from "../ui/use-hover";
 import { hairline } from "../ui/tokens/platform";
+import { PREVIEW_HEADER } from "../ui/tokens/float";
 import { RunningDot } from "../ui/running-dot";
 import { HoverPreviewBody, HoverPreviewHeader, PreviewActionsContext } from "../ui/hover-preview";
 import { TextZoomContext } from "../ui/text-zoom";
@@ -750,10 +751,11 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
     stat: { flexShrink: 0, fontFamily: tokens.fontMono, fontWeight: "600", fontSize: block.meta.size,
       lineHeight: block.meta.lineHeight, fontVariant: ["tabular-nums"] },
     more: { ...listRow, paddingLeft: space.xs, gap: space.sm },
-    // As tall as its chips: a horizontal scroller grows to fill the panel's column otherwise.
-    filterScroll: { flexGrow: 0, flexShrink: 0 },
+    // As tall as its chips: a horizontal scroller grows to fill the panel's column otherwise. Ruled off
+    // from the steps below as the toolbar above is from it.
+    filterScroll: { flexGrow: 0, flexShrink: 0, borderBottomWidth: PREVIEW_HEADER.border, borderBottomColor: tokens.v2.borderSubtle },
     filterBar: { flexDirection: "row", alignItems: "center", gap: space.xs,
-      paddingHorizontal: space.md - space.xs, paddingVertical: space.xs },
+      paddingHorizontal: space.md - space.xs, paddingVertical: space.sm },
     // A pill's round ends need room beside the label; the border comes out of that padding.
     chip: { minHeight: 28, justifyContent: "center", paddingHorizontal: space.md - StyleSheet.hairlineWidth, borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth, borderColor: mix(tokens.border, tokens.foreground, tokens.isDark ? 0.08 : 0.05) },
