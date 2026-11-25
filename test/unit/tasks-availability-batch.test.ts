@@ -35,9 +35,9 @@ describe("availability batch daemon reads", () => {
   // 40 and 100 workspaces fit one page; with 250, cards on the second page and
   // missing workspaces scan both.
   it.each([
-    { workspaces: 40, perCard: 97, batch: 1 },
-    { workspaces: 100, perCard: 97, batch: 1 },
-    { workspaces: 250, perCard: 114, batch: 2 },
+    { workspaces: 40, perCard: 98, batch: 1 },
+    { workspaces: 100, perCard: 98, batch: 1 },
+    { workspaces: 250, perCard: 116, batch: 2 },
   ])("lists $workspaces workspaces once per batch and inspects only unlisted ids", async ({ workspaces, perCard, batch }) => {
     const f = await fixture(workspaces);
     const expected = new Map<string, Awaited<ReturnType<typeof taskUpdateState>>>();
@@ -80,6 +80,7 @@ describe("availability batch daemon reads", () => {
 
   it("reads no workspace page when no card needs one", async () => {
     const f = await fixture(40);
+    f.sources.get("agent-5")!.agent.workspaceId = undefined;
     await f.read(f.api, ["agent-5", "agent-6", "agent-7"]);
     expect(f.counts().fetchWorkspaces).toBe(0);
   });

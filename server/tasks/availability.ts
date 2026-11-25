@@ -30,23 +30,23 @@ type TaskUpdateState = { issue: TaskIssue | null; archivedWorkspaceId: string | 
 /** Everything but the workspace record; `workspaceId` is set when that record still has to be read. */
 async function taskPlacementState(source: PaseoAgentRefetchResult | null): Promise<TaskUpdateState & { workspaceId: string | null }> {
   if (!source) return { issue: { code: "agent_missing", detail: null }, archivedWorkspaceId: null, workspaceId: null };
+  const workspaceId = source.agent.workspaceId;
   const directory = await taskDirectoryIssue(source.agent.cwd);
-  if (directory) return { issue: directory, archivedWorkspaceId: null, workspaceId: null };
-  if (!source.agent.workspaceId) return { issue: { code: "workspace_unavailable", detail: null }, archivedWorkspaceId: null, workspaceId: null };
-  return { issue: null, archivedWorkspaceId: null, workspaceId: source.agent.workspaceId };
+  if (directory && (directory.code !== "directory_missing" || !workspaceId)) return { issue: directory, archivedWorkspaceId: null, workspaceId: null };
+  if (!workspaceId) return { issue: { code: "workspace_unavailable", detail: null }, archivedWorkspaceId: null, workspaceId: null };
+  return { issue: directory, archivedWorkspaceId: null, workspaceId };
 }
 
-function workspaceState(cwd: string, workspaceId: string, workspace: PaseoWorkspace | null): TaskUpdateState {
-  if (!workspace) return { issue: { code: "workspace_unavailable", detail: cwd }, archivedWorkspaceId: workspaceId };
-  if (workspace.archivingAt) return { issue: { code: "workspace_unavailable", detail: cwd }, archivedWorkspaceId: null };
-  return { issue: null, archivedWorkspaceId: null };
+function workspaceState(cwd: string, workspaceId: string, workspace: PaseoWorkspace | null, directory: TaskIssue | null): TaskUpdateState {
+  if (!workspace) return { issue: directory ?? { code: "workspace_unavailable", detail: cwd }, archivedWorkspaceId: workspaceId };
+  return { issue: directory ?? (workspace.archivingAt ? { code: "workspace_unavailable", detail: cwd } : null), archivedWorkspaceId: null };
 }
 
 /** Metadata and filesystem checks do not load a provider session or read its timeline. */
 export async function taskUpdateState(source: PaseoAgentRefetchResult | null, paseo: PaseoApi): Promise<TaskUpdateState> {
   const { workspaceId, ...state } = await taskPlacementState(source);
   if (!workspaceId) return state;
-  return workspaceState(source!.agent.cwd, workspaceId, await paseo.workspaces.ref(workspaceId).refresh());
+  return workspaceState(source!.agent.cwd, workspaceId, await paseo.workspaces.ref(workspaceId).refresh(), state.issue);
 }
 
 /**
@@ -78,7 +78,7 @@ type RecoveryDaemon = Pick<HostDaemon, "inspectWorkspaceRecovery" | "restoreWork
 
 /** The active directory omits archived records; only the host can distinguish them from missing ones. */
 async function inspectArchivedWorkspaces(ids: string[], connect: () => Promise<RecoveryDaemon | null>) {
-  const states = new Map<string, TaskIssue["code"]>();
+  const states = new Map<string, "restore" | "unarchive" | "workspace_unavailable" | "host_unavailable" | "unsupported">();
   if (ids.length === 0) return states;
   const daemon = await connect();
   if (!daemon) return new Map(ids.map((id) => [id, "host_unavailable" as const]));
@@ -86,7 +86,7 @@ async function inspectArchivedWorkspaces(ids: string[], connect: () => Promise<R
     if (!daemon.inspectWorkspaceRecovery || !daemon.restoreWorkspace) return new Map(ids.map((id) => [id, "unsupported" as const]));
     for (const id of ids) {
       const recovery = await daemon.inspectWorkspaceRecovery(id);
-      states.set(id, recovery.kind === "recoverable" && recovery.action === "unarchive" ? "workspace_archived" : "workspace_unavailable");
+      states.set(id, recovery.kind === "recoverable" ? recovery.action : "workspace_unavailable");
     }
     return states;
   } finally {
@@ -112,9 +112,13 @@ export function createTaskAvailability(settings: PluginSettings<typeof titleGene
     const recoveries = await inspectArchivedWorkspaces([...workspaceIds].filter((id) => !workspaces.has(id)), connect);
     // Cards share provider catalogs within this batch.
     for (const { agentId, source, placement: { workspaceId, ...placed } } of placements) {
-      const { issue, archivedWorkspaceId } = workspaceId ? workspaceState(source!.agent.cwd, workspaceId, workspaces.get(workspaceId) ?? null) : placed;
+      const { issue, archivedWorkspaceId } = workspaceId ? workspaceState(source!.agent.cwd, workspaceId, workspaces.get(workspaceId) ?? null, placed.issue) : placed;
       if (issue || !source) {
-        const availability = unavailableTask(archivedWorkspaceId ? { ...issue!, code: recoveries.get(archivedWorkspaceId)! } : issue!);
+        const recovery = archivedWorkspaceId ? recoveries.get(archivedWorkspaceId) : undefined;
+        let code = issue!.code;
+        if (recovery === "restore" || (recovery === "unarchive" && code !== "directory_missing")) code = "workspace_archived";
+        else if (recovery === "host_unavailable" || recovery === "unsupported") code = recovery;
+        const availability = unavailableTask({ ...issue!, code });
         if (source && availability.issue?.code === "workspace_archived") {
           if (!unarchive) availability.blocked.unarchive = { code: "unsupported", detail: null };
           else if (!providers.entries.some((entry) => entry.provider === source.agent.provider && entry.enabled && entry.status === "ready")) {

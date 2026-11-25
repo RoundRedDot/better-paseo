@@ -499,22 +499,35 @@ export function registerTasksServer(
     const cli = await resolveCli();
     if (!cli) return { ok: false, error: "Paseo CLI is unavailable." };
     if (!AGENT_ID_PATTERN.test(agentId)) return { ok: false, error: "Invalid agent ID." };
-    const source = await paseo.agents.ref(agentId).refresh();
-    const { issue, archivedWorkspaceId } = await taskUpdateState(source, paseo);
+    const readState = async () => taskUpdateState(await paseo.agents.ref(agentId).refresh(), paseo);
+    const { issue, archivedWorkspaceId } = await readState();
     if (issue) {
       if (!archivedWorkspaceId) return { ok: false, error: taskIssueError(issue) };
       const daemon = await host.connect();
       if (!daemon) return { ok: false, error: "Could not reach the Paseo daemon." };
+      let recoveryError: string | null = null;
       try {
         if (!daemon.inspectWorkspaceRecovery || !daemon.restoreWorkspace) return { ok: false, error: "This Paseo cannot restore workspaces." };
         const recovery = await daemon.inspectWorkspaceRecovery(archivedWorkspaceId);
-        if (recovery.kind === "unavailable") return { ok: false, error: recovery.message };
-        if (recovery.action !== "unarchive") return { ok: false, error: taskIssueError(issue) };
-        await daemon.restoreWorkspace(archivedWorkspaceId);
+        if (recovery.kind === "unavailable") {
+          recoveryError = recovery.message;
+        } else {
+          if (issue.code === "directory_missing" && recovery.action !== "restore") return { ok: false, error: taskIssueError(issue) };
+          try {
+            await daemon.restoreWorkspace(archivedWorkspaceId);
+          } catch (error) {
+            recoveryError = error instanceof Error ? error.message : String(error);
+          }
+        }
       } catch (error) {
         return { ok: false, error: error instanceof Error ? error.message : String(error) };
       } finally {
         await daemon.close().catch(() => {});
+      }
+      if (recoveryError !== null) {
+        // Another Unarchive may have restored the same workspace.
+        const current = await readState().catch(() => null);
+        if (!current || current.issue) return { ok: false, error: recoveryError };
       }
     }
     return await unarchiveAgent(cli, agentId);

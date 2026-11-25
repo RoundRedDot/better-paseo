@@ -54,7 +54,7 @@ describe("task operation availability", () => {
     const result = await f.read(f.api, ["a"]);
     expect(result.entries[0]?.availability.issue).toEqual({ code: "directory_missing", detail: f.source.agent.cwd });
     expect(Object.keys(result.entries[0]!.availability.blocked)).toEqual(["rename", "autoTitle", "unarchive", "archive", "read", "permission"]);
-    expect(f.workspace).not.toHaveBeenCalled();
+    expect(f.connect).not.toHaveBeenCalled();
     f.source.agent.cwd = f.directory;
     expect((await f.read(f.api, ["a"])).entries[0]!.availability).toEqual({ issue: null, blocked: {} });
   });
@@ -99,14 +99,50 @@ describe("task operation availability", () => {
     expect((await f.read(f.api, ["a"])).entries[0]!.availability.blocked.unarchive?.code).toBe("provider_unavailable");
   });
 
-  it("does not mistake a missing workspace record or a worktree requiring recreation for normal archiving", async () => {
+  it("does not mistake a missing workspace record for normal archiving", async () => {
     const f = await fixture();
     f.workspaces.length = 0;
     const missing = (await f.read(f.api, ["a"])).entries[0]!.availability;
     expect(missing.issue?.code).toBe("workspace_unavailable");
     expect(missing.blocked.unarchive?.code).toBe("workspace_unavailable");
+  });
+
+  it("offers Unarchive for a removed worktree that Paseo can restore, and nothing else", async () => {
+    const f = await fixture();
+    f.source.agent.cwd = join(f.directory, "removed-worktree");
+    f.workspaces[0]!.archivedAt = "2026-10-28T00:00:00Z";
     f.inspectWorkspaceRecovery.mockResolvedValueOnce({ kind: "recoverable", action: "restore" });
-    expect((await f.read(f.api, ["a"])).entries[0]!.availability).toEqual(missing);
+    const availability = (await f.read(f.api, ["a"])).entries[0]!.availability;
+    expect(availability.issue).toBeNull();
+    expect(availability.blocked.unarchive).toBeUndefined();
+    expect(availability.blocked.rename?.code).toBe("workspace_archived");
+    expect(availability.blocked.autoTitle?.code).toBe("workspace_archived");
+    expect(f.daemon.restoreWorkspace).not.toHaveBeenCalled();
+    expect(await taskUpdateIssue(f.source as never, f.api)).toEqual({ code: "directory_missing", detail: f.source.agent.cwd });
+  });
+
+  it("keeps a removed folder blocked when Paseo would only unarchive its workspace", async () => {
+    const f = await fixture();
+    f.source.agent.cwd = join(f.directory, "removed-worktree");
+    f.workspaces[0]!.archivedAt = "2026-10-28T00:00:00Z";
+    f.inspectWorkspaceRecovery.mockResolvedValueOnce({ kind: "recoverable", action: "unarchive" });
+    const availability = (await f.read(f.api, ["a"])).entries[0]!.availability;
+    expect(availability.issue).toEqual({ code: "directory_missing", detail: f.source.agent.cwd });
+    expect(availability.blocked.unarchive?.code).toBe("directory_missing");
+    expect(Object.keys(availability.blocked)).toEqual(["rename", "autoTitle", "unarchive", "archive", "read", "permission"]);
+  });
+
+  it("keeps a removed folder blocked when its workspace is active or Paseo cannot recover it", async () => {
+    const f = await fixture();
+    f.source.agent.cwd = join(f.directory, "removed-worktree");
+    const active = (await f.read(f.api, ["a"])).entries[0]!.availability;
+    expect(active.issue).toEqual({ code: "directory_missing", detail: f.source.agent.cwd });
+    expect(active.blocked.unarchive?.code).toBe("directory_missing");
+    expect(f.connect).not.toHaveBeenCalled();
+    f.workspaces.length = 0;
+    const unrecoverable = (await f.read(f.api, ["a"])).entries[0]!.availability;
+    expect(unrecoverable.issue).toEqual({ code: "directory_missing", detail: f.source.agent.cwd });
+    expect(Object.keys(unrecoverable.blocked)).toEqual(["rename", "autoTitle", "unarchive", "archive", "read", "permission"]);
   });
 
   it("does not substitute another active workspace at the same directory for the task's own workspace", async () => {
