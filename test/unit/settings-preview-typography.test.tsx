@@ -109,9 +109,10 @@ describe("translation settings placement", () => {
     release();
   });
 
-  it("places its own section immediately after the Agent steps controls", async () => {
+  it.each([["en", true], ["en", false], ["zh", true], ["zh", false]] as const)("places its own section immediately after the Agent steps row in %s with chat enabled=%s", async (language, chatEnabled) => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     resetEnhancerPreferences();
+    updateEnhancerPreferences({ language, chatEnabled });
     setSettingsTab("display");
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(BetterPaseoSettingsPage, {
@@ -119,14 +120,11 @@ describe("translation settings placement", () => {
       } as never));
     });
     const sections = renderer!.root.findAllByType(Section);
-    const generalIndex = sections.findIndex((section) => section.props.title === SETTINGS_STRINGS.en.sectionGeneral);
+    const generalIndex = sections.findIndex((section) => section.props.title === SETTINGS_STRINGS[language].sectionGeneral);
     expect(generalIndex).toBeGreaterThanOrEqual(0);
     const general = sections[generalIndex]!;
-    expect(general.findAllByType(SettingRow).slice(-2).map((row) => row.props.title)).toEqual([
-      SETTINGS_STRINGS.en.timelineTitle,
-      SETTINGS_STRINGS.en.showTimelineLevelPillTitle,
-    ]);
-    expect(sections[generalIndex + 1]?.props.title).toBe("Translation");
+    expect(general.findAllByType(SettingRow).at(-1)?.props.title).toBe(SETTINGS_STRINGS[language].timelineTitle);
+    expect(sections[generalIndex + 1]?.props.title).toBe(language === "zh" ? "翻译" : "Translation");
   });
 
   it("restores display defaults only after the scoped confirmation", async () => {
