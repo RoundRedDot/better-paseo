@@ -14,11 +14,20 @@ vi.mock("../../client/ui/use-input-capabilities", () => ({ noteHover() {},
   useInputCapabilities: () => ({ hover: caps.hover, touch: !caps.hover, native: false }) }));
 vi.mock("../../client/state/home-directory", () => ({ useHomeDirectory: () => undefined }));
 // The rows and diffs the card mounts on demand, as markers.
+const calloutDraws = vi.hoisted(() => ({ renders: 0, mounts: 0 }));
+function ToolCalloutStripe({ props, contexts }: { props: Record<string, unknown>; contexts: Record<string, unknown> }) {
+  return React.createElement("ToolCallout", { ...props, ...contexts, stickyStripe: React.useContext(StickyStripeContext) },
+    (props.leading as { content: React.ReactNode } | undefined)?.content);
+}
 vi.mock("../../client/components/tool-callouts", () => ({
-  ToolCallout: (props: Record<string, unknown>) => React.createElement("ToolCallout", {
-    ...props, translationScope: React.useContext(SelectionTranslationContext),
-    stickyStep: React.useContext(StickyStepContext), stickySource: React.useContext(DetailsStickySourceContext),
-  }, (props.leading as { content: React.ReactNode } | undefined)?.content),
+  // Counts the row's own draws; the stripe is read below it, as the real row's pinned card does.
+  ToolCallout: (props: Record<string, unknown>) => {
+    calloutDraws.renders += 1;
+    React.useEffect(() => { calloutDraws.mounts += 1; }, []);
+    const contexts = { translationScope: React.useContext(SelectionTranslationContext),
+      stickyStep: React.useContext(StickyStepContext), stickySource: React.useContext(DetailsStickySourceContext) };
+    return React.createElement(ToolCalloutStripe, { props, contexts });
+  },
   FileEditsPreview: (props: Record<string, unknown>) => React.createElement("FileEditsPreview", {
     ...props, translationScope: React.useContext(SelectionTranslationContext),
   }),
@@ -39,7 +48,7 @@ import { PreviewActionsContext, PreviewChromeContext } from "../../client/ui/hov
 import { resetDisclosureStore } from "../../client/state/disclosure-store";
 import { resetWorkFilterStore } from "../../client/state/work-filter-store";
 import { SELECTION_SCOPE_ATTRIBUTES, SelectionTranslationContext } from "../../client/translation/selection";
-import { DetailsStickySourceContext, StickyStepContext } from "../../client/details/sticky-step";
+import { DetailsStickySourceContext, StickyStepContext, StickyStripeContext } from "../../client/details/sticky-step";
 import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
 import { resetTranslationStoreForTests } from "../../client/translation/store";
 
@@ -208,12 +217,12 @@ describe("turn work card", () => {
       return parent === list[0];
     })).toBe(true);
     expect(list[0]!.props.style?.gap ?? 0).toBe(0);
-    expect(cells.map((cell) => cell.props.style?.paddingVertical)).toEqual(Array(7).fill(4));
-    expect(cells.map((cell) => cell.props.style?.paddingHorizontal)).toEqual(Array(7).fill(12));
+    expect(cells.map((cell) => StyleSheet.flatten(cell.props.style).paddingVertical)).toEqual(Array(7).fill(4));
+    expect(cells.map((cell) => StyleSheet.flatten(cell.props.style).paddingHorizontal)).toEqual(Array(7).fill(12));
     expect(panel.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "work-step-number")
       .map((number) => number.children.join("")))
       .toEqual(["1", "2", "3", "4", "5", "6", "7"]);
-    expect(cells.map((cell) => cell.props.style?.backgroundColor)).toEqual([
+    expect(cells.map((cell) => StyleSheet.flatten(cell.props.style).backgroundColor)).toEqual([
       undefined, withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
       withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
       withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04), undefined,
@@ -257,14 +266,15 @@ describe("turn work card", () => {
       expect(bodyStyle.paddingHorizontal).toBe(0);
       const cells = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-cell");
       expect(cells).toHaveLength(7);
-      expect(cells.every((cell) => cell.props.style.paddingHorizontal === 12)).toBe(true);
+      expect(cells.every((cell) => StyleSheet.flatten(cell.props.style).paddingHorizontal === 12)).toBe(true);
       const intent = panel.root.findAll((node) => (node.type as unknown) === "Text" && node.children.includes("Check the root first, then fix the path."))[0]!;
       expect(StyleSheet.flatten(intent.props.style).paddingHorizontal).toBe(12);
       // Each step may pin its opened row to this body, behind its own stripe.
       const rows = panel.root.findAll((node) => (node.type as unknown) === "ToolCallout");
       expect(rows.every((row) => row.props.stickySource !== null)).toBe(true);
       expect(new Set(rows.map((row) => row.props.stickySource)).size).toBe(1);
-      expect(rows.map((row) => row.props.stickyStep?.stripe)).toEqual(cells.map((cell) => cell.props.style.backgroundColor));
+      expect(rows.every((row) => row.props.stickyStep !== null)).toBe(true);
+      expect(rows.map((row) => row.props.stickyStripe)).toEqual(cells.map((cell) => StyleSheet.flatten(cell.props.style).backgroundColor));
       act(() => panel.unmount());
       delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
     });
@@ -543,8 +553,11 @@ describe("work details filter", () => {
     act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
     return panel;
   }
-  const numbers = (panel: TestRenderer.ReactTestRenderer) => panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")
-    .map((node) => node.props.data.callId);
+  // A switch hides the cells outside the group; only the shown ones count.
+  const shownCells = (panel: TestRenderer.ReactTestRenderer) => panel.root.findAll((node) =>
+    (node.type as unknown) === "View" && node.props.testID === "work-step-cell" && StyleSheet.flatten(node.props.style).display !== "none");
+  const numbers = (panel: TestRenderer.ReactTestRenderer) => shownCells(panel)
+    .map((cell) => cell.findAll((node) => (node.type as unknown) === "ToolCallout")[0]!.props.data.callId);
   const chip = (panel: TestRenderer.ReactTestRenderer, kind: string) => panel.root.findByProps({ testID: `work-filter:${kind}` });
 
   it("groups every tool call, adding up to the card's count", () => {
@@ -575,9 +588,15 @@ describe("work details filter", () => {
     expect(chip(panel, "edit").props.accessibilityState).toEqual({ selected: true });
     expect(chip(panel, "all").props.accessibilityState).toEqual({ selected: false });
     expect(numbers(panel)).toEqual(["e1", "e2", "e3", "e4", "w1"]);
-    const shownNumbers = panel.root.findAll((node) => node.props?.testID === "work-step-number" && (node.type as unknown) === "Text")
-      .map((node) => node.children.join(""));
-    expect(shownNumbers).toEqual(["1", "2", "3", "4", "5"]);
+    const shownNumbers = () => shownCells(panel).map((cell) => cell.findAll((node) => node.props?.testID === "work-step-number" &&
+      (node.type as unknown) === "Text")[0]!.children.join(""));
+    const stripes = () => shownCells(panel).map((cell) => StyleSheet.flatten(cell.props.style).backgroundColor);
+    const stripe = withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04);
+    expect(shownNumbers()).toEqual(["1", "2", "3", "4", "5"]);
+    // Striped by the shown cells, and the opened step's pinned row takes its cell's stripe.
+    expect(stripes()).toEqual([undefined, stripe, undefined, stripe, undefined]);
+    expect(shownCells(panel).map((cell) => cell.findAll((node) => (node.type as unknown) === "ToolCallout")[0]!.props.stickyStripe))
+      .toEqual([undefined, stripe, undefined, stripe, undefined]);
     act(() => chip(panel, "command").props.onPress());
     expect(numbers(panel)).toEqual(["c1"]);
     act(() => chip(panel, "all").props.onPress());
@@ -596,6 +615,37 @@ describe("work details filter", () => {
     act(() => list().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 540 } } }));
     act(() => chip(panel, "all").props.onPress());
     expect(StyleSheet.flatten(list().props.style).minHeight).toBe(540);
+    act(() => panel.unmount());
+  });
+
+  it("switches groups without mounting or redrawing a single step row", () => {
+    const panel = openPanel();
+    calloutDraws.renders = 0;
+    calloutDraws.mounts = 0;
+    act(() => chip(panel, "edit").props.onPress());
+    act(() => chip(panel, "failed").props.onPress());
+    act(() => chip(panel, "all").props.onPress());
+    expect(numbers(panel)).toEqual(["r1", "e1", "e2", "e3", "e4", "w1", "c1", "x1", "s1"]);
+    expect(calloutDraws).toEqual({ renders: 0, mounts: 0 });
+    act(() => panel.unmount());
+  });
+
+  it("mounts a group's rows when first shown, then keeps them for the next switch", () => {
+    let panel = openPanel();
+    act(() => chip(panel, "edit").props.onPress());
+    act(() => panel.unmount());
+    calloutDraws.renders = 0;
+    calloutDraws.mounts = 0;
+    const block = getBlock("agent", openId!)!;
+    act(() => { panel = TestRenderer.create(<>{block.render()}</>); });
+    expect(calloutDraws.mounts).toBe(5);
+    expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(5);
+    act(() => chip(panel, "all").props.onPress());
+    expect(calloutDraws.mounts).toBe(9);
+    calloutDraws.renders = 0;
+    act(() => chip(panel, "edit").props.onPress());
+    act(() => chip(panel, "all").props.onPress());
+    expect(calloutDraws).toEqual({ renders: 0, mounts: 9 });
     act(() => panel.unmount());
   });
 

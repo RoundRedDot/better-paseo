@@ -15,7 +15,7 @@
  * Only the work steps list opts in (`StickyStepContext`); elsewhere in the
  * panel an opened row scrolls as before.
  */
-import { createContext, useCallback, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
+import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { Animated, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { space } from "../components/theme-tokens";
@@ -38,6 +38,13 @@ export const DetailsStickySourceContext = createContext<DetailsStickySource | nu
 
 /** Set by the work steps list around each step: the step's stripe, drawn behind its pinned row. */
 export const StickyStepContext = createContext<{ stripe?: string } | null>(null);
+
+/**
+ * The step's stripe as the list draws it now, read by the opened step's card
+ * alone: a group switch restripes the list without redrawing every row,
+ * whose `StickyStepContext` stays the same object. Wins over the `stripe` prop.
+ */
+export const StickyStripeContext = createContext<string | undefined>(undefined);
 
 export interface StickyGeometry {
   /** The step's top in the content. */
@@ -84,7 +91,7 @@ export interface StickyStepHandle {
   collapsing(): void;
 }
 
-export function DetailsStickyCard({ source, tokens, stripe, header, handle, children }: {
+export function DetailsStickyCard({ source, tokens, stripe: stripeProp, header, handle, children }: {
   source: DetailsStickySource;
   handle?: Ref<StickyStepHandle>;
   tokens: ExtendedThemeTokens;
@@ -92,6 +99,7 @@ export function DetailsStickyCard({ source, tokens, stripe, header, handle, chil
   header: ReactNode;
   children: ReactNode;
 }) {
+  const stripe = useContext(StickyStripeContext) ?? stripeProp;
   const card = useRef<View>(null);
   const height = useRef(0);
   const headerHeight = useRef(0);
@@ -174,7 +182,9 @@ export function DetailsStickyCard({ source, tokens, stripe, header, handle, chil
         </Animated.View>
         {header}
       </Animated.View>
-      <StickyStepContext.Provider value={null}>{children}</StickyStepContext.Provider>
+      <StickyStepContext.Provider value={null}>
+        <StickyStripeContext.Provider value={undefined}>{children}</StickyStripeContext.Provider>
+      </StickyStepContext.Provider>
     </View>
   );
 }

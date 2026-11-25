@@ -12,7 +12,7 @@
  * details off it opens under the card. Line counts are the turn's edit events
  * added up, not the file's net change, and are measured once per call.
  */
-import React, { memo, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import React, { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
@@ -34,7 +34,7 @@ import { toolErrorText } from "../tools/error-text";
 import { countDiff, countLines } from "../tools/summarize";
 import { FileEditsPreview, ToolCallout } from "./tool-callouts";
 import { BlockPlacementContext, type BlockEntry } from "../details/contracts";
-import { StickyStepContext } from "../details/sticky-step";
+import { StickyStepContext, StickyStripeContext } from "../details/sticky-step";
 import { getBlock, registerBlock, type BlockRegistration } from "../details/block-registry";
 import { detailsApi, readDetails, useMarkerPhase } from "../details/details-store";
 import { rowPressAction } from "../details/click-model";
@@ -103,9 +103,7 @@ export function callKind(item: ToolCallTimelineItem): CallKind {
 
 /** Every call of the turn counted by kind, kinds with no calls left out. */
 export function callKinds(calls: readonly ToolCallTimelineItem[]): Array<{ kind: CallKind; count: number }> {
-  const counts = new Map<CallKind, number>();
-  for (const item of calls) { const kind = callKind(item); counts.set(kind, (counts.get(kind) ?? 0) + 1); }
-  return CALL_KINDS.filter((kind) => counts.has(kind)).map((kind) => ({ kind, count: counts.get(kind)! }));
+  return countKinds(calls.map(callKind));
 }
 
 /**
@@ -271,46 +269,69 @@ function activityTarget(step: WorkStep): string | null {
  * Every call of the turn under a filter bar that stays atop the panel: 全部
  * and each kind the calls fall in, with its count, adding up to the card's
  * tool calls. A kind narrows the list below to its calls, numbered from 1.
+ *
+ * The bar and the list each read the chosen group themselves, so a switch
+ * redraws neither the intent nor the body around them.
  */
 function WorkDetails({ agentId, at, workKey, calls, intent, text, tokens, compact }: {
   agentId: string; at: number; workKey: string; calls: readonly ToolCallTimelineItem[]; intent: string | null; text: typeof STRINGS.en;
   tokens: ExtendedThemeTokens; compact: boolean;
 }) {
-  const styles = useCardStyles(tokens);
-  const [chosen, choose] = useWorkFilter(workFilterKey(agentId, { key: workKey, calls }));
-  const kinds = useMemo(() => callKinds(calls), [calls]);
-  // A kind with no calls (any more: a running call may fail) shows them all.
-  const filter = kinds.some(({ kind }) => kind === chosen) ? chosen : "all";
-  const groups = useMemo(() => [{ kind: "all" as const, count: calls.length }, ...kinds], [kinds, calls.length]);
+  const filterKey = workFilterKey(agentId, { key: workKey, calls });
+  const callKindList = useMemo(() => calls.map(callKind), [calls]);
+  const kinds = useMemo(() => countKinds(callKindList), [callKindList]);
   return <>
     <HoverPreviewHeader tokens={tokens} />
-    {calls.length ? (
-      <View testID="work-filter" accessibilityRole="tablist" style={styles.filterBar}>
-        {groups.map(({ kind, count }) => (
-          <FilterChip key={kind} label={`${text.kinds[kind]} ${count}`} kind={kind} selected={filter === kind}
-            onPress={() => choose(kind)} tokens={tokens} />
-        ))}
-      </View>
-    ) : null}
+    {calls.length ? <FilterBar filterKey={filterKey} kinds={kinds} total={calls.length} text={text} tokens={tokens} /> : null}
     <HoverPreviewBody fullBleed stickySteps>
       {intent ? <WorkIntent agentId={agentId} text={intent} tokens={tokens} compact={compact} /> : null}
-      <WorkSteps agentId={agentId} at={at} calls={calls} filter={filter} tokens={tokens} compact={compact} />
+      <WorkSteps agentId={agentId} at={at} calls={calls} callKinds={callKindList} kinds={kinds} filterKey={filterKey}
+        tokens={tokens} compact={compact} />
     </HoverPreviewBody>
   </>;
 }
 
-function FilterChip({ label, kind, selected, onPress, tokens }: {
-  label: string; kind: WorkFilter; selected: boolean; onPress(): void; tokens: ExtendedThemeTokens;
+function countKinds(list: readonly CallKind[]): Array<{ kind: CallKind; count: number }> {
+  const counts = new Map<CallKind, number>();
+  for (const kind of list) counts.set(kind, (counts.get(kind) ?? 0) + 1);
+  return CALL_KINDS.filter((kind) => counts.has(kind)).map((kind) => ({ kind, count: counts.get(kind)! }));
+}
+
+/** The chosen group, or 全部 when no call is of that kind (any more: a running call may fail). */
+function useShownFilter(filterKey: string, kinds: ReadonlyArray<{ kind: CallKind }>): [WorkFilter, (filter: WorkFilter) => void] {
+  const [chosen, choose] = useWorkFilter(filterKey);
+  return [kinds.some(({ kind }) => kind === chosen) ? chosen : "all", choose];
+}
+
+const FilterBar = memo(function FilterBar({ filterKey, kinds, total, text, tokens }: {
+  filterKey: string; kinds: ReadonlyArray<{ kind: CallKind; count: number }>; total: number; text: typeof STRINGS.en;
+  tokens: ExtendedThemeTokens;
+}) {
+  const styles = useCardStyles(tokens);
+  const [filter, choose] = useShownFilter(filterKey, kinds);
+  const groups = useMemo(() => [{ kind: "all" as const, count: total }, ...kinds], [kinds, total]);
+  return (
+    <View testID="work-filter" accessibilityRole="tablist" style={styles.filterBar}>
+      {groups.map(({ kind, count }) => (
+        <FilterChip key={kind} label={`${text.kinds[kind]} ${count}`} kind={kind} selected={filter === kind}
+          onPress={choose} tokens={tokens} />
+      ))}
+    </View>
+  );
+});
+
+const FilterChip = memo(function FilterChip({ label, kind, selected, onPress, tokens }: {
+  label: string; kind: WorkFilter; selected: boolean; onPress(kind: WorkFilter): void; tokens: ExtendedThemeTokens;
 }) {
   const styles = useCardStyles(tokens);
   const { hovered, hoverProps } = useHover();
   return (
-    <Pressable testID={`work-filter:${kind}`} accessibilityRole="tab" accessibilityState={{ selected }} onPress={onPress} {...hoverProps}
+    <Pressable testID={`work-filter:${kind}`} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => onPress(kind)} {...hoverProps}
       style={({ pressed }) => [styles.chip, selected ? styles.chipSelected : (hovered || pressed) && styles.hovered]}>
       <Text selectable={false} style={[styles.chipLabel, (selected || hovered) && { color: tokens.foreground }]}>{label}</Text>
     </Pressable>
   );
-}
+});
 
 // The intent's right gutter, which the translate button sits in, as beside a reply's block.
 const INTENT_TRANSLATE_GUTTER = 32;
@@ -323,11 +344,13 @@ const INTENT_TRANSLATE_GUTTER = 32;
  * Selectable, and on web a selection surface scoped as the turn's
  * reasoning, so the selection bar offers Copy and Translate too.
  */
-function WorkIntent({ agentId, text, tokens, compact }: { agentId: string; text: string; tokens: ExtendedThemeTokens; compact: boolean }) {
+const WorkIntent = memo(function WorkIntent({ agentId, text, tokens, compact }: {
+  agentId: string; text: string; tokens: ExtendedThemeTokens; compact: boolean;
+}) {
   return <InlineTranslation agentId={agentId} kind="reasoning" text={text} streaming={false}>
     {(inline) => <IntentBlock agentId={agentId} text={text} inline={inline} tokens={tokens} compact={compact} />}
   </InlineTranslation>;
-}
+});
 
 function IntentBlock({ agentId, text, inline, tokens, compact }: {
   agentId: string; text: string; inline: InlineTranslationState; tokens: ExtendedThemeTokens; compact: boolean;
@@ -372,11 +395,37 @@ function IntentText({ text, style }: { text: string; style: StyleProp<TextStyle>
     selectable style={[style, selectableTextStyle]}>{text}</Text>;
 }
 
-/** Mounted only while the steps are open; each command can open its output. */
-function WorkSteps({ agentId, at, calls, filter, tokens, compact }: {
-  agentId: string; at: number; calls: readonly ToolCallTimelineItem[]; filter: WorkFilter; tokens: ExtendedThemeTokens; compact: boolean;
+/** Each shown step's number in the chosen group, by call ID. */
+const StepNumbersContext = createContext<ReadonlyMap<string, number>>(new Map());
+
+/**
+ * Mounted only while the steps are open; each command can open its output.
+ *
+ * A group switch hides the calls outside the group rather than unmounting
+ * them: each row is a full tool call (header, path fitting, its disclosure),
+ * and remounting a few dozen of them on a phone held the switch for a
+ * visible beat. A row mounts the first time it is shown and stays; a switch
+ * then changes only which cells show, their stripes and their numbers, none
+ * of which redraws a row. The list follows the bar in a deferred render, so
+ * the chosen chip lights in the frame of the press even when rows mount.
+ */
+function WorkSteps({ agentId, at, calls, callKinds: kindList, kinds, filterKey, tokens, compact }: {
+  agentId: string; at: number; calls: readonly ToolCallTimelineItem[]; callKinds: readonly CallKind[];
+  kinds: ReadonlyArray<{ kind: CallKind }>; filterKey: string; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
-  const shown = useMemo(() => filter === "all" ? calls : calls.filter((item) => callKind(item) === filter), [calls, filter]);
+  const [chosen] = useShownFilter(filterKey, kinds);
+  const filter = useDeferredValue(chosen);
+  const visible = (index: number) => filter === "all" || kindList[index] === filter;
+  // Rows already drawn once stay mounted, hidden while outside the group.
+  const [drawn, setDrawn] = useState<ReadonlySet<string>>(() => new Set(calls.filter((_, index) => visible(index)).map((item) => item.callId)));
+  const missing = calls.filter((item, index) => visible(index) && !drawn.has(item.callId));
+  const mounted = missing.length ? new Set([...drawn, ...missing.map((item) => item.callId)]) : drawn;
+  if (mounted !== drawn) setDrawn(mounted);
+  const numbers = useMemo(() => {
+    const map = new Map<string, number>();
+    calls.forEach((item, index) => { if (filter === "all" || kindList[index] === filter) map.set(item.callId, map.size + 1); });
+    return map;
+  }, [calls, kindList, filter]);
   // A group switch keeps the list as tall as it was, so a drawer fitted to its
   // content does not jump; a text size or wrap change measures again.
   const [measured, setMeasured] = useState(0);
@@ -389,42 +438,60 @@ function WorkSteps({ agentId, at, calls, filter, tokens, compact }: {
   const onListLayout = useCallback((event: LayoutChangeEvent) => setMeasured(event.nativeEvent.layout.height), []);
   const pathContext = usePathContextValue(agentId);
   const placement = useMemo(() => ({ agentId, at, kind: "tool" as const }), [agentId, at]);
-  const sticky = useMemo(() => ({
-    plain: {},
-    striped: { stripe: withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04) },
-  }), [tokens.foreground, tokens.isDark]);
+  const stripe = withAlpha(tokens.foreground, tokens.isDark ? 0.045 : 0.04);
+  let shownIndex = 0;
   return (
     <PathContext.Provider value={pathContext}>
       <BlockPlacementContext.Provider value={placement}>
-        <View testID="work-step-list" onLayout={onListLayout} style={floor.height ? { minHeight: floor.height } : undefined}>
-          {shown.map((item, index) => {
-            const stripe = index % 2 === 1 ? sticky.striped.stripe : undefined;
-            return <View key={item.callId} testID="work-step-cell"
-              style={{ paddingVertical: space.xs, paddingHorizontal: space.md, backgroundColor: stripe }}>
-              {/* An opened step pins its row under the toolbar while its output scrolls past. */}
-              <StickyStepContext.Provider value={stripe ? sticky.striped : sticky.plain}>
-                <WorkStepRow agentId={agentId} item={item} number={index + 1} total={shown.length} tokens={tokens} compact={compact} />
-              </StickyStepContext.Provider>
-            </View>;
-          })}
-        </View>
+        <StepNumbersContext.Provider value={numbers}>
+          <View testID="work-step-list" onLayout={onListLayout} style={floor.height ? { minHeight: floor.height } : undefined}>
+            {calls.map((item, index) => {
+              if (!mounted.has(item.callId)) return null;
+              const shown = visible(index);
+              const striped = shown && shownIndex++ % 2 === 1;
+              return <View key={item.callId} testID="work-step-cell"
+                style={[stepStyles.cell, striped && { backgroundColor: stripe }, !shown && stepStyles.hidden]}>
+                {/* An opened step pins its row under the toolbar while its output scrolls past. */}
+                <StickyStepContext.Provider value={STICKY_STEP}>
+                  <StickyStripeContext.Provider value={striped ? stripe : undefined}>
+                    <WorkStepRow agentId={agentId} item={item} total={calls.length} tokens={tokens} compact={compact} />
+                  </StickyStripeContext.Provider>
+                </StickyStepContext.Provider>
+              </View>;
+            })}
+          </View>
+        </StepNumbersContext.Provider>
       </BlockPlacementContext.Provider>
     </PathContext.Provider>
   );
 }
 
-const WorkStepRow = memo(function WorkStepRow({ agentId, item, number, total, tokens, compact }: {
-  agentId: string; item: ToolCallTimelineItem; number: number; total: number; tokens: ExtendedThemeTokens; compact: boolean;
+/** One constant for every step: the row reads it, so a stripe of its own here would redraw it at each switch. */
+const STICKY_STEP = {};
+
+const stepStyles = StyleSheet.create({
+  cell: { paddingVertical: space.xs, paddingHorizontal: space.md },
+  hidden: { display: "none" },
+});
+
+function StepNumber({ callId, style }: { callId: string; style: StyleProp<TextStyle> }) {
+  const number = useContext(StepNumbersContext).get(callId);
+  return <Text testID="work-step-number" selectable={false} style={style}>{number ?? ""}</Text>;
+}
+
+const WorkStepRow = memo(function WorkStepRow({ agentId, item, total, tokens, compact }: {
+  agentId: string; item: ToolCallTimelineItem; total: number; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
   const view = useMemo(() => viewOf(item), [item]);
   // Outlives the body's remount: iOS mounts it again at each text size step.
   const [expanded, setExpanded] = useDisclosure(`${agentId}:work:${item.callId}:step`, false);
+  // As wide as the whole list's numbers, so the column holds still across a group switch.
   const width = lineNumberWidth(total, tokens.typography.mono.size);
-  const leading = { width, content: <Text testID="work-step-number" selectable={false} style={{
+  const leading = useMemo(() => ({ width, content: <StepNumber callId={item.callId} style={{
     color: tokens.syntax.comment, fontFamily: tokens.fontMono, fontSize: tokens.typography.mono.size - 2,
     lineHeight: compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop,
     textAlign: "right", paddingRight: space.sm, fontVariant: ["tabular-nums"],
-  }}>{number}</Text> };
+  }} /> }), [width, item.callId, tokens, compact]);
   return <SelectionTranslationScope agentId={agentId} kind="tool_output" streaming={item.status === "running"}>
     <ToolCallout data={view} previewKey={`${agentId}:work:${item.callId}:preview`} tokens={tokens} compact={compact} leading={leading}
       expanded={expanded} onExpandedChange={setExpanded} />
