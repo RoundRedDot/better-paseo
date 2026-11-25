@@ -103,6 +103,10 @@ describe("task question dialog", () => {
     await act(async () => { store.open(current); tree = TestRenderer.create(render()); });
     return { store, fake, update: async (next: TaskCard) => { current = next; await act(async () => tree!.update(render())); } };
   }
+  it("requests a 600 pixel maximum width for the desktop dialog", async () => {
+    await mount();
+    expect(tree!.root.findByType("ModalContent" as never).props.desktopMaxWidth).toBe(600);
+  });
   it("shows a filled check for selected single choices and keeps multi choices square", async () => {
     await mount(card({ questions: [question, { ...question, header: "Multi", multiSelect: true }] }));
     expect(host("task-question-option-0-0").findAllByType("Icon" as never).map((node) => node.props.name)).toContain("Circle");
