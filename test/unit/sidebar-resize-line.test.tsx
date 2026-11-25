@@ -4,7 +4,7 @@ import TestRenderer, { act } from "react-test-renderer";
 import "./helpers/quiet-renderer";
 
 vi.mock("react-native", () => import("./helpers/rn-mock"));
-import { followPointer, useResizeLine } from "../../client/ui/resize-line";
+import { followPointer, ResizeLine, useResizeLine } from "../../client/ui/resize-line";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 
@@ -39,4 +39,15 @@ it("moves the indicator to the pointer and clamps it to the handle", () => {
   expect(indicator.style.transform).toBe("translate3d(0, -100px, 0)");
   followPointer(handle, indicator, 600);
   expect(indicator.style.transform).toBe("translate3d(0, 200px, 0)");
+});
+
+
+it("places the divider at the sidebar edge in both layouts", () => {
+  for (const inset of [false, true]) {
+    let renderer: TestRenderer.ReactTestRenderer;
+    act(() => { renderer = TestRenderer.create(<ResizeLine indicator={React.createRef()} inset={inset} />); });
+    const track = renderer!.root.find((node) => typeof node.type === "string" && node.props.dataSet?.bcresizetrack === "");
+    expect(track.props.style).toMatchObject({ left: 0, width: 1 });
+    act(() => renderer!.unmount());
+  }
 });

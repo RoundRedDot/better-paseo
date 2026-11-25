@@ -12,7 +12,7 @@ export const resizeIndicatorProps = { dataSet: { bcresizeindicator: "" } } as un
 /** The shared one-pixel line inside a resize hit area. */
 export function ResizeLine({ indicator, inset = false }: { indicator: RefObject<View | null>; inset?: boolean }) {
   return (
-    <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: inset ? 4 : 0, bottom: inset ? 12 : 0, left: 3.5, width: 1, overflow: "hidden" }}>
+    <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: inset ? 4 : 0, bottom: inset ? 12 : 0, left: 0, width: 1, overflow: "hidden" }}>
       <View ref={indicator} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
     </View>
   );
