@@ -41,6 +41,7 @@ import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ToolCallout } from "../../client/components/tool-callouts";
 import { Favicon } from "../../client/components/web-favicon";
 import { classifyTool } from "../../client/tools/classify";
+import { toolHasDetail } from "../../client/tools/detail";
 import { Linking } from "./helpers/rn-mock";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
@@ -94,6 +95,23 @@ describe("web search rows", () => {
     expect(stop).toHaveBeenCalled();
     expect(open).toHaveBeenCalledWith(href);
     expect(toggled).not.toHaveBeenCalled();
+  });
+
+  it("opens an address row to that page, drawn as its one result", () => {
+    const open = vi.spyOn(Linking, "openURL");
+    const href = "https://chatgpt.com/s/t_6b06f0de15fc819184d679e4b324c5c3";
+    const view = webSearch({ query: href });
+    expect(toolHasDetail(view, 40)).toBe(true);
+    render(<ToolCallout data={view} tokens={tokens} compact expanded onExpandedChange={() => {}} />);
+    const [row] = renderer!.root.findAll((node) => node.props.testID === "web-result-row" && typeof node.props.onPress === "function");
+    expect(textOf(row!)).toContain("chatgpt.com/s/t_6b06f0de15fc819184d679e4b324c5c3");
+    expect(renderer!.root.findAll((node) => typeof node.type === "string" && textOf(node) === "No results.")).toHaveLength(0);
+    act(() => row!.props.onPress());
+    expect(open).toHaveBeenCalledWith(href);
+  });
+
+  it("does not open a plain query that brought nothing back", () => {
+    expect(toolHasDetail(webSearch({ query: "expo sheet detents" }), 40)).toBe(false);
   });
 
   it("keeps the magnifier and no arrow for a plain query", () => {

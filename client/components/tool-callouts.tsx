@@ -1185,6 +1185,11 @@ function ToolBody({ data, tokens: given, compact, imageFile, revealFile, display
               ) : null}
             </View>
           ) : null}
+          {/* Codex reports an opened page by its address alone: draw it as its one result. */}
+          {!data.search.webResults && data.search.toolName === "web_search" && parseWebLink(data.search.query) ? (
+            <WebResultRow title="" url={parseWebLink(data.search.query)!.href} tokens={tokens}
+              titleStyle={styles.plainText} metaSize={tokens.typography.block.meta.size} />
+          ) : null}
           {data.search.webResults?.map((row, index) => (
             <WebResultRow key={`${index}:${row.url}`} title={row.title} url={row.url} tokens={tokens}
               titleStyle={styles.plainText} metaSize={tokens.typography.block.meta.size} />
@@ -1200,7 +1205,8 @@ function ToolBody({ data, tokens: given, compact, imageFile, revealFile, display
               </SelectableText>
             </View>
           ) : null}
-          {!data.search.files && !data.search.webResults && !data.search.annotations && !data.search.content ? (
+          {!data.search.files && !data.search.webResults && !data.search.annotations && !data.search.content
+            && !(data.search.toolName === "web_search" && parseWebLink(data.search.query)) ? (
             <Text style={styles.silentText}>{isRunning ? "Searching…" : "No results."}</Text>
           ) : null}
         </View>

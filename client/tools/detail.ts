@@ -5,6 +5,7 @@
  * actions), a shell call that printed nothing, a read that returned no
  * content.
  */
+import { parseWebLink } from "./web-link";
 import { isImagePath } from "../image-file";
 import { stringifyValue, type ToolCallView } from "./classify";
 
@@ -64,7 +65,9 @@ function bodyDetail(view: ToolCallView, budget: number): boolean {
     }
     case "search": {
       const search = view.search;
-      return Boolean(search?.files?.length || search?.webResults?.length || search?.annotations?.length || search?.content);
+      // An address opened by a web search (Codex) opens to that page's row.
+      const page = search?.toolName === "web_search" && parseWebLink(search.query) !== null;
+      return Boolean(search?.files?.length || search?.webResults?.length || search?.annotations?.length || search?.content || page);
     }
     case "fetch":
       return Boolean(view.fetch && (view.fetch.url || view.fetch.prompt || view.fetch.result));
