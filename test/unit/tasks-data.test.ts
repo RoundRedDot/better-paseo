@@ -2237,7 +2237,7 @@ describe("Tasks data store", () => {
     const parent: TaskCard = { ...sample, id: "parent", title: "Parent", lane: "archived", children: [], provider: "parent-provider" };
     const child: TaskCard = { ...sample, id: "child", title: "Child", lane: "archived", provider: "child-provider", parent: { id: "parent", title: "Parent", missing: false, archived: false, detached: true } };
     const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: id === "archived" ? [parent, child] : [], hasMore: false, loading: false }])) as Record<LaneId, LaneModel>;
-    const filters = { query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: true };
+    const filters = { query: "", workspaceIds: [], providers: [], labels: [], hostIds: [], hideSubtasks: true };
     const folded = filterLanes(lanes, filters);
     expect(folded.archived.cards.map((card) => card.id)).toEqual(["parent"]);
     expect(folded.archived.cards[0]?.children.map((row) => row.id)).toEqual(["child"]);
@@ -2257,7 +2257,7 @@ describe("Tasks data store", () => {
     const root: TaskCard = { ...sample, id: "root", title: "Root", lane: "archived", children: [row(parent)], provider: "root-provider" };
     const child: TaskCard = { ...sample, id: "child", title: "Child", lane: "archived", provider: "child-provider", parent: { id: "parent", title: "Parent", missing: false, archived: true, detached: true } };
     const lanes = Object.fromEntries(LANE_ORDER.map((id) => [id, { id, cards: id === "archived" ? [root, parent, child] : [], hasMore: false, loading: false }])) as Record<LaneId, LaneModel>;
-    const filters = { query: "", workspaceIds: [], providers: [], labels: [], hideSubtasks: true };
+    const filters = { query: "", workspaceIds: [], providers: [], labels: [], hostIds: [], hideSubtasks: true };
     const hidden = filterLanes(lanes, filters);
     // The parent shows only as the root's row, so the child cannot fold into it.
     expect(hidden.archived.cards.map((card) => card.id)).toEqual(["root", "child"]);

@@ -54,7 +54,7 @@ Better Paseo 的设置里开启看板后，侧边栏顶部（新建工作区、�
 | 累计耗时 | | 未做 |
 | 标为已读、归档、取消归档 | 已做（标为已读走插件服务端的 daemon 连接，取消归档走 CLI，见「操作」） | |
 | 追加一条指令 | | 未做 |
-| 多 host 聚合 | | 未做 |
+| 多 host 聚合 | 已做：默认聚合所有在线 host，过滤栏、侧边栏和筛选面板都能按 host 筛选；agent 与 workspace 的 id 只在各自 host 内唯一，卡片、选中项和筛选值都带 host | |
 | provider 内部的 subagent（Claude Code 的 Agent 工具、Codex、OMP 和 Pi 自己的） | 已做：运行中及最近结束的画成只读虚线卡片，见「父子 agent 关联」 | |
 | 在看板上改模型、模式、思考等级 | 不做 | 不做 |
 
@@ -420,7 +420,7 @@ agent 分几路请求，避免一次拉全 340 个 agent 的完整快照；works
     - [ ] 停止后 3 秒内卡片离开运行中列，会话仍可继续发消息
     - [x] 找不到 CLI 时停止按钮隐藏，不报错（`tasks.capabilities`，有单元测试）
     - [ ] `tool` 类权限在卡片上允许后，agent 继续执行；`question` 类跳到 tab
-4. **M3 上游与增强**（部分完成）：归档、标为已读、取消归档、上一轮耗时记账、provider subagent 已做；上游 `cancel()` PR 合入后切换、追加指令、多 host 聚合、累计耗时未做。
+4. **M3 上游与增强**（部分完成）：归档、标为已读、取消归档、上一轮耗时记账、provider subagent 已做；上游 `cancel()` PR 合入后切换、追加指令、累计耗时未做。
     - [ ] 上游 PR 附 QA 证据并从 RoundRedDot/paseo 发出
     - [ ] 新宿主走 `cancel()`，老宿主仍走 RPC
 

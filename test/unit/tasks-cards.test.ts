@@ -1387,7 +1387,7 @@ describe("TaskCardView rows", () => {
     // Non-breaking spaces around the separator: a web text box drops a leading space.
     expect(String(separator.props.children)).toBe("\u00a0\u203a\u00a0");
     byLabel(tree.root, "定位到父任务").props.onPress();
-    expect(onReveal).toHaveBeenCalledWith("sample-running");
+    expect(onReveal).toHaveBeenCalledWith("sample-running", undefined, undefined);
     // The card's long-press menu shows the parent's card too.
     onReveal.mockClear();
     await act(async () => hostByTestId(tree.root, "task-card-sample-child-1").props.onLongPress({ nativeEvent: { pageX: 140, pageY: 280 } }));
@@ -1395,7 +1395,7 @@ describe("TaskCardView rows", () => {
       (node) => (node.type as unknown) === "Pressable" && node.props.accessibilityLabel === "显示父任务卡片",
     );
     await act(async () => reveal.props.onPress());
-    expect(onReveal).toHaveBeenCalledWith("sample-running");
+    expect(onReveal).toHaveBeenCalledWith("sample-running", undefined, undefined);
 
     const orphan = { ...sample("sample-child-1"), parent: { id: "gone", title: null, missing: true, archived: true } };
     await act(async () => tree.update(cardElement(orphan, { onReveal, fields: fields("minimal") })));
@@ -1440,7 +1440,7 @@ describe("TaskCardView rows", () => {
       expect(hostByTestId(tree.root, "task-card-meta-history").props.accessibilityLabel).toContain("The former relationship is inferred");
     }
     await act(async () => hostByTestId(tree.root, "task-card-meta-parent").props.onPress());
-    expect(onReveal).toHaveBeenLastCalledWith("former");
+    expect(onReveal).toHaveBeenLastCalledWith("former", undefined, undefined);
 
     const platform = globalThis as { __rnMockOS?: string };
     const saved = platform.__rnMockOS;
@@ -2651,7 +2651,7 @@ describe("TaskCardView actions", () => {
       tree.root.find((node) => (node.type as unknown) === "Pressable" && node.props.accessibilityState?.expanded === false).props.onPress(),
     );
     byLabel(tree.root, "Measure the sidebar ring 运行中").props.onPress();
-    expect(onReveal).toHaveBeenCalledWith("sample-child-1", "sample-running");
+    expect(onReveal).toHaveBeenCalledWith("sample-child-1", "sample-running", undefined);
     const list = hostByTestId(tree.root, "task-card-subtasks");
     // Each row: the agent's mark on the left, aligned with the title's first line, its status on the
     // corner in every state; no state words.
@@ -2700,7 +2700,7 @@ describe("TaskCardView actions", () => {
       expect(flat(hostByTestId(content, `subtask-meta-${child.id}`).props.style).marginRight).toBeUndefined();
       expect(content.findAll((node) => node === open)).toHaveLength(1);
       row.props.onPress();
-      expect(onReveal).toHaveBeenLastCalledWith(child.id, base.id);
+      expect(onReveal).toHaveBeenLastCalledWith(child.id, base.id, undefined);
     }
     if (compact) {
       byLabel(byLabel(list, `${base.children[0]!.title} ${cardStrings("zh").status[base.children[0]!.status]}`), cardStrings("zh").openInWorkspace).props.onPress();
@@ -2796,7 +2796,7 @@ describe("TaskCardView actions", () => {
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
     // The row reveals the subagent's card, naming the parent for the board's fallback; the button opens the parent's tab.
     byLabel(tree.root, "mac studio run check 运行中").props.onPress();
-    expect(onReveal).toHaveBeenCalledWith("sub-1", base.id);
+    expect(onReveal).toHaveBeenCalledWith("sub-1", base.id, undefined);
     expect(onOpen).not.toHaveBeenCalled();
     byLabel(list, "在父任务的 tab 中打开").props.onPress();
     expect(onOpen).toHaveBeenCalledWith(base.id);

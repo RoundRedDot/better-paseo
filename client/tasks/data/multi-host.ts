@@ -14,7 +14,7 @@
 import { useLayoutEffect, useMemo, useSyncExternalStore } from "react";
 import type { PaseoApi } from "@getpaseo/client";
 import { getPaseoClient, useHosts, type PluginHostSummary } from "@getpaseo/plugin/client";
-import { LANE_ORDER, type LaneId, type LaneModel, type TaskCard, type TaskLabel } from "../model";
+import { LANE_ORDER, workspaceKey, type LaneId, type LaneModel, type TaskCard, type TaskLabel } from "../model";
 import {
   getStore,
   laneCompare,
@@ -34,8 +34,8 @@ export interface HostTarget {
 export interface MultiHostControls {
   refresh(): Promise<TasksRefreshResult>;
   loadMoreDone(): void;
-  resolveParent(agentId: string): void;
-  refreshParent(agentId: string): Promise<boolean | null>;
+  resolveParent(agentId: string, hostId?: string): void;
+  refreshParent(agentId: string, hostId?: string): Promise<boolean | null>;
   refreshReads(): void;
   refreshUnreads(): void;
   requestProjectIcon(projectId: string): void;
@@ -160,7 +160,7 @@ export function mergeTasksSnapshots(
       const key = `${host.serverId}\u0000${workspace.id}`;
       if (seenWorkspaces.has(key)) continue;
       seenWorkspaces.add(key);
-      workspaces.push({ ...workspace, hostId: host.serverId });
+      workspaces.push({ ...workspace, id: workspaceKey(host.serverId, workspace.id), hostId: host.serverId });
     }
     for (const provider of snapshot.providers) if (!providers.has(provider.id)) providers.set(provider.id, provider.label);
     for (const label of snapshot.labels) if (!labels.has(label.name)) labels.set(label.name, label);
@@ -198,6 +198,12 @@ export function mergeTasksSnapshots(
   };
   mergeCache = { inputs: [...inputs], localId, controls, handle };
   return handle;
+}
+
+/** One host's store, when the caller knows the daemon that owns the id. */
+function storeForHost(stores: readonly { host: HostTarget; store: TaskStore }[], hostId?: string): TaskStore | null {
+  if (!hostId) return null;
+  return stores.find((entry) => entry.host.serverId === hostId)?.store ?? null;
 }
 
 /** The store a card belongs to; every store is asked, so a call after a relayout still finds it. */
@@ -240,11 +246,20 @@ export function useMultiHostTasks(
   useLayoutEffect(() => {
     for (const { store } of stores) store.setArchivedLane(archived);
   }, [stores, archived]);
+  // Before the subscription, as `useTasks` does: a first board reads its done
+  // list once, and a window switch on any host scans its history again.
+  const windowOwner = useMemo(() => ({}), [stores]);
+  useLayoutEffect(() => {
+    for (const { store } of stores) store.setHistoryWindow(windowOwner, options.includeDone ? options.doneWindow : undefined);
+    return () => {
+      for (const { store } of stores) store.setHistoryWindow(windowOwner, undefined);
+    };
+  }, [stores, windowOwner, options.doneWindow, options.includeDone]);
 
   const includeDone = options.includeDone;
   const subscribe = useMemo(
     () => (listener: () => void) => {
-      const releases = stores.map(({ store }) => store.subscribe(listener, { board: true, done: includeDone }));
+      const releases = stores.map(({ store }) => store.subscribe(listener, { board: true, done: includeDone, historyScan: "board" }));
       return () => {
         for (const { client } of stores) beforeRelease?.(client);
         for (const release of releases) release();
@@ -265,13 +280,13 @@ export function useMultiHostTasks(
         if (store.getSnapshot(options).lanes.done.hasMore) store.loadMoreDone(options.doneWindow);
       }
     },
-    resolveParent(agentId) {
-      const store = storeOfCard(stores, options, agentId);
+    resolveParent(agentId, hostId) {
+      const store = storeForHost(stores, hostId) ?? storeOfCard(stores, options, agentId);
       if (store) store.resolveParent(agentId);
       else for (const entry of stores) entry.store.resolveParent(agentId);
     },
-    async refreshParent(agentId) {
-      const store = storeOfCard(stores, options, agentId);
+    async refreshParent(agentId, hostId) {
+      const store = storeForHost(stores, hostId) ?? storeOfCard(stores, options, agentId);
       if (store) return store.refreshParent(agentId);
       const results = await Promise.all(stores.map((entry) => entry.store.refreshParent(agentId)));
       return results.find((result) => result !== null) ?? null;

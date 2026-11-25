@@ -87,8 +87,12 @@ export interface BoardController {
   setSearchCancelled(cancelled: boolean): void;
   fullConversationSearch: boolean;
   setFullConversationSearch(on: boolean): void;
-  /** A card by id, a provider subagent's included (`tasks.byId` has only the agents'), filtered out or not. */
-  cardById(id: string): TaskCard | undefined;
+  /**
+   * A card by id, a provider subagent's included (`tasks.byId` has only the
+   * agents'), filtered out or not. `hostId` picks between two hosts that
+   * know the same id; without it the local host's card wins.
+   */
+  cardById(id: string, hostId?: string): TaskCard | undefined;
   /** Per lane, the cards the filters leave out, so the lane can say why its count is below the sidebar's. */
   hidden: Record<LaneId, number>;
   /** While subtasks are hidden: the waiting, running and review cards that leaves out, for the subtasks switch's badge. */
@@ -143,7 +147,7 @@ export const NOTICE_MS = 4000;
 
 /** The layout's own answers to a parent link and a details request. */
 export interface BoardLayoutHandlers {
-  reveal(agentId: string): void;
+  reveal(agentId: string, hostId?: string): void;
   /** `parent`: the card whose subtask row asked for these details, to go back to. */
   details(card: TaskCard, preview?: boolean, parent?: string): void;
 }
@@ -503,12 +507,39 @@ export function useBoard(
   const historicalParentsRef = useRef(historicalParents);
   historicalParentsRef.current = historicalParents;
   // Stable, reading the refs, so a lane's memo does not draw it again for it.
-  const cardById = useCallback((id: string) => historicalParentsRef.current.get(id) ?? byIdRef.current.get(id) ?? subagentCardsRef.current.get(id), []);
+  // `hostId` picks the card of that host: two daemons may know the same agent id.
+  const cardById = useCallback((id: string, hostId?: string) => {
+    if (hostId) {
+      for (const lane of LANE_ORDER) {
+        const card = latest.current.tasks.lanes[lane].cards.find((entry) => entry.id === id && entry.hostId === hostId);
+        if (card) return card;
+      }
+      for (const card of subagentCardsRef.current.values()) if (card.id === id && card.hostId === hostId) return card;
+      const archived = historicalParentsRef.current.get(id);
+      return archived?.hostId === hostId ? archived : undefined;
+    }
+    return historicalParentsRef.current.get(id) ?? byIdRef.current.get(id) ?? subagentCardsRef.current.get(id);
+  }, []);
+  // The client a card's actions belong to: its own daemon, or this board's.
+  const clientFor = useCallback((targetHostId?: string) => {
+    if (!targetHostId || targetHostId === latest.current.props.host.id) return latest.current.paseo;
+    try {
+      return getPaseoClient(targetHostId);
+    } catch {
+      return latest.current.paseo;
+    }
+  }, []);
+  const remoteCard = useCallback((card: TaskCard | string): string | null => {
+    const target = typeof card === "string" ? byIdRef.current.get(card) ?? subagentCardsRef.current.get(card) : card;
+    return target?.hostId && target.hostId !== latest.current.props.host.id ? target.hostId : null;
+  }, []);
+
   const toastMessage = useCallback((message: string) => latest.current.toast.show(message), []);
-  const open = useCallback((id: string) => {
+  const open = useCallback((id: string, targetHostId?: string) => {
     // A provider subagent has no tab: its card opens its parent's, where Paseo lists it.
-    const agentId = subagentCardsRef.current.get(id)?.parent?.id ?? id;
-    const card = byIdRef.current.get(agentId);
+    const opener = cardById(id, targetHostId);
+    const agentId = opener?.subagent ? opener.parent?.id ?? id : id;
+    const card = cardById(agentId, opener?.hostId ?? targetHostId);
     // The cards hide Open on an archived task; this catches the keyboard and anything else.
     if (card && !opensInPaseo(card)) {
       latest.current.toast.show(latest.current.strings.archivedLane.cannotOpen);
@@ -518,16 +549,18 @@ export function useBoard(
     if (!navigation) return;
     navigation.openAgent({ serverId: card?.hostId ?? hostId, agentId });
     // Opened is seen: a task marked unread does not stay in review.
-    openedTask(latest.current.paseo, agentId);
-  }, []);
+    openedTask(clientFor(card?.hostId), agentId);
+  }, [cardById, clientFor, hostId]);
   const requestProjectIcon = useCallback((projectId: string) => latest.current.tasks.requestProjectIcon(projectId), []);
   const buttonsFor = useCallback((card: TaskCard) => buttonsIn(card, language), [language]);
   const hasNavigation = props.navigation !== undefined;
   const questionDialog = useMemo(() => questionDialogStore(paseo).fork(), [paseo]);
   const submitQuestions = useCallback(async (state: QuestionDialogState) => {
     const current = latest.current;
-    await submitQuestion(current.paseo, state, current.language, (id) => latest.current.paseo === current.paseo ? latest.current.tasks.byId.get(id) : undefined, (id) => current.availability.check(id, "permission"));
-  }, []);
+    const client = clientFor(state.hostId);
+    const local = client === current.paseo;
+    await submitQuestion(client, state, current.language, (id) => local ? latest.current.tasks.byId.get(id) : undefined, (id) => local ? current.availability.check(id, "permission") : Promise.resolve(undefined));
+  }, [clientFor]);
   const stopAvailable = stop.available;
   const readAvailable = read.available;
   const unarchiveAvailable = unarchive.available;
@@ -542,14 +575,14 @@ export function useBoard(
         void retrySearchPrompt(latest.current.paseo, card, cardById);
       },
       onOpen: hasNavigation ? open : undefined,
-      onReveal: (agentId, parentId) => {
-        if (parentId && !findCard(latest.current.lanes, agentId)) {
-          const card = cardById(agentId);
+      onReveal: (agentId, parentId, targetHostId) => {
+        if (parentId && !findCard(latest.current.lanes, agentId, targetHostId)) {
+          const card = cardById(agentId, targetHostId);
           if (card) handlers.current?.details(card, true, parentId);
-          else open(parentId);
+          else open(parentId, targetHostId);
           return;
         }
-        handlers.current?.reveal(agentId);
+        handlers.current?.reveal(agentId, targetHostId);
       },
       // No CLI on the daemon's machine (`tasks.capabilities`): no Stop on any card.
       onStop: stopAvailable
@@ -562,13 +595,14 @@ export function useBoard(
             latest.current.stop.press(card, stopOptions);
           }
         : undefined,
-      onCancelStop: (agentId) => latest.current.stop.cancel(agentId),
+      onCancelStop: (agentId) => remoteCard(agentId) ? latest.current.toast.error(latest.current.strings.remoteHostActionHint) : latest.current.stop.cancel(agentId),
       // The server cannot reach the daemon itself: no Mark read either.
-      onRead: readAvailable ? (card) => write(card.id, "read", () => latest.current.read.press(card)) : undefined,
+      onRead: readAvailable ? (card) => remoteCard(card) ? latest.current.toast.error(latest.current.strings.remoteHostActionHint) : write(card.id, "read", () => latest.current.read.press(card)) : undefined,
       // A file the plugin keeps: not gated on the daemon, and not a blocked write.
-      onUnread: (card) => latest.current.unread.press(card),
-      onUnarchive: unarchiveAvailable ? (agentId) => write(agentId, "unarchive", () => latest.current.unarchive.press(agentId)) : undefined,
-      onArchive: (agentId, scope) => write(agentId, "archive", () => latest.current.archive.press(agentId, scope)),
+      onUnread: (card) => remoteCard(card) ? latest.current.toast.error(latest.current.strings.remoteHostActionHint) : latest.current.unread.press(card),
+      onUnarchive: unarchiveAvailable ? (agentId) => remoteCard(agentId) ? latest.current.toast.error(latest.current.strings.remoteHostActionHint) : write(agentId, "unarchive", () => latest.current.unarchive.press(agentId)) : undefined,
+      onArchive: (agentId, scope) => remoteCard(agentId) ? latest.current.toast.error(latest.current.strings.remoteHostActionHint) : write(agentId, "archive", () => latest.current.archive.press(agentId, scope)),
+
       onPermission: (card, button) => {
         if (button.kind === "question") {
           const current = cardById(card.id);
@@ -583,7 +617,7 @@ export function useBoard(
         if (!requestId) return;
         write(card.id, "permission", () => {
           // A remote card's request lives on its own daemon; the local client cannot answer it.
-          let target = latest.current.paseo;
+          let target: PaseoApi = latest.current.paseo;
           if (card.hostId && card.hostId !== hostId) {
             try {
               target = getPaseoClient(card.hostId);
@@ -601,12 +635,12 @@ export function useBoard(
       onFilter: (card, by) => setParams((current) => filterToCard(current, card, latest.current.tasks.workspaces, by)),
       filterState: (card) => cardFilterState(paramsRef.current, card, latest.current.tasks.workspaces),
     }),
-    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById, conversations.status, questionDialog],
+    [hasNavigation, stopAvailable, readAvailable, unarchiveAvailable, open, handlers, setParams, titleUpdates, write, cardById, conversations.status, questionDialog, remoteCard],
   );
 
-  const guardedRead = useMemo(() => ({ ...read, press: (card: TaskCard) => write(card.id, "read", () => read.press(card)) }), [read, write]);
-  const guardedUnarchive = useMemo(() => ({ ...unarchive, press: (agentId: string) => write(agentId, "unarchive", () => unarchive.press(agentId)) }), [unarchive, write]);
-  const guardedArchive = useMemo(() => ({ ...archive, press: (agentId: string) => write(agentId, "archive", () => archive.press(agentId)) }), [archive, write]);
+  const guardedRead = useMemo(() => ({ ...read, press: (card: TaskCard) => remoteCard(card) ? latest.current.toast.error(latest.current.strings.remoteHostActionHint) : write(card.id, "read", () => read.press(card)) }), [read, write, remoteCard]);
+  const guardedUnarchive = useMemo(() => ({ ...unarchive, press: (agentId: string) => remoteCard(agentId) ? latest.current.toast.error(latest.current.strings.remoteHostActionHint) : write(agentId, "unarchive", () => unarchive.press(agentId)) }), [unarchive, write, remoteCard]);
+  const guardedArchive = useMemo(() => ({ ...archive, press: (agentId: string) => remoteCard(agentId) ? latest.current.toast.error(latest.current.strings.remoteHostActionHint) : write(agentId, "archive", () => archive.press(agentId)) }), [archive, write, remoteCard]);
 
   const board = {
     hostId,
@@ -694,9 +728,9 @@ function keepSameCounts(last: Record<LaneId, number> | null, next: Record<LaneId
 }
 
 /** Where a card sits in the filtered lanes, or null when the filters hide it. */
-export function findCard(lanes: Record<LaneId, LaneModel>, agentId: string): { lane: LaneId; index: number } | null {
+export function findCard(lanes: Record<LaneId, LaneModel>, agentId: string, hostId?: string): { lane: LaneId; index: number } | null {
   for (const id of LANE_ORDER) {
-    const index = lanes[id].cards.findIndex((card) => card.id === agentId);
+    const index = lanes[id].cards.findIndex((card) => card.id === agentId && (hostId === undefined || card.hostId === hostId));
     if (index >= 0) return { lane: id, index };
   }
   return null;
