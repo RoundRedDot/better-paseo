@@ -6,7 +6,7 @@ import type { PluginTimelineTransformResult } from "@getpaseo/plugin";
 import type { CompactionTimelineItem, ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import { toolErrorText } from "./error-text";
 import { isUndrawnCall } from "./undrawn-call";
-import { readCodexAsyncQuestions } from "./codex-questions";
+import { timelineQuestionData } from "./user-questions";
 import { agentMessageFromDetail, agentMessageSchema, senderlessAgentMessage } from "./agent-message";
 import { showToolAtLevel } from "./timeline-level";
 import { standardFoldActive } from "./standard-fold";
@@ -71,13 +71,7 @@ export function transformToolCall({ item, phase }: {
   if (isUndrawnCall(item)) return { items: [] };
   const approved = item.metadata?.approved;
   const metadata = item.metadata;
-  const questionData = Array.isArray(metadata?.questions) ? {
-    questions: metadata.questions,
-    ...(metadata.answers !== undefined ? { answers: metadata.answers } : {}),
-    ...(metadata.questionResult !== undefined ? { result: metadata.questionResult } : {}),
-    ...(metadata.questionStatus !== undefined ? { status: metadata.questionStatus } : {}),
-  } : item.name === "request_user_input_async" && item.detail.type === "plain_text"
-    ? readCodexAsyncQuestions(item.detail.text) : undefined;
+  const questionData = timelineQuestionData(item);
   return {
     items: [
       {

@@ -533,8 +533,16 @@ describe("call kinds", () => {
       call("q2", "request_user_input_async", { type: "unknown", input: { questions: [{ question: "Where?" }] }, output: null }),
       call("q3", "AskUserQuestion", { type: "unknown", input: { questions: [{ question: "Now?", options: [{ label: "Yes" }] }] }, output: null }, "failed"),
       call("o1", "TodoWrite", { type: "unknown", input: { todos: [] }, output: null }),
+      // Every provider's question tool, however it records the call: Codex in text plus metadata,
+      // Codex's async questions in text alone, OMP's ask and Pi's ask_user without a questions list.
+      { ...call("q4", "request_user_input", { type: "plain_text", text: "Merge now?\nYes, No", icon: "brain" }),
+        metadata: { questions: [{ id: "0", question: "Merge now?", options: [{ label: "Yes" }, { label: "No" }] }] } } as ToolCallTimelineItem,
+      call("q5", "request_user_input_async", { type: "plain_text", text: "Which port?\n8080, 9090", icon: "brain" }),
+      call("q6", "ask", { type: "plain_text", label: "Ship it?", text: "Ship it?\nYes" }),
+      call("q7", "ask_user", { type: "unknown", input: { question: "Name?", options: ["A", "B"] }, output: null }),
+      call("q8", "question", { type: "unknown", input: { questions: [{ question: "Which?", options: [{ label: "x" }] }] }, output: null }),
     ])).toEqual([{ kind: "read", count: 1 }, { kind: "command", count: 1 }, { kind: "search", count: 2 },
-      { kind: "fetch", count: 1 }, { kind: "mcp", count: 1 }, { kind: "question", count: 2 }, { kind: "other", count: 1 },
+      { kind: "fetch", count: 1 }, { kind: "mcp", count: 1 }, { kind: "question", count: 7 }, { kind: "other", count: 1 },
       { kind: "failed", count: 2 }]);
   });
 });
@@ -621,6 +629,22 @@ describe("work details filter", () => {
     act(() => list().props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 400, height: 540 } } }));
     act(() => chip(panel, "all").props.onPress());
     expect(StyleSheet.flatten(list().props.style).minHeight).toBe(540);
+    act(() => panel.unmount());
+  });
+
+  it("draws a Codex question in the panel from its metadata, as its timeline row does", () => {
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    const question = { ...tool("q1", { type: "plain_text", text: "Merge now?\nYes, No", icon: "brain" } as ToolCallTimelineItem["detail"],
+      "request_user_input"), metadata: { questions: [{ id: "0", question: "Merge now?", options: [{ label: "Yes" }] }] } } as ToolCallTimelineItem;
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn([...unfolded, question])} store={store} tokens={tokens} compact={false} /></>); });
+    pressText("工作过程 · 7 步 · 10 次工具调用");
+    let panel!: TestRenderer.ReactTestRenderer;
+    act(() => { panel = TestRenderer.create(<>{getBlock("agent", openId!)!.render()}</>); });
+    act(() => chip(panel, "question").props.onPress());
+    expect(numbers(panel)).toEqual(["q1"]);
+    const row = panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")
+      .find((node) => node.props.data.callId === "q1")!;
+    expect(row.props.data.questionData.questions).toEqual([{ id: "0", question: "Merge now?", options: [{ label: "Yes" }] }]);
     act(() => panel.unmount());
   });
 

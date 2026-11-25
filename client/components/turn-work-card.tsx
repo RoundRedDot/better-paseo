@@ -31,7 +31,7 @@ import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { resolveLanguage, type SettingsLanguage } from "../i18n/settings-strings";
 import { classifyTool, type ToolCallView } from "../tools/classify";
 import { toolErrorText } from "../tools/error-text";
-import { readUserQuestions } from "../tools/user-questions";
+import { isQuestionTool, readUserQuestions, timelineQuestionData } from "../tools/user-questions";
 import { countDiff, countLines } from "../tools/summarize";
 import { FileEditsPreview, ToolCallout } from "./tool-callouts";
 import { BlockPlacementContext, type BlockEntry } from "../details/contracts";
@@ -91,8 +91,8 @@ const CALL_KINDS: readonly CallKind[] = ["read", "edit", "command", "search", "f
 export function callKind(item: ToolCallTimelineItem): CallKind {
   if (item.status !== "completed" && item.status !== "running") return "failed";
   const view = viewOf(item);
-  // A question to the user, drawn with its own icon, whatever tool asked it.
-  if (readUserQuestions(view)) return "question";
+  // A question to the user, whatever tool asked it, even one recorded as text only.
+  if (readUserQuestions(view) || isQuestionTool(item.name)) return "question";
   switch (view.tool) {
     case "read": return "read";
     case "edit": case "write": return "edit";
@@ -118,10 +118,10 @@ export function workFilterKey(agentId: string, work: Pick<TurnWork, "key" | "cal
   return `${agentId}:work-filter:${work.calls[0]?.callId ?? work.key}`;
 }
 
-/** A folded call as its own row would read it. */
+/** A folded call as its own row would read it, a question's structured form included. */
 function viewOf(item: ToolCallTimelineItem): ToolCallView {
   return classifyTool({ name: item.name, status: item.status, detail: item.detail as unknown as Record<string, unknown>,
-    callId: item.callId, error: toolErrorText(item.error) });
+    callId: item.callId, error: toolErrorText(item.error), questionData: timelineQuestionData(item) });
 }
 
 /**

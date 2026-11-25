@@ -1,4 +1,6 @@
+import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ToolCallView } from "./classify";
+import { readCodexAsyncQuestions } from "./codex-questions";
 
 export interface UserQuestion {
   id?: string;
@@ -33,6 +35,32 @@ function text(value: unknown): string | undefined {
 }
 
 const QUESTION_TOOLS = new Set(["askuserquestion", "request_user_input", "request_user_input_async", "ask", "ask_user", "ask_user_question", "question"]);
+
+/**
+ * A call to a tool that asks the user, by name alone. Some providers record
+ * one with text only (OMP's `ask`, Pi's `ask_user`), which no card reads back,
+ * yet it is still a question.
+ */
+export function isQuestionTool(name: string | null | undefined): boolean {
+  return QUESTION_TOOLS.has(name?.toLowerCase() ?? "");
+}
+
+/**
+ * The structured questions a call carries besides its detail, as its
+ * timeline row reads them: the host's `metadata.questions` (Codex's
+ * `request_user_input`), or the text of Codex's async questions.
+ */
+export function timelineQuestionData(item: ToolCallTimelineItem): Record<string, unknown> | undefined {
+  const metadata = item.metadata;
+  if (Array.isArray(metadata?.questions)) return {
+    questions: metadata.questions,
+    ...(metadata.answers !== undefined ? { answers: metadata.answers } : {}),
+    ...(metadata.questionResult !== undefined ? { result: metadata.questionResult } : {}),
+    ...(metadata.questionStatus !== undefined ? { status: metadata.questionStatus } : {}),
+  };
+  return item.name === "request_user_input_async" && item.detail.type === "plain_text"
+    ? readCodexAsyncQuestions(item.detail.text) : undefined;
+}
 
 function answerValues(value: unknown): string[] | undefined {
   if (typeof value === "string") return [value];
