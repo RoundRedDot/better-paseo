@@ -9,7 +9,7 @@
  *
  * Pure: no React, no host hooks.
  */
-import { parseListedLinks } from "./web-link";
+import { decodeHtmlEntities, parseListedLinks } from "./web-link";
 import type {
   GitHubToolData,
   HubData,
@@ -422,7 +422,7 @@ function readSearch(
     ? detail.webResults.flatMap((entry) => {
         const row = asRecord(entry);
         const url = asString(row?.url);
-        return url ? [{ title: asString(row?.title) ?? url, url }] : [];
+        return url ? [{ title: decodeHtmlEntities(asString(row?.title) ?? url), url }] : [];
       })
     : [];
   const toolName = asString(detail.toolName) ?? (rawName || undefined);
@@ -431,7 +431,7 @@ function readSearch(
   // Claude Code's Links line, Markdown links) reads as those hits, so it draws
   // as a structured search does.
   if (webResults.length === 0 && toolName === "web_search") {
-    webResults.push(...parseListedLinks(content));
+    webResults.push(...parseListedLinks(content).map((link) => ({ ...link, title: decodeHtmlEntities(link.title) })));
   }
   // The text a web search printed only repeats its hits with page dumps
   // between them; once there are hits, they are what the row shows.

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { distinctHosts, faviconUrl, parseListedLinks, parseWebLink } from "../../client/tools/web-link";
+import { decodeHtmlEntities, distinctHosts, faviconUrl, parseListedLinks, parseWebLink } from "../../client/tools/web-link";
 
 describe("web links", () => {
   it("splits an address into site and the rest", () => {
@@ -72,5 +72,15 @@ describe("listed links", () => {
     expect(parseListedLinks("Searched for onLayout; nothing useful.")).toEqual([]);
     expect(parseListedLinks("https://a.dev\nhttps://b.dev")).toEqual([]);
     expect(parseListedLinks(undefined)).toEqual([]);
+  });
+});
+
+describe("page titles", () => {
+  it("decodes the character references search providers leave in titles", () => {
+    expect(decodeHtmlEntities("Understanding React Native&#39;s `onLayout` &amp; more")).toBe("Understanding React Native's `onLayout` & more");
+    expect(decodeHtmlEntities("&quot;A&quot; &lt;b&gt; &#x41;")).toBe('"A" <b> A');
+    // Unknown names and out-of-range codes stay as written.
+    expect(decodeHtmlEntities("&bogus; &#0; &#x110000;")).toBe("&bogus; &#0; &#x110000;");
+    expect(decodeHtmlEntities("no references")).toBe("no references");
   });
 });
