@@ -585,46 +585,84 @@ describe("work details filter", () => {
     act(() => panel.unmount());
   });
 
-  it("draws the groups as the task details' tabs, with room beside each label", () => {
+  it("draws the groups as the task details' tabs, 4 points above and below each label", () => {
     const panel = openPanel();
     const style = (kind: string) => StyleSheet.flatten(chip(panel, kind).props.style({ pressed: false }));
     const label = (kind: string) => StyleSheet.flatten(chip(panel, kind).findByType("Text" as never).props.style);
     const hair = StyleSheet.hairlineWidth;
-    // Chosen: filled with the host's raised surface, its border the same colour.
-    expect(style("all")).toMatchObject({ minHeight: 28, borderRadius: 999, borderWidth: hair, paddingHorizontal: 12 - hair,
+    // Chosen: filled with the host's raised surface, its border the same colour. As tall as its label and its
+    // padding; on the desktop 10 points beside the label.
+    expect(style("all")).toMatchObject({ borderRadius: 999, borderWidth: hair, paddingVertical: 4 - hair, paddingHorizontal: 10 - hair,
       backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.surface2 });
+    expect(style("all").minHeight).toBeUndefined();
     expect(label("all")).toMatchObject({ color: tokens.foreground, fontWeight: "500" });
     // Not chosen: an outline, no fill.
-    expect(style("edit")).toMatchObject({ minHeight: 28, borderRadius: 999, borderWidth: hair, paddingHorizontal: 12 - hair });
+    expect(style("edit")).toMatchObject({ borderRadius: 999, borderWidth: hair, paddingVertical: 4 - hair, paddingHorizontal: 10 - hair });
     expect(style("edit").backgroundColor).toBeUndefined();
     expect(style("edit").borderColor).not.toBe(tokens.v2.surface2);
     expect(label("edit")).toMatchObject({ color: tokens.foregroundMuted, fontWeight: "500" });
-    // A desktop panel's labels are a step smaller than a phone's.
-    expect(label("all")).toMatchObject({ fontSize: tokens.typography.block.caption.size, lineHeight: tokens.typography.block.caption.lineHeight });
+    // A desktop panel's labels are a step under the caption size.
+    expect(label("all")).toMatchObject({ fontSize: tokens.typography.block.caption.size - 1,
+      lineHeight: tokens.typography.block.caption.lineHeight - 2 });
     act(() => panel.unmount());
   });
 
-  it("keeps the label size on a phone", () => {
+  it("keeps the label size and 12 points beside it on a phone", () => {
     const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
     act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn(unfolded)} store={store} tokens={tokens} compact /></>); });
     const panel = openPanel();
     const label = StyleSheet.flatten(chip(panel, "all").findByType("Text" as never).props.style);
     expect(label).toMatchObject({ fontSize: tokens.typography.block.label.size, lineHeight: tokens.typography.block.label.lineHeight });
+    expect(StyleSheet.flatten(chip(panel, "all").props.style({ pressed: false })).paddingHorizontal).toBe(12 - StyleSheet.hairlineWidth);
     act(() => panel.unmount());
   });
 
-  it("keeps the groups on one line that scrolls sideways when they outgrow the panel", () => {
+  const edge = (panel: TestRenderer.ReactTestRenderer) => StyleSheet.flatten(panel.root.findAll((node) =>
+    (node.type as unknown) === "View" && node.props.testID === "work-filter-edge")[0]!.props.style);
+
+  it("keeps the groups on one line that scrolls sideways, 6 points inside a 0.5 pt rule", () => {
     const panel = openPanel();
     const bar = panel.root.findAll((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "work-filter")[0]!;
     expect(bar).toBeDefined();
     expect(bar.props.horizontal).toBe(true);
-    // Ruled off from the steps below, as the toolbar above is from the bar.
-    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ flexGrow: 0, flexShrink: 0, borderBottomWidth: 1,
-      borderBottomColor: tokens.v2.borderSubtle });
+    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ flexGrow: 0, flexShrink: 0 });
     const row = StyleSheet.flatten(bar.props.contentContainerStyle);
-    expect(row.flexDirection).toBe("row");
-    expect(row.paddingVertical).toBe(6);
+    expect(row).toMatchObject({ flexDirection: "row", padding: 6, gap: 4 });
     expect(row.flexWrap).toBeUndefined();
+    // Ruled off from the steps below; no edge while nothing lies under the bar.
+    expect(edge(panel)).toMatchObject({ borderBottomWidth: 0.5, borderBottomColor: tokens.v2.borderSubtle, zIndex: 1 });
+    expect(edge(panel).boxShadow).toBeUndefined();
+    act(() => panel.unmount());
+  });
+
+  it("draws the web's half-point rule as an inset shadow, which Chrome does not round up", () => {
+    const webTokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc", foreground: "#111",
+      foregroundMuted: "#666", accent: "#00f", accentForeground: "#fff", statusSuccess: "#198754", statusWarning: "#a36a00",
+      statusDanger: "#d92d20" }, undefined, { platform: "web" });
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn(unfolded)} store={store} tokens={webTokens} compact={false} /></>); });
+    const panel = openPanel();
+    expect(edge(panel).boxShadow).toBe(`inset 0 -0.5px 0 0 ${webTokens.v2.borderSubtle}`);
+    expect(edge(panel).borderBottomWidth).toBeUndefined();
+    act(() => panel.unmount());
+  });
+
+  it("casts an edge over the steps only while they scroll under the bar", () => {
+    pressText("工作过程 · 7 步 · 9 次工具调用");
+    const block = getBlock("agent", openId!)!;
+    let panel!: TestRenderer.ReactTestRenderer;
+    act(() => { panel = TestRenderer.create(<PreviewChromeContext.Provider value="details">{block.render()}</PreviewChromeContext.Provider>); });
+    const body = () => panel.root.findAll((node) => typeof node.type === "string" && node.props.testID === "hover-preview-body")[0]!;
+    const scroll = (y: number) => act(() => body().props.onScroll({ nativeEvent: { contentOffset: { x: 0, y },
+      contentSize: { width: 400, height: 2000 }, layoutMeasurement: { width: 400, height: 600 } } }));
+    const shadow = `0px 5px 8px -4px rgba(0, 0, 0, 0.14)`;
+    expect(edge(panel).boxShadow).toBeUndefined();
+    scroll(40);
+    expect(edge(panel).boxShadow).toBe(shadow);
+    scroll(80);
+    expect(edge(panel).boxShadow).toBe(shadow);
+    scroll(0);
+    expect(edge(panel).boxShadow).toBeUndefined();
     act(() => panel.unmount());
   });
 

@@ -823,13 +823,18 @@ function detailsWrap(actions: PreviewActions | null, kind: DetailsShellValue["en
  * (`sticky-step.tsx`). The web pins them with `position: sticky`, which holds
  * to the nearest scroller, so with lines unwrapped the body itself scrolls
  * sideways there instead of a sideways scroller inside it.
+ *
+ * `onScrolledChange` hears, in the details chrome, whether the body has
+ * scrolled down from its top, so a bar above it can cast an edge over the
+ * content it now covers.
  */
-export function HoverPreviewBody({ children, streaming = false, follow, fullBleed = false, stickySteps = false }: {
+export function HoverPreviewBody({ children, streaming = false, follow, fullBleed = false, stickySteps = false, onScrolledChange }: {
   children: ReactNode;
   streaming?: boolean;
   follow?: PreviewFollowBand;
   fullBleed?: boolean;
   stickySteps?: boolean;
+  onScrolledChange?(scrolled: boolean): void;
 }) {
   const actions = useContext(PreviewActionsContext);
   const details = useContext(PreviewChromeContext) === "details";
@@ -856,6 +861,16 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
   const pinch = usePinchZoom(zoom, report ? scroller.value : null);
   const [bodyTop, setBodyTop] = useState(true);
   const bodyTopRef = useRef(true);
+  // Told only when it flips: the latest listener, read at the scroll.
+  const scrolledListener = useRef(onScrolledChange);
+  scrolledListener.current = onScrolledChange;
+  const scrolledRef = useRef(false);
+  const noteOffset = useCallback((offset: number) => {
+    const scrolled = offset > 0;
+    if (scrolled === scrolledRef.current) return;
+    scrolledRef.current = scrolled;
+    scrolledListener.current?.(scrolled);
+  }, []);
   // iOS text sets its size only as it draws, so a new zoom mounts the content
   // again: text kept the old size's frame, and a command band cut its last line.
   const textZoom = useContext(TextZoomContext);
@@ -893,8 +908,12 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
   // The offset reaches a pinned row on the native driver; the reports still run in JS.
   const detailsOnScroll = useMemo(() => Animated.event(
     [{ nativeEvent: { contentOffset: { y: nativeSticky.scrollY } } }],
-    { useNativeDriver: true, listener: detailsScroll.onScroll as (event: unknown) => void },
-  ), [nativeSticky, detailsScroll.onScroll]);
+    { useNativeDriver: true, listener: (event: NativeSyntheticEvent<NativeScrollEvent>) => {
+      const offset = event.nativeEvent.contentOffset.y;
+      detailsScroll.onScroll(event);
+      noteOffset(offset);
+    } },
+  ), [nativeSticky, detailsScroll.onScroll, noteOffset]);
   // The toolbar's text size buttons (`zoom-controls.ts`).
   usePublishZoomControls(zoom ? shell?.zoomControls : undefined, pinch);
   const webBody = useRef<View>(null);
@@ -911,6 +930,8 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
   }, [selectionScope]);
   const [webSticky] = useState(() => createWebStickySource(() => webBody.current as unknown as HTMLElement | null));
   useEffect(() => (details && Platform.OS === "web" ? webSticky.bind() : undefined), [details, webSticky]);
+  useEffect(() => (details && Platform.OS === "web" ? webSticky.subscribe(() => noteOffset(webSticky.offset())) : undefined),
+    [details, webSticky, noteOffset]);
   const tail = useStreamingTail(streaming, webBody, band, behind.onChange);
   useWebScrollMemory(webBody, memoryKey, remembered, streaming, tail.pinned);
   // Lines keep their length; the body scrolls sideways, with a track under it

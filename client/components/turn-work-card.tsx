@@ -12,15 +12,14 @@
  * details off it opens under the card. Line counts are the turn's edit events
  * added up, not the file's net change, and are measured once per call.
  */
-import React, { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle } from "react-native";
+import React, { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { mix, space, withAlpha } from "./theme-tokens";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-header";
 import { useHover } from "../ui/use-hover";
 import { hairline } from "../ui/tokens/platform";
-import { PREVIEW_HEADER } from "../ui/tokens/float";
 import { RunningDot } from "../ui/running-dot";
 import { HoverPreviewBody, HoverPreviewHeader, PreviewActionsContext } from "../ui/hover-preview";
 import { TextZoomContext } from "../ui/text-zoom";
@@ -285,16 +284,51 @@ function WorkDetails({ agentId, at, workKey, calls, intent, text, tokens, compac
   const filterKey = workFilterKey(agentId, { key: workKey, calls });
   const callKindList = useMemo(() => calls.map(callKind), [calls]);
   const kinds = useMemo(() => countKinds(callKindList), [callKindList]);
+  // Whether steps have scrolled up under the bar; only the bar redraws when it flips.
+  const [under] = useState(createFlag);
   return <>
     <HoverPreviewHeader tokens={tokens} />
-    {calls.length ? <FilterBar filterKey={filterKey} kinds={kinds} total={calls.length} text={text} tokens={tokens} compact={compact} /> : null}
-    <HoverPreviewBody fullBleed stickySteps>
+    {calls.length ? <FilterBar filterKey={filterKey} kinds={kinds} total={calls.length} text={text} tokens={tokens} compact={compact}
+      under={under} /> : null}
+    <HoverPreviewBody fullBleed stickySteps onScrolledChange={under.set}>
       {intent ? <WorkIntent agentId={agentId} text={intent} tokens={tokens} compact={compact} /> : null}
       <WorkSteps agentId={agentId} at={at} calls={calls} callKinds={callKindList} kinds={kinds} filterKey={filterKey}
         tokens={tokens} compact={compact} />
     </HoverPreviewBody>
   </>;
 }
+
+interface Flag {
+  get(): boolean;
+  set(value: boolean): void;
+  subscribe(listener: () => void): () => void;
+}
+
+/** A boolean one component writes and another reads, without redrawing what lies between them. */
+function createFlag(): Flag {
+  let value = false;
+  const listeners = new Set<() => void>();
+  return {
+    get: () => value,
+    set(next) {
+      if (next === value) return;
+      value = next;
+      listeners.forEach((listener) => listener());
+    },
+    subscribe(listener) {
+      listeners.add(listener);
+      return () => { listeners.delete(listener); };
+    },
+  };
+}
+
+/** The bar's edge while steps lie under it, as the task details' tab bar casts one. */
+function underShadow(tokens: ExtendedThemeTokens): string {
+  return `0px 5px 8px -4px rgba(0, 0, 0, ${tokens.isDark ? 0.36 : 0.14})`;
+}
+
+/** The rule under the bar: 0.5 pt. Chrome draws a border under 1 CSS px a whole pixel, so the web insets a shadow. */
+const BAR_RULE = 0.5;
 
 function countKinds(list: readonly CallKind[]): Array<{ kind: CallKind; count: number }> {
   const counts = new Map<CallKind, number>();
@@ -308,22 +342,31 @@ function useShownFilter(filterKey: string, kinds: ReadonlyArray<{ kind: CallKind
   return [kinds.some(({ kind }) => kind === chosen) ? chosen : "all", choose];
 }
 
-const FilterBar = memo(function FilterBar({ filterKey, kinds, total, text, tokens, compact }: {
+const FilterBar = memo(function FilterBar({ filterKey, kinds, total, text, tokens, compact, under }: {
   filterKey: string; kinds: ReadonlyArray<{ kind: CallKind; count: number }>; total: number; text: typeof STRINGS.en;
-  tokens: ExtendedThemeTokens; compact: boolean;
+  tokens: ExtendedThemeTokens; compact: boolean; under: Flag;
 }) {
   const styles = useCardStyles(tokens);
   const [filter, choose] = useShownFilter(filterKey, kinds);
   const groups = useMemo(() => [{ kind: "all" as const, count: total }, ...kinds], [kinds, total]);
+  const covering = useSyncExternalStore(under.subscribe, under.get);
+  const rule = tokens.v2.borderSubtle;
+  const shadow = covering ? underShadow(tokens) : null;
+  // Raised over the body, so its edge falls across the steps that scroll under it.
+  const edge = tokens.platform === "web"
+    ? { boxShadow: [`inset 0 -${BAR_RULE}px 0 0 ${rule}`, ...(shadow ? [shadow] : [])].join(", ") }
+    : { borderBottomWidth: BAR_RULE, borderBottomColor: rule, ...(shadow ? { boxShadow: shadow } : null) };
   // One line that scrolls sideways when the groups outgrow the panel, rather than wrapping onto a second.
   return (
-    <ScrollView testID="work-filter" accessibilityRole="tablist" horizontal showsHorizontalScrollIndicator={false}
-      style={styles.filterScroll} contentContainerStyle={styles.filterBar}>
-      {groups.map(({ kind, count }) => (
-        <FilterChip key={kind} label={`${text.kinds[kind]} ${count}`} kind={kind} selected={filter === kind}
-          onPress={choose} tokens={tokens} compact={compact} />
-      ))}
-    </ScrollView>
+    <View testID="work-filter-edge" style={[styles.filterEdge, edge as ViewStyle]}>
+      <ScrollView testID="work-filter" accessibilityRole="tablist" horizontal showsHorizontalScrollIndicator={false}
+        style={styles.filterScroll} contentContainerStyle={styles.filterBar}>
+        {groups.map(({ kind, count }) => (
+          <FilterChip key={kind} label={`${text.kinds[kind]} ${count}`} kind={kind} selected={filter === kind}
+            onPress={choose} tokens={tokens} compact={compact} />
+        ))}
+      </ScrollView>
+    </View>
   );
 });
 
@@ -338,7 +381,8 @@ const FilterChip = memo(function FilterChip({ label, kind, selected, onPress, to
     : withAlpha(tokens.foreground, pressed ? 0.08 : 0.05);
   return (
     <Pressable testID={`work-filter:${kind}`} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => onPress(kind)} {...hoverProps}
-      style={({ pressed }) => [styles.chip, selected && styles.chipSelected, (hovered || pressed) && { backgroundColor: fill(pressed) }]}>
+      style={({ pressed }) => [styles.chip, !compact && styles.chipDesktop, selected && styles.chipSelected,
+        (hovered || pressed) && { backgroundColor: fill(pressed) }]}>
       <Text selectable={false} style={[styles.chipLabel, !compact && styles.chipLabelDesktop, selected && { color: tokens.foreground }]}>{label}</Text>
     </Pressable>
   );
@@ -753,17 +797,21 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
     more: { ...listRow, paddingLeft: space.xs, gap: space.sm },
     // As tall as its chips: a horizontal scroller grows to fill the panel's column otherwise. Ruled off
     // from the steps below as the toolbar above is from it.
-    filterScroll: { flexGrow: 0, flexShrink: 0, borderBottomWidth: PREVIEW_HEADER.border, borderBottomColor: tokens.v2.borderSubtle },
-    filterBar: { flexDirection: "row", alignItems: "center", gap: space.xs,
-      paddingHorizontal: space.md - space.xs, paddingVertical: space.xs + 2 },
-    // A pill's round ends need room beside the label; the border comes out of that padding.
-    chip: { minHeight: 28, justifyContent: "center", paddingHorizontal: space.md - StyleSheet.hairlineWidth, borderRadius: 999,
+    filterScroll: { flexGrow: 0, flexShrink: 0 },
+    filterEdge: { position: "relative", zIndex: 1 },
+    // 6 points between the pills and the bar's edges.
+    filterBar: { flexDirection: "row", alignItems: "center", gap: space.xs, padding: space.xs + 2 },
+    // As tall as its label and 4 points above and below it; a pill's round ends need room beside the
+    // label. The border comes out of the padding.
+    chip: { justifyContent: "center", paddingVertical: space.xs - StyleSheet.hairlineWidth,
+      paddingHorizontal: space.md - StyleSheet.hairlineWidth, borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth, borderColor: mix(tokens.border, tokens.foreground, tokens.isDark ? 0.08 : 0.05) },
+    chipDesktop: { paddingHorizontal: space.sm + 2 - StyleSheet.hairlineWidth },
     chipSelected: { backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.surface2 },
     chipLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontWeight: "500", fontSize: block.label.size,
       lineHeight: block.label.lineHeight, fontVariant: ["tabular-nums"] },
-    // A step smaller beside a desktop panel's denser rows.
-    chipLabelDesktop: { fontSize: block.caption.size, lineHeight: block.caption.lineHeight },
+    // Two steps smaller beside a desktop panel's denser rows.
+    chipLabelDesktop: { fontSize: block.caption.size - 1, lineHeight: block.caption.lineHeight - 2 },
     moreLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: block.button.size, lineHeight: block.button.lineHeight },
   });
 }
