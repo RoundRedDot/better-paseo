@@ -10,6 +10,7 @@ import { codeSurface } from "./host-font-escape";
 import { openLink } from "./open-link";
 import type { GitHubToolData } from "../../shared/contracts";
 import { FadeIn } from "../ui/fade-in";
+import { selectionColorProps } from "./text-selection";
 
 interface GitHubBodyProps {
   data: GitHubToolData | undefined;
@@ -109,7 +110,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
 
   if (!data) {
     return (
-      <Text selectable style={styles.note}>
+      <Text selectable {...selectionColorProps()} style={styles.note}>
         {running ? "Waiting for GitHub…" : "The call returned no detail."}
       </Text>
     );
@@ -130,12 +131,12 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
 
       {data.rows?.map((row) => (
         <View key={`${row.label}:${row.value}`} style={styles.row}>
-          <Text {...(codeSurface as object)} selectable style={styles.label} numberOfLines={1}>
+          <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={styles.label} numberOfLines={1}>
             {row.label}
           </Text>
           <View style={styles.spacer} />
           <Text
-            selectable
+            selectable {...selectionColorProps()}
             style={
               row.tone === "ok"
                 ? styles.okValue
@@ -151,7 +152,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
 
       {data.text ? (
         <View style={styles.terminal}>
-          <Text selectable {...selectionCodeText} style={styles.terminalText}>
+          <Text selectable {...selectionColorProps()} {...selectionCodeText} style={styles.terminalText}>
             {renderTerminalOutput(data.text, tokens)}
           </Text>
         </View>
@@ -166,7 +167,7 @@ export function GitHubBody({ data, tokens, running }: GitHubBodyProps) {
       ) : null}
 
       {!data.file && !data.rows && !data.text ? (
-        <Text selectable style={styles.note}>
+        <Text selectable {...selectionColorProps()} style={styles.note}>
           {running ? "Waiting for GitHub…" : "The op returned no output."}
         </Text>
       ) : null}

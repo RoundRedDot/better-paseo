@@ -19,7 +19,7 @@ import {
 import { currentPlatform } from "../ui/tokens/platform";
 import { themeKey } from "../ui/tokens/theme-key";
 import { ensureEmbeddedFonts } from "./embed-fonts";
-import { ensureTextSelectionStyle } from "./text-selection-style";
+import { applyTextSelection } from "./text-selection";
 import { useHostAppearance, type HostAppearance } from "../ui/tokens/host-appearance-shim";
 
 export type PluginSurfaceColors = PluginTheme["colors"];
@@ -109,14 +109,12 @@ export interface ExtendedThemeTokens {
   accentBg: string;
   /**
    * Selected text: a drag, a double-tapped block, a table cell range, a line
-   * range in a preview. The accent at the strength of the Tasks board's
-   * current card (`current` in `tasks/cards/tokens.ts`): translucent here, so
-   * over a card's background it is exactly that card's fill. Drawn behind the
-   * text, never over it.
+   * range in a preview. A translucent light blue (`textSelectionFill`), drawn
+   * behind the text, never over it.
    */
   textSelection: string;
   /**
-   * The accent, opaque, for iOS native text: UIKit takes the tint and draws
+   * The same blue, opaque, for iOS native text: UIKit takes the tint and draws
    * its own translucent highlight from it, and the handles in the full tint.
    */
   textSelectionTint: string;
@@ -291,6 +289,17 @@ export function mix(from: string, to: string, t: number): string {
   return `#${channel(a.r, b.r)}${channel(a.g, b.g)}${channel(a.b, b.b)}`;
 }
 
+/** Selected text's blue: #1C76F2, at 0.2 over white #D2E4FC. */
+const TEXT_SELECTION_BLUE = "#1C76F2";
+
+/**
+ * `textSelection` for a surface: a fixed light blue, a little stronger on a
+ * dark one so it still reads. The board resolves it without the chat's tokens.
+ */
+export function textSelectionFill(colors: Pick<PluginTheme["colors"], "surface0">): string {
+  return withAlpha(TEXT_SELECTION_BLUE, isDarkSurface(colors.surface0) ? 0.3 : 0.2);
+}
+
 function isDarkSurface(color: string): boolean {
   const rgba = parseColor(color);
   if (!rgba) return true;
@@ -362,9 +371,8 @@ export function buildThemeTokens(
     accent,
     accentForeground: colors.accentForeground,
     accentBg: withAlpha(accent, isDark ? 0.14 : 0.1),
-    // The host's accent, as the card uses, not the chat's accent preset.
-    textSelection: withAlpha(colors.accent, isDark ? 0.1 : 0.07),
-    textSelectionTint: colors.accent,
+    textSelection: textSelectionFill(colors),
+    textSelectionTint: TEXT_SELECTION_BLUE,
     codeInline: inlineCodeColor(preferences.inlineCodeColor, fg, colors.surface0, isDark),
     // The host draws its own prompt bubble on its most raised surface; surface2
     // is the most raised one a plugin is given.
@@ -464,7 +472,7 @@ export function useThemeTokens(
       // Inter is installed only once a reader picks it.
       ensureEmbeddedFonts(tokenPreferences, resolvedPlatform);
       const tokens = buildThemeTokens(theme.colors, tokenPreferences, { platform, theme, appearance });
-      if (resolvedPlatform === "web") ensureTextSelectionStyle(tokens.textSelection);
+      applyTextSelection(tokens.textSelection, resolvedPlatform === "web");
       return tokens;
     },
     // `theme` is read through `key`; its identity is exactly what must not count.

@@ -14,6 +14,7 @@ import { selectableSurface } from "./selection";
 import { selectionSurface } from "./selection-actions";
 import { surfaceProps } from "./view-props";
 import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationContext } from "../translation/selection";
+import { selectionColorProps } from "./text-selection";
 
 export interface TurnUsage {
   inputTokens?: number;
@@ -171,7 +172,7 @@ export function UserMessage({
       style={styles.column}
     >
       <View style={styles.bubble}>
-        <Text ref={scopeData ? bindScope : undefined} selectable {...contentTextProps()} {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : {})} style={[styles.text, contentTextStyle()]}>
+        <Text ref={scopeData ? bindScope : undefined} selectable {...selectionColorProps()} {...contentTextProps()} {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : {})} style={[styles.text, contentTextStyle()]}>
           {text}
         </Text>
         {images?.length ? (
@@ -306,7 +307,7 @@ export function TurnUsageRow({
               typeof value === "number" ? (
                 <View key={label} style={styles.figureRow}>
                   <Text style={styles.figureLabel}>{label}</Text>
-                  <Text selectable style={styles.figureValue}>
+                  <Text selectable {...selectionColorProps()} style={styles.figureValue}>
                     {formatTokens(value)}
                   </Text>
                 </View>

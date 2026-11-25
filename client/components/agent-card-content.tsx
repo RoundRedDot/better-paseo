@@ -13,6 +13,7 @@ import { useCopy } from "../ui/use-copy";
 import { useHover } from "../ui/use-hover";
 import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { providerName, shortAgentId, shouldFold } from "../tools/agent-row";
+import { selectionColorProps } from "./text-selection";
 
 /*
  * The opened body of every agent card (agent cards design 5.2). The row above
@@ -91,14 +92,14 @@ export function AgentIdentityStrip({ testID, provider, leading, fields = [], sta
   return <View testID={`${testID}-metadata`} style={styles.stripRow}><View style={styles.strip}>
     {leading ?? (provider ? <View style={styles.item}>
       <ProviderLogo provider={provider} size={12} neutralColor={tokens.foregroundMuted} />
-      <Text selectable style={[styles.provider, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{label}</Text>
+      <Text selectable {...selectionColorProps()} style={[styles.provider, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{label}</Text>
     </View> : null)}
     {fields.map((field) => <AgentCardMetadataItem key={field.key} testID={`${testID}-${field.key}`}
       accessibilityLabel={field.accessibilityLabel ?? field.label} icon={field.icon} iconColor={field.iconColor ?? tokens.foregroundMuted}
       label={field.label} tokens={tokens} />)}
     {state ? <View testID={`${testID}-state`} style={styles.item} accessibilityLabel={stateLabel ?? state}>
       <View style={[styles.dot, { backgroundColor: agentStateColor(state, tokens) }]} />
-      <Text selectable style={[styles.field, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{stateLabel ?? state}</Text>
+      <Text selectable {...selectionColorProps()} style={[styles.field, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{stateLabel ?? state}</Text>
     </View> : null}
   </View>
     {agentId ? <AgentId agentId={agentId} testID={testID} tokens={tokens} mobile={mobile} /> : null}
@@ -111,7 +112,7 @@ export function AgentCardMetadataItem({ testID, accessibilityLabel, icon, iconCo
 }) {
   return <View testID={testID} accessibilityLabel={accessibilityLabel} style={styles.item}>
     <Icon name={icon} size={12} color={iconColor} />
-    <Text selectable numberOfLines={1} style={[styles.field, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{label}</Text>
+    <Text selectable {...selectionColorProps()} numberOfLines={1} style={[styles.field, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{label}</Text>
   </View>;
 }
 
@@ -146,7 +147,7 @@ export function AgentSection({ label, tokens, children, testID }: {
 export function AgentErrorLine({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
   return <View testID="agent-error" style={styles.errorRow}>
     <View style={styles.errorIcon}><Icon name="CircleX" size={14} color={tokens.danger} /></View>
-    <Text selectable style={[styles.errorText, { color: tokens.danger, fontFamily: tokens.fontUi }]}>{text}</Text>
+    <Text selectable {...selectionColorProps()} style={[styles.errorText, { color: tokens.danger, fontFamily: tokens.fontUi }]}>{text}</Text>
   </View>;
 }
 
@@ -154,7 +155,7 @@ export function AgentErrorLine({ text, tokens }: { text: string; tokens: Extende
 export function AgentNote({ text, tokens, testID }: { text: string; tokens: ExtendedThemeTokens; testID?: string }) {
   return <View testID={testID} style={styles.note}>
     <Icon name="Info" size={12} color={tokens.foregroundMuted} />
-    <Text selectable style={[styles.noteText, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{text}</Text>
+    <Text selectable {...selectionColorProps()} style={[styles.noteText, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{text}</Text>
   </View>;
 }
 
@@ -203,7 +204,7 @@ export function permissionBorder(tokens: ExtendedThemeTokens): string {
 /** Inline code-like line: a command or a request ID. */
 export function AgentCode({ text, tokens }: { text: string; tokens: ExtendedThemeTokens }) {
   return <View style={[styles.code, { backgroundColor: tokens.v2.surface2 }]}>
-    <Text selectable style={{ color: tokens.foreground, fontFamily: tokens.fontMono, fontSize: 12, lineHeight: 18 }}>{text}</Text>
+    <Text selectable {...selectionColorProps()} style={{ color: tokens.foreground, fontFamily: tokens.fontMono, fontSize: 12, lineHeight: 18 }}>{text}</Text>
   </View>;
 }
 

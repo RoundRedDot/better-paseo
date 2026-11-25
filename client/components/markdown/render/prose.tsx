@@ -39,7 +39,7 @@ export function MarkdownProse({ context, tokens, text, prefix, bold, style, ...r
     const body = text === undefined ? renderInline(tokens, context, "p", bold) : context.renderText ? context.renderText(text) : text;
     // A selected block (iOS while streaming, Android) gives up native selection
     // as the native prose does, so a double tap leaves one highlight, not two.
-    // `selectionColor` is Android's highlight; web paints `::selection` (`text-selection-style.ts`).
+    // `selectionColor` is Android's highlight; web paints `::selection` (`text-selection.ts`).
     return <ProseText style={style} selectionColor={context.tokens.textSelection} {...rest}
       {...(selection?.selected ? { selectable: false } : null)}>{prefix
       ? [<ProseSpan key="prefix" style={context.styles.headingHash}>{prefix}</ProseSpan>, body]

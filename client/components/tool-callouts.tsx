@@ -62,6 +62,7 @@ import { toolbarLabel } from "../i18n/toolbar-strings";
 import { useHostLanguageVersion } from "../i18n/host-language";
 import { useEnhancerPreferences } from "../preferences";
 import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationContext } from "../translation/selection";
+import { selectionColorProps } from "./text-selection";
 
 /**
  * The muted icon a settled call shows in the row's status slot: one Lucide
@@ -459,7 +460,7 @@ export function ToolCallout({
         <Text
           ref={scopeData ? bindSelectionScope : undefined}
           {...(surfaceProps(selectionSurface, codeSurface, ...(scopeData ? [{ dataSet: scopeData } as never] : [])) as object)}
-          selectable
+          selectable {...selectionColorProps()}
           numberOfLines={1}
           style={[
             styles.errorLine,

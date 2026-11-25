@@ -11,6 +11,7 @@ import { DisclosureHeader, RowIcon, RowText } from "../ui/disclosure-header";
 import { FadeIn } from "../ui/fade-in";
 import { contentTextProps, contentTextStyle } from "../ui/content-text";
 import type { SystemEnvelope, SystemEnvelopeKind } from "../system-envelope";
+import { selectionColorProps } from "./text-selection";
 
 interface SystemCardProps {
   envelope: SystemEnvelope;
@@ -137,7 +138,7 @@ export function SystemCard({ envelope, tokens, compact = false }: SystemCardProp
               <MarkdownView text={envelope.body} tokens={tokens} variant="document" compact={compact}
                 size={blockProseBase(tokens.typography)} />
             ) : kind === "prose" ? (
-              <Text selectable {...contentTextProps()} style={[styles.prose, contentTextStyle()]}>
+              <Text selectable {...selectionColorProps()} {...contentTextProps()} style={[styles.prose, contentTextStyle()]}>
                 {envelope.body}
               </Text>
             ) : (

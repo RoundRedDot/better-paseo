@@ -35,6 +35,7 @@ import { useEnhancerPreferences } from "../preferences";
 import { fitsRow } from "../tools/detail";
 import { CLAMPED_LINES, splitBodyRuns, type BodyRun } from "../reasoning/paragraphs";
 import { TYPE, blockProseBase } from "../ui/tokens/typography";
+import { selectionColorProps } from "./text-selection";
 
 /** Four lines of a thought's body: quiet compact Markdown at the block's size. */
 function clampHeight(tokens: ExtendedThemeTokens): number {
@@ -182,7 +183,7 @@ function SectionViewBody({ section, tokens, compact, storeKey, live }: SectionVi
     <View style={styles.section}>
       <Pressable accessible={false} focusable={false} {...hoverProps} style={styles.sectionTitleRow}>
         <Text
-          selectable
+          selectable {...selectionColorProps()}
           style={[
             styles.sectionTitle,
             {

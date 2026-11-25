@@ -16,6 +16,7 @@ import { readPermission, type PermissionQuestion } from "../tools/agent-status";
 import { shortAgentId } from "../tools/agent-row";
 import type { PaseoAgentOperationData, PaseoSendAgentPromptData } from "../../shared/contracts";
 import type { ToolCallView } from "../tools/classify";
+import { selectionColorProps } from "./text-selection";
 
 interface Appearance { tokens: ExtendedThemeTokens; raw?: boolean; compact?: boolean; error?: string; translationAgentId?: string }
 
@@ -58,7 +59,7 @@ export function AgentOperationView({ data, tokens, raw = false, compact = false,
     {data.agentId && (raw || error || extra.length || data.content || listing) ? <AgentDivider tokens={tokens} /> : null}
     {error ? <AgentErrorLine text={firstLine(error)} tokens={tokens} /> : null}
     {raw ? <AgentMarkdown text={JSON.stringify({ arguments: data.arguments, result: data.result }, null, 2)} tokens={tokens} raw mobile={mobile} /> : <>
-    {extra.length ? <View style={styles.facts}>{extra.map((entry) => <Text key={entry.label} selectable
+    {extra.length ? <View style={styles.facts}>{extra.map((entry) => <Text key={entry.label} selectable {...selectionColorProps()}
       style={[styles.fact, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>{entry.label}
       <Text style={{ color: tokens.foreground }}>{`  ${entry.value}`}</Text></Text>)}</View> : null}
     {data.agents ? <AgentList agents={data.agents} tokens={tokens} mobile={mobile} /> : null}
@@ -75,7 +76,7 @@ function AgentList({ agents, tokens, mobile }: { agents: NonNullable<PaseoAgentO
   if (agents.length === 0) return <Text style={[styles.empty, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>No agents returned</Text>;
   return <View>{agents.map((agent, index) => <View key={agent.id} testID={`agent-list-${agent.id}`}
     style={[styles.listItem, index > 0 && { borderTopWidth: 1, borderTopColor: tokens.border }]}>
-    <Text selectable numberOfLines={1} style={[styles.listTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{agent.title}</Text>
+    <Text selectable {...selectionColorProps()} numberOfLines={1} style={[styles.listTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{agent.title}</Text>
     <AgentIdentityStrip testID={`agent-list-${agent.id}`} provider={agent.provider} state={agent.status}
       fields={agent.cwd ? [{ key: "cwd", icon: "Folder", label: shortenHome(agent.cwd, home) }] : []}
       agentId={agent.id} tokens={tokens} mobile={mobile} />
@@ -113,7 +114,7 @@ export function PermissionAnswerNote({ tokens }: { tokens: ExtendedThemeTokens }
 export function PermissionRequestId({ requestId, tokens }: { requestId: string; tokens: ExtendedThemeTokens }) {
   return <View testID="permission-request-id" style={styles.requestRow}>
     <Text style={[styles.requestLabel, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>Request</Text>
-    <Text selectable numberOfLines={1} ellipsizeMode="middle"
+    <Text selectable {...selectionColorProps()} numberOfLines={1} ellipsizeMode="middle"
       style={[styles.requestId, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}>{requestId}</Text>
   </View>;
 }
@@ -134,8 +135,8 @@ export function PermissionRequest({ testID, title, agentId, description, command
   return <View testID={testID} style={styles.request}>
     <View style={styles.permissionHead}>
       <Icon name={question ? "MessageCircleQuestion" : "ShieldAlert"} size={14} color={tokens.warning} />
-      {title ? <Text selectable style={[styles.permissionTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{translatedField(states, "title", title)}</Text> : null}
-      {agentId ? <Text selectable numberOfLines={1} style={[styles.permissionAgent, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+      {title ? <Text selectable {...selectionColorProps()} style={[styles.permissionTitle, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{translatedField(states, "title", title)}</Text> : null}
+      {agentId ? <Text selectable {...selectionColorProps()} numberOfLines={1} style={[styles.permissionAgent, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
         {live.title ?? shortAgentId(agentId)}</Text> : null}
       {group ? <InlineTranslateButtonWithTokens state={group} tokens={tokens} testID="permission-translate" /> : null}
     </View>
@@ -190,8 +191,8 @@ function PermissionQuestionView({ question, index, total, tokens, mobile, transl
           style={[styles.option, mobile && styles.optionMobile, { borderColor: tokens.border }]}>
           <View style={styles.optionMark}><Icon name={question.multiSelect ? "Square" : "Circle"} size={16} color={tokens.foregroundMuted} /></View>
           <View style={styles.optionText}>
-            <Text selectable style={[styles.optionLabel, prose]}>{translatedField(states, `option-${optionIndex}`, option.label)}</Text>
-            {option.description ? <Text selectable style={[styles.optionDescription, muted]}>{translatedField(states, `description-${optionIndex}`, option.description)}</Text> : null}
+            <Text selectable {...selectionColorProps()} style={[styles.optionLabel, prose]}>{translatedField(states, `option-${optionIndex}`, option.label)}</Text>
+            {option.description ? <Text selectable {...selectionColorProps()} style={[styles.optionDescription, muted]}>{translatedField(states, `description-${optionIndex}`, option.description)}</Text> : null}
           </View>
         </View>)}
       </View> : null}
@@ -216,7 +217,7 @@ export function SubAgentView({ data, tokens, raw = false, compact = false }: App
     {agent.actions?.length ? <AgentSection label="Actions" tokens={tokens}>
       {agent.actions.map((action) => <View key={action.index} style={styles.action}>
         <Text style={[styles.actionTool, { color: tokens.foreground, fontFamily: tokens.fontUi }]}>{action.toolName}</Text>
-        {action.summary ? <Text selectable numberOfLines={1} style={[styles.actionSummary, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
+        {action.summary ? <Text selectable {...selectionColorProps()} numberOfLines={1} style={[styles.actionSummary, { color: tokens.foregroundMuted, fontFamily: tokens.fontUi }]}>
           {action.summary}</Text> : null}
       </View>)}
     </AgentSection> : null}

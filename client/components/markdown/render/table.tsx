@@ -20,6 +20,7 @@ import {
   TABLE_DIVIDER_WIDTH,
   type VariantMetrics,
 } from "./styles";
+import { selectionColorProps } from "../../text-selection";
 
 /**
  * React Native offers no synchronous text measurement, so a column's width is
@@ -159,7 +160,7 @@ export function MdTable({
             testID={TABLE_CELL_TEST_ID}
             // On iOS and Android a held cell starts a range, which the
             // platform's own text selection would take over.
-            selectable={Platform.OS === "web"}
+            selectable={Platform.OS === "web"} {...selectionColorProps()}
             {...contentTextProps()}
             {...(Platform.OS === "web" ? { dataSet: { tableCellRow: row, tableCellColumn: column } } : {})}
             style={[

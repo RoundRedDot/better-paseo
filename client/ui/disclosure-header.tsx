@@ -26,6 +26,7 @@ import { RowMenu, type RowMenuAnchor } from "../details/row-menu";
 import { toolbarLabel } from "../i18n/toolbar-strings";
 import { SelectionTranslationContext } from "../translation/selection";
 import { SelectionTranslationScope } from "../translation/ui";
+import { selectionColorProps } from "../components/text-selection";
 
 /**
  * Row geometry (S7 design spec §2.5, F0 "Row heights and hit areas").
@@ -466,7 +467,7 @@ export function DisclosureHeader({
     typeof target === "string" ? (
       <Text
         {...((inert ? surfaceProps(selectionSurface, codeSurface) : codeSurface) as object)}
-        selectable={inert && !detailsEnabled}
+        selectable={inert && !detailsEnabled} {...selectionColorProps()}
         numberOfLines={1}
         ellipsizeMode="tail"
         style={[
@@ -582,7 +583,7 @@ export function DisclosureHeader({
                 {showVerb ? (
                   <Text
                     {...((inert ? selectionSurface : {}) as object)}
-                    selectable={inert && !detailsEnabled}
+                    selectable={inert && !detailsEnabled} {...selectionColorProps()}
                     numberOfLines={1}
                     style={[
                       styles.verb,

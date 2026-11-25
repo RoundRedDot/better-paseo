@@ -15,6 +15,7 @@ import {
 } from "react";
 import { Platform, StyleSheet, Text, UIManager, type TextProps, type TextStyle } from "react-native";
 import { contentTextProps, contentTextStyle } from "./content-text";
+import { selectionColorProps } from "../components/text-selection";
 
 /**
  * Prose that iOS can select a range of.
@@ -163,7 +164,7 @@ export function ProseText({ style, children, ...rest }: TextProps) {
   const redraw = useContext(ProseRedrawContext);
   if (!native) {
     return (
-      <Text selectable style={[style, contentTextStyle()]} {...rest} {...contentTextProps()}>
+      <Text selectable style={[style, contentTextStyle()]} {...selectionColorProps()} {...rest} {...contentTextProps()}>
         {children}
       </Text>
     );
@@ -247,7 +248,7 @@ export const ProseSelectionContext = createContext(false);
 
 /** Selectable text: `ProseText` under `ProseSelectionContext`, else `<Text selectable>`. */
 export function SelectableText(props: TextProps) {
-  return useContext(ProseSelectionContext) ? <ProseText {...props} /> : <Text selectable {...props} />;
+  return useContext(ProseSelectionContext) ? <ProseText {...props} /> : <Text selectable {...selectionColorProps()} {...props} />;
 }
 
 /**

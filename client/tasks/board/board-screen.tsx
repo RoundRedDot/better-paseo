@@ -1,11 +1,14 @@
 import React, { useEffect, useMemo, useRef } from "react";
-import { Pressable, Text, View } from "react-native";
+import { Platform, Pressable, Text, View } from "react-native";
 import { TasksTypography, HOST_FONT as F, HOST_LINE } from "../typography";
 import { usePaseo, type PluginScreenProps } from "@getpaseo/plugin/client";
 import { Icon, useToast } from "@getpaseo/plugin/client/ui";
 import { useDeviceTasksPreferences } from "../device-preferences";
 import { useTasksLanguage } from "../i18n";
 import { pluginRoot } from "../../components/focus-ring";
+import { textSelectionFill } from "../../components/theme-tokens";
+import { applyTextSelection } from "../../components/text-selection";
+import { themeKey } from "../../ui/tokens/theme-key";
 import { HAIRLINE } from "./board-style";
 import { SearchCoverageProvider } from "./search-loading";
 import { DesktopBoard } from "./desktop-board";
@@ -80,6 +83,9 @@ function BoardBlank(props: PluginScreenProps) {
 /** The layout follows the host's: the phone layout on its compact layout, the lanes everywhere else. */
 function BoardContent(props: PluginScreenProps) {
   const rootRef = useRef<View>(null);
+  // The board can open before any chat row resolved the theme's selection fill.
+  const colorKey = themeKey(props.theme);
+  useMemo(() => applyTextSelection(textSelectionFill(props.theme.colors), Platform.OS === "web"), [colorKey]); // eslint-disable-line react-hooks/exhaustive-deps
   const handlers = useRef<BoardLayoutHandlers | null>(null);
   const compact = boardIsCompact(props.layout.compact);
   const board = useBoard(props, rootRef, handlers, compact);

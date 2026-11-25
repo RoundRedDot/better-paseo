@@ -51,6 +51,7 @@ import type { LineCount, TurnFooterStore } from "../state/turn-footers";
 import type { TurnWork, WorkFile, WorkStep } from "../state/turn-work";
 import type { WorkVerb } from "../tools/standard-fold";
 import { useWorkFilter, type CallKind, type WorkFilter } from "../state/work-filter-store";
+import { selectionColorProps } from "./text-selection";
 
 const STRINGS: Record<SettingsLanguage, {
   work: string; read: string; edited: string; ran: string; files: (count: number) => string;
@@ -447,7 +448,7 @@ function IntentText({ text, style }: { text: string; style: StyleProp<TextStyle>
   }, [scope]);
   return <Text ref={scopeData ? bindScope : undefined}
     {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : selectionSurface) as object}
-    selectable style={[style, selectableTextStyle]}>{text}</Text>;
+    selectable {...selectionColorProps()} style={[style, selectableTextStyle]}>{text}</Text>;
 }
 
 /** Each shown step's number in the chosen group, by call ID. */

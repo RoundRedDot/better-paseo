@@ -19,6 +19,7 @@ import { SelectableSpan } from "../ui/prose-text";
 import { useZoomedTokens } from "../ui/text-zoom";
 import type { HighlightLine, HighlightToken } from "../../shared/highlight-rpc";
 import { textChunks, TEXT_CHUNK_CHARS } from "../ui/text-chunks";
+import { selectionColorProps } from "./text-selection";
 
 interface SyntaxHighlightProps {
   code: string;
@@ -709,7 +710,7 @@ export function SyntaxHighlightBlock({
           )}
           {Platform.OS !== "web" && line.length > TEXT_CHUNK_CHARS ? (
             <View style={{ flex: 1 }}><LongNativeLine text={line} tokens={tokens} style={scroll ? styles.lineNoWrap : styles.lineContent} /></View>
-          ) : <Text selectable style={scroll ? styles.lineNoWrap : styles.lineContent}>
+          ) : <Text selectable {...selectionColorProps()} style={scroll ? styles.lineNoWrap : styles.lineContent}>
             {isDiff
               ? renderDiffLine(line, parsedDiff![idx]!, tokens, filename, bodyLine, shikiLine)
               : shikiLine
@@ -783,7 +784,7 @@ export function SyntaxHighlightBlock({
               </Text>
             </Pressable>
           ) : (
-            <Text selectable numberOfLines={1} style={styles.filename}>
+            <Text selectable {...selectionColorProps()} numberOfLines={1} style={styles.filename}>
               {filename ?? ""}
             </Text>
           )}
@@ -1090,7 +1091,7 @@ function LongNativeLine({ text, tokens, style, textProps, tail = false }: {
   const rows = useBatchedRows(parts.length, 1, parts, tail);
   return <>
     {parts.slice(tail ? parts.length - rows.shown : 0, tail ? parts.length : rows.shown).map((part, index) => (
-      <Text key={tail ? parts.length - rows.shown + index : index} selectable {...textProps} style={style}>{part}</Text>
+      <Text key={tail ? parts.length - rows.shown + index : index} selectable {...selectionColorProps()} {...textProps} style={style}>{part}</Text>
     ))}
     <FoldFooter total={parts.length} shown={rows.shown} expanding={rows.expanding} expanded={rows.expanded}
       onShowAll={rows.showAll} onShowLess={rows.showLess} tokens={tokens} bare unit="parts" earlier={tail} />
@@ -1659,7 +1660,7 @@ const OutputChunk = memo(OutputChunkBody);
 
 const NativeOutputChunk = memo(function NativeOutputChunk({ text, tokens, style, textProps }: TerminalOutputProps) {
   const lines = text.split("\n");
-  return <Text selectable {...textProps} style={style}>
+  return <Text selectable {...selectionColorProps()} {...textProps} style={style}>
     {lines.map((line, index) => renderTerminalLine(line, index, tokens, index < lines.length - 1 ? "\n" : ""))}
   </Text>;
 });
@@ -1710,7 +1711,7 @@ export function TerminalOutput({ text, tokens, style, textProps }: TerminalOutpu
           earlier
         />
       )}
-      {Platform.OS === "web" ? <Text selectable {...textProps} style={style}>
+      {Platform.OS === "web" ? <Text selectable {...selectionColorProps()} {...textProps} style={style}>
         {chunks}
       </Text> : nativeChunks.filter((chunk) => chunk.offset === 0 && chunk.from + chunk.lines.length > from).map((chunk) => (
         lines[chunk.from]!.length > TEXT_CHUNK_CHARS

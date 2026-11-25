@@ -19,6 +19,7 @@ import { HoverControl } from "../hover-control";
 import { tipProps } from "./card-hints";
 import { PreferenceSyncSlot } from "../../state/preference-sync-slot";
 import { TranslationSettingsParentCloseContext } from "../../translation/navigation";
+import { selectionColorProps } from "../../components/text-selection";
 
 export function TaskQuestionDialog(props: {
   store: QuestionDialogStore;
@@ -113,7 +114,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
               <View style={{ flexDirection: "row", alignItems: "center", gap: 6 }}><ProjectIcon location={card.location} size={16} /><Text numberOfLines={1} style={[meta, { flex: 1 }]}>{[card.location.projectName, card.location.workspaceTitle ?? card.location.workspaceName].filter(Boolean).join(" › ")}</Text>
                 {props.onOpen ? <HoverControl base={colors.surface0} foreground={colors.foreground} testID="task-question-open" accessibilityRole="button" accessibilityLabel={cardStrings(props.language).openTab} onPress={() => props.onOpen?.(card.id)} style={{ width: 28, height: 28, alignItems: "center", justifyContent: "center", borderWidth: 1, borderRadius: 14, borderColor: "transparent" }}><Icon name="ArrowUpRight" size={16} color={colors.foregroundMuted} /></HoverControl> : null}
               </View>
-              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><StatusIcon kind={card.status} size={16} height={HOST_LINE.base} theme={props.theme} animated={false} /><Text selectable style={[prose, { flex: 1, fontWeight: "600" }]}>{card.title}</Text></View>
+              <View style={{ flexDirection: "row", alignItems: "flex-start", gap: 8 }}><StatusIcon kind={card.status} size={16} height={HOST_LINE.base} theme={props.theme} animated={false} /><Text selectable {...selectionColorProps()} style={[prose, { flex: 1, fontWeight: "600" }]}>{card.title}</Text></View>
               <View style={{ flexDirection: "row", flexWrap: "wrap", gap: 6 }}><View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: neutral.background }}><BrandMark provider={card.provider} size={14} tokens={tokens} /><Text style={[meta, { color: neutral.text }]}>{[card.providerLabel, card.modelLabel, card.thinkingLabel].filter(Boolean).join(" · ")}</Text></View>
                 {card.location.branch ? <View style={{ flexDirection: "row", alignItems: "center", gap: 5, paddingHorizontal: 9, paddingVertical: 5, borderRadius: 99, backgroundColor: branch.background }}><Icon name="GitBranch" size={14} color={branch.icon} /><Text style={[meta, { color: branch.text }]}>{card.location.branch}</Text></View> : null}
               </View>
@@ -125,7 +126,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
             </View></ScrollView> : null}
             {questions?.map((q, i) => i !== index ? null : <View key={i} testID="task-question-field" style={{ gap: 10 }}>
               <Text style={meta}>{q.header} · {q.options.length ? q.multiSelect ? words.multiple : words.single : words.text}</Text>
-              <Text selectable style={[prose, { fontWeight: "600" }]}>{q.question}</Text>
+              <Text selectable {...selectionColorProps()} style={[prose, { fontWeight: "600" }]}>{q.question}</Text>
               {q.options.map((option, optionIndex) => {
                 const checked = state.draft.selections[index]?.includes(optionIndex) === true;
                 return <HoverControl base={checked ? colors.surface2 : colors.surface0} foreground={colors.foreground} rest={checked ? colors.surface2 : colors.surface0} key={optionIndex} testID={`task-question-option-${index}-${optionIndex}`} accessibilityRole={q.multiSelect ? "checkbox" : "radio"}
@@ -154,7 +155,7 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
                   fontSize: Math.round(F.base * scale), lineHeight: Math.round(HOST_LINE.base * scale), padding: 12, textAlignVertical: "top" }} /> : null}
               {q.allowEmpty && q.options.length === 0 ? <Text style={meta}>{words.optional}</Text> : null}
             </View>)}
-            {!questions ? <Text selectable style={prose}>{state.permission.summary ?? state.permission.title}</Text> : null}
+            {!questions ? <Text selectable {...selectionColorProps()} style={prose}>{state.permission.summary ?? state.permission.title}</Text> : null}
             {stale || !supported ? <Text accessibilityRole="alert" style={[meta, { color: colors.statusWarning }]}>{stale ? words.changed : words.unsupported}</Text> : null}
             {!draftSupported ? <Text accessibilityRole="alert" style={[meta, { color: colors.statusWarning }]}>{words.codexComma}</Text> : null}
             {state.error ? <Text accessibilityRole="alert" style={[meta, { color: colors.statusDanger }]}>{words.failed(state.error)}</Text> : null}

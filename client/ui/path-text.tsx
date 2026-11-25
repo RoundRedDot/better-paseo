@@ -26,6 +26,7 @@ import { HoverPreview, HoverPreviewBody, HoverPreviewHeader, RowLongPressContext
 import { ToolbarCopyButton } from "./toolbar-button";
 import { RowBodyPressContext, RowPaletteContext } from "./disclosure-header";
 import { useContainerButton } from "./container-button";
+import { selectionColorProps } from "../components/text-selection";
 
 /** Where paths are made relative to, for one renderer (plan §3.9 item 3). */
 export interface PathContextValue {
@@ -304,7 +305,7 @@ export function PathText({
           <ToolbarCopyButton text={formatted.absolutePath} icon="Link" tokens={tokens} label="Copy path" />
         </HoverPreviewHeader>
         <HoverPreviewBody>
-          <Text {...(codeSurface as object)} selectable style={[styles.tooltipText, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
+          <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={[styles.tooltipText, { color: tokens.foreground, fontFamily: tokens.fontMono }]}>
             {shortenHome(formatted.absolutePath, context.home)}{formatted.suffix}
           </Text>
         </HoverPreviewBody>

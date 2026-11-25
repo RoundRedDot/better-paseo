@@ -67,6 +67,7 @@ import { describeMonoSource } from "./settings-mono-source";
 import { ProviderLogo, providerBrand } from "./components/provider-logo";
 import { tildePath } from "./tasks/cards/format";
 import { releaseNoteLine } from "./release-notes";
+import { selectionColorProps } from "./components/text-selection";
 
 /** What the settings page says about the daemon store, or null when all is well. */
 function storageHint(sync: SyncStatus, t: SettingsStrings): string | null {
@@ -720,7 +721,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
       <Icon name={expanded ? "ChevronDown" : "ChevronRight"} size={14} color={tokens.foregroundSubtle} />
     </Pressable>
     {expanded ? <View testID={`agent-version-details-${entry.provider}`} style={[styles.agentDetails, { paddingLeft: compact ? space.lg : 58 }]}>
-      <Text selectable style={[text, { fontFamily: tokens.fontMono }]}>{executable}</Text>
+      <Text selectable {...selectionColorProps()} style={[text, { fontFamily: tokens.fontMono }]}>{executable}</Text>
       <View style={styles.agentDetailLine}>
         <Text style={text}>{t.versionInstalled}: {entry.current ?? "—"}</Text>
         <Text style={text}>{entry.status === "reference" ? t.agentReferenceLabel : t.versionDirectory}: {entry.latest ?? "—"}</Text>
@@ -733,7 +734,7 @@ function AgentVersionRow({ entry, look }: { entry: AgentUpdate; look: PageLook }
           <PlainButton label={t.versionWorkspaceTerminal} disabled onPress={() => {}} look={look} />
           {entry.command ? <PlainButton label={copied ? t.versionCommandCopied : t.versionCopyCommand} onPress={() => { void copy(entry.command!); }} look={look} /> : null}
         </View>
-        {entry.command ? <Text selectable style={[text, { fontFamily: tokens.fontMono }]}>{entry.command}</Text> : <Text style={text}>{t.agentOriginalInstaller}</Text>}
+        {entry.command ? <Text selectable {...selectionColorProps()} style={[text, { fontFamily: tokens.fontMono }]}>{entry.command}</Text> : <Text style={text}>{t.agentOriginalInstaller}</Text>}
         <Text style={text}>{t.versionWorkspaceTerminalUnavailable}</Text>
       </> : null}
     </View> : null}

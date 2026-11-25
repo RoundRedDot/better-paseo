@@ -6,6 +6,7 @@ import { ProviderLogo } from "./provider-logo";
 import { space, withAlpha, type ExtendedThemeTokens } from "./theme-tokens";
 import { providerName } from "../tools/agent-row";
 import type { PaseoCatalogData, PaseoCatalogMode } from "../../shared/contracts";
+import { selectionColorProps } from "./text-selection";
 
 interface Appearance { tokens: ExtendedThemeTokens }
 
@@ -33,7 +34,7 @@ export function CatalogView({ data, tokens, raw = false, compact = false }: Appe
           {provider.modes.map((mode) => <ModeLine key={mode.id} mode={mode} tokens={tokens} />)}
         </AgentSection> : null}
         {data.features?.length ? <AgentSection label="Features" tokens={tokens}>
-          {data.features.map((feature) => <Text key={feature.label} selectable style={[styles.fact, muted(tokens)]}>
+          {data.features.map((feature) => <Text key={feature.label} selectable {...selectionColorProps()} style={[styles.fact, muted(tokens)]}>
             {feature.label}<Text style={{ color: tokens.foreground }}>{feature.value ? `  ${feature.value}` : ""}</Text></Text>)}
         </AgentSection> : null}
       </View>;
@@ -41,14 +42,14 @@ export function CatalogView({ data, tokens, raw = false, compact = false }: Appe
     case "models": return <Rows testID="catalog-models" empty="No models returned" tokens={tokens}>
       {data.models?.map((model) => <View key={model.id} testID={`catalog-model-${model.id}`} style={styles.block}>
         <View style={styles.head}>
-          <Text selectable style={[styles.name, strong(tokens)]}>{model.label}</Text>
+          <Text selectable {...selectionColorProps()} style={[styles.name, strong(tokens)]}>{model.label}</Text>
           {model.isDefault ? <Badge label="default" tokens={tokens} /> : null}
-          <Text selectable numberOfLines={1} style={[styles.id, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}>{model.id}</Text>
+          <Text selectable {...selectionColorProps()} numberOfLines={1} style={[styles.id, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}>{model.id}</Text>
         </View>
-        {model.description ? <Text selectable style={[styles.detail, muted(tokens)]}>{model.description}</Text> : null}
+        {model.description ? <Text selectable {...selectionColorProps()} style={[styles.detail, muted(tokens)]}>{model.description}</Text> : null}
         {model.thinking.length ? <View style={styles.line}>
           <Icon name="Brain" size={12} color={tokens.foregroundMuted} />
-          <Text selectable style={[styles.detail, muted(tokens), styles.shrink]}>
+          <Text selectable {...selectionColorProps()} style={[styles.detail, muted(tokens), styles.shrink]}>
             {model.thinking.map((level, index) => <Text key={level} style={level === model.defaultThinking ?
               { color: tokens.foreground, fontWeight: "600" } : undefined}>{index ? ` · ${level}` : level}</Text>)}
           </Text>
@@ -59,18 +60,18 @@ export function CatalogView({ data, tokens, raw = false, compact = false }: Appe
       {data.profiles?.map((profile) => <View key={profile.id} testID={`catalog-profile-${profile.id}`} style={styles.block}>
         <View style={styles.head}>
           <Icon name={lucideName(profile.icon) ?? "UserRound"} size={14} color={tokens.accent} />
-          <Text selectable style={[styles.name, strong(tokens), styles.shrink]}>{profile.name}</Text>
+          <Text selectable {...selectionColorProps()} style={[styles.name, strong(tokens), styles.shrink]}>{profile.name}</Text>
         </View>
         <View style={styles.facts}>
           <View style={styles.line}>
             <ProviderLogo provider={profile.provider} size={12} neutralColor={tokens.foregroundMuted} />
-            <Text selectable numberOfLines={1} style={[styles.detail, muted(tokens), styles.shrink]}>
+            <Text selectable {...selectionColorProps()} numberOfLines={1} style={[styles.detail, muted(tokens), styles.shrink]}>
               {profile.model ?? providerName(profile.provider)}</Text>
           </View>
           {profile.thinkingOptionId ? <Fact icon="Brain" label={profile.thinkingOptionId} tokens={tokens} /> : null}
           {profile.modeId ? <Fact icon="Shield" label={profile.modeId} tokens={tokens} /> : null}
         </View>
-        {profile.notes ? <Text selectable style={[styles.detail, muted(tokens)]}>{profile.notes}</Text> : null}
+        {profile.notes ? <Text selectable {...selectionColorProps()} style={[styles.detail, muted(tokens)]}>{profile.notes}</Text> : null}
       </View>)}
     </Rows>;
   }
@@ -82,14 +83,14 @@ function ProviderBlock({ provider, tokens, showModes = true }: Appearance & {
   return <View testID={`catalog-provider-${provider.id}`} style={[styles.block, !provider.available && { opacity: 0.55 }]}>
     <View style={styles.head}>
       <ProviderLogo provider={provider.id} size={14} neutralColor={tokens.foregroundMuted} />
-      <Text selectable style={[styles.name, strong(tokens)]}>{provider.label}</Text>
-      <Text selectable numberOfLines={1} style={[styles.id, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}>{provider.id}</Text>
+      <Text selectable {...selectionColorProps()} style={[styles.name, strong(tokens)]}>{provider.label}</Text>
+      <Text selectable {...selectionColorProps()} numberOfLines={1} style={[styles.id, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}>{provider.id}</Text>
       <View style={styles.state}>
         <View style={[styles.dot, { backgroundColor: provider.available ? tokens.success : agentStateColor(undefined, tokens) }]} />
         <Text style={[styles.detail, muted(tokens)]}>{provider.available ? "available" : "unavailable"}</Text>
       </View>
     </View>
-    {provider.description ? <Text selectable style={[styles.detail, muted(tokens)]}>{provider.description}</Text> : null}
+    {provider.description ? <Text selectable {...selectionColorProps()} style={[styles.detail, muted(tokens)]}>{provider.description}</Text> : null}
     {showModes && provider.modes.length ? <View style={styles.facts}>
       {provider.modes.map((mode) => <Fact key={mode.id} icon={lucideName(mode.icon) ?? "Shield"}
         iconColor={modeColor(mode.colorTier, tokens)} label={mode.label} tokens={tokens} />)}
@@ -100,7 +101,7 @@ function ProviderBlock({ provider, tokens, showModes = true }: Appearance & {
 function ModeLine({ mode, tokens }: Appearance & { mode: PaseoCatalogMode }) {
   return <View style={[styles.line, styles.modeLine]}>
     <View style={styles.iconSlot}><Icon name={lucideName(mode.icon) ?? "Shield"} size={12} color={modeColor(mode.colorTier, tokens)} /></View>
-    <Text selectable style={[styles.detail, muted(tokens), styles.shrink]}>
+    <Text selectable {...selectionColorProps()} style={[styles.detail, muted(tokens), styles.shrink]}>
       <Text style={{ color: tokens.foreground, fontWeight: "500" }}>{mode.label}</Text>
       {mode.description ? `  ${mode.description}` : ""}</Text>
   </View>;
@@ -115,7 +116,7 @@ function Rows({ testID, empty, tokens, children }: Appearance & { testID: string
 function Fact({ icon, iconColor, label, tokens }: Appearance & { icon: string; iconColor?: string; label: string }) {
   return <View style={styles.line}>
     <Icon name={icon} size={12} color={iconColor ?? tokens.foregroundMuted} />
-    <Text selectable numberOfLines={1} style={[styles.detail, muted(tokens), styles.shrink]}>{label}</Text>
+    <Text selectable {...selectionColorProps()} numberOfLines={1} style={[styles.detail, muted(tokens), styles.shrink]}>{label}</Text>
   </View>;
 }
 

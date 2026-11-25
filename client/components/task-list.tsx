@@ -24,6 +24,7 @@ import { BlockPlacementContext } from "../details/contracts";
 import { useEnhancerPreferences } from "../preferences";
 import { detailsApi } from "../details/details-store";
 import { RowMenu, type RowMenuAnchor } from "../details/row-menu";
+import { selectionColorProps } from "./text-selection";
 
 /** The checklist's floating panel: the row preview's own (`useHoverPreview`). */
 export type TaskListPanelControl = ReturnType<typeof useHoverPreview>;
@@ -403,7 +404,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
               )}
               <Text
                 // A long press opens the panel, where the titles are selectable.
-                selectable={!longPress}
+                selectable={!longPress} {...selectionColorProps()}
                 numberOfLines={isOpen ? 0 : 1}
                 {...(full
                   ? null
@@ -432,14 +433,14 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
                 </Text>
               ) : null}
               {task.duration ? (
-                <Text selectable style={[styles.meta, isOpen && styles.firstLine]}>
+                <Text selectable {...selectionColorProps()} style={[styles.meta, isOpen && styles.firstLine]}>
                   {task.duration}
                 </Text>
               ) : null}
             </View>
             {isBlocked && isBlockedOpen && task.blockerReason ? (
               <FadeIn style={styles.reason}>
-                <Text selectable style={styles.reasonText}>
+                <Text selectable {...selectionColorProps()} style={styles.reasonText}>
                   {task.blockerReason}
                 </Text>
               </FadeIn>

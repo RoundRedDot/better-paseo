@@ -166,7 +166,7 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(0);
     tap(index, 230);
     expect(selectedCopy()).toHaveLength(1);
-    expect(tokens.textSelection).toBe("rgba(59, 111, 224, 0.07)");
+    expect(tokens.textSelection).toBe("rgba(28, 118, 242, 0.2)");
     expect(tokens.textSelection).not.toBe(tokens.accentBg);
     expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(tokens.textSelection);
     const menu = selectedCopy()[0]!;
@@ -183,14 +183,14 @@ describe("Markdown table copy", () => {
   });
 
   it.each([
-    ["light header", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(59, 111, 224, 0.07)", "#e4e4e6", 0],
-    ["light body", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(59, 111, 224, 0.07)", "#e4e4e6", 2],
-    ["dark header", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(130, 170, 255, 0.1)", "#36363a", 0],
-    ["dark body", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(130, 170, 255, 0.1)", "#36363a", 2],
-  ] as const)("distinguishes the accent selection from the stronger %s", (_theme, surface0, surface2, foreground, accent, fill, headerFill, index) => {
+    ["light header", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(28, 118, 242, 0.2)", "#e4e4e6", 0],
+    ["light body", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(28, 118, 242, 0.2)", "#e4e4e6", 2],
+    ["dark header", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(28, 118, 242, 0.3)", "#36363a", 0],
+    ["dark body", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(28, 118, 242, 0.3)", "#36363a", 2],
+  ] as const)("distinguishes blue selection from the stronger %s", (_theme, surface0, surface2, foreground, accent, fill, headerFill, index) => {
     const themed = buildThemeTokens({ ...colors, surface0, surface2, foreground, accent });
-    // The host accent, not the chat's accent preset, as on the Tasks board's current card.
-    expect(buildThemeTokens({ ...colors, surface0, foreground, accent }, { ...DEFAULT_PREFERENCES, accent: PRESET } as never).textSelection).toBe(fill);
+    // Neither the host accent nor the chat's accent preset moves it.
+    expect(buildThemeTokens({ ...colors, surface0, foreground, accent: "#e05030" }, { ...DEFAULT_PREFERENCES, accent: PRESET } as never).textSelection).toBe(fill);
     act(() => {
       renderer = TestRenderer.create(React.createElement(MarkdownView, {
         text: "| A | B |\n| --- | --- |\n| one | two |", tokens: themed,

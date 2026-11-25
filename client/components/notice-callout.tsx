@@ -10,6 +10,7 @@ import { DISCLOSURE_HEADER } from "../ui/disclosure-header";
 import { FadeIn } from "../ui/fade-in";
 import { formatStamp } from "../ui/time";
 import type { NoticeCalloutData } from "../../shared/contracts";
+import { selectionColorProps } from "./text-selection";
 
 interface NoticeCalloutProps {
   data: NoticeCalloutData;
@@ -191,7 +192,7 @@ export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCallo
           </>
         ) : (
           <Text
-            selectable={open}
+            selectable={open} {...selectionColorProps()}
             numberOfLines={open && !asData ? undefined : 1}
             style={[styles.message, { fontWeight: look.weight }]}
           >
@@ -203,7 +204,7 @@ export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCallo
       </Pressable>
       {asData && open ? (
         <FadeIn style={styles.dataBlock}>
-          <Text selectable {...selectionCodeText} style={styles.dataText}>
+          <Text selectable {...selectionColorProps()} {...selectionCodeText} style={styles.dataText}>
             {renderTerminalOutput(message, tokens)}
           </Text>
         </FadeIn>

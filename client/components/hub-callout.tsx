@@ -28,6 +28,7 @@ import type {
   HubWaitedData,
 } from "../../shared/contracts";
 import { TYPE, UI_SCALE } from "../ui/tokens/typography";
+import { selectionColorProps } from "./text-selection";
 
 interface HubCalloutProps {
   data: HubData;
@@ -214,11 +215,11 @@ function HubHeader({
     <View style={styles.header}>
       <View style={styles.titleRow}>
         <Glyph name={icon} size={14} color={tokens.foregroundMuted} />
-        <Text selectable style={styles.opBadge}>
+        <Text selectable {...selectionColorProps()} style={styles.opBadge}>
           hub {op}
         </Text>
         {detail ? (
-          <Text selectable style={styles.headline} numberOfLines={1}>
+          <Text selectable {...selectionColorProps()} style={styles.headline} numberOfLines={1}>
             {detail}
           </Text>
         ) : null}
@@ -241,7 +242,7 @@ function Chip({
 }) {
   return (
     <Text
-      selectable
+      selectable {...selectionColorProps()}
       style={[plain ? styles.chipPlain : styles.chip, { color: tone.fg }]}
     >
       {label}
@@ -253,7 +254,7 @@ function Chip({
 function MessageBody({ body, styles }: { body: string; styles: HubStyles }) {
   return (
     <View style={styles.messageBox}>
-      <Text {...(codeSurface as object)} selectable style={styles.messageText}>
+      <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={styles.messageText}>
         {body}
       </Text>
     </View>
@@ -274,7 +275,7 @@ function TerminalBlock({
 }) {
   return (
     <View style={styles.codeBlock}>
-      <Text selectable {...selectionCodeText} style={styles.codeText}>
+      <Text selectable {...selectionColorProps()} {...selectionCodeText} style={styles.codeText}>
         {renderTerminalOutput(text, tokens)}
       </Text>
       {footer ?? null}
@@ -399,7 +400,7 @@ function SendView({ data, text, tokens, styles }: HubViewProps<HubSendData>) {
         styles={styles}
         trailing={
           data.replyTo ? (
-            <Text selectable style={styles.figure}>
+            <Text selectable {...selectionColorProps()} style={styles.figure}>
               reply to {data.replyTo}
             </Text>
           ) : null
@@ -415,11 +416,11 @@ function SendView({ data, text, tokens, styles }: HubViewProps<HubSendData>) {
             tone={receiptTone(receipt.outcome, tokens)}
             styles={styles}
           />
-          <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
+          <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={styles.rowLabel} numberOfLines={1}>
             {receipt.to}
           </Text>
           {receipt.error ? (
-            <Text selectable style={styles.errorText}>
+            <Text selectable {...selectionColorProps()} style={styles.errorText}>
               {receipt.error}
             </Text>
           ) : null}
@@ -430,16 +431,16 @@ function SendView({ data, text, tokens, styles }: HubViewProps<HubSendData>) {
         data.reply ? (
           <View style={styles.replyBox}>
             <View style={styles.rowHead}>
-              <Text selectable style={styles.sender}>
+              <Text selectable {...selectionColorProps()} style={styles.sender}>
                 {data.reply.from}
               </Text>
               {typeof data.reply.ts === "number" ? (
-                <Text selectable style={styles.figure}>
+                <Text selectable {...selectionColorProps()} style={styles.figure}>
                   {formatAge(data.reply.ts)}
                 </Text>
               ) : null}
             </View>
-            <Text selectable style={styles.replyText}>
+            <Text selectable {...selectionColorProps()} style={styles.replyText}>
               {data.reply.body}
             </Text>
           </View>
@@ -466,7 +467,7 @@ function WaitedView({ data, text, tokens, styles }: HubViewProps<HubWaitedData>)
         styles={styles}
         trailing={
           typeof data.timeoutMs === "number" ? (
-            <Text selectable style={styles.figure}>
+            <Text selectable {...selectionColorProps()} style={styles.figure}>
               timeout {formatDuration(data.timeoutMs)}
             </Text>
           ) : null
@@ -477,12 +478,12 @@ function WaitedView({ data, text, tokens, styles }: HubViewProps<HubWaitedData>)
         <>
           <View style={styles.rowHead}>
             {message.replyTo ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 reply to {message.replyTo}
               </Text>
             ) : null}
             {typeof message.ts === "number" ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 {formatAge(message.ts)}
               </Text>
             ) : null}
@@ -522,21 +523,21 @@ function InboxView({ data, text, tokens, styles }: HubViewProps<HubInboxData>) {
       {data.messages.map((message, index) => (
         <View key={message.id ?? `inbox-${index}`} style={styles.stackRow}>
           <View style={styles.rowHead}>
-            <Text selectable style={styles.sender}>
+            <Text selectable {...selectionColorProps()} style={styles.sender}>
               {message.from}
             </Text>
             {message.replyTo ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 reply to {message.replyTo}
               </Text>
             ) : null}
             {typeof message.ts === "number" ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 {formatAge(message.ts)}
               </Text>
             ) : null}
           </View>
-          <Text selectable style={styles.bodyText}>
+          <Text selectable {...selectionColorProps()} style={styles.bodyText}>
             {message.body}
           </Text>
         </View>
@@ -586,16 +587,16 @@ function PeersView({ data, text, tokens, styles }: HubViewProps<HubPeersData>) {
         <View key={peer.id} style={styles.stackRow}>
           <View style={styles.rowHead}>
             <Chip label={peer.status} tone={peerTone(peer.status, tokens)} styles={styles} />
-            <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
+            <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={styles.rowLabel} numberOfLines={1}>
               {peer.id}
             </Text>
             {peer.displayName && peer.displayName !== peer.id ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 {peer.displayName}
               </Text>
             ) : null}
             {peer.kind ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 {peer.kind}
               </Text>
             ) : null}
@@ -608,13 +609,13 @@ function PeersView({ data, text, tokens, styles }: HubViewProps<HubPeersData>) {
               />
             ) : null}
             {typeof peer.lastActivity === "number" ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 {formatAge(peer.lastActivity)}
               </Text>
             ) : null}
           </View>
           {peer.activity ? (
-            <Text selectable style={styles.subtleBody}>
+            <Text selectable {...selectionColorProps()} style={styles.subtleBody}>
               {peer.activity}
             </Text>
           ) : null}
@@ -677,11 +678,11 @@ function JobsView({ data, text, tokens, styles }: HubViewProps<HubJobsData>) {
           {cancelled.map((row) => (
             <View key={row.id} style={styles.rowHead}>
               <Chip label={row.status} tone={jobTone(row.status, tokens)} styles={styles} />
-              <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
+              <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={styles.rowLabel} numberOfLines={1}>
                 {row.id}
               </Text>
               {row.message ? (
-                <Text selectable style={styles.figure}>
+                <Text selectable {...selectionColorProps()} style={styles.figure}>
                   {row.message}
                 </Text>
               ) : null}
@@ -757,7 +758,7 @@ function JobModel({
 
   if (!model || uri === null || (uri !== undefined && uri === failedUri)) {
     return (
-      <Text selectable style={styles.figure}>
+      <Text selectable {...selectionColorProps()} style={styles.figure}>
         {value}
       </Text>
     );
@@ -779,7 +780,7 @@ function JobModel({
           onError={() => setFailedUri(uri)}
         />
       )}
-      <Text selectable style={styles.figure}>
+      <Text selectable {...selectionColorProps()} style={styles.figure}>
         {model}
       </Text>
       {effort ? (
@@ -810,14 +811,14 @@ function JobRow({
     <View style={styles.stackRow}>
       <RunningJobHead running={running} tokens={tokens} styles={styles}>
         <Chip label={job.status} tone={jobTone(job.status, tokens)} styles={styles} />
-        <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
+        <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={styles.rowLabel} numberOfLines={1}>
           {job.id}
         </Text>
-        <Text selectable style={styles.figure}>
+        <Text selectable {...selectionColorProps()} style={styles.figure}>
           {job.type}
         </Text>
         {typeof job.durationMs === "number" ? (
-          <Text selectable style={styles.figure}>
+          <Text selectable {...selectionColorProps()} style={styles.figure}>
             {formatDuration(job.durationMs)}
           </Text>
         ) : null}
@@ -825,7 +826,7 @@ function JobRow({
 
       {job.label ? (
         // A bash job's label is its whole command, sometimes an inline script.
-        <Text selectable style={styles.subtleBody} numberOfLines={2}>
+        <Text selectable {...selectionColorProps()} style={styles.subtleBody} numberOfLines={2}>
           {job.label}
         </Text>
       ) : null}
@@ -840,7 +841,7 @@ function JobRow({
       ) : null}
 
       {job.errorText ? (
-        <Text selectable style={styles.errorText}>
+        <Text selectable {...selectionColorProps()} style={styles.errorText}>
           {job.errorText}
         </Text>
       ) : null}
@@ -851,16 +852,16 @@ function JobRow({
 
       {schema ? (
         <View style={styles.rowHead}>
-          <Text selectable style={styles.figure}>
+          <Text selectable {...selectionColorProps()} style={styles.figure}>
             schema {schema.status}
           </Text>
           {schema.error ? (
-            <Text selectable style={styles.errorText}>
+            <Text selectable {...selectionColorProps()} style={styles.errorText}>
               {schema.error}
             </Text>
           ) : null}
           {schema.agentUrl ? (
-            <Text selectable style={styles.figure} numberOfLines={1}>
+            <Text selectable {...selectionColorProps()} style={styles.figure} numberOfLines={1}>
               {schema.agentUrl}
             </Text>
           ) : null}
@@ -882,16 +883,16 @@ function AgentRow({
   return (
     <View style={styles.stackRow}>
       <View style={styles.rowHead}>
-        <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
+        <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={styles.rowLabel} numberOfLines={1}>
           {agent.id}
         </Text>
         {agent.parentId ? (
-          <Text selectable style={styles.figure}>
+          <Text selectable {...selectionColorProps()} style={styles.figure}>
             under {agent.parentId}
           </Text>
         ) : null}
         {typeof agent.ageMs === "number" ? (
-          <Text selectable style={styles.figure}>
+          <Text selectable {...selectionColorProps()} style={styles.figure}>
             {formatDuration(agent.ageMs)}
           </Text>
         ) : null}
@@ -905,7 +906,7 @@ function AgentRow({
         ) : null}
       </View>
       {agent.activity ? (
-        <Text selectable style={styles.subtleBody}>
+        <Text selectable {...selectionColorProps()} style={styles.subtleBody}>
           {agent.activity}
         </Text>
       ) : null}
@@ -961,28 +962,28 @@ function ProcessView({ data, text, tokens, styles }: HubViewProps<HubProcessData
       {spec ? (
         <View style={styles.codeBlock}>
           {launch ? (
-            <Text selectable {...selectionCodeText} style={styles.codeText}>
+            <Text selectable {...selectionColorProps()} {...selectionCodeText} style={styles.codeText}>
               {launch}
             </Text>
           ) : null}
           <View style={styles.rowHead}>
             {spec.cwd ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 cwd {shortenHome(spec.cwd, home)}
               </Text>
             ) : null}
             {spec.restart ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 restart {spec.restart}
               </Text>
             ) : null}
             {spec.readyLog ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 ready log {spec.readyLog}
               </Text>
             ) : null}
             {typeof spec.readyPort === "number" ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 ready port {spec.readyPort}
               </Text>
             ) : null}
@@ -994,7 +995,7 @@ function ProcessView({ data, text, tokens, styles }: HubViewProps<HubProcessData
       {data.matched ? (
         <View style={styles.rowHead}>
           <Text style={styles.sectionLabel}>Matched</Text>
-          <Text {...(codeSurface as object)} selectable style={styles.rowLabel}>
+          <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={styles.rowLabel}>
             {data.matched}
           </Text>
         </View>
@@ -1014,7 +1015,7 @@ function ProcessView({ data, text, tokens, styles }: HubViewProps<HubProcessData
           styles={styles}
           footer={
             typeof data.cursor === "number" ? (
-              <Text selectable style={styles.figure}>
+              <Text selectable {...selectionColorProps()} style={styles.figure}>
                 cursor {data.cursor}
               </Text>
             ) : null
@@ -1042,21 +1043,21 @@ function DaemonRow({
     <View style={styles.stackRow}>
       <View style={styles.rowHead}>
         <Chip label={row.state} tone={daemonTone(row.state, tokens)} styles={styles} />
-        <Text {...(codeSurface as object)} selectable style={styles.rowLabel} numberOfLines={1}>
+        <Text {...(codeSurface as object)} selectable {...selectionColorProps()} style={styles.rowLabel} numberOfLines={1}>
           {row.name}
         </Text>
         {typeof row.pid === "number" ? (
-          <Text selectable style={styles.figure}>
+          <Text selectable {...selectionColorProps()} style={styles.figure}>
             pid {row.pid}
           </Text>
         ) : null}
         {row.restarts ? (
-          <Text selectable style={styles.figure}>
+          <Text selectable {...selectionColorProps()} style={styles.figure}>
             {row.restarts} restarts
           </Text>
         ) : null}
         {typeof row.exitCode === "number" ? (
-          <Text selectable style={row.exitCode === 0 ? styles.figure : styles.errorText}>
+          <Text selectable {...selectionColorProps()} style={row.exitCode === 0 ? styles.figure : styles.errorText}>
             {exitMark(row.exitCode)}
           </Text>
         ) : null}
@@ -1065,17 +1066,17 @@ function DaemonRow({
       {detailed ? (
         <View style={styles.rowHead}>
           {row.exitReason ? (
-            <Text selectable style={styles.figure}>
+            <Text selectable {...selectionColorProps()} style={styles.figure}>
               {row.exitReason}
             </Text>
           ) : null}
           {row.readyMatch ? (
-            <Text selectable style={styles.figure}>
+            <Text selectable {...selectionColorProps()} style={styles.figure}>
               match {row.readyMatch}
             </Text>
           ) : null}
           {typeof row.startedAt === "number" ? (
-            <Text selectable style={styles.figure}>
+            <Text selectable {...selectionColorProps()} style={styles.figure}>
               started {formatAge(row.startedAt)}
             </Text>
           ) : null}

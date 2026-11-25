@@ -8,6 +8,7 @@ import { FadeIn } from "../../../ui/fade-in";
 import { codeSurface } from "../../host-font-escape";
 import { codeLanguage, fenceClosed } from "./text";
 import { MarkdownCodePreview } from "./code-preview";
+import { selectionColorProps } from "../../text-selection";
 
 function lineCount(code: string): number {
   let count = 1;
@@ -38,7 +39,7 @@ export function CodeBlock({
   const language = lang === "" ? "plaintext" : lang;
   const lines = lineCount(token.text);
 
-  if (context.renderText) return <View style={styles.codeBlock}><Text selectable {...(codeSurface as object)} style={styles.plain}>{context.renderText(token.text)}</Text></View>;
+  if (context.renderText) return <View style={styles.codeBlock}><Text selectable {...selectionColorProps()} {...(codeSurface as object)} style={styles.plain}>{context.renderText(token.text)}</Text></View>;
 
   if (collapseCode && variant === "compact" && !expanded) {
     return (
