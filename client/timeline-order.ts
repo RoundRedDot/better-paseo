@@ -127,16 +127,28 @@ interface AgentTimeline {
   superseded: Set<Entry>;
   /** Call ids mounted more than once, as of the last rebuild. */
   repeated: Set<string>;
+  /** Neighbour queries over the mounted entries, excluding the last known superseded rows. */
+  lookup?: TimelineLookup;
   /** `lowestTiedKey` for the moment it was last asked about, until an item mounts or unmounts. */
   lowest?: { at: number; key: string | null };
+  /** Copies of one tied item that could not be placed on the last scan. */
+  unplacedTie?: { at: number; entries: Entry[] };
 }
+
+// A streamed result replaces its ToolCallView, so earlier views can keep their score.
+const toolProgress = new WeakMap<ToolCallView, [number, number]>();
 
 /**
  * Settled before running, then the more the call has to say. A call only
  * gains: a status settles, a detail fills in, output grows.
  */
 function callProgress(tool: ToolCallView): [number, number] {
-  return [tool.status === "running" ? 0 : 1, JSON.stringify(tool).length];
+  let progress = toolProgress.get(tool);
+  if (!progress) {
+    progress = [tool.status === "running" ? 0 : 1, JSON.stringify(tool).length];
+    toolProgress.set(tool, progress);
+  }
+  return progress;
 }
 
 /**
@@ -161,6 +173,7 @@ function leftBehind(entries: Iterable<Entry>): { superseded: Set<Entry>; repeate
   }
   const superseded = new Set<Entry>();
   const repeated = new Set<string>();
+  const splitCalls = new Set<string>();
   for (const [id, list] of byId) {
     if (list.length < 2) continue;
     repeated.add(id);
@@ -172,8 +185,9 @@ function leftBehind(entries: Iterable<Entry>): { superseded: Set<Entry>; repeate
     });
     const copies = hostDuplicates(list.filter((entry) => !superseded.has(entry)));
     for (const entry of copies) superseded.add(entry);
-    if (copies.length > 0) countCopiesBelow(list, entries);
+    if (copies.length > 0) splitCalls.add(id);
   }
+  if (splitCalls.size > 0) countCopiesBelow(splitCalls, entries);
   return { superseded, repeated };
 }
 
@@ -229,26 +243,66 @@ function sameItem(a: Entry, b: Entry): boolean {
   return a.stamp !== undefined && a.stamp === b.stamp;
 }
 
+function columnCell(coordinate: number): number {
+  // A difference can round down to 1 across zero. Use wider cells, then
+  // apply the original one-point comparison to the candidates.
+  return Math.floor(coordinate / 2);
+}
+
 /**
  * The host hangs its gap under every item, a hidden copy too, so a copy left
  * a blank gap in the list. A row drawing the call takes back the gaps of the
  * hidden copies right under it, before any other item of its column; a copy
  * with something between them is not beside it.
  */
-function countCopiesBelow(list: Entry[], entries: Iterable<Entry>): void {
+function countCopiesBelow(splitCalls: Set<string>, entries: Iterable<Entry>): void {
   const placed: { entry: Entry; box: ViewBox }[] = [];
   for (const entry of entries) {
     const box = entry.measure?.() ?? null;
     if (box) placed.push({ entry, box });
   }
   placed.sort((a, b) => a.box.top - b.box.top || a.box.height - b.box.height);
+  // Keep the exact column tolerance when coordinates lie across a cell edge.
+  // Each cell holds indexes in the same order as `placed`.
+  const cells = new Map<string, number[]>();
+  placed.forEach(({ box }, index) => {
+    const key = `${columnCell(box.left)},${columnCell(box.width)}`;
+    const indexes = cells.get(key);
+    if (indexes) indexes.push(index);
+    else cells.set(key, [index]);
+  });
   for (const own of placed) {
-    if (!list.includes(own.entry) || own.entry.duplicate || own.box.height === 0) continue;
+    const id = own.entry.tool?.callId;
+    if (!id || !splitCalls.has(id) || own.entry.duplicate || own.box.height === 0) continue;
+    const left = columnCell(own.box.left);
+    const width = columnCell(own.box.width);
+    const nearby: { indexes: number[]; cursor: number }[] = [];
+    for (const x of [-1, 0, 1]) {
+      for (const w of [-1, 0, 1]) {
+        const indexes = cells.get(`${left + x},${width + w}`);
+        if (!indexes || nearby.some((cell) => cell.indexes === indexes)) continue;
+        // A row at the same top counts even if it sorts before `own`.
+        const cursor = lowerBound(indexes.length, (i) => placed[indexes[i]!]!.box.top >= own.box.top);
+        nearby.push({ indexes, cursor });
+      }
+    }
     let count = 0;
-    for (const other of placed) {
-      if (other === own || other.box.top < own.box.top) continue;
+    for (;;) {
+      let next: typeof nearby[number] | undefined;
+      let index = placed.length;
+      for (const cell of nearby) {
+        const candidate = cell.indexes[cell.cursor];
+        if (candidate !== undefined && candidate < index) {
+          index = candidate;
+          next = cell;
+        }
+      }
+      if (!next) break;
+      next.cursor++;
+      const other = placed[index]!;
+      if (other === own) continue;
       if (Math.abs(other.box.left - own.box.left) > 1 || Math.abs(other.box.width - own.box.width) > 1) continue;
-      if (!other.entry.duplicate || !list.includes(other.entry)) break;
+      if (!other.entry.duplicate || other.entry.tool?.callId !== id) break;
       count++;
     }
     if (count > 0) own.entry.copiesBelow = { count, height: own.box.height };
@@ -261,8 +315,11 @@ function* drawn(timeline: AgentTimeline): Iterable<Entry> {
 }
 
 const timelines = new Map<string, AgentTimeline>();
-const listeners = new Set<() => void>();
+const listeners = new Map<string, Set<() => void>>();
 const pendingTimelines = new Set<AgentTimeline>();
+const pendingAgents = new Set<string>();
+const pendingGapProbes = new Set<string>();
+let batchTieMeasurements: Map<AgentTimeline, { at: number; key: string | null }> | undefined;
 let notificationPending = false;
 let sequence = 0;
 
@@ -272,6 +329,17 @@ const notFollowed = () => false;
 /** Negative when `a` sits above `b`, zero when their order is unknown. */
 function compare(a: { at: number; order: number }, b: { at: number; order: number }): number {
   return a.at - b.at || a.order - b.order;
+}
+
+function lowerBound(length: number, matches: (index: number) => boolean): number {
+  let first = 0;
+  let end = length;
+  while (first < end) {
+    const middle = Math.floor((first + end) / 2);
+    if (matches(middle)) end = middle;
+    else first = middle + 1;
+  }
+  return first;
 }
 
 type Tie = Pick<Entry, "at" | "settledKey" | "callId">;
@@ -302,17 +370,24 @@ function unordered(a: Tie, b: Tie): boolean {
  */
 function lowestTiedKey(timeline: AgentTimeline, at: number): string | null {
   if (timeline.lowest?.at === at) return timeline.lowest.key;
+  // One missing key is enough to keep the tie unresolved. Recheck its copies
+  // on every read so a view becoming measurable needs no timeline update.
+  const missing = timeline.unplacedTie;
+  if (missing?.at === at && missing.entries.every((entry) => (entry.measure?.() ?? null) === null)) return null;
+  timeline.unplacedTie = undefined;
   let key: string | null = null;
   let lowest = -Infinity;
   const placed = new Set<string>();
-  const unplaced = new Set<string>();
+  const unplaced = new Map<string, Entry[]>();
   for (const entry of drawn(timeline)) {
     const own = tieKey(entry);
     if (entry.at !== at || own === undefined) continue;
     const box = entry.measure?.() ?? null;
     const y = box === null ? null : box.top + box.height / 2;
     if (y === null) {
-      unplaced.add(own);
+      const copies = unplaced.get(own);
+      if (copies) copies.push(entry);
+      else unplaced.set(own, [entry]);
       continue;
     }
     placed.add(own);
@@ -322,8 +397,24 @@ function lowestTiedKey(timeline: AgentTimeline, at: number): string | null {
     }
   }
   // A copy in a hidden pane has no size; the copy on screen places it.
-  for (const own of unplaced) if (!placed.has(own)) return null;
+  let fewestCopies: Entry[] | undefined;
+  for (const [own, copies] of unplaced) {
+    if (!placed.has(own) && (!fewestCopies || copies.length < fewestCopies.length)) fewestCopies = copies;
+  }
+  if (fewestCopies) {
+    timeline.unplacedTie = { at, entries: fewestCopies };
+    return null;
+  }
   if (key !== null) timeline.lowest = { at, key };
+  return key;
+}
+
+/** Retry unplaced entries on the next notification or an independent read. */
+function lowestTiedKeyForRead(timeline: AgentTimeline, at: number): string | null {
+  const measured = batchTieMeasurements?.get(timeline);
+  if (measured?.at === at) return measured.key;
+  const key = lowestTiedKey(timeline, at);
+  batchTieMeasurements?.set(timeline, { at, key });
   return key;
 }
 
@@ -398,6 +489,51 @@ export function probeRowGap(agentId: string): void {
   }
 }
 
+function queueRowGapProbe(agentId: string): void {
+  if (hostStacksRows() !== null) return;
+  pendingGapProbes.add(agentId);
+  publish();
+}
+
+/** For each sorted entry, whether the next strictly later position contains only rows. */
+function rowsBelow(ordered: readonly Entry[]): boolean[] {
+  const rows = new Array<boolean>(ordered.length);
+  let nextIsRow = false;
+  let allRows = false;
+  for (let index = ordered.length - 1; index >= 0; index--) {
+    const entry = ordered[index]!;
+    const after = ordered[index + 1];
+    if (!after || compare(entry, after) !== 0) {
+      nextIsRow = allRows;
+      allRows = true;
+    }
+    allRows = allRows && entry.row;
+    rows[index] = nextIsRow;
+  }
+  return rows;
+}
+
+interface TieCounts {
+  total: number;
+  byKey: Map<string, { count: number; last: number }>;
+  lastWithoutKey: number;
+}
+
+function countTie(counts: TieCounts, key: string | undefined, index: number): void {
+  if (key === undefined) {
+    counts.lastWithoutKey = Math.max(counts.lastWithoutKey, index);
+    return;
+  }
+  counts.total++;
+  const existing = counts.byKey.get(key);
+  if (existing) {
+    existing.count++;
+    existing.last = Math.max(existing.last, index);
+  } else {
+    counts.byKey.set(key, { count: 1, last: index });
+  }
+}
+
 /**
  * Regroups one agent. Only a mount, an unmount or a call changing its id,
  * operation or path gets here; a result streaming into a call patches its
@@ -409,6 +545,11 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
   if (pendingTimelines.has(timeline)) return timeline.slots;
   if (!timeline.stale) return timeline.slots;
   const { superseded, repeated } = leftBehind(timeline.entries);
+  if (superseded.size > 0 || timeline.superseded.size > 0) {
+    timeline.lookup = undefined;
+    timeline.unplacedTie = undefined;
+    batchTieMeasurements?.delete(timeline);
+  }
   timeline.superseded = superseded;
   timeline.repeated = repeated;
   const ordered = [...drawn(timeline)].sort((a, b) => compare(a, b) || a.sequence - b.sequence);
@@ -432,6 +573,20 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
   });
   const groups = groupAdjacentTools(unique);
   const slots = new Map<Entry, ToolSlot>();
+  const rowBelow = rowsBelow(ordered);
+  // Every earlier timestamp has something below it. Count possible ties only at the newest one.
+  const newestAt = ordered[ordered.length - 1]?.at;
+  const callTies: TieCounts = { total: 0, byKey: new Map(), lastWithoutKey: -1 };
+  const settledTies: TieCounts = { total: 0, byKey: new Map(), lastWithoutKey: -1 };
+  for (let index = ordered.length - 1; index >= 0; index--) {
+    const entry = ordered[index]!;
+    if (entry.at !== newestAt) break;
+    const key = tieKey(entry);
+    // A running call ties with other calls. A settled call also ties with settled text or thoughts.
+    countTie(callTies, entry.callId === undefined ? undefined : key, index);
+    countTie(settledTies, key, index);
+  }
+  let lowestKey: string | null | undefined;
   let run: ToolRun | null = null;
   const close = () => {
     if (!run) return;
@@ -443,24 +598,25 @@ function toolSlots(timeline: AgentTimeline): Map<Entry, ToolSlot> {
       for (const copy of copies.get(member) ?? []) last = Math.max(last, position.get(copy)!);
     }
     const lowest = ordered[last]!;
-    const own = new Set(run.members.flatMap((member) => [member, ...(copies.get(member) ?? [])]));
-    let tied = false;
-    run.anythingBelow = ordered.some((entry, index) => {
-      if (own.has(entry)) return false;
-      if (unordered(entry, lowest)) {
-        tied = true;
-        return false;
+    run.anythingBelow = lowest.at < newestAt!;
+    if (!run.anythingBelow && lowest.callId !== undefined) {
+      const ties = lowest.settledKey === undefined ? callTies : settledTies;
+      const same = ties.byKey.get(tieKey(lowest)!);
+      // At the newest timestamp, tools sort after every other kind. For a merged run,
+      // a later tool at the same timestamp counts if it shares the key or cannot tie.
+      run.anythingBelow = run.members.length > 1 && (ties.lastWithoutKey > last || (same?.last ?? -1) > last);
+      const differentKey = ties.total - (same?.count ?? 0);
+      if (!run.anythingBelow && differentKey > 0) {
+        const own = run.members.flatMap((member) => [member, ...(copies.get(member) ?? [])]);
+        const ownTies = own.filter((entry) => unordered(entry, lowest)).length;
+        if (differentKey > ownTies) {
+          // Unlike the timeline cache, keep a failed measurement for this rebuild only.
+          if (lowestKey === undefined) lowestKey = lowestTiedKey(timeline, lowest.at);
+          run.anythingBelow = lowestKey === null || !own.some((entry) => tieKey(entry) === lowestKey);
+        }
       }
-      // A merged row's members arrived together: whatever sorts after the
-      // last of them is below it.
-      const versus = compare(entry, lowest);
-      return versus > 0 || (versus === 0 && run!.members.length > 1 && index > last);
-    });
-    if (!run.anythingBelow && tied) {
-      const key = lowestTiedKey(timeline, lowest.at);
-      run.anythingBelow = key === null || ![...own].some((entry) => tieKey(entry) === key);
     }
-    run.rowBelow = firstAfterIsRow(drawn(timeline), lowest);
+    run.rowBelow = rowBelow[last]!;
     const head = run.members[0]!;
     const previous = timeline.slots.get(head)?.run.calls;
     if (previous && previous.length === run.calls.length && run.calls.every((call, index) => call === previous[index])) {
@@ -497,9 +653,10 @@ function notifyGroup(entry: Entry): void {
  * the current commit's registrations finish, so subscribers read one complete
  * membership snapshot instead of rebuilding after every mounted/unmounted row.
  */
-function invalidate(timeline: AgentTimeline): void {
+function invalidate(agentId: string, timeline: AgentTimeline): void {
   timeline.stale = true;
   pendingTimelines.add(timeline);
+  pendingAgents.add(agentId);
   publish();
 }
 
@@ -524,16 +681,20 @@ function addEntry(agentId: string, entry: Entry): () => void {
   }
   timeline.entries.add(entry);
   timeline.lowest = undefined;
-  invalidate(timeline);
-  publish();
+  timeline.lookup = undefined;
+  timeline.unplacedTie = undefined;
+  batchTieMeasurements?.delete(timeline);
+  invalidate(agentId, timeline);
   return () => {
     const current = timelines.get(agentId);
     if (current?.entries.delete(entry)) {
       if (current.entries.size === 0) timelines.delete(agentId);
       current.lowest = undefined;
-      invalidate(current);
+      current.lookup = undefined;
+      current.unplacedTie = undefined;
+      batchTieMeasurements?.delete(current);
+      invalidate(agentId, current);
     }
-    publish();
   };
 }
 
@@ -544,11 +705,28 @@ function publish(): void {
   void Promise.resolve().then(() => {
     notificationPending = false;
     const changed = [...pendingTimelines];
+    const agents = [...pendingAgents];
+    const probes = [...pendingGapProbes];
     pendingTimelines.clear();
-    for (const timeline of changed) {
-      for (const entry of timeline.entries) notifyGroup(entry);
+    pendingAgents.clear();
+    pendingGapProbes.clear();
+    // Layout effects have registered every row in the commit. Settle the host
+    // gap before notifying readers that depend on it.
+    try {
+      for (const agentId of probes) probeRowGap(agentId);
+    } finally {
+      for (const timeline of changed) {
+        for (const entry of timeline.entries) notifyGroup(entry);
+      }
+      batchTieMeasurements = new Map();
+      try {
+        for (const agentId of agents) {
+          for (const listener of listeners.get(agentId) ?? []) listener();
+        }
+      } finally {
+        batchTieMeasurements = undefined;
+      }
     }
-    for (const listener of listeners) listener();
   });
 }
 
@@ -565,7 +743,7 @@ function updateTool(agentId: string, entry: Entry, previous: ToolCallView | unde
     timeline.stale || previous?.callId !== tool.callId || toolGroupKey(previous) !== toolGroupKey(tool) ||
     (tool.callId !== undefined && timeline.repeated.has(tool.callId))
   ) {
-    invalidate(timeline);
+    invalidate(agentId, timeline);
     return;
   }
   const slot = timeline.slots.get(entry);
@@ -581,7 +759,7 @@ function updateTool(agentId: string, entry: Entry, previous: ToolCallView | unde
 function restampTool(agentId: string, entry: Entry): void {
   const timeline = timelines.get(agentId);
   const id = entry.tool?.callId;
-  if (timeline?.entries.has(entry) && id !== undefined && timeline.repeated.has(id)) invalidate(timeline);
+  if (timeline?.entries.has(entry) && id !== undefined && timeline.repeated.has(id)) invalidate(agentId, timeline);
 }
 
 /**
@@ -630,7 +808,7 @@ export function useTimelineToolGroup(
   }), [agentId, at]);
   const single = useMemo(() => [tool], [tool]);
   useLayoutEffect(() => addEntry(agentId, entry), [agentId, entry]);
-  useLayoutEffect(() => probeRowGap(agentId), [agentId, entry]);
+  useLayoutEffect(() => queueRowGapProbe(agentId), [agentId, entry]);
   useLayoutEffect(() => {
     const restamped = entry.stamp !== stamp;
     entry.stamp = stamp;
@@ -695,6 +873,68 @@ export function useTimelineToolGroup(
   return { group, anythingBelow, rowBelow, copiesBelow, copiesBelowHeight };
 }
 
+interface Position {
+  at: number;
+  order: number;
+  row: boolean;
+}
+
+interface TiesByKind {
+  total: number;
+  byType: Map<number, { total: number; byKey: Map<string, number> }>;
+}
+
+interface TimelineLookup {
+  positions: Position[];
+  newest: Map<number, TiesByKind>;
+}
+
+const CALL_TIE = 1;
+const SETTLED_TIE = 2;
+
+/** A shared bit means two different keys at one timestamp are unordered. */
+function tieType(entry: Tie): number {
+  return (entry.callId === undefined ? 0 : CALL_TIE) | (entry.settledKey === undefined ? 0 : SETTLED_TIE);
+}
+
+function timelineLookup(timeline: AgentTimeline): TimelineLookup {
+  if (timeline.lookup) return timeline.lookup;
+  const ordered = [...drawn(timeline)].sort(compare);
+  const positions: Position[] = [];
+  for (const entry of ordered) {
+    const position = positions[positions.length - 1];
+    if (position && compare(entry, position) === 0) {
+      position.row = position.row && entry.row;
+    } else {
+      positions.push({ at: entry.at, order: entry.order, row: entry.row });
+    }
+  }
+  const newest = new Map<number, TiesByKind>();
+  const last = ordered[ordered.length - 1]?.at;
+  for (let i = ordered.length - 1; i >= 0; i--) {
+    const entry = ordered[i]!;
+    if (entry.at !== last) break;
+    let kind = newest.get(entry.order);
+    if (!kind) {
+      kind = { total: 0, byType: new Map() };
+      newest.set(entry.order, kind);
+    }
+    kind.total++;
+    const key = tieKey(entry);
+    if (key === undefined) continue;
+    const type = tieType(entry);
+    let ties = kind.byType.get(type);
+    if (!ties) {
+      ties = { total: 0, byKey: new Map() };
+      kind.byType.set(type, ties);
+    }
+    ties.total++;
+    ties.byKey.set(key, (ties.byKey.get(key) ?? 0) + 1);
+  }
+  timeline.lookup = { positions, newest };
+  return timeline.lookup;
+}
+
 /**
  * True when the first item after this one is a tool, thought or todo row.
  * Items in the same place count only if every one of them is a row, and an
@@ -704,24 +944,11 @@ export function useTimelineToolGroup(
  */
 export function nextEntryIsRow(agentId: string, at: number, kind: TimelineEntryKind): boolean {
   const timeline = timelines.get(agentId);
-  return firstAfterIsRow(timeline ? drawn(timeline) : [], { at, order: KIND_ORDER[kind] });
-}
-
-function firstAfterIsRow(entries: Iterable<Entry>, self: { at: number; order: number }): boolean {
-  let next: Entry | null = null;
-  let allRows = false;
-  for (const entry of entries) {
-    if (compare(entry, self) <= 0) continue;
-    const versusNext = next ? compare(entry, next) : -1;
-    if (versusNext > 0) continue;
-    if (versusNext < 0) {
-      next = entry;
-      allRows = entry.row;
-    } else if (!entry.row) {
-      allRows = false;
-    }
-  }
-  return allRows;
+  if (!timeline) return false;
+  const { positions } = timelineLookup(timeline);
+  const self = { at, order: KIND_ORDER[kind] };
+  const index = lowerBound(positions.length, (i) => compare(positions[i]!, self) > 0);
+  return positions[index]?.row ?? false;
 }
 
 /**
@@ -740,21 +967,36 @@ export function hasEntryAfter(
 ): boolean {
   const timeline = timelines.get(agentId);
   if (!timeline) return false;
+  const { newest, positions } = timelineLookup(timeline);
+  const last = positions[positions.length - 1];
+  if (!last || at > last.at) return false;
+  if (at < last.at) return true;
+
   const self = { at, order: KIND_ORDER[kind], settledKey, callId };
+  const key = tieKey(self);
+  const type = tieType(self);
   let tied = false;
-  for (const entry of drawn(timeline)) {
-    if (unordered(entry, self)) tied = true;
-    else if (compare(entry, self) > 0) return true;
+  for (const [order, position] of newest) {
+    let unorderedCount = 0;
+    if (key !== undefined) {
+      for (const [otherType, others] of position.byType) {
+        if (type & otherType) unorderedCount += others.total - (others.byKey.get(key) ?? 0);
+      }
+    }
+    if (order > self.order && unorderedCount < position.total) return true;
+    if (unorderedCount > 0) tied = true;
   }
   if (!tied) return false;
-  const key = lowestTiedKey(timeline, at);
-  return key === null || key !== tieKey(self);
+  const lowest = lowestTiedKeyForRead(timeline, at);
+  return lowest === null || lowest !== key;
 }
 
-function subscribe(listener: () => void): () => void {
-  listeners.add(listener);
+function subscribe(agentId: string, listener: () => void): () => void {
+  let subscriptions = listeners.get(agentId);
+  if (!subscriptions) listeners.set(agentId, subscriptions = new Set());
+  subscriptions.add(listener);
   return () => {
-    listeners.delete(listener);
+    if (subscriptions.delete(listener) && subscriptions.size === 0) listeners.delete(agentId);
   };
 }
 
@@ -776,19 +1018,21 @@ export function useTimelineEntry(
     [agentId, at, kind, settledKey, view],
   );
   useLayoutEffect(() => {
-    if (isRow(kind)) probeRowGap(agentId);
+    if (isRow(kind)) queueRowGapProbe(agentId);
   }, [agentId, at, kind, settledKey, view]);
 }
 
 /** `nextEntryIsRow`, kept current as rows mount and unmount; pinned to false unless `follow`. */
 export function useNextEntryIsRow(agentId: string, at: number, kind: TimelineEntryKind, follow = true): boolean {
   const getSnapshot = useCallback(() => nextEntryIsRow(agentId, at, kind), [agentId, at, kind]);
+  const subscribeAgent = useCallback((listener: () => void) => subscribe(agentId, listener), [agentId]);
   const snapshot = follow ? getSnapshot : notFollowed;
-  return useSyncExternalStore(subscribe, snapshot, snapshot);
+  return useSyncExternalStore(subscribeAgent, snapshot, snapshot);
 }
 
 /** `hasEntryAfter`, kept current as items mount and unmount. */
 export function useHasEntryAfter(agentId: string, at: number, kind: TimelineEntryKind, settledKey?: string): boolean {
   const getSnapshot = useCallback(() => hasEntryAfter(agentId, at, kind, settledKey), [agentId, at, kind, settledKey]);
-  return useSyncExternalStore(subscribe, getSnapshot, getSnapshot);
+  const subscribeAgent = useCallback((listener: () => void) => subscribe(agentId, listener), [agentId]);
+  return useSyncExternalStore(subscribeAgent, getSnapshot, getSnapshot);
 }
