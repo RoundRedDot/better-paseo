@@ -585,20 +585,43 @@ describe("work details filter", () => {
     act(() => panel.unmount());
   });
 
-  it("draws the groups as the task details' tabs, as large as before", () => {
+  it("draws the groups as the task details' tabs, with room beside each label", () => {
     const panel = openPanel();
     const style = (kind: string) => StyleSheet.flatten(chip(panel, kind).props.style({ pressed: false }));
     const label = (kind: string) => StyleSheet.flatten(chip(panel, kind).findByType("Text" as never).props.style);
     const hair = StyleSheet.hairlineWidth;
     // Chosen: filled with the host's raised surface, its border the same colour.
-    expect(style("all")).toMatchObject({ minHeight: 28, borderRadius: 999, borderWidth: hair, paddingHorizontal: 8 - hair,
+    expect(style("all")).toMatchObject({ minHeight: 28, borderRadius: 999, borderWidth: hair, paddingHorizontal: 12 - hair,
       backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.surface2 });
     expect(label("all")).toMatchObject({ color: tokens.foreground, fontWeight: "500" });
     // Not chosen: an outline, no fill.
-    expect(style("edit")).toMatchObject({ minHeight: 28, borderRadius: 999, borderWidth: hair, paddingHorizontal: 8 - hair });
+    expect(style("edit")).toMatchObject({ minHeight: 28, borderRadius: 999, borderWidth: hair, paddingHorizontal: 12 - hair });
     expect(style("edit").backgroundColor).toBeUndefined();
     expect(style("edit").borderColor).not.toBe(tokens.v2.surface2);
     expect(label("edit")).toMatchObject({ color: tokens.foregroundMuted, fontWeight: "500" });
+    // A desktop panel's labels are a step smaller than a phone's.
+    expect(label("all")).toMatchObject({ fontSize: tokens.typography.block.caption.size, lineHeight: tokens.typography.block.caption.lineHeight });
+    act(() => panel.unmount());
+  });
+
+  it("keeps the label size on a phone", () => {
+    const store = createTurnFooterStore(() => ({ refetch: vi.fn(), subscribe: vi.fn() }));
+    act(() => { renderer.update(<><Probe /><TurnWorkCard agentId="agent" at={10000} work={turn(unfolded)} store={store} tokens={tokens} compact /></>); });
+    const panel = openPanel();
+    const label = StyleSheet.flatten(chip(panel, "all").findByType("Text" as never).props.style);
+    expect(label).toMatchObject({ fontSize: tokens.typography.block.label.size, lineHeight: tokens.typography.block.label.lineHeight });
+    act(() => panel.unmount());
+  });
+
+  it("keeps the groups on one line that scrolls sideways when they outgrow the panel", () => {
+    const panel = openPanel();
+    const bar = panel.root.findAll((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "work-filter")[0]!;
+    expect(bar).toBeDefined();
+    expect(bar.props.horizontal).toBe(true);
+    expect(StyleSheet.flatten(bar.props.style)).toMatchObject({ flexGrow: 0, flexShrink: 0 });
+    const row = StyleSheet.flatten(bar.props.contentContainerStyle);
+    expect(row.flexDirection).toBe("row");
+    expect(row.flexWrap).toBeUndefined();
     act(() => panel.unmount());
   });
 

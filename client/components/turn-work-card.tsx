@@ -13,7 +13,7 @@
  * added up, not the file's net change, and are measured once per call.
  */
 import React, { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
-import { Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle } from "react-native";
+import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
 import { mix, space, withAlpha } from "./theme-tokens";
@@ -286,7 +286,7 @@ function WorkDetails({ agentId, at, workKey, calls, intent, text, tokens, compac
   const kinds = useMemo(() => countKinds(callKindList), [callKindList]);
   return <>
     <HoverPreviewHeader tokens={tokens} />
-    {calls.length ? <FilterBar filterKey={filterKey} kinds={kinds} total={calls.length} text={text} tokens={tokens} /> : null}
+    {calls.length ? <FilterBar filterKey={filterKey} kinds={kinds} total={calls.length} text={text} tokens={tokens} compact={compact} /> : null}
     <HoverPreviewBody fullBleed stickySteps>
       {intent ? <WorkIntent agentId={agentId} text={intent} tokens={tokens} compact={compact} /> : null}
       <WorkSteps agentId={agentId} at={at} calls={calls} callKinds={callKindList} kinds={kinds} filterKey={filterKey}
@@ -307,25 +307,27 @@ function useShownFilter(filterKey: string, kinds: ReadonlyArray<{ kind: CallKind
   return [kinds.some(({ kind }) => kind === chosen) ? chosen : "all", choose];
 }
 
-const FilterBar = memo(function FilterBar({ filterKey, kinds, total, text, tokens }: {
+const FilterBar = memo(function FilterBar({ filterKey, kinds, total, text, tokens, compact }: {
   filterKey: string; kinds: ReadonlyArray<{ kind: CallKind; count: number }>; total: number; text: typeof STRINGS.en;
-  tokens: ExtendedThemeTokens;
+  tokens: ExtendedThemeTokens; compact: boolean;
 }) {
   const styles = useCardStyles(tokens);
   const [filter, choose] = useShownFilter(filterKey, kinds);
   const groups = useMemo(() => [{ kind: "all" as const, count: total }, ...kinds], [kinds, total]);
+  // One line that scrolls sideways when the groups outgrow the panel, rather than wrapping onto a second.
   return (
-    <View testID="work-filter" accessibilityRole="tablist" style={styles.filterBar}>
+    <ScrollView testID="work-filter" accessibilityRole="tablist" horizontal showsHorizontalScrollIndicator={false}
+      style={styles.filterScroll} contentContainerStyle={styles.filterBar}>
       {groups.map(({ kind, count }) => (
         <FilterChip key={kind} label={`${text.kinds[kind]} ${count}`} kind={kind} selected={filter === kind}
-          onPress={choose} tokens={tokens} />
+          onPress={choose} tokens={tokens} compact={compact} />
       ))}
-    </View>
+    </ScrollView>
   );
 });
 
-const FilterChip = memo(function FilterChip({ label, kind, selected, onPress, tokens }: {
-  label: string; kind: WorkFilter; selected: boolean; onPress(kind: WorkFilter): void; tokens: ExtendedThemeTokens;
+const FilterChip = memo(function FilterChip({ label, kind, selected, onPress, tokens, compact }: {
+  label: string; kind: WorkFilter; selected: boolean; onPress(kind: WorkFilter): void; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
   const styles = useCardStyles(tokens);
   const { hovered, hoverProps } = useHover();
@@ -336,7 +338,7 @@ const FilterChip = memo(function FilterChip({ label, kind, selected, onPress, to
   return (
     <Pressable testID={`work-filter:${kind}`} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => onPress(kind)} {...hoverProps}
       style={({ pressed }) => [styles.chip, selected && styles.chipSelected, (hovered || pressed) && { backgroundColor: fill(pressed) }]}>
-      <Text selectable={false} style={[styles.chipLabel, selected && { color: tokens.foreground }]}>{label}</Text>
+      <Text selectable={false} style={[styles.chipLabel, !compact && styles.chipLabelDesktop, selected && { color: tokens.foreground }]}>{label}</Text>
     </Pressable>
   );
 });
@@ -748,14 +750,18 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
     stat: { flexShrink: 0, fontFamily: tokens.fontMono, fontWeight: "600", fontSize: block.meta.size,
       lineHeight: block.meta.lineHeight, fontVariant: ["tabular-nums"] },
     more: { ...listRow, paddingLeft: space.xs, gap: space.sm },
-    filterBar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.xs,
+    // As tall as its chips: a horizontal scroller grows to fill the panel's column otherwise.
+    filterScroll: { flexGrow: 0, flexShrink: 0 },
+    filterBar: { flexDirection: "row", alignItems: "center", gap: space.xs,
       paddingHorizontal: space.md - space.xs, paddingVertical: space.xs },
-    // The border comes out of the padding, so a chip is as large as before it had one.
-    chip: { minHeight: 28, justifyContent: "center", paddingHorizontal: space.sm - StyleSheet.hairlineWidth, borderRadius: 999,
+    // A pill's round ends need room beside the label; the border comes out of that padding.
+    chip: { minHeight: 28, justifyContent: "center", paddingHorizontal: space.md - StyleSheet.hairlineWidth, borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth, borderColor: mix(tokens.border, tokens.foreground, tokens.isDark ? 0.08 : 0.05) },
     chipSelected: { backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.surface2 },
     chipLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontWeight: "500", fontSize: block.label.size,
       lineHeight: block.label.lineHeight, fontVariant: ["tabular-nums"] },
+    // A step smaller beside a desktop panel's denser rows.
+    chipLabelDesktop: { fontSize: block.caption.size, lineHeight: block.caption.lineHeight },
     moreLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: block.button.size, lineHeight: block.button.lineHeight },
   });
 }
