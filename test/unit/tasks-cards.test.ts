@@ -2757,10 +2757,11 @@ describe("TaskCardView actions", () => {
     expect(flat(hostByTestId(list, "subtask-title-sub-1").props.style)).toMatchObject({ flex: 1, minWidth: 0 });
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-session-label-${child.id}`)).toHaveLength(0);
     expect(icons(hostByTestId(list, "subtask-parent-tab-sub-1"))).toEqual(["CornerLeftUp"]);
-    // Provider facts and timing use the same secondary component as ordinary subtasks.
+    // Model, effort and timing use the same secondary components as ordinary subtasks.
     const facts = hostByTestId(list, "subtask-meta-sub-1");
-    expect(texts(facts)[0]).toBe("Opus 5.5 · High · 132.8k tokens");
-    expect(icons(facts)).toEqual(["Shapes", "Clock", "Hourglass"]);
+    expect(texts(facts).slice(0, 2)).toEqual(["Opus 5.5", "High"]);
+    expect(texts(facts).join(" ")).not.toContain("tokens");
+    expect(icons(facts)).toEqual(["Brain", "Clock", "Hourglass"]);
     expect(hostByTestId(list, "subtask-status-sub-1").findByType(BrandMark).props.provider).toBe("claude");
     expect(texts(hostByTestId(list, "subtask-time-sub-1"))).toEqual([formatClockTime(NOW - 3 * 60_000, NOW), "3m"]);
     for (const child of base.children) expect(list.findAll((node) => node.props.testID === `subtask-parent-tab-${child.id}`)).toHaveLength(0);
@@ -4083,16 +4084,17 @@ describe("TaskDetailCards", () => {
 
   it("merges a failed provider subagent's status into its agent's mark, off its own line", async () => {
     const base = sample("sample-done");
-    const subagent: TaskChild = { id: "sub-1", title: "RRD-10161 desktop native fatal", status: "failed", kind: "provider", subtitle: "general-purpose · Opus 5.5 · High · 189.7k tokens", subagentType: "general-purpose", provider: "claude", lane: "review", timing: sample("sample-running").children[2]!.timing };
+    const subagent: TaskChild = { id: "sub-1", title: "retry", status: "failed", kind: "provider", subtitle: "Retry · gpt-6.2-sol · medium", subagentType: "Retry", provider: "codex", lane: "review", timing: sample("sample-running").children[2]!.timing };
     const onOpen = vi.fn();
     const tree = await render(details({ ...base, children: [subagent] }, { onOpen }));
     const meta = hostByTestId(tree.root, "detail-subtask-meta-sub-1");
-    expect(texts(meta)[0]).toBe("Opus 5.5 · High · 189.7k tokens");
-    expect(icons(meta)).toEqual(["Shapes", "Hourglass"]);
+    expect(texts(meta).slice(0, 2)).toEqual(["gpt-6.2-sol", "medium"]);
+    expect(icons(meta)).toEqual(["Brain", "Hourglass"]);
+    expect(texts(hostByTestId(tree.root, "detail-subtask-session-label-sub-1"))).toEqual(["会话内"]);
     expect(meta.findAll((node) => (node.type as { name?: string }).name === "BrandMark")).toHaveLength(0);
     const mark = hostByTestId(tree.root, "detail-subtask-status-sub-1");
-    expect(mark.findByType(BrandMark).props.provider).toBe("claude");
-    expect(icons(mark)).not.toContain("Shapes");
+    expect(mark.findByType(BrandMark).props.provider).toBe("codex");
+    expect(icons(mark)).not.toContain("Bot");
     expect(mark.findAll((node) => typeof node.type === "string" && node.props.testID === "status-failed")).toHaveLength(1);
     const jump = hostByTestId(tree.root, "detail-subtask-parent-tab-sub-1");
     expect(icons(jump)).toEqual(["CornerLeftUp"]);

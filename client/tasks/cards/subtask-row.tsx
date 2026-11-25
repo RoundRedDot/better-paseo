@@ -5,7 +5,7 @@ import { Icon } from "@getpaseo/plugin/client/ui";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import type { TasksLanguage } from "../i18n";
 import type { TaskChild } from "../model";
-import { subagentFacts, subagentTypeIcon } from "../subagent-type";
+import { subagentFacts, subagentModel, subagentTypeIcon } from "../subagent-type";
 import { useHover } from "../../ui/use-hover";
 import { mix, withAlpha } from "../../components/theme-tokens";
 import { useTitleUndoState, useTitleUpdateState, type TitleUpdateControl } from "../actions/title-update";
@@ -174,10 +174,13 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   const timed = child.lane && child.timing ? { lane: child.lane, timing: child.timing, waitingOnSubtasks: child.waitingOnSubtasks } : null;
   const start = useTime(props, (now) => !hideRunTime && timed ? cardStart(timed, now) ?? "" : "");
   const timer = useTime(props, (now) => !hideRunTime && timed ? cardTimer(timed, now, language, true)?.text ?? "" : "");
+  const subagent = child.kind === "provider" ? subagentModel(child.subtitle, child.subagentType) : null;
+  const modelLabel = child.modelLabel ?? subagent?.model;
+  const thinkingLabel = child.thinkingLabel ?? subagent?.thinking;
   // Timer ticks update the existing probe; remounting it would flash full labels every second.
-  const measureKey = JSON.stringify([scale, language, child.kind, child.subtitle, child.subagentType, child.modelLabel, child.thinkingLabel, child.modeLabel, status, ratio !== null, !!start, !!timer]);
+  const measureKey = JSON.stringify([scale, language, child.kind, child.subtitle, child.subagentType, modelLabel, thinkingLabel, child.modeLabel, status, ratio !== null, !!start, !!timer]);
   const canFoldMode = !!child.modeLabel;
-  const needsMeasurement = canFoldMode || !!child.thinkingLabel;
+  const needsMeasurement = canFoldMode || !!thinkingLabel;
   const overflowing = width !== null && width > 0 && measured?.key === measureKey && measured.width > width;
   const compactLabels = narrow || overflowing;
   const iconSize = 12;
@@ -203,14 +206,14 @@ export function SubtaskMetadata(props: TimeSource & { child: TaskChild; tokens: 
   };
   const parts: ReactNode[] = [];
   // The provider and status are already combined in the row's ChildMark.
-  if (child.kind === "provider") {
+  if (child.kind === "provider" && !modelLabel && !thinkingLabel) {
     const facts = subagentFacts(child.subtitle, child.subagentType);
     parts.push(part("facts", facts.text ?? "", icon(subagentTypeIcon(child.subagentType))));
   }
-  if (child.modelLabel) parts.push(part("model", child.modelLabel));
-  if (child.thinkingLabel) {
-    const label = overflowing ? formatThinkingLevel(child.thinkingLabel) : child.thinkingLabel;
-    parts.push(part("thinking", label, icon(THINKING_ICON), muted, true, child.thinkingLabel));
+  if (modelLabel) parts.push(part("model", modelLabel));
+  if (thinkingLabel) {
+    const label = overflowing ? formatThinkingLevel(thinkingLabel) : thinkingLabel;
+    parts.push(part("thinking", label, icon(THINKING_ICON), muted, true, thinkingLabel));
   }
   if (child.modeLabel) {
     const mode = modeIcon(child.provider ?? "", child.modeLabel);
