@@ -1,3 +1,4 @@
+import { sidebarSurface } from "../../client/ui/tokens/sidebar-shadow";
 import { resetUpdateIndicatorsForTests } from "../../client/tasks/board/update-indicator";
 import { resetAgentUpdatesForTests } from "../../client/agent-updates";
 import React from "react";
@@ -2205,9 +2206,10 @@ describe("Tasks board, desktop", () => {
     layOut(2000);
     const sidebar = StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style);
     const filters = StyleSheet.flatten(hostsById("filter-bar")[0]!.props.style);
-    expect(sidebar.paddingLeft).toBe(10);
+    expect(sidebar).toMatchObject(sidebarSurface("#ffffff", "#e2e2e6", false));
+    expect(sidebar.paddingLeft).toBe(6);
     expect(sidebar.paddingRight + sidebar.right).toBe(filters.paddingRight);
-    expect(sidebar.width - sidebar.paddingLeft - sidebar.paddingRight).toBe(366);
+    expect(sidebar.width - sidebar.paddingLeft - sidebar.paddingRight).toBe(370);
     expect(lanesScroll().props.contentContainerStyle.width).toBe(2000 - 380 - 12);
   });
 
@@ -2543,20 +2545,9 @@ describe("Tasks board, desktop", () => {
       const handleStyle = StyleSheet.flatten(handle.props.style);
       expect(handleStyle.left).toBe(0);
       expect(handleStyle.width).toBeLessThanOrEqual(panel.paddingLeft);
-      expect(handle.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-resize-grabber")).toHaveLength(1);
-      const grabberOpacity = () => StyleSheet.flatten(hostsById("sidebar-resize-grabber")[0]!.props.style).opacity;
-      expect(StyleSheet.flatten(hostsById("sidebar-resize-grabber")[0]!.props.style)).toMatchObject({
-        transitionProperty: "opacity", transitionDuration: "150ms", transitionTimingFunction: "ease-out",
-      });
-      expect(grabberOpacity()).toBe(0);
-      act(() => hostsById("sidebar-inline")[0]!.props.onPointerEnter());
-      expect(grabberOpacity()).toBe(0.5);
-      act(() => hostsById("sidebar-inline")[0]!.props.onPointerLeave());
-      expect(grabberOpacity()).toBe(0);
-      act(() => hostsById("sidebar-inline")[0]!.props.onPointerEnter());
+      expect(handle.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-resize-grabber")).toHaveLength(0);
+      expect(handle.findAll((node) => node.props.dataSet?.bcresizetrack === "").length).toBeGreaterThan(0);
       act(() => handle.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
-      act(() => hostsById("sidebar-inline")[0]!.props.onPointerLeave());
-      expect(grabberOpacity()).toBe(0.5);
       const sidebar = () => hostsById("details-sidebar")[0]!;
       const layoutSidebar = (width: number) => sidebar().props.onLayout({ nativeEvent: { layout: { width, height: 800 } } });
       act(() => layoutSidebar(380));
@@ -2572,7 +2563,6 @@ describe("Tasks board, desktop", () => {
       expect(StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style).width).toBe(430);
       expect(laneWidths()).toEqual(originalWidths);
       act(() => listeners.get("pointerup")!({ pageX: 950, clientY: 200 }));
-      expect(grabberOpacity()).toBe(0);
       expect(readSidebarPreference().width).toBe(430);
       expect(laneWidths()).toEqual(originalWidths);
       act(() => hostsById("sidebar-switch")[0]!.props.onPress());
@@ -3962,7 +3952,7 @@ describe("Tasks board, desktop", () => {
     toggleSidebarControl();
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).width).toBe(380);
     expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).right).toBe(12);
-    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).paddingLeft).toBe(10);
+    expect(StyleSheet.flatten(hostsById("sidebar-floating")[0]!.props.style).paddingLeft).toBe(6);
     expect(hostsById("sidebar-resize")).toHaveLength(1);
     expect(hostsById("floating-sidebar-resize")).toHaveLength(0);
   });
@@ -3994,7 +3984,6 @@ describe("Tasks board, desktop", () => {
       select();
       const panel = () => hostsById("sidebar-floating")[0]!;
       const width = () => StyleSheet.flatten(panel().props.style).width;
-      const grabberOpacity = () => StyleSheet.flatten(hostsById("sidebar-resize-grabber")[0]!.props.style).opacity;
       const laneWidths = () => LANE_ORDER.map((id) => StyleSheet.flatten(hostsById(`lane-surface-${id}`)[0]!.props.style).width);
       const originalWidths = laneWidths();
       expect(width()).toBe(380);
@@ -4004,11 +3993,7 @@ describe("Tasks board, desktop", () => {
       expect(floatingStyle).toEqual(inlineStyle);
       expect(StyleSheet.flatten(hostsById("sidebar-slot")[0]!.props.style)).toMatchObject({ top: 0, bottom: 0 });
       expect(hostsById("sidebar-inline")).toHaveLength(0);
-      act(() => panel().props.onPointerEnter());
-      expect(grabberOpacity()).toBe(0.5);
       act(() => hostsById("sidebar-resize")[0]!.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
-      act(() => panel().props.onPointerLeave());
-      expect(grabberOpacity()).toBe(0.5);
       for (const [pageX, expected] of [[0, 800], [2000, 260], [950, 430]] as const) {
         act(() => listeners.get("pointermove")!({ pageX, clientY: 200 }));
         act(() => { vi.advanceTimersByTime(16); });
@@ -4016,7 +4001,6 @@ describe("Tasks board, desktop", () => {
         expect(laneWidths()).toEqual(originalWidths);
       }
       act(() => listeners.get("pointerup")!({ pageX: 950, clientY: 200 }));
-      expect(grabberOpacity()).toBe(0);
       expect(readSidebarPreference()).toMatchObject({ open: false, width: 430 });
       expect(listeners.has("pointermove")).toBe(false);
       expect(listeners.has("pointerup")).toBe(false);

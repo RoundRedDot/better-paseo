@@ -174,7 +174,7 @@ import { useLineSelection } from "../../client/ui/line-selection";
 import { MarkdownView } from "../../client/components/markdown/markdown-view";
 import { PreviewLines } from "../../client/ui/preview-lines";
 import { DiffPreview, ToolOutput } from "../../client/components/tool-output";
-import { sidebarShadow } from "../../client/ui/tokens/sidebar-shadow";
+import { sidebarSurface } from "../../client/ui/tokens/sidebar-shadow";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const tokens = buildThemeTokens({ surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -562,7 +562,7 @@ describe("form", () => {
     expect(flat(byTestId(renderer, "details-toolbar")!.props.style)).toMatchObject({
       minHeight: 36, borderBottomWidth: 1, borderBottomColor: tokens.border,
     });
-    expect(flat(byTestId(renderer, "details-side")!.props.style).boxShadow).toBe(sidebarShadow(tokens.isDark));
+    expect(flat(byTestId(renderer, "details-side")!.props.style)).toMatchObject(sidebarSurface(tokens.surface0, tokens.v2.border, tokens.isDark));
     expect(flat(byTestId(renderer, "hover-preview-body")!.props.style).marginTop).toBe(0);
     act(() => seen.shell!.toggleFullscreen!());
     expect(web.timelinePadding).toBe("calc(16px + 624px)");

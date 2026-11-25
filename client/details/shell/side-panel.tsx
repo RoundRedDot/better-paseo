@@ -14,13 +14,13 @@ import { sidePanelWidth } from "../layout-model";
 import { toolbarLabel } from "../../i18n/toolbar-strings";
 import { useEnhancerPreferences } from "../../preferences";
 import { DETAILS_MOTION, animate } from "./motion";
-import { OutsideCatcher, detailsPalette } from "./scrim";
+import { OutsideCatcher } from "./scrim";
 import type { Entrance } from "./bottom-panel";
 import type { Insets } from "./safe-area";
 import { keepOffWindowDrag } from "./web-layer";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
-import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "../../tasks/board/resize-line";
-import { sidebarShadow } from "../../ui/tokens/sidebar-shadow";
+import { followPointer, ResizeLine, resizeHandleProps, setResizing, useResizeLine } from "../../ui/resize-line";
+import { sidebarSurface } from "../../ui/tokens/sidebar-shadow";
 
 export const SIDE = {
   /** A phone in landscape (height under 500). */
@@ -186,7 +186,6 @@ export function SidePanel(props: {
     }, rerender);
   }, [props.resizable]);
 
-  const palette = detailsPalette(tokens);
   return (
     <>
       {Platform.OS === "web" ? null : <OutsideCatcher onPress={props.onOutside} />}
@@ -203,9 +202,7 @@ export function SidePanel(props: {
           {
             top: props.insets.top,
             width: nativeDragging ? liveWidth : width,
-            backgroundColor: tokens.surface0,
-            borderLeftColor: palette.border,
-            boxShadow: sidebarShadow(tokens.isDark),
+            ...sidebarSurface(tokens.surface0, tokens.v2.border, tokens.isDark),
             opacity,
             transform: [{ translateX: Platform.OS === "web" ? progress.interpolate({ inputRange: [0, 1], outputRange: [width, 0] }) : shift }],
           },
@@ -222,9 +219,7 @@ export function SidePanel(props: {
             onPointerMove={(event) => followPointer(edge.current as unknown as HTMLElement, indicator.current as unknown as HTMLElement, event.nativeEvent.clientY)}
             style={[styles.edge, styles.edgeCursor]}
           >
-            <View {...resizeTrackProps} pointerEvents="none" style={styles.track}>
-              <View ref={indicator} {...resizeIndicatorProps} style={styles.indicator} />
-            </View>
+            <ResizeLine indicator={indicator} inset />
           </View>
         ) : props.resizable && Platform.OS === "ios" && Platform.isPad ? (
           <View ref={edge} collapsable={false} {...pan.panHandlers} testID="details-side-native-edge"
@@ -311,8 +306,6 @@ const styles = StyleSheet.create({
   panel: { position: "absolute", right: 0, bottom: 0, borderLeftWidth: 1, overflow: "hidden" },
   content: { flex: 1, minHeight: 0 },
   edge: { position: "absolute", left: 0, top: 0, bottom: 0, width: SIDE.edge },
-  track: { position: "absolute", top: 4, bottom: 12, left: 0, width: 1, overflow: "hidden" },
-  indicator: { position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 },
   edgeIndicator: { position: "absolute", left: 4, top: "50%", marginTop: -18, width: 3, height: 36, borderRadius: 2 },
   edgeCursor: { cursor: "col-resize", touchAction: "none" } as unknown as ViewStyle,
 });

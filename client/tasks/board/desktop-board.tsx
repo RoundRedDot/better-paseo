@@ -8,12 +8,11 @@ import { StatusIcon, taskTokens, type CardCallbacks } from "../cards";
 import { LANE_ORDER, LANE_STATUS, isHistoryLane, type LaneId, type LaneModel, type TaskCard } from "../model";
 import { useReducedMotion } from "../../ui/use-reduced-motion";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
-import { useHover } from "../../ui/use-hover";
 import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { BoardEmptyState } from "./empty-state";
 import { LANE_EMPTY_ICON } from "./strings";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
-import { followPointer, resizeHandleProps, resizeIndicatorProps, resizeTrackProps, setResizing, useResizeLine } from "./resize-line";
+import { followPointer, ResizeLine, resizeHandleProps, setResizing, useResizeLine } from "../../ui/resize-line";
 import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, NewCardsDot, NewCardsPill, RollingCount, SkeletonCard, VerticalLabel, laneHue, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { CollapsedArrivalMarker, createCollapsedArrivals, useCollapsedArrivals, type CollapsedArrivals } from "./collapsed-arrivals";
@@ -54,7 +53,7 @@ import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 import { focusedTaskCardId, focusTaskBoard } from "../../web";
 import { tasksSettingsOpener } from "./enabled";
-import { sidebarShadow } from "../../ui/tokens/sidebar-shadow";
+import { sidebarShadow, sidebarSurface } from "../../ui/tokens/sidebar-shadow";
 
 const nativeDriver = Platform.OS !== "web";
 
@@ -1026,7 +1025,6 @@ function SidebarColumn(props: {
   children: React.ReactNode;
 }) {
   const reduced = useReducedMotion();
-  const { hovered, hoverProps } = useHover();
   const [dragging, setDragging] = useState(false);
   const [mounted, setMounted] = useState(props.open);
   const liveWidth = useRef(new Animated.Value(props.width)).current;
@@ -1157,22 +1155,10 @@ function SidebarColumn(props: {
       ref={handleRef}
       {...resizeHandleProps}
       {...({ onPointerDown: start, onPointerMove: (event: { nativeEvent: { clientY: number } }) => { if (!dragging) follow(event.nativeEvent.clientY); } } as object)}
-      style={{ position: "absolute", left: 0, top: 4, bottom: 12, width: 8, zIndex: 5, ...({ cursor: "col-resize", touchAction: "none" } as object) }}
+      style={{ position: "absolute", left: 0, top: 4, bottom: 12, width: 6, zIndex: 5, ...({ cursor: "col-resize", touchAction: "none" } as object) }}
       testID="sidebar-resize"
     >
-      <View pointerEvents="none" style={{ flex: 1, alignItems: "center", justifyContent: "center" }}>
-        <View testID="sidebar-resize-grabber" style={{
-          width: 3,
-          height: 40,
-          borderRadius: 2,
-          backgroundColor: props.theme.colors.foregroundMuted,
-          opacity: hovered || dragging ? 0.5 : 0,
-          ...({ transitionProperty: "opacity", transitionDuration: reduced ? "0ms" : "150ms", transitionTimingFunction: "ease-out" } as object),
-        }} />
-      </View>
-      <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: 0, bottom: 0, left: 3.5, width: 1, overflow: "hidden" }}>
-        <View ref={indicatorRef} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
-      </View>
+      <ResizeLine indicator={indicatorRef} />
     </View>
   ) : (
     <View
@@ -1204,7 +1190,6 @@ function SidebarColumn(props: {
     <Animated.View
       ref={panelRef}
       testID={props.floating ? "sidebar-floating" : "sidebar-inline"}
-      {...(Platform.OS === "web" ? { onPointerEnter: hoverProps.onHoverIn, onPointerLeave: hoverProps.onHoverOut } : {})}
       style={{
         position: "absolute",
         top: 0,
@@ -1212,12 +1197,11 @@ function SidebarColumn(props: {
         right: SIDEBAR.gap,
         width,
         // Include the outer margin in the right inset to match the toolbar's 16 pt.
-        ...(Platform.OS === "web" ? { paddingLeft: 10, paddingRight: 16 - SIDEBAR.gap } : { paddingLeft: 14, paddingRight: 14 - SIDEBAR.gap }),
+        ...(Platform.OS === "web" ? { paddingLeft: 6, paddingRight: 16 - SIDEBAR.gap } : { paddingLeft: 14, paddingRight: 14 - SIDEBAR.gap }),
         paddingTop: 4,
         paddingBottom: 12,
         minHeight: 0,
-        backgroundColor: props.theme.colors.surface0,
-        boxShadow: sidebarShadow(taskTokens(props.theme).isDark),
+        ...(Platform.OS === "web" ? sidebarSurface(props.theme.colors.surface0, props.theme.colors.border, taskTokens(props.theme).isDark) : { backgroundColor: props.theme.colors.surface0, boxShadow: sidebarShadow(taskTokens(props.theme).isDark) }),
         zIndex: 1,
         ...(Platform.OS === "web" ? {
           opacity: 1,

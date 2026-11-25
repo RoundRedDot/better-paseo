@@ -1,5 +1,5 @@
-import { useEffect } from "react";
-import type { ViewProps } from "react-native";
+import React, { useEffect, type RefObject } from "react";
+import { View, type ViewProps } from "react-native";
 
 const STYLE_ELEMENT_ID = "better-paseo-resize-line";
 const RESIZING_ATTR = "data-bcresizing";
@@ -8,6 +8,15 @@ const RESIZING_ATTR = "data-bcresizing";
 export const resizeHandleProps = { dataSet: { bcresize: "" } } as unknown as ViewProps;
 export const resizeTrackProps = { dataSet: { bcresizetrack: "" } } as unknown as ViewProps;
 export const resizeIndicatorProps = { dataSet: { bcresizeindicator: "" } } as unknown as ViewProps;
+
+/** The shared one-pixel line inside a resize hit area. */
+export function ResizeLine({ indicator, inset = false }: { indicator: RefObject<View | null>; inset?: boolean }) {
+  return (
+    <View {...resizeTrackProps} pointerEvents="none" style={{ position: "absolute", top: inset ? 4 : 0, bottom: inset ? 12 : 0, left: 0, width: 1, overflow: "hidden" }}>
+      <View ref={indicator} {...resizeIndicatorProps} style={{ position: "absolute", top: "-50%", height: "200%", left: 0, right: 0 }} />
+    </View>
+  );
+}
 
 /**
  * Linear's split handle: a 1px line that stays hidden until the pointer rests
@@ -65,7 +74,7 @@ const hasDom = () => typeof document !== "undefined" && typeof document.getEleme
 
 let mounted = 0;
 
-/** Installs the split handle's rules for the current theme while a desktop board is up. Off web a no-op. */
+/** Installs the split handle's rules for the current theme while a sidebar is up. Off web a no-op. */
 export function useResizeLine(foreground: string): void {
   const css = hasDom() ? rules(foreground) : "";
 

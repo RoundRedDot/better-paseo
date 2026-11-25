@@ -6,3 +6,8 @@
 export function sidebarShadow(isDark: boolean): string {
   return `-8px 0px 16px -8px rgba(0, 0, 0, ${isDark ? 0.5 : 0.2})`;
 }
+
+/** Shared surface for desktop right-hand sidebars. */
+export function sidebarSurface(surface: string, border: string, isDark: boolean) {
+  return { backgroundColor: surface, borderLeftWidth: 1, borderLeftColor: border, boxShadow: sidebarShadow(isDark) };
+}
