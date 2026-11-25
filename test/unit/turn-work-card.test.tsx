@@ -623,7 +623,7 @@ describe("work details filter", () => {
       borderBottomColor: tokens.v2.borderSubtle });
     const row = StyleSheet.flatten(bar.props.contentContainerStyle);
     expect(row.flexDirection).toBe("row");
-    expect(row.paddingVertical).toBe(8);
+    expect(row.paddingVertical).toBe(6);
     expect(row.flexWrap).toBeUndefined();
     act(() => panel.unmount());
   });

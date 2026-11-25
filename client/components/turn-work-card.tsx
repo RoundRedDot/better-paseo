@@ -755,7 +755,7 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
     // from the steps below as the toolbar above is from it.
     filterScroll: { flexGrow: 0, flexShrink: 0, borderBottomWidth: PREVIEW_HEADER.border, borderBottomColor: tokens.v2.borderSubtle },
     filterBar: { flexDirection: "row", alignItems: "center", gap: space.xs,
-      paddingHorizontal: space.md - space.xs, paddingVertical: space.sm },
+      paddingHorizontal: space.md - space.xs, paddingVertical: space.xs + 2 },
     // A pill's round ends need room beside the label; the border comes out of that padding.
     chip: { minHeight: 28, justifyContent: "center", paddingHorizontal: space.md - StyleSheet.hairlineWidth, borderRadius: 999,
       borderWidth: StyleSheet.hairlineWidth, borderColor: mix(tokens.border, tokens.foreground, tokens.isDark ? 0.08 : 0.05) },
