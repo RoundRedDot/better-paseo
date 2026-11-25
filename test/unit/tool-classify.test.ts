@@ -125,6 +125,11 @@ describe("classifyTool", () => {
       { title: "https://example.dev/a", url: "https://example.dev/a" },
     ]);
     expect(view.search?.content).toBeUndefined();
+    // Hits the daemon reported keep the row free of the text that repeats them.
+    const reported = classifyTool(call("web_search", { type: "search", query: "onLayout", toolName: "web_search", content,
+      webResults: [{ title: "View", url: "https://reactnative.dev/docs/view" }] }));
+    expect(reported.search?.webResults).toEqual([{ title: "View", url: "https://reactnative.dev/docs/view" }]);
+    expect(reported.search?.content).toBeUndefined();
     // A grep's output is never read as links, whatever it holds.
     const grep = classifyTool(call("Grep", { type: "search", query: "x", toolName: "grep", content }));
     expect(grep.search?.webResults).toBeUndefined();

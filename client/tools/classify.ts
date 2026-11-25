@@ -431,12 +431,11 @@ function readSearch(
   // Claude Code's Links line, Markdown links) reads as those hits, so it draws
   // as a structured search does.
   if (webResults.length === 0 && toolName === "web_search") {
-    const listed = parseListedLinks(content);
-    if (listed.length > 0) {
-      webResults.push(...listed);
-      content = undefined;
-    }
+    webResults.push(...parseListedLinks(content));
   }
+  // The text a web search printed only repeats its hits with page dumps
+  // between them; once there are hits, they are what the row shows.
+  if (webResults.length > 0 && toolName === "web_search") content = undefined;
   return {
     query:
       asString(detail.query) ??
