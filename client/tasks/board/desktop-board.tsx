@@ -12,6 +12,7 @@ import { HAIRLINE, MOTION, PANEL_RADIUS, boardPalette } from "./board-style";
 import { BoardEmptyState } from "./empty-state";
 import { LANE_EMPTY_ICON } from "./strings";
 import { LANE_SCROLLBAR_WIDTH, laneScrollProps, useLaneScrollbar } from "./lane-scrollbar";
+import { followPointer, ResizeLine, resizeHandleProps, setResizing, useResizeLine } from "../../ui/resize-line";
 import { liftStyle, surfaceLift } from "../cards/surface-lift";
 import { CardCell, HoverPressable, LaneFilterHint, LoadMoreRow, NewCardsDot, NewCardsPill, RollingCount, SkeletonCard, VerticalLabel, laneHue, useBreathing, useFreshIds, useTap } from "./board-parts";
 import { CollapsedArrivalMarker, createCollapsedArrivals, useCollapsedArrivals, type CollapsedArrivals } from "./collapsed-arrivals";
@@ -149,6 +150,7 @@ export function DesktopBoard(props: {
   const hostId = screen.host.id;
   const { lanes, tasks, strings, laneOrder } = board;
   useLaneScrollbar(theme);
+  useResizeLine(theme.colors.foreground);
 
   const [collapsedState, setCollapsedState] = useState<LaneId[]>(() => rememberedCollapsed(hostId));
   // A folded archived lane stays remembered while the lane is off, but takes no room.
@@ -1052,6 +1054,7 @@ function SidebarColumn(props: {
   const slotRef = useRef<View>(null);
   const panelRef = useRef<View>(null);
   const handleRef = useRef<View>(null);
+  const indicatorRef = useRef<View>(null);
   const releaseGestures = useRef<(() => void) | null>(null);
   useEffect(() => () => releaseGestures.current?.(), []);
   const pan = useMemo(() => {
@@ -1092,7 +1095,9 @@ function SidebarColumn(props: {
       },
     });
   }, []);
-  const start = (event: { nativeEvent: { pageX: number } }) => {
+  const dom = () => [handleRef.current, indicatorRef.current] as unknown as [HTMLElement | null, HTMLElement | null];
+  const follow = (clientY: number) => followPointer(...dom(), clientY);
+  const start = (event: { nativeEvent: { pageX: number; clientY: number } }) => {
     if (Platform.OS !== "web" || typeof document === "undefined") return;
     const at = Date.now();
     if (at - lastDown.current < 350) {
@@ -1111,17 +1116,22 @@ function SidebarColumn(props: {
       panel.style.width = `${fitted}px`;
     } : null;
     let width = width0;
+    const [handle] = dom();
     const body = document.body.style;
     const restore = { cursor: body.cursor, userSelect: body.userSelect };
     body.cursor = "col-resize";
     body.userSelect = "none";
     setDragging(true);
     let frame = 0;
+    let pointerY = event.nativeEvent.clientY;
     const move = (moved: PointerEvent) => {
       width = clampWidth(width0 + (x0 - moved.pageX));
+      if (moved.pageX !== x0) setResizing(handle, true);
+      pointerY = moved.clientY;
       if (!frame) {
         frame = requestAnimationFrame(() => {
           frame = 0;
+          follow(pointerY);
           paint?.(width);
           live.current.onDrag(width, paint !== null);
         });
@@ -1132,6 +1142,7 @@ function SidebarColumn(props: {
       document.removeEventListener("pointermove", move);
       document.removeEventListener("pointerup", up);
       Object.assign(body, restore);
+      setResizing(handle, false);
       setDragging(false);
       live.current.onDrag(null, false);
       if (width !== width0) live.current.onResize(width);
@@ -1142,10 +1153,13 @@ function SidebarColumn(props: {
   const handle = Platform.OS === "web" ? (
     <View
       ref={handleRef}
-      {...({ onPointerDown: start } as object)}
+      {...resizeHandleProps}
+      {...({ onPointerDown: start, onPointerMove: (event: { nativeEvent: { clientY: number } }) => { if (!dragging) follow(event.nativeEvent.clientY); } } as object)}
       style={{ position: "absolute", left: 0, top: 4, bottom: 12, width: 6, zIndex: 5, ...({ cursor: "col-resize", touchAction: "none" } as object) }}
       testID="sidebar-resize"
-    />
+    >
+      <ResizeLine indicator={indicatorRef} />
+    </View>
   ) : (
     <View
       ref={handleRef}

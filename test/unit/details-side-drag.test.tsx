@@ -45,10 +45,12 @@ it("writes a dragged width to the page once a frame and renders the panel once, 
   };
   const edgeListeners = new Map<string, Listener>();
   const panelStyle: Record<string, string> = {};
+  const setAttribute = vi.fn();
+  const removeAttribute = vi.fn();
   const createNodeMock = (element: React.ReactElement) => {
     const id = (element.props as { testID?: string }).testID;
     if (id === "details-side") return { style: Object.assign(panelStyle, { setProperty() {}, removeProperty() {} }) };
-    if (id === "details-side-edge") return { ownerDocument: doc, addEventListener: (name: string, handler: Listener) => edgeListeners.set(name, handler), removeEventListener() {}, setAttribute() {}, removeAttribute() {} };
+    if (id === "details-side-edge") return { ownerDocument: doc, addEventListener: (name: string, handler: Listener) => edgeListeners.set(name, handler), removeEventListener() {}, setAttribute, removeAttribute };
     return null;
   };
   let renders = 0;
@@ -70,17 +72,19 @@ it("writes a dragged width to the page once a frame and renders the panel once, 
   expect(panelStyleAtRest().borderLeftWidth ?? 0).toBe(0);
   expect(StyleSheet.flatten(edge.props.style).cursor).toBe("col-resize");
   expect(StyleSheet.flatten(edge.props.style).width).toBe(12);
-  expect(edge.findAll((node) => node.props.dataSet?.bcresizetrack === "")).toHaveLength(0);
+  expect(edge.findAll((node) => node.props.dataSet?.bcresizetrack === "").length).toBeGreaterThan(0);
   expect(renderer!.root.findAll((node) => node.props.testID === "details-side-grabber")).toHaveLength(0);
   const before = renders;
   const event = (clientX: number) => ({ button: 0, clientX, preventDefault() {} });
   act(() => edgeListeners.get("pointerdown")!(event(1000)));
+  expect(setAttribute).not.toHaveBeenCalled();
   // Three moves in one frame: one write, the last.
   act(() => {
     docListeners.get("pointermove")!(event(990));
     docListeners.get("pointermove")!(event(980));
     docListeners.get("pointermove")!(event(950));
   });
+  expect(setAttribute).toHaveBeenCalledWith("data-bcresizing", "");
   expect(frames).toHaveLength(1);
   expect(panelStyle.width).toBeUndefined();
   act(() => frames.shift()!());
@@ -94,6 +98,7 @@ it("writes a dragged width to the page once a frame and renders the panel once, 
   // A move still waiting for its frame lands with the release, then the panel renders at that width.
   act(() => docListeners.get("pointermove")!(event(880)));
   act(() => docListeners.get("pointerup")!(event(880)));
+  expect(removeAttribute).toHaveBeenCalledWith("data-bcresizing");
   expect(panelStyle.width).toBe(`${start + 120}px`);
   expect(drawnWidth()).toBe(start + 120);
   expect(drawnWidth()).toBeGreaterThan(600);

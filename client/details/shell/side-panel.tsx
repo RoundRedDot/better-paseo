@@ -19,6 +19,7 @@ import type { Entrance } from "./bottom-panel";
 import type { Insets } from "./safe-area";
 import { keepOffWindowDrag } from "./web-layer";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
+import { followPointer, ResizeLine, resizeHandleProps, setResizing, useResizeLine } from "../../ui/resize-line";
 import { sidebarSurface } from "../../ui/tokens/sidebar-shadow";
 
 export const SIDE = {
@@ -69,6 +70,7 @@ export function SidePanel(props: {
   const latest = useRef(props);
   latest.current = props;
   const [, setDragged] = useState(0);
+  useResizeLine(tokens.foreground);
   const [nativeDragging, setNativeDragging] = useState(false);
   const width = sideWidth(props.stage, props.wide);
   const liveWidth = useRef(new Animated.Value(width)).current;
@@ -133,6 +135,7 @@ export function SidePanel(props: {
   useLayoutEffect(() => keepOffWindowDrag(panel.current), []);
 
   const edge = useRef<View>(null);
+  const indicator = useRef<View>(null);
   const releaseGestures = useRef<(() => void) | null>(null);
   useEffect(() => () => releaseGestures.current?.(), []);
   const pan = useMemo(() => {
@@ -175,7 +178,7 @@ export function SidePanel(props: {
     if (!props.resizable || Platform.OS !== "web") return;
     const node = panel.current as unknown as HTMLElement | null;
     const rerender = () => setDragged((count) => count + 1);
-    return bindEdgeDrag(edge.current, () => sideWidth(latest.current.stage, latest.current.wide), () => latest.current.onResizeStart?.(), (next) => {
+    return bindEdgeDrag(edge.current, indicator.current, () => sideWidth(latest.current.stage, latest.current.wide), () => latest.current.onResizeStart?.(), (next) => {
       sessionWidth = Math.round(Math.max(SIDE.min, Math.min(latest.current.stage.width * SIDE.max, next)));
       latest.current.onWidthChange?.(sideWidth(latest.current.stage, false));
       if (node?.style) node.style.width = `${sideWidth(latest.current.stage, false)}px`;
@@ -213,8 +216,12 @@ export function SidePanel(props: {
             testID="details-side-edge"
             accessibilityRole="adjustable"
             accessibilityLabel={toolbarLabel("Resize details panel", language)}
+            {...resizeHandleProps}
+            onPointerMove={(event) => followPointer(edge.current as unknown as HTMLElement, indicator.current as unknown as HTMLElement, event.nativeEvent.clientY)}
             style={[styles.edge, styles.edgeCursor]}
-          />
+          >
+            <ResizeLine indicator={indicator} inset />
+          </View>
         ) : props.resizable && Platform.OS === "ios" && Platform.isPad ? (
           <View ref={edge} collapsable={false} {...pan.panHandlers} testID="details-side-native-edge"
             accessibilityRole="adjustable" accessibilityLabel={toolbarLabel("Resize details panel", language)} style={styles.edge}>
@@ -231,7 +238,7 @@ export function SidePanel(props: {
  * written at most once a frame (`write`); `release` follows the last one.
  * Web only.
  */
-function bindEdgeDrag(node: unknown, read: () => number, begin: () => void, write: (width: number) => void, release: () => void): () => void {
+function bindEdgeDrag(node: unknown, indicator: unknown, read: () => number, begin: () => void, write: (width: number) => void, release: () => void): () => void {
   const element = node as HTMLElement | null;
   if (!element || typeof element.addEventListener !== "function") return () => {};
   const doc = element.ownerDocument;
@@ -250,8 +257,10 @@ function bindEdgeDrag(node: unknown, read: () => number, begin: () => void, writ
   const move = (event: PointerEvent) => {
     if (!start) return;
     event.preventDefault();
+    followPointer(element, indicator as HTMLElement | null, event.clientY);
     if (!moved && event.clientX !== start.x) {
       moved = true;
+      setResizing(element, true);
       begin();
     }
     if (!moved) return;
@@ -262,6 +271,7 @@ function bindEdgeDrag(node: unknown, read: () => number, begin: () => void, writ
   const end = () => {
     if (!start) return;
     start = null;
+    setResizing(element, false);
     if (frame) view?.cancelAnimationFrame(frame);
     flush();
     release();
@@ -273,6 +283,7 @@ function bindEdgeDrag(node: unknown, read: () => number, begin: () => void, writ
     if (event.button !== 0) return;
     event.preventDefault();
     moved = false;
+    followPointer(element, indicator as HTMLElement | null, event.clientY);
     start = { x: event.clientX, width: read() };
     doc.addEventListener("pointermove", move);
     doc.addEventListener("pointerup", end);
@@ -283,6 +294,7 @@ function bindEdgeDrag(node: unknown, read: () => number, begin: () => void, writ
     if (frame) view?.cancelAnimationFrame(frame);
     frame = 0;
     pending = null;
+    if (start) setResizing(element, false);
     start = null;
     doc.removeEventListener("pointermove", move);
     doc.removeEventListener("pointerup", end);

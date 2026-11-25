@@ -2547,7 +2547,7 @@ describe("Tasks board, desktop", () => {
       expect(handleStyle.left).toBe(0);
       expect(handleStyle.width).toBeLessThanOrEqual(panel.paddingLeft);
       expect(handle.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-resize-grabber")).toHaveLength(0);
-      expect(handle.findAll((node) => node.props.dataSet?.bcresizetrack === "")).toHaveLength(0);
+      expect(handle.findAll((node) => node.props.dataSet?.bcresizetrack === "").length).toBeGreaterThan(0);
       act(() => handle.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
       const sidebar = () => hostsById("details-sidebar")[0]!;
       const layoutSidebar = (width: number) => sidebar().props.onLayout({ nativeEvent: { layout: { width, height: 800 } } });
@@ -2593,10 +2593,12 @@ describe("Tasks board, desktop", () => {
     vi.stubGlobal("cancelAnimationFrame", clearTimeout);
     // Page nodes for the column, the handle and the indicator: what a drag frame writes to.
     const nodes = new Map<string, { style: Record<string, string> }>();
+    const setAttribute = vi.fn();
+    const removeAttribute = vi.fn();
     const createNodeMock = (element: React.ReactElement) => {
       const id = (element.props as { testID?: string }).testID;
       if (id !== "sidebar-slot" && id !== "sidebar-inline" && id !== "sidebar-resize") return null;
-      const node = { style: {} as Record<string, string>, setAttribute() {}, removeAttribute() {}, getBoundingClientRect: () => ({ top: 0, height: 800 }) };
+      const node = { style: {} as Record<string, string>, setAttribute, removeAttribute, getBoundingClientRect: () => ({ top: 0, height: 800 }) };
       nodes.set(id, node);
       return node;
     };
@@ -2608,6 +2610,7 @@ describe("Tasks board, desktop", () => {
       expect(drawnWidth()).toBe(380);
       expect(row().props.scrollEnabled).toBe(false);
       act(() => hostsById("sidebar-resize")[0]!.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
+      expect(setAttribute).not.toHaveBeenCalled();
       const drawn = new Set<number>();
       let pageX = 1000;
       const frame = (to: number) => {
@@ -2617,6 +2620,7 @@ describe("Tasks board, desktop", () => {
         drawn.add(drawnWidth());
       };
       for (let delta = 1; delta <= 40; delta++) frame(1000 - delta);
+      expect(setAttribute).toHaveBeenCalledWith("data-bcresizing", "");
       // Every frame reached the page; the board drew the first one only, the lanes' view holding.
       expect(nodes.get("sidebar-inline")!.style.width).toBe("420px");
       expect(nodes.get("sidebar-slot")!.style.width).toBe("432px");
@@ -2632,6 +2636,7 @@ describe("Tasks board, desktop", () => {
       expect(drawn.size).toBe(before);
       expect(nodes.get("sidebar-inline")!.style.width).toBe(`${380 + 1000 - pageX}px`);
       act(() => listeners.get("pointerup")!({ pageX, clientY: 200 }));
+      expect(removeAttribute).toHaveBeenCalledWith("data-bcresizing");
       expect(drawnWidth()).toBe(380 + 1000 - pageX);
       expect(readSidebarPreference().width).toBe(380 + 1000 - pageX);
       expect(listeners.has("pointermove")).toBe(false);
