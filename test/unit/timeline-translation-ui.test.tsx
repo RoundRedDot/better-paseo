@@ -1054,6 +1054,15 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     await act(async () => button("Show translation")[0]!.props.onPress());
     expect(renderer!.root.findByProps({ testID: "selection-translation-panel" }).findByType(MarkdownView).props.text).toBe("第二段。\n\n---\n\n末尾");
     expect(renderer!.root.findByType(ToolbarCopyButton).props.text).toBe(translation);
+    await act(async () => button("Show raw text")[0]!.props.onPress());
+    expect(renderer!.root.findAll((node) => String(node.type) === "Text"
+      && node.props.testID === "selection-translation-source")[0]!.props.children).toBe(translation);
+    await act(async () => button("Show original")[0]!.props.onPress());
+    expect(renderer!.root.findAll((node) => String(node.type) === "Text"
+      && node.props.testID === "selection-translation-source")[0]!.props.children).toBe("Second paragraph.");
+    expect(renderer!.root.findByType(ToolbarCopyButton).props.text).toBe("Second paragraph.");
+    await act(async () => button("Render Markdown")[0]!.props.onPress());
+    await act(async () => button("Show translation")[0]!.props.onPress());
     const copyButton = button("Copy translation")[0]!;
     const retryButton = button("Retry")[0]!;
     const copyIcon = copyButton.find((node) => String(node.type) === "Icon");

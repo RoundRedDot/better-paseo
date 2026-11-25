@@ -34,6 +34,8 @@ class ElementMock extends EventTarget {
   offsetHeight = 30;
   html = "";
   private ownText = "";
+  constructor(readonly tag = "") { super(); }
+  get ownerDocument() { return document; }
   private classes = new Set<string>();
   private attributes = new Map<string, string>();
   classList = {
@@ -164,7 +166,13 @@ beforeEach(() => {
       };
     },
   }));
-  vi.stubGlobal("document", Object.assign(doc, { body, createElement: () => new ElementMock(), createTreeWalker: () => {
+  vi.stubGlobal("document", Object.assign(doc, { body, createElement: (tag: string) => new ElementMock(tag),
+    createTextNode: (text: string) => {
+      const node = new ElementMock();
+      node.nodeType = 3;
+      node.textContent = text;
+      return node;
+    }, createTreeWalker: () => {
     const nodes = selected?.textNodes ?? [];
     let index = 0;
     return { nextNode: () => nodes[index++] ?? null };
@@ -697,7 +705,7 @@ describe("selection bar Translate", () => {
     expect(call).not.toHaveBeenCalled();
   });
 
-  it("translates exactly the selection into a text-only panel bounded to the viewport", async () => {
+  it("translates exactly the selection and displays raw HTML as text in the bounded panel", async () => {
     let firstToken!: (value: unknown) => void;
     let finish!: (value: unknown) => void;
     call.mockImplementationOnce(() => new Promise((resolve) => { firstToken = resolve; }))
@@ -742,6 +750,7 @@ describe("selection bar Translate", () => {
     await flush();
     const text = panel().querySelector(".panel-body")!;
     expect(text.textContent).toBe(markup);
+    expect(text.all((node) => node.tag === "img")).toHaveLength(0);
     expect(panel().textContent).not.toContain("Thinking was NOT disabled");
     expect(panel().all((node) => node.html.includes("img"))).toEqual([]);
     button("Show original")!.click();
@@ -764,6 +773,33 @@ describe("selection bar Translate", () => {
     const max = Number.parseInt(bar().style.getPropertyValue("--bc-panel-max"), 10);
     expect(max).toBeLessThanOrEqual(200 - 16);
     expect(Number.parseInt(host().style.getPropertyValue("top"), 10)).toBeGreaterThanOrEqual(8);
+  });
+
+  it("renders translated and original Markdown independently from the source view and clipboard", async () => {
+    const original = "| Item |\n| --- |\n| **Seed** |";
+    const translated = "| 内容 |\n| --- |\n| **种子** |\n\n1. 步骤\n\n```sh\necho ok\n```";
+    call.mockResolvedValueOnce(done(translated));
+    select(original, surface({ agentId: "agent-1", kind: "assistant_message", streaming: false }));
+    button("Translate")!.click();
+    await flush();
+    const content = () => panel().querySelector(".panel-body")!;
+    const elements = (tag: string) => content().all((node) => node.tag === tag);
+    expect(elements("td")[0]?.textContent).toBe("种子");
+    expect(elements("strong")[0]?.textContent).toBe("种子");
+    expect(elements("li")[0]?.textContent).toBe("步骤");
+    expect(elements("pre")[0]?.textContent).toBe("echo ok");
+    button("Copy translation")!.click();
+    expect(copy).toHaveBeenLastCalledWith(translated);
+
+    button("Show raw text")!.click();
+    expect(content().textContent).toBe(translated);
+    expect(elements("table")).toHaveLength(0);
+    button("Show original")!.click();
+    expect(content().textContent).toBe(original);
+    button("Render Markdown")!.click();
+    expect(elements("strong")[0]?.textContent).toBe("Seed");
+    button("Copy original")!.click();
+    expect(copy).toHaveBeenLastCalledWith(original);
   });
 
   it("keeps a fading panel stable after its selection is gone", async () => {

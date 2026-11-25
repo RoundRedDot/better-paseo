@@ -27,6 +27,7 @@ import { selectionViewTitle } from "../translation/view-text";
 import { openTranslationSettings } from "../translation/navigation";
 import { SYNCED_LOADER_FRAMES } from "../ui/synced-loader";
 import { readMark, requestMark, subscribeMarks } from "./marks";
+import { renderMarkdownDom } from "./markdown/render/dom";
 
 /**
  * A floating Copy / Add to chat bar for highlighted callout text.
@@ -115,6 +116,8 @@ const ICONS = {
   add: '<path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"/><path d="M12 7v6"/><path d="M9 10h6"/>',
   settings: '<path d="M9.671 4.136a2.34 2.34 0 0 1 4.659 0 2.34 2.34 0 0 0 3.319 1.915 2.34 2.34 0 0 1 2.33 4.033 2.34 2.34 0 0 0 0 3.831 2.34 2.34 0 0 1-2.33 4.033 2.34 2.34 0 0 0-3.319 1.915 2.34 2.34 0 0 1-4.659 0 2.34 2.34 0 0 0-3.32-1.915 2.34 2.34 0 0 1-2.33-4.033 2.34 2.34 0 0 0 0-3.831A2.34 2.34 0 0 1 6.35 6.051a2.34 2.34 0 0 0 3.319-1.915"/><circle cx="12" cy="12" r="3"/>',
   original: '<path d="M15.5 7.5V5a2 2 0 0 0-2-2h-8a2 2 0 0 0-2 2v14a2 2 0 0 0 2 2h3"/><path d="M6.5 7h6"/><path d="M6.5 10.5h5"/><path d="M6.5 14h3.5"/><path d="m12 21 4.5-10 4.5 10"/><path d="M13.5 18h6"/>',
+  code: '<path d="m8 6-6 6 6 6"/><path d="m16 6 6 6-6 6"/>',
+  fileText: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8m-8 4h8"/>',
   translate: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
 } as const;
 type IconName = keyof typeof ICONS;
@@ -472,6 +475,23 @@ ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${ind
 .panel-body::-webkit-scrollbar { width: 4px; height: 4px; }
 .panel-body::-webkit-scrollbar-track { background: transparent; }
 .panel-body::-webkit-scrollbar-thumb { border-radius: 2px; background: color-mix(in srgb, var(--bc-bar-subtle) 40%, transparent); }
+.panel-body.raw, .panel-body code { font-family: var(--bc-panel-mono); }
+.panel-body.markdown { white-space: normal; }
+.panel-body.markdown :is(p, ul, ol, blockquote, pre, hr, .markdown-table) { margin-top: 0; margin-bottom: 8px; }
+.panel-body.markdown :is(h1, h2, h3, h4, h5, h6) { margin: 0 0 6px; font-size: 1.08em; line-height: 1.4; }
+.panel-body.markdown > :last-child { margin-bottom: 0; }
+.panel-body.markdown :is(ol, ul) { padding-inline-start: 22px; }
+.panel-body.markdown li > :last-child, .panel-body.markdown blockquote > :last-child { margin-bottom: 0; }
+.panel-body.markdown blockquote { margin-inline: 0; padding-inline-start: 8px; border-inline-start: 2px solid var(--bc-bar-border); }
+.panel-body.markdown hr { border: 0; border-top: 1px solid var(--bc-bar-border); }
+.panel-body.markdown pre, .panel-body.markdown :not(pre) > code { background: var(--bc-panel-head-bg); border-radius: 4px; }
+.panel-body.markdown :not(pre) > code { padding: 1px 3px; }
+.panel-body.markdown pre { padding: 6px 8px; overflow: auto; white-space: pre; }
+.panel-body.markdown .markdown-table { overflow-x: auto; }
+.panel-body.markdown table { border-collapse: collapse; }
+.panel-body.markdown :is(th, td) { border: 1px solid var(--bc-bar-border); padding: 4px 8px; text-align: start; }
+.panel-body.markdown th { background: var(--bc-panel-head-bg); }
+.panel-body.markdown button[role="link"] { display: inline; padding: 0; border: 0; background: none; color: var(--bc-bar-accent); font: inherit; text-decoration: underline; cursor: pointer; user-select: text; }
 .panel-footer { display: flex; align-items: center; gap: 6px; min-width: 0; }
 .panel-head { flex: 1 1 auto; }
 .panel-actions { display: flex; flex: 0 0 auto; justify-content: flex-end; gap: ${FLOAT.inset}px; }
@@ -620,6 +640,7 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
   let endGesture: (() => void) | null = null;
   let resized = false;
   let showingOriginal = false;
+  let showingRaw = false;
 
   /**
    * An icon and a label in the settings page's language, read on every paint
@@ -717,10 +738,16 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
   row.appendChild(dragHandle);
   const toggleButton = makeButton(row, "Show original", "original", () => {
     showingOriginal = !showingOriginal;
-    renderPanel();
+    refreshPanel();
   });
   toggleButton.classList.add("panel-toggle");
   toggleButton.hidden = true;
+  const formatButton = makeButton(row, "Show raw text", "code", () => {
+    showingRaw = !showingRaw;
+    refreshPanel();
+  });
+  formatButton.classList.add("panel-toggle");
+  formatButton.hidden = true;
   const settingsButton = makeButton(row, "Translation settings", "settings", () => actions.settings());
   settingsButton.className += " panel-settings";
   settingsButton.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.settings}</svg>`;
@@ -787,7 +814,6 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
   const element = <K extends keyof HTMLElementTagNameMap>(tag: K, className: string, text?: string) => {
     const node = document.createElement(tag);
     node.className = className;
-    // Text only: a translation is model output and never becomes markup.
     if (text !== undefined) node.textContent = text;
     return node;
   };
@@ -814,7 +840,7 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     return image;
   };
 
-  /** Rebuilds the panel for `view`; the translation goes in as text, never as HTML. */
+  /** Rebuilds the panel for the current translation and display mode. */
   const renderPanel = () => {
     panel.replaceChildren();
     if (!view) return;
@@ -843,7 +869,17 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
 
     const text = originalVisible ? source : selectionViewText(view) ?? (view as SelectionTranslationView & { partialText?: string }).partialText ?? null;
     const message = text && view.status !== "error" && view.status !== "stale" ? null : selectionViewMessage(view);
-    if (text) panel.appendChild(element("div", "panel-body", text));
+    const formatLabel = showingRaw ? "Render Markdown" : "Show raw text";
+    formatButton.hidden = !text;
+    formatButton.setAttribute("aria-label", formatLabel);
+    formatButton.title = toolbarLabel(formatLabel, language);
+    paint(formatButton, formatLabel, showingRaw ? "fileText" : "code");
+    if (text) {
+      const body = element("div", showingRaw ? "panel-body raw" : "panel-body markdown");
+      if (showingRaw) body.textContent = text;
+      else renderMarkdownDom(body, text);
+      panel.appendChild(body);
+    }
     if (message) {
       const line = element("div", "panel-message");
       if (view.status === "running" || view.status === "settings-loading") {
@@ -930,6 +966,11 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     separator.hidden = Boolean(view) || !canTranslate;
   };
 
+  const refreshPanel = () => {
+    renderPanel();
+    if (anchor && !hidden() && !bar.classList.contains("leaving")) place(anchor, false);
+  };
+
   const hidden = () => host.style.getPropertyValue("display") === "none";
 
   return {
@@ -955,6 +996,7 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
       host.style.setProperty("--bc-bar-ring", tokens.accent);
       host.style.setProperty("--bc-bar-accent", tokens.accent);
       host.style.setProperty("--bc-bar-border", tokens.v2.border);
+      host.style.setProperty("--bc-panel-mono", tokens.fontMono);
       host.style.setProperty("--bc-bar-danger", tokens.danger);
       bar.style.borderColor = tokens.v2.border;
       // The bar sits on document.body, outside the host's UI font rule, so
@@ -993,7 +1035,9 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
           updateSelectionActions();
           settingsButton.hidden = true;
           toggleButton.hidden = true;
+          formatButton.hidden = true;
           showingOriginal = false;
+          showingRaw = false;
           renderPanel();
           bar.classList.remove("translating");
         }
@@ -1011,11 +1055,14 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
       if (!next) geometry = null;
       updateSelectionActions();
       settingsButton.hidden = !next;
-      if (!next) toggleButton.hidden = true;
+      if (!next) {
+        toggleButton.hidden = true;
+        formatButton.hidden = true;
+        showingRaw = false;
+      }
       settingsButton.title = toolbarLabel("Translation settings", readLanguage());
       window.clearTimeout(copiedTimer);
-      renderPanel();
-      if (anchor && !hidden() && !bar.classList.contains("leaving")) place(anchor, false);
+      refreshPanel();
     },
     pin() {
       geometry = {

@@ -8,6 +8,7 @@ import { openTranslationSettings, TranslationSettingsParentCloseContext } from "
 import { SyncedLoader } from "../ui/synced-loader";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { MarkdownView } from "../components/markdown/markdown-view";
+import { selectionColorProps } from "../components/text-selection";
 import { lexBlockTokens } from "../components/markdown/lex";
 import { ResizedToolbarDetailsContext, ToolbarButton, ToolbarCopyButton, ToolbarItem, ToolbarMetricsContext, TooltipAlignContext, TooltipSideContext } from "../ui/toolbar-button";
 import { useEnhancerPreferences } from "../preferences";
@@ -85,6 +86,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
   const lang = resolveLanguage(language ?? "system");
   const window = useWindowDimensions();
   const [showingOriginal, setShowingOriginal] = useState(false);
+  const [showingRaw, setShowingRaw] = useState(false);
   const text = showingOriginal && view.status === "done" ? original : selectionViewText(view);
   const message = text ? null : selectionViewMessage(view);
   const danger = tokens.danger ?? tokens.foreground;
@@ -98,6 +100,10 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
           <TooltipAlignContext.Provider value="end">
             {view.status === "done" ? <ToolbarItem label={showingOriginal ? "Show translation" : "Show original"} onPress={() => setShowingOriginal(!showingOriginal)} tokens={tokens} hitSlop={8}>
               <Icon icon={showingOriginal ? TRANSLATE_ICON : SHOW_ORIGINAL_ICON} size={16} color={tokens.foregroundMuted} />
+            </ToolbarItem> : null}
+            {text ? <ToolbarItem label={showingRaw ? "Render Markdown" : "Show raw text"}
+              onPress={() => setShowingRaw(!showingRaw)} tokens={tokens} hitSlop={8}>
+              <Icon name={showingRaw ? "FileText" : "Code"} size={16} color={tokens.foregroundMuted} />
             </ToolbarItem> : null}
             <ToolbarItem label="Translation settings" onPress={() => {
               onClose();
@@ -125,7 +131,13 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
           style={[resized || sheet ? { flex: 1, minHeight: 0 } : { maxHeight: Math.max(120, Math.round(window.height * 0.45)) }, sheet && styles.sheetBody]}
           contentContainerStyle={sheet ? styles.sheetBodyContent : undefined}>
           <SelectionTranslationContext.Provider value={null}>
-            <MarkdownView text={sheet ? withoutLeadingRule(text) : text} tokens={tokens} variant="compact" compact blockSelection={false} streaming={view.status === "running"} />
+            {showingRaw
+              ? <Text testID="selection-translation-source" selectable {...selectionColorProps()} style={{
+                color: tokens.foreground, fontFamily: tokens.fontMono,
+                fontSize: tokens.typography.mono.size, lineHeight: tokens.typography.mono.lineHeight,
+              }}>{text}</Text>
+              : <MarkdownView text={sheet ? withoutLeadingRule(text) : text} tokens={tokens} variant="compact" compact
+                blockSelection={false} streaming={view.status === "running"} />}
           </SelectionTranslationContext.Provider>
         </ScrollView>
       ) : null}
