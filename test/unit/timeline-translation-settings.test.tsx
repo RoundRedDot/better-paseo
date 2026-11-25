@@ -339,6 +339,7 @@ describe("timeline translation settings", () => {
   });
 
   it("tests unsaved values and reports the result without saving", async () => {
+    const now = vi.spyOn(Date, "now").mockReturnValueOnce(1000).mockReturnValueOnce(2500);
     mocks.rpc.mockImplementation(async (name: string, request: { endpoint: string }) => {
       if (name === "translation.test") return { ok: true };
       return statusFor(request.endpoint, { status: "none" });
@@ -349,10 +350,11 @@ describe("timeline translation settings", () => {
     await act(async () => input("Model").props.onChangeText("model-one"));
     await act(async () => pressable("Test connection").props.onPress());
     expect(mocks.rpc).toHaveBeenCalledWith("translation.test", { endpoint: OK_ENDPOINT, model: "model-one", apiKey: "example-key" }, mocks.host);
-    expect(textValues(renderer!.root)).toContain("Connection successful. The model responded.");
+    expect(textValues(renderer!.root)).toContain("Connection successful. Model: model-one. Response time: 1.5 s.");
     expect(mocks.saveSpy).not.toHaveBeenCalled();
     await act(async () => input("Model").props.onChangeText("model-two"));
-    expect(textValues(renderer!.root)).not.toContain("Connection successful. The model responded.");
+    expect(textValues(renderer!.root)).not.toContain("Connection successful. Model: model-one. Response time: 1.5 s.");
+    now.mockRestore();
   });
 
   it("shows a failed connection test and allows retry", async () => {

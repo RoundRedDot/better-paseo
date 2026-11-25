@@ -84,7 +84,7 @@ const STRINGS = {
     targetEmpty: "No matching language",
     testConnection: "Test connection",
     saveConfiguration: "Save configuration",
-    testSuccess: "Connection successful. The model responded.",
+    testSuccess: (model: string, seconds: string) => `Connection successful. Model: ${model}. Response time: ${seconds} s.`,
     testFailed: "Connection failed: ",
     saveSuccess: "Configuration saved.",
     testing: "Testing connection...",
@@ -201,7 +201,7 @@ const STRINGS = {
     targetEmpty: "没有匹配的语言",
     testConnection: "测试连接",
     saveConfiguration: "保存配置",
-    testSuccess: "连接成功，模型响应正常。",
+    testSuccess: (model: string, seconds: string) => `连接成功。模型：${model}，响应时间：${seconds} 秒。`,
     testFailed: "连接失败：",
     saveSuccess: "配置已保存。",
     testing: "正在测试连接...",
@@ -412,9 +412,11 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
     }
     setTesting(true);
     setNoticeLine({ text: t.testing, tone: "neutral" });
+    const model = apiModel.trim();
+    const started = Date.now();
     try {
-      await testConnection({ endpoint: apiEndpoint.trim(), model: apiModel.trim(), ...(keyDraft.trim() ? { apiKey: keyDraft.trim() } : {}) });
-      setNoticeLine({ text: t.testSuccess, tone: "accent" });
+      await testConnection({ endpoint: apiEndpoint.trim(), model, ...(keyDraft.trim() ? { apiKey: keyDraft.trim() } : {}) });
+      setNoticeLine({ text: t.testSuccess(model, ((Date.now() - started) / 1000).toFixed(1)), tone: "accent" });
     } catch (error) {
       setNoticeLine({ text: `${t.testFailed}${error instanceof Error ? error.message : String(error)}`, tone: "danger" });
     } finally {
