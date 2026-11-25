@@ -39,7 +39,7 @@ export function TaskQuestionDialog(props: {
   const cards = props.cards ?? [];
   const index = cards.findIndex((card) => card.id === state?.agentId);
   return <Modal title={cardStrings(props.language).questions.title} open onOpenChange={(open) => { if (!open) props.store.close(); }}>
-    <Modal.Content desktopMaxWidth={600} scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0, gap: 0 }}>
+    <Modal.Content scrollable={false} contentContainerStyle={{ flex: 1, minHeight: 0, padding: 0, gap: 0 }}>
       {cards.length > 1 && index >= 0 ? <View testID="task-question-card-pager" style={{ flexDirection: "row", alignItems: "center", justifyContent: "center", gap: 8, padding: 8 }}>
         <HoverControl base={props.theme.colors.surface0} foreground={props.theme.colors.foreground} testID="task-question-previous-card" accessibilityRole="button" accessibilityLabel={props.language === "zh" ? "上一个任务" : "Previous task"} disabled={index === 0 || state?.pending} onPress={() => props.store.open(cards[index - 1]!)}><Icon name="ChevronLeft" size={18} color={props.theme.colors.foregroundMuted} /></HoverControl>
         <Text style={{ color: props.theme.colors.foregroundMuted }}>{props.language === "zh" ? `任务 ${index + 1} / ${cards.length}` : `Task ${index + 1} / ${cards.length}`}</Text>
