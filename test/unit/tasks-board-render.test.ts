@@ -2206,7 +2206,8 @@ describe("Tasks board, desktop", () => {
     layOut(2000);
     const sidebar = StyleSheet.flatten(hostsById("sidebar-inline")[0]!.props.style);
     const filters = StyleSheet.flatten(hostsById("filter-bar")[0]!.props.style);
-    expect(sidebar).toMatchObject(sidebarSurface("#ffffff", "#e2e2e6", false));
+    expect(sidebar).toMatchObject(sidebarSurface("#ffffff", false));
+    expect(sidebar.borderLeftWidth ?? 0).toBe(0);
     expect(sidebar.paddingLeft).toBe(6);
     expect(sidebar.paddingRight + sidebar.right).toBe(filters.paddingRight);
     expect(sidebar.width - sidebar.paddingLeft - sidebar.paddingRight).toBe(370);
@@ -2546,7 +2547,7 @@ describe("Tasks board, desktop", () => {
       expect(handleStyle.left).toBe(0);
       expect(handleStyle.width).toBeLessThanOrEqual(panel.paddingLeft);
       expect(handle.findAll((node) => typeof node.type === "string" && node.props.testID === "sidebar-resize-grabber")).toHaveLength(0);
-      expect(handle.findAll((node) => node.props.dataSet?.bcresizetrack === "").length).toBeGreaterThan(0);
+      expect(handle.findAll((node) => node.props.dataSet?.bcresizetrack === "")).toHaveLength(0);
       act(() => handle.props.onPointerDown({ nativeEvent: { pageX: 1000, clientY: 200 } }));
       const sidebar = () => hostsById("details-sidebar")[0]!;
       const layoutSidebar = (width: number) => sidebar().props.onLayout({ nativeEvent: { layout: { width, height: 800 } } });

@@ -1,7 +1,7 @@
 /**
  * The right-hand details panel (design boards 2c and 3, table 5.2):
  * clamp(0.36W, 420, 640) wide (400 in a phone's landscape), full height
- * under the status bar, a 1px left border and no dim. Its full
+ * under the status bar and no dim. Its full
  * screen is a wider panel. On desktop web a zone on its left edge
  * drags its width between 360 and 0.6W, kept for the session. A drag frame
  * writes the width to the page, at most once a frame; the panel renders
@@ -19,7 +19,6 @@ import type { Entrance } from "./bottom-panel";
 import type { Insets } from "./safe-area";
 import { keepOffWindowDrag } from "./web-layer";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
-import { followPointer, ResizeLine, resizeHandleProps, setResizing, useResizeLine } from "../../ui/resize-line";
 import { sidebarSurface } from "../../ui/tokens/sidebar-shadow";
 
 export const SIDE = {
@@ -70,7 +69,6 @@ export function SidePanel(props: {
   const latest = useRef(props);
   latest.current = props;
   const [, setDragged] = useState(0);
-  useResizeLine(tokens.foreground);
   const [nativeDragging, setNativeDragging] = useState(false);
   const width = sideWidth(props.stage, props.wide);
   const liveWidth = useRef(new Animated.Value(width)).current;
@@ -135,7 +133,6 @@ export function SidePanel(props: {
   useLayoutEffect(() => keepOffWindowDrag(panel.current), []);
 
   const edge = useRef<View>(null);
-  const indicator = useRef<View>(null);
   const releaseGestures = useRef<(() => void) | null>(null);
   useEffect(() => () => releaseGestures.current?.(), []);
   const pan = useMemo(() => {
@@ -178,7 +175,7 @@ export function SidePanel(props: {
     if (!props.resizable || Platform.OS !== "web") return;
     const node = panel.current as unknown as HTMLElement | null;
     const rerender = () => setDragged((count) => count + 1);
-    return bindEdgeDrag(edge.current, indicator.current, () => sideWidth(latest.current.stage, latest.current.wide), () => latest.current.onResizeStart?.(), (next) => {
+    return bindEdgeDrag(edge.current, () => sideWidth(latest.current.stage, latest.current.wide), () => latest.current.onResizeStart?.(), (next) => {
       sessionWidth = Math.round(Math.max(SIDE.min, Math.min(latest.current.stage.width * SIDE.max, next)));
       latest.current.onWidthChange?.(sideWidth(latest.current.stage, false));
       if (node?.style) node.style.width = `${sideWidth(latest.current.stage, false)}px`;
@@ -202,7 +199,8 @@ export function SidePanel(props: {
           {
             top: props.insets.top,
             width: nativeDragging ? liveWidth : width,
-            ...sidebarSurface(tokens.surface0, tokens.v2.border, tokens.isDark),
+            ...sidebarSurface(tokens.surface0, tokens.isDark),
+            ...(Platform.OS !== "web" ? { borderLeftWidth: 1, borderLeftColor: tokens.v2.border } : null),
             opacity,
             transform: [{ translateX: Platform.OS === "web" ? progress.interpolate({ inputRange: [0, 1], outputRange: [width, 0] }) : shift }],
           },
@@ -215,12 +213,8 @@ export function SidePanel(props: {
             testID="details-side-edge"
             accessibilityRole="adjustable"
             accessibilityLabel={toolbarLabel("Resize details panel", language)}
-            {...resizeHandleProps}
-            onPointerMove={(event) => followPointer(edge.current as unknown as HTMLElement, indicator.current as unknown as HTMLElement, event.nativeEvent.clientY)}
             style={[styles.edge, styles.edgeCursor]}
-          >
-            <ResizeLine indicator={indicator} inset />
-          </View>
+          />
         ) : props.resizable && Platform.OS === "ios" && Platform.isPad ? (
           <View ref={edge} collapsable={false} {...pan.panHandlers} testID="details-side-native-edge"
             accessibilityRole="adjustable" accessibilityLabel={toolbarLabel("Resize details panel", language)} style={styles.edge}>
@@ -237,7 +231,7 @@ export function SidePanel(props: {
  * written at most once a frame (`write`); `release` follows the last one.
  * Web only.
  */
-function bindEdgeDrag(node: unknown, indicator: unknown, read: () => number, begin: () => void, write: (width: number) => void, release: () => void): () => void {
+function bindEdgeDrag(node: unknown, read: () => number, begin: () => void, write: (width: number) => void, release: () => void): () => void {
   const element = node as HTMLElement | null;
   if (!element || typeof element.addEventListener !== "function") return () => {};
   const doc = element.ownerDocument;
@@ -256,7 +250,6 @@ function bindEdgeDrag(node: unknown, indicator: unknown, read: () => number, beg
   const move = (event: PointerEvent) => {
     if (!start) return;
     event.preventDefault();
-    followPointer(element, indicator as HTMLElement | null, event.clientY);
     if (!moved && event.clientX !== start.x) {
       moved = true;
       begin();
@@ -269,7 +262,6 @@ function bindEdgeDrag(node: unknown, indicator: unknown, read: () => number, beg
   const end = () => {
     if (!start) return;
     start = null;
-    setResizing(element, false);
     if (frame) view?.cancelAnimationFrame(frame);
     flush();
     release();
@@ -281,8 +273,6 @@ function bindEdgeDrag(node: unknown, indicator: unknown, read: () => number, beg
     if (event.button !== 0) return;
     event.preventDefault();
     moved = false;
-    setResizing(element, true);
-    followPointer(element, indicator as HTMLElement | null, event.clientY);
     start = { x: event.clientX, width: read() };
     doc.addEventListener("pointermove", move);
     doc.addEventListener("pointerup", end);
@@ -293,7 +283,6 @@ function bindEdgeDrag(node: unknown, indicator: unknown, read: () => number, beg
     if (frame) view?.cancelAnimationFrame(frame);
     frame = 0;
     pending = null;
-    if (start) setResizing(element, false);
     start = null;
     doc.removeEventListener("pointermove", move);
     doc.removeEventListener("pointerup", end);
@@ -303,7 +292,7 @@ function bindEdgeDrag(node: unknown, indicator: unknown, read: () => number, beg
 }
 
 const styles = StyleSheet.create({
-  panel: { position: "absolute", right: 0, bottom: 0, borderLeftWidth: 1, overflow: "hidden" },
+  panel: { position: "absolute", right: 0, bottom: 0, overflow: "hidden" },
   content: { flex: 1, minHeight: 0 },
   edge: { position: "absolute", left: 0, top: 0, bottom: 0, width: SIDE.edge },
   edgeIndicator: { position: "absolute", left: 4, top: "50%", marginTop: -18, width: 3, height: 36, borderRadius: 2 },

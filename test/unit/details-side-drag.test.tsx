@@ -67,11 +67,10 @@ it("writes a dragged width to the page once a frame and renders the panel once, 
   expect(start).toBe(576);
   const edge = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side-edge");
   const panelStyleAtRest = () => StyleSheet.flatten(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side").props.style);
-  expect(panelStyleAtRest().borderLeftWidth).toBe(1);
+  expect(panelStyleAtRest().borderLeftWidth ?? 0).toBe(0);
   expect(StyleSheet.flatten(edge.props.style).cursor).toBe("col-resize");
   expect(StyleSheet.flatten(edge.props.style).width).toBe(12);
-  expect(edge.props.dataSet.bcresize).toBe("");
-  expect(edge.findAll((node) => node.props.dataSet?.bcresizetrack === "").length).toBeGreaterThan(0);
+  expect(edge.findAll((node) => node.props.dataSet?.bcresizetrack === "")).toHaveLength(0);
   expect(renderer!.root.findAll((node) => node.props.testID === "details-side-grabber")).toHaveLength(0);
   const before = renders;
   const event = (clientX: number) => ({ button: 0, clientX, preventDefault() {} });

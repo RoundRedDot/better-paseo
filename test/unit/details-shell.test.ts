@@ -562,7 +562,7 @@ describe("form", () => {
     expect(flat(byTestId(renderer, "details-toolbar")!.props.style)).toMatchObject({
       minHeight: 36, borderBottomWidth: 1, borderBottomColor: tokens.border,
     });
-    expect(flat(byTestId(renderer, "details-side")!.props.style)).toMatchObject(sidebarSurface(tokens.surface0, tokens.v2.border, tokens.isDark));
+    expect(flat(byTestId(renderer, "details-side")!.props.style)).toMatchObject(sidebarSurface(tokens.surface0, tokens.isDark));
     expect(flat(byTestId(renderer, "hover-preview-body")!.props.style).marginTop).toBe(0);
     act(() => seen.shell!.toggleFullscreen!());
     expect(web.timelinePadding).toBe("calc(16px + 624px)");
