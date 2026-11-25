@@ -711,6 +711,25 @@ describe("timeline translation", () => {
     expect(agentApi.list).not.toHaveBeenCalled();
   });
 
+  it.each([
+    ["standalone reply", {}, "![Image](file:///tmp/tool-output.png)"],
+    ["split reply", { blockIndex: 1 }, "![Image](file:///tmp/tool-output.png) ![Image](file:///tmp/second.png)"],
+  ] as const)("hides the translation slot for an image-only %s", async (_label, data, image) => {
+    mocks.rpc.mockResolvedValue({ dataUri: null, width: null, height: null, bytes: null, error: "File unavailable" });
+    const slot = () => renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "reply-translation-slot");
+    await act(async () => {
+      renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
+        assistantProps({ ...data, text: image, phase: "complete" }, "ios") as never));
+    });
+    expect(collectTexts(renderer!.root).join(" ")).toContain("tool-output.png");
+    expect(slot()).toHaveLength(0);
+    await act(async () => {
+      renderer!.update(React.createElement(LiveAssistantRenderer,
+        assistantProps({ ...data, text: `Here is the result. ${image}`, phase: "complete" }, "ios") as never));
+    });
+    expect(slot()).toHaveLength(1);
+  });
+
   it("translates one reply block in place and toggles back without changing its neighbor", async () => {
     mocks.rpc.mockResolvedValue(doneState("译文一"));
     await act(async () => { renderer = TestRenderer.create(React.createElement(React.Fragment, null,

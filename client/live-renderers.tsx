@@ -39,6 +39,8 @@ import { type AssistantRowData } from "./assistant-transform";
 import { HOST_REWIND_MENU } from "./ui/host-rewind";
 import { publishHubSnapshot } from "./hub-activity";
 import { MarkdownView } from "./components/markdown/markdown-view";
+import { lexBlock } from "./components/markdown/lex";
+import { splitLocalImages } from "./components/markdown/render/local-path";
 import { variantMetrics } from "./components/markdown/render/styles";
 import { firstLineCenter, firstLineSource } from "./components/markdown/render/first-line";
 import { hairline } from "./ui/tokens/platform";
@@ -546,12 +548,22 @@ function LiveAssistantRendererBody(props: PluginTimelineItemProps<LiveAssistantP
 // The reply's right gutter, which the translate button sits in.
 const REPLY_TRANSLATE_GUTTER = 32;
 
-function InlineReplyBlock({ state, replyKey, theme, tokens: given, compact, text, firstBlock, listContinuation, codexDirectives, children }: {
+function isImageOnlyReply(text: string, codexDirectives: boolean): boolean {
+  if (!text.includes("![")) return false;
+  const blocks = lexBlock(text, false, codexDirectives).filter((token) => token.type !== "space" && token.type !== "def");
+  return blocks.length > 0 && blocks.every((block) => {
+    if (block.type !== "paragraph") return false;
+    const parts = splitLocalImages(block.tokens);
+    return parts.length > 0 && parts.every((part) => part.kind === "image");
+  });
+}
+
+function InlineReplyBlock({ state, replyKey, theme, tokens: given, compact, text, originalText, firstBlock, listContinuation, codexDirectives, children }: {
   state: InlineTranslationState;
   /** The reply this block belongs to: the footer's whole-message translation dims it too. */
   replyKey: string; theme: PluginTheme; tokens: ReturnType<typeof useThemeTokens>; compact: boolean;
   /** The Markdown the block shows, original or translated: the button centers on its first line. */
-  text: string; firstBlock: boolean; listContinuation?: boolean; codexDirectives: boolean; children: ReactNode;
+  text: string; originalText: string; firstBlock: boolean; listContinuation?: boolean; codexDirectives: boolean; children: ReactNode;
 }) {
   const { hovered, hoverProps } = useHover();
   const input = useInputCapabilities(compact);
@@ -566,7 +578,7 @@ function InlineReplyBlock({ state, replyKey, theme, tokens: given, compact, text
   const center = useMemo(() => firstLineCenter(source, { metrics, ruleHeight, monoLineHeight, first: firstBlock, codexDirectives }),
     [source, metrics, ruleHeight, monoLineHeight, firstBlock, codexDirectives]);
   const top = gap + center - REPLY_TRANSLATE_GUTTER / 2;
-  const enabled = settings.status !== "ready" || settings.values.enabled;
+  const enabled = (settings.status !== "ready" || settings.values.enabled) && !isImageOnlyReply(originalText, codexDirectives);
   const replyPending = useReplyTranslationPending(replyKey);
   const loading = replyPending || (state.active && state.view && ["running", "settings-loading"].includes(state.view.status));
   const gutter = enabled ? REPLY_TRANSLATE_GUTTER : 0;
@@ -606,7 +618,7 @@ function AssistantBlockRenderer({ item, theme, layout, agentId, timestamp, inlin
     {probe.node}
     <PreferenceSyncSlot />
     <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={item.data.phase === "streaming"}>
-      <InlineReplyBlock state={inline} replyKey={replyTranslationKey(agentId, timestamp.getTime())} theme={theme} tokens={tokens} compact={layout.compact} text={shown} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives} text={shown} tokens={tokens} variant={preferences.markdownVariant}
+      <InlineReplyBlock state={inline} replyKey={replyTranslationKey(agentId, timestamp.getTime())} theme={theme} tokens={tokens} compact={layout.compact} text={shown} originalText={item.data.text} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives} text={shown} tokens={tokens} variant={preferences.markdownVariant}
         compact={layout.compact} firstBlock={item.data.blockIndex === 0} onRevealPath={onRevealPath}
         listContinuation={item.data.listContinuation}
         probeId={`assistant:${timestamp.getTime()}:${item.data.blockIndex}`} /></InlineReplyBlock>
@@ -698,7 +710,7 @@ function LiveAssistantMessageRenderer({
         <SystemCard envelope={envelope} tokens={tokens} compact={layout.compact} />
       ) : (
         <SelectionTranslationScope agentId={agentId} kind="assistant_message" streaming={streaming}>
-          {inline ? <InlineReplyBlock state={inline} replyKey={replyTranslationKey(agentId, timestamp.getTime())} theme={theme} tokens={tokens} compact={layout.compact} text={translated ?? revealed} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives}
+          {inline ? <InlineReplyBlock state={inline} replyKey={replyTranslationKey(agentId, timestamp.getTime())} theme={theme} tokens={tokens} compact={layout.compact} text={translated ?? revealed} originalText={item.data.text} codexDirectives={codexDirectives} firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0} listContinuation={item.data.listContinuation}><MarkdownView codexDirectives={codexDirectives}
             text={translated ?? revealed}
             firstBlock={item.data.blockIndex === undefined || item.data.blockIndex === 0}
             listContinuation={item.data.listContinuation}
