@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import type { PaseoApi } from "../paseo-types";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
+import { createCodexSubagentFacts, type SubagentFactsSource } from "./codex-subagent-facts";
 
 /** A provider subagent as the daemon sends it (`ProviderSubagentDescriptorPayload`). */
 export interface SubagentDescriptor {
@@ -82,11 +83,16 @@ function toWire(descriptor: SubagentDescriptor & { status: ProviderSubagent["sta
   };
 }
 
+/** How long a board's first request waits for facts lines still being read. */
+const FIRST_READ_FACTS_MS = 1_500;
+
 /**
  * Provider subagents by parent. The newer `updatedAt` wins so an older
- * seed cannot overwrite a live update.
+ * seed cannot overwrite a live update. `facts` fills in a facts line the host
+ * did not send, on the way out only: the host's own line, status and times
+ * are never touched, and a line the host sends later replaces it.
  */
-export function createSubagentRegistry(now = () => Date.now()) {
+export function createSubagentRegistry(now = () => Date.now(), facts?: SubagentFactsSource) {
   const byParent = new Map<string, Map<string, ProviderSubagent>>();
   /** Newest `updatedAt` seen per subagent, kept after it leaves, so an older copy cannot return. */
   const seen = new Map<string, number>();
@@ -106,6 +112,7 @@ export function createSubagentRegistry(now = () => Date.now()) {
     if (!parent) byParent.set(descriptor.parentAgentId, parent = new Map());
     parent.set(descriptor.id, next);
     revision += 1;
+    facts?.observe(next);
   }
 
   function remove(parentAgentId: string, id: string): void {
@@ -113,6 +120,7 @@ export function createSubagentRegistry(now = () => Date.now()) {
     if (!parent?.delete(id)) return;
     if (parent.size === 0) byParent.delete(parentAgentId);
     revision += 1;
+    facts?.forget(parentAgentId, id);
   }
 
   /** A seed's whole list for one parent: what it lacks went before the seed began. */
@@ -126,6 +134,17 @@ export function createSubagentRegistry(now = () => Date.now()) {
 
   function dropParent(parentAgentId: string): void {
     if (byParent.delete(parentAgentId)) revision += 1;
+    facts?.forget(parentAgentId);
+  }
+
+  facts?.onChange(() => {
+    revision += 1;
+  });
+
+  function withFacts(subagent: ProviderSubagent): ProviderSubagent {
+    if (!facts || subagent.subtitle?.trim()) return subagent;
+    const subtitle = facts.subtitle(subagent);
+    return subtitle ? { ...subagent, subtitle } : subagent;
   }
 
   function read(since?: string): { version: string; subagents: ProviderSubagent[] | null } {
@@ -135,10 +154,10 @@ export function createSubagentRegistry(now = () => Date.now()) {
     }
     const version = `${epoch}:${revision}`;
     if (since === version) return { version, subagents: null };
-    return { version, subagents: [...byParent.values()].flatMap((parent) => [...parent.values()]) };
+    return { version, subagents: [...byParent.values()].flatMap((parent) => [...parent.values()].map(withFacts)) };
   }
 
-  return { upsert, remove, replaceParent, dropParent, read };
+  return { upsert, remove, replaceParent, dropParent, read, facts };
 }
 
 export type SubagentRegistry = ReturnType<typeof createSubagentRegistry>;
@@ -275,7 +294,7 @@ export function applySubagentUpdate(registry: SubagentRegistry, message: unknown
  * request seeds again, at most every 30 seconds.
  */
 export function createSubagentWatch(
-  registry = createSubagentRegistry(),
+  registry = createSubagentRegistry(undefined, createCodexSubagentFacts()),
   connect: () => Promise<SeedDaemon | null> = connectHostDaemon,
   now = () => Date.now(),
 ) {
@@ -356,6 +375,7 @@ export function createSubagentWatch(
     ensure(paseo: PaseoApi | undefined): Promise<void> {
       if (started || !paseo) return seeding ?? Promise.resolve();
       started = true;
+      registry.facts?.attach(paseo);
       return start(paseo);
     },
     /**
@@ -373,7 +393,11 @@ export function createSubagentWatch(
     async read(paseo: PaseoApi | undefined, since?: string) {
       const first = !started;
       const pending = this.ensure(paseo);
-      if (first) await pending;
+      if (first) {
+        await pending;
+        // The seed's Codex children are read meanwhile: a first board answer with their lines spares a second render.
+        if (started) await registry.facts?.settle(FIRST_READ_FACTS_MS);
+      }
       else if (!feed && now() - lastSeedAt >= RESEED_WITHOUT_FEED_MS) await seed();
       return registry.read(since);
     },
