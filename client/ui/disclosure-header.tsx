@@ -35,7 +35,8 @@ import { SelectionTranslationScope } from "../translation/ui";
  * a failed row's error line and an opened body share one text column at
  * `textColumn`. The slot is exactly as wide as the 14pt icon, so the icon's
  * left edge sits on the prose edge rather than centred a few points in; the
- * slot's trailing pad keeps the icon-to-text gap at 10. Rows are 26 tall on desktop and 28 on touch, tighter than
+ * slot's trailing pad and `slotTrim` keep the icon-to-text gap at 6 while the
+ * row's other parts stay `gap` apart. Rows are 26 tall on desktop and 28 on touch, tighter than
  * the host's own 30, and touch rows reach 44 through `hitSlop`.
  */
 export const DISCLOSURE_HEADER = {
@@ -48,12 +49,17 @@ export const DISCLOSURE_HEADER = {
   /** The slot's trailing pad: the slot's content box is the icon's 14pt square. */
   iconSlotPad: 2,
   icon: 14,
+  /**
+   * The slot's trailing margin: it pulls the text in from the row's `gap` to
+   * `space.xs`, so the icon sits close to its text.
+   */
+  slotTrim: space.xs - space.sm,
   verb: TYPE.label.size,
   target: TYPE.target,
   meta: TYPE.meta.size,
   chevron: 14,
-  /** Slot + gap: where the verb, an error line and an opened body start. */
-  textColumn: 16 + space.sm,
+  /** Slot + the trimmed gap: where the verb, an error line and an opened body start. */
+  textColumn: 16 + space.xs,
   /** Middle-truncation budget for a string target, in characters. */
   targetBudget: { desktop: 72, compact: 40 },
 } as const;
@@ -666,6 +672,7 @@ const styles = StyleSheet.create({
   slot: {
     width: DISCLOSURE_HEADER.iconSlot,
     paddingRight: DISCLOSURE_HEADER.iconSlotPad,
+    marginRight: DISCLOSURE_HEADER.slotTrim,
     alignItems: "center",
     justifyContent: "center",
   },

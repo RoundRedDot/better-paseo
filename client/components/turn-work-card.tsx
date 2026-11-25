@@ -761,10 +761,10 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
   // a bleeding border reads as wider than the reply. A list row bleeds into the card's padding for its own fill.
   const inset = space.sm - 1;
   const listRow = { ...row, minHeight: block.rowHeight.desktop - space.xs, marginHorizontal: -space.xs,
-    paddingLeft: DISCLOSURE_HEADER.iconSlot + space.sm + space.xs, paddingRight: space.xs, borderRadius: 6 };
+    paddingLeft: DISCLOSURE_HEADER.textColumn + space.xs, paddingRight: space.xs, borderRadius: 6 };
   return StyleSheet.create({
     card: { marginTop: 6, marginBottom: space.sm + 6 },
-    slot: { width: 16, alignItems: "center", justifyContent: "center" },
+    slot: { width: DISCLOSURE_HEADER.iconSlot, marginRight: DISCLOSURE_HEADER.slotTrim, alignItems: "center", justifyContent: "center" },
     intent: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: block.label.size,
       lineHeight: block.label.lineHeight, paddingVertical: space.xs / 2 },
     current: { ...row },

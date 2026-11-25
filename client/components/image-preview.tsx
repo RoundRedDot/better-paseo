@@ -182,6 +182,7 @@ export function ImagePreview({ path, file, tokens, onReveal, bleed = false, prev
         slot: {
           width: DISCLOSURE_HEADER.iconSlot,
           paddingRight: DISCLOSURE_HEADER.iconSlotPad,
+          marginRight: DISCLOSURE_HEADER.slotTrim,
           alignItems: "center",
           justifyContent: "center",
         },

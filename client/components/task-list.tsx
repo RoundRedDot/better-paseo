@@ -154,6 +154,7 @@ export function TaskList({ data, tokens, compact = false, onToggleTask, panel: s
         slot: {
           width: DISCLOSURE_HEADER.iconSlot,
           paddingRight: DISCLOSURE_HEADER.iconSlotPad,
+          marginRight: DISCLOSURE_HEADER.slotTrim,
           alignSelf: "stretch",
           alignItems: "center",
           justifyContent: "center",

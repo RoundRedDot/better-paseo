@@ -100,6 +100,7 @@ export function NoticeCallout({ data, tokens, at, compact = false }: NoticeCallo
         slot: {
           width: DISCLOSURE_HEADER.iconSlot,
           paddingRight: DISCLOSURE_HEADER.iconSlotPad,
+          marginRight: DISCLOSURE_HEADER.slotTrim,
           alignItems: "center",
           justifyContent: "center",
         },
