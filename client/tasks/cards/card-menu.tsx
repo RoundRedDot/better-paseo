@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "../../ui/tokens/sheet";
 import React, { useLayoutEffect, useRef, useState, type ReactNode } from "react";
 import { Platform, Pressable, StyleSheet, View, useWindowDimensions } from "react-native";
 import { Icon, Modal, copyText, useToast } from "@getpaseo/plugin/client/ui";
@@ -201,7 +202,7 @@ export function CardContextMenu(props: {
     const colors = props.theme.colors;
     return (
       <Modal title={props.card.title} open onOpenChange={(open) => !open && props.onClose()}>
-        <Modal.Content contentContainerStyle={{ padding: 8, gap: 0 }}>
+        <Modal.Content contentContainerStyle={{ paddingVertical: 8, paddingHorizontal: SHEET_BODY_INSET, gap: 0 }}>
           <TasksTypography theme={props.theme}>
             <View testID="task-card-menu">
               {sections.map((section, index) => (

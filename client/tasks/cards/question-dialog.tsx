@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "../../ui/tokens/sheet";
 import React, { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { ActivityIndicator, Keyboard, Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -163,8 +164,8 @@ function QuestionDialogBody(props: Parameters<typeof TaskQuestionDialog>[0] & { 
           </>;
   return <TasksTypography theme={props.theme}>
         <View testID="task-question-dialog" style={props.inline ? undefined : { flex: 1, minHeight: 0 }}>
-          {props.inline ? <View style={{ padding: 16, gap: 20 }}>{content}</View> : <ScrollView ref={scroll} onLayout={() => { if (inputFocused) revealInput(); }} style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, gap: 20 }} keyboardShouldPersistTaps="handled">{content}</ScrollView>}
-          <View testID="task-question-actions" style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, padding: 16, borderTopWidth: 1, borderTopColor: colors.border }}>
+          {props.inline ? <View style={{ padding: 16, gap: 20 }}>{content}</View> : <ScrollView ref={scroll} onLayout={() => { if (inputFocused) revealInput(); }} style={{ flex: 1, minHeight: 0 }} contentContainerStyle={{ padding: 16, paddingHorizontal: Platform.OS === "web" ? 16 : SHEET_BODY_INSET, gap: 20 }} keyboardShouldPersistTaps="handled">{content}</ScrollView>}
+          <View testID="task-question-actions" style={{ flexDirection: "row", flexWrap: "wrap", gap: 10, padding: 16, paddingHorizontal: props.inline || Platform.OS === "web" ? 16 : SHEET_BODY_INSET, borderTopWidth: 1, borderTopColor: colors.border }}>
             {multiple && !props.compact ? <Text testID="task-question-answer-count" style={[meta, { alignSelf: "center", marginRight: "auto" }]}>{words.answered(answered.filter(Boolean).length, answered.length)}</Text> : null}
             <HoverControl base={colors.surface2} foreground={colors.foreground} rest={colors.surface2} {...tipProps(state.submitted ? words.close : cardStrings(props.language).cancelTitle)} testID="task-question-close" accessibilityRole="button" disabled={state.pending} onPress={props.inline ? props.store.reset : props.store.close}
               style={{ ...(props.compact ? { flexGrow: 1, flexBasis: 0 } : { marginLeft: "auto" }), minWidth: 100, minHeight: taskControlHeight(44, scale), padding: 12, borderRadius: 8, alignItems: "center", justifyContent: "center", backgroundColor: colors.surface2 }}>

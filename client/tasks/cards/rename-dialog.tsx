@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "../../ui/tokens/sheet";
 import React, { useEffect, useRef, useState } from "react";
 import { ActivityIndicator, Platform, Pressable, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -81,7 +82,7 @@ export function TaskRenameDialog(props: {
       <Modal.Content scrollable={!mobile} contentContainerStyle={mobile ? { flex: 1, minHeight: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: 16, gap: 0 } : undefined}>
         <TasksTypography theme={props.theme}>
           <View style={mobile ? { flex: 1, minHeight: 0 } : { gap: 16 }} testID="task-rename-dialog">
-            <InputContainer {...(mobile ? { style: { flex: 1 }, contentContainerStyle: { flexGrow: 1, padding: 16, gap: 16 }, keyboardShouldPersistTaps: "handled" as const } : { style: { gap: 16 } })}>
+            <InputContainer {...(mobile ? { style: { flex: 1 }, contentContainerStyle: { flexGrow: 1, paddingVertical: 16, paddingHorizontal: SHEET_BODY_INSET, gap: 16 }, keyboardShouldPersistTaps: "handled" as const } : { style: { gap: 16 } })}>
               <TextInput
               testID="task-rename-input"
               accessibilityLabel={props.strings.titleLabel}
@@ -101,7 +102,7 @@ export function TaskRenameDialog(props: {
               {error ? <Text accessibilityRole="alert" style={{ fontSize: F.sm, color: colors.statusDanger }}>{error}</Text> : null}
               {props.blockedReason || props.autoTitleBlockedReason ? <Text accessibilityRole="alert" testID="task-rename-unavailable" style={{ fontSize: F.sm, color: colors.statusWarning }}>{props.blockedReason ?? props.autoTitleBlockedReason}</Text> : null}
             </InputContainer>
-            <View testID="task-rename-actions" style={mobile ? { paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: 1, borderTopColor: colors.border } : { flexDirection: "row", gap: 8 }}>
+            <View testID="task-rename-actions" style={mobile ? { paddingTop: 12, paddingHorizontal: SHEET_BODY_INSET, flexDirection: "row", gap: 10, borderTopWidth: 1, borderTopColor: colors.border } : { flexDirection: "row", gap: 8 }}>
               {!mobile ? automatic : null}
               <Pressable accessibilityRole="button" accessibilityLabel={props.strings.cancelTitle} disabled={pending} onPress={props.onClose}
                 style={{ minHeight: taskControlHeight(mobile ? 44 : 32, scale), paddingHorizontal: mobile ? 18 : 12, flex: mobile ? undefined : 1, justifyContent: "center", alignItems: "center", borderRadius: mobile ? 22 : 12, borderWidth: mobile ? 1 : 0, borderColor: colors.border, backgroundColor: mobile ? undefined : colors.surface2, opacity: pending ? 0.5 : 1 }}>

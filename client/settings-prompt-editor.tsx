@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "./ui/tokens/sheet";
 import React, { useState } from "react";
 import { Platform, Pressable, StyleSheet, Text, View } from "react-native";
 import { Modal, ScrollView, TextInput } from "@getpaseo/plugin/client/ui";
@@ -84,14 +85,14 @@ export function PromptEditorModal({
 const styles = StyleSheet.create({
   fill: { flex: 1, minHeight: 0 },
   nativeContent: { flex: 1, minHeight: 0, paddingHorizontal: 0, paddingTop: 0, paddingBottom: space.lg, gap: 0 },
-  nativeInputWrap: { flexGrow: 1, padding: space.lg },
+  nativeInputWrap: { flexGrow: 1, paddingVertical: space.lg, paddingHorizontal: SHEET_BODY_INSET },
   desktopBody: { gap: space.lg },
   input: {
     width: "100%", minHeight: 240, borderWidth: 1, borderRadius: radiusV2.card,
     paddingHorizontal: space.md, paddingVertical: space.sm, includeFontPadding: false, textAlignVertical: "top",
   },
   actions: { flexDirection: "row", flexWrap: "wrap", gap: space.sm },
-  nativeActions: { paddingTop: space.md, paddingHorizontal: space.lg, borderTopWidth: 1 },
+  nativeActions: { paddingTop: space.md, paddingHorizontal: SHEET_BODY_INSET, borderTopWidth: 1 },
   button: { minHeight: 32, paddingHorizontal: space.md, justifyContent: "center", alignItems: "center", borderRadius: radiusV2.block },
   nativeButton: { minHeight: 44, borderRadius: radiusV2.pill },
   buttonLabel: { fontWeight: "500" },

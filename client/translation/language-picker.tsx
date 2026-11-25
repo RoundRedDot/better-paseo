@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "../ui/tokens/sheet";
 import React, { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import {
   Platform,
@@ -322,7 +323,7 @@ export function SearchableLanguageSelect({
 
       {open && Platform.OS !== "web" ? (
         <Modal title={label} open={open} onOpenChange={(next) => { if (!next) close(); }}>
-          <Modal.Content scrollable={false}>
+          <Modal.Content scrollable={false} contentContainerStyle={styles.sheetContent}>
             <LanguageOptionList
               value={value}
               query={query}
@@ -342,6 +343,7 @@ export function SearchableLanguageSelect({
 }
 
 const styles = StyleSheet.create({
+  sheetContent: { paddingHorizontal: SHEET_BODY_INSET },
   anchorWrap: {
     position: "relative",
     flexShrink: 1,

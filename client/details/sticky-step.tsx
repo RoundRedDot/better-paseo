@@ -15,10 +15,12 @@
  * Only the work steps list opts in (`StickyStepContext`); elsewhere in the
  * panel an opened row scrolls as before.
  */
+import { SHEET_BODY_INSET } from "../ui/tokens/sheet";
 import { createContext, useCallback, useContext, useEffect, useImperativeHandle, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type Ref } from "react";
 import { Animated, Platform, StyleSheet, View, type LayoutChangeEvent, type ViewStyle } from "react-native";
 import type { ExtendedThemeTokens } from "../components/theme-tokens";
 import { space } from "../components/theme-tokens";
+import { DetailsShellContext } from "./contracts";
 import { hairline } from "../ui/tokens/platform";
 
 /** The details body's scroll, as an opened step reads it. */
@@ -100,6 +102,7 @@ export function DetailsStickyCard({ source, tokens, stripe: stripeProp, header, 
   children: ReactNode;
 }) {
   const stripe = useContext(StickyStripeContext) ?? stripeProp;
+  const inset = useContext(DetailsShellContext)?.form === "drawer" ? SHEET_BODY_INSET : space.md;
   const card = useRef<View>(null);
   const height = useRef(0);
   const headerHeight = useRef(0);
@@ -176,7 +179,7 @@ export function DetailsStickyCard({ source, tokens, stripe: stripeProp, header, 
       <Animated.View testID="work-step-sticky-row" onLayout={onHeaderLayout}
         style={[styles.header, rowMotion]}>
         <Animated.View ref={fillNode} pointerEvents="none" testID="work-step-sticky-fill"
-          style={[styles.fill, { backgroundColor: tokens.surface0 }, fillMotion]}>
+          style={[styles.fill, { left: -inset, right: -inset, backgroundColor: tokens.surface0 }, fillMotion]}>
           {stripe ? <View style={[StyleSheet.absoluteFill, { backgroundColor: stripe }]} /> : null}
           <View style={[styles.rule, hairline(tokens.platform, "bottom"), { backgroundColor: tokens.v2.border }]} />
         </Animated.View>
@@ -265,8 +268,8 @@ export function createWebStickySource(element: () => HTMLElement | null): Detail
 const styles = StyleSheet.create({
   // Over the output that scrolls under it.
   header: { zIndex: 1 },
-  // As wide as the step's stripe: the cell pads its content by `space.md`.
-  fill: { position: "absolute", top: 0, bottom: 0, left: -space.md, right: -space.md },
+  // As wide as the step's stripe, including the cell's horizontal padding.
+  fill: { position: "absolute", top: 0, bottom: 0 },
   rule: { position: "absolute", left: 0, right: 0, bottom: 0 },
   fillAtRest: { opacity: 0 },
   // Web only: pinned to the nearest scroller's top, which is the details body.

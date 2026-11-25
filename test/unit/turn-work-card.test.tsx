@@ -206,7 +206,7 @@ describe("turn work card", () => {
       <PreviewChromeContext.Provider value="details">{block.render()}</PreviewChromeContext.Provider>
     </DetailsShellContext.Provider>); });
     const toolbar = panel.root.findByProps({ testID: "details-toolbar" });
-    expect(StyleSheet.flatten(toolbar.props.style)).toMatchObject({ paddingLeft: form === "drawer" ? 4 : 12, paddingRight: 12 });
+    expect(StyleSheet.flatten(toolbar.props.style)).toMatchObject({ paddingHorizontal: form === "drawer" ? 4 : 12 });
     const toolbarStart = panel.root.findByProps({ testID: "details-toolbar-start" });
     expect(StyleSheet.flatten(toolbarStart.props.style).gap).toBe(form === "drawer" ? 0 : 4);
     const title = panel.root.findByProps({ testID: "details-header-title" });
@@ -225,7 +225,7 @@ describe("turn work card", () => {
     })).toBe(true);
     expect(list[0]!.props.style?.gap ?? 0).toBe(0);
     expect(cells.map((cell) => StyleSheet.flatten(cell.props.style).paddingVertical)).toEqual(Array(7).fill(4));
-    expect(cells.map((cell) => StyleSheet.flatten(cell.props.style).paddingHorizontal)).toEqual(Array(7).fill(12));
+    expect(cells.map((cell) => StyleSheet.flatten(cell.props.style).paddingHorizontal)).toEqual(Array(7).fill(form === "drawer" ? 8 : 12));
     expect(panel.root.findAll((node) => (node.type as unknown) === "Text" && node.props.testID === "work-step-number")
       .map((number) => number.children.join("")))
       .toEqual(["1", "2", "3", "4", "5", "6", "7"]);

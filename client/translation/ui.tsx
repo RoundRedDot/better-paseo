@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET, SHEET_TOOLBAR_INSET } from "../ui/tokens/sheet";
 import React, { useContext, useMemo, useState, type ReactNode } from "react";
 import { Image, ScrollView, StyleSheet, Text, View, useWindowDimensions } from "react-native";
 import { useMarkBitmap } from "../components/marks";
@@ -93,8 +94,8 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
   const muted = tokens.foregroundSubtle ?? tokens.foregroundMuted;
   const running = view.status === "running" || view.status === "settings-loading";
   return (
-    <View testID="selection-translation-panel" style={[styles.panel, (resized || sheet) && { flex: 1, minHeight: 0 }]}>
-      <View testID="translation-header" style={styles.header}>
+    <View testID="selection-translation-panel" style={[styles.panel, (resized || sheet) && { flex: 1, minHeight: 0 }, sheet && styles.sheetPanel]}>
+      <View testID="translation-header" style={sheet ? [styles.header, styles.sheetHeader] : styles.header}>
         <View style={{ flex: 1 }} />
         <ToolbarMetricsContext.Provider value={TRANSLATION_TOOLBAR_METRICS}>
           <TooltipAlignContext.Provider value="end">
@@ -116,7 +117,7 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
           </TooltipAlignContext.Provider>
         </ToolbarMetricsContext.Provider>
       </View>
-      <View testID="translation-header-divider" style={[styles.divider, { backgroundColor: tokens.v2.border }]} />
+      <View testID="translation-header-divider" style={[styles.divider, sheet && styles.sheetDivider, { backgroundColor: tokens.v2.border }]} />
       {message ? (
         <View style={styles.messageRow}>
           {running ? <SyncedLoader color={tokens.foreground} gridTestID="translation-loading" /> : null}
@@ -194,6 +195,9 @@ function ModelMark({ id }: { id: string }) {
 
 const styles = StyleSheet.create({
   panel: { paddingHorizontal: 12, paddingVertical: 10, gap: PANEL_GAP },
+  sheetPanel: { paddingHorizontal: SHEET_BODY_INSET },
+  sheetHeader: { marginHorizontal: SHEET_TOOLBAR_INSET - SHEET_BODY_INSET },
+  sheetDivider: { marginHorizontal: -SHEET_BODY_INSET },
   sheetBody: { marginTop: -PANEL_GAP, overflow: "hidden" },
   sheetBodyContent: { paddingTop: PANEL_GAP },
   header: { minHeight: 36, flexDirection: "row", alignItems: "center", gap: 6, zIndex: 1 },

@@ -1,3 +1,4 @@
+import { SHEET_TOOLBAR_INSET, SHEET_BODY_INSET } from "../../ui/tokens/sheet";
 import { PreferenceSyncSlot } from "../../state/preference-sync-slot";
 import { TranslationSettingsParentCloseContext } from "../../translation/navigation";
 import { UPDATE_INDICATOR_COLOR } from "../../ui/update-indicator";
@@ -714,7 +715,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
     <View style={{ flex: 1, minHeight: 0 }}>
       <PreferenceSyncSlot />
       {index >= 0 && props.count > 1 ? (
-        <View style={{ minHeight: 40, paddingHorizontal: 12, flexDirection: "row", alignItems: "center" }} testID="sheet-stepper">
+        <View style={{ minHeight: 40, paddingHorizontal: SHEET_TOOLBAR_INSET, flexDirection: "row", alignItems: "center" }} testID="sheet-stepper">
           <SheetStep icon="ChevronLeft" label={board.strings.sidebar.previous} disabled={index <= 0} onPress={() => step(-1)} theme={theme} />
           <Text style={{ flex: 1, textAlign: "center", fontSize: F.sm, color: colors.foregroundMuted, fontVariant: ["tabular-nums"] }}>
             {`${board.strings.lanes[card.lane]} · ${index + 1} / ${props.count}`}
@@ -723,7 +724,7 @@ function DetailsSheetBodyView(props: DetailsSheetBodyProps) {
         </View>
       ) : null}
       {/* Keyed by the card: a jump to the parent or a step starts on its messages. */}
-      <View style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingTop: 4, paddingBottom: 12 }}>
+      <View style={{ flex: 1, minHeight: 0, paddingHorizontal: SHEET_BODY_INSET, paddingTop: 4, paddingBottom: 12 }}>
         <TranslationSettingsParentCloseContext.Provider value={props.onCloseSheet}>
         <TaskDetailCards
           key={card.id}
@@ -780,6 +781,7 @@ function DetailsSheetFooter(props: Pick<DetailsSheetBodyProps, "card" | "board" 
   return <EdgeActionBar
         chrome={props.edge}
         scrollHeader
+        horizontalInset={SHEET_BODY_INSET}
         flushBottom={Platform.OS === "ios"}
         card={card}
         theme={theme}

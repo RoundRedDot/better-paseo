@@ -8,6 +8,7 @@
  * The title the hover bar carries in its middle is not repeated here; the
  * header above names the block.
  */
+import { SHEET_TOOLBAR_INSET } from "../../ui/tokens/sheet";
 import { useCallback, useState, useSyncExternalStore, type ReactNode } from "react";
 import { Platform, StyleSheet, Text, View, useWindowDimensions, type LayoutChangeEvent } from "react-native";
 import type { PluginIcon } from "@getpaseo/plugin/client";
@@ -69,7 +70,7 @@ export interface DetailsWrap {
   toggle(): void;
 }
 
-export function DetailsToolbar({ shell, tokens, wrap, left, children, compactStart = false }: {
+export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
   shell: DetailsShellValue;
   tokens: ExtendedThemeTokens;
   /** The line-wrap toggle; absent for content without lines (a picture). */
@@ -78,7 +79,6 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children, compactSta
   left?: ReactNode;
   /** The content's copy buttons. */
   children?: ReactNode;
-  compactStart?: boolean;
 }) {
   const metrics = HEADER_BUTTONS[shell.pointer ? "pointer" : "touch"];
   const desktopSide = Platform.OS === "web" && shell.pointer && shell.form === "side";
@@ -90,9 +90,10 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children, compactSta
   const fullscreen = Math.min(window.width, window.height) < DETAILS_BREAKPOINTS.drawerEnter
     ? null : fullscreenButton(shell);
   const fullscreenWidth = fullscreen ? metrics.button + GAP : 0;
-  const startInset = compactStart ? space.xs : PADDING;
-  const startGap = compactStart ? 0 : GAP;
-  const insets = startInset + PADDING;
+  const drawer = shell.form === "drawer";
+  const inset = drawer ? SHEET_TOOLBAR_INSET : PADDING;
+  const startGap = drawer ? 0 : GAP;
+  const insets = 2 * inset;
   const free = width === null ? null
     : width - insets - leftWidth - SPLIT - fullscreenWidth;
   // A phone body publishes its pinch's controls; the desktop commits sizes directly.
@@ -107,7 +108,7 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children, compactSta
         testID="details-toolbar"
         onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
         style={[styles.toolbar, { minHeight: DETAILS_TOOLBAR[shell.pointer ? "pointer" : "touch"],
-          paddingLeft: startInset, borderBottomColor: desktopSide ? tokens.border : tokens.v2.borderSubtle }]}
+          paddingHorizontal: inset, borderBottomColor: desktopSide ? tokens.border : tokens.v2.borderSubtle }]}
       >
         <View testID="details-toolbar-start" onLayout={(event: LayoutChangeEvent) => setLeftWidth(event.nativeEvent.layout.width)}
           style={[styles.start, { gap: startGap }]}>
@@ -208,7 +209,6 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: SPLIT,
-    paddingRight: PADDING,
     borderBottomWidth: 1,
     flexShrink: 0,
     // Raised over the body, so a button's name and the "More" menu can hang down across it.

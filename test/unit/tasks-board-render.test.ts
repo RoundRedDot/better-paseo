@@ -3041,10 +3041,10 @@ describe("Tasks board, desktop", () => {
     const card = cards().find((node) => node.props.card.id === "sample-running")!;
     await act(async () => card.props.onSelect(card.props.card));
     expect(hostsById("board-sheet")).toHaveLength(1);
-    expect(StyleSheet.flatten(hostsById("board-sheet-content")[0]!.props.style).paddingHorizontal).toBe(12);
+    expect(StyleSheet.flatten(hostsById("board-sheet-content")[0]!.props.style).paddingHorizontal).toBe(8);
     const scroll = hostsById("detail-tab-short-scroll")[0]!;
-    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(-12);
-    expect(scroll.props.contentContainerStyle).toEqual({ paddingRight: 12 });
+    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(-8);
+    expect(scroll.props.contentContainerStyle).toEqual({ paddingRight: 8 });
     expect(scroll.props.showsVerticalScrollIndicator).toBe(true);
     expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
     await act(async () => hostsById("detail-tab-info")[0]!.props.onPress());
@@ -3150,8 +3150,8 @@ describe("Tasks board, desktop", () => {
     act(() => hostsById("sidebar-switch")[0]!.props.onPress());
     const scroll = hostsById("details-sidebar-scroll")[0]!;
     expect(scroll.props.showsVerticalScrollIndicator).toBe(true);
-    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(-12);
-    expect(StyleSheet.flatten(scroll.props.contentContainerStyle).paddingRight).toBe(12);
+    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(-8);
+    expect(StyleSheet.flatten(scroll.props.contentContainerStyle).paddingRight).toBe(8);
     expect(hostsById("sidebar-stats")).toHaveLength(1);
   });
 
@@ -7550,6 +7550,8 @@ describe("Tasks board, phone", () => {
     const scroll = sheet.find((node) => (node.type as unknown) === "ScrollView" && node.props.testID === "filter-sheet-scroll");
     const footer = sheet.find((node) => (node.type as unknown) === "View" && node.props.testID === "filter-sheet-footer");
     expect(scroll.findAll((node) => node === footer)).toHaveLength(0);
+    expect(StyleSheet.flatten(footer.props.style).paddingHorizontal).toBe(8);
+    expect(StyleSheet.flatten(hostsById("filter-sheet-workspace-header")[0]!.props.style).paddingHorizontal).toBe(8);
     expect(textOf(footer)).toMatch(/^ResetShow \d+ tasks?$/);
     const fields = sheet.find((node) => (node.type as unknown) === "View" && node.props.testID === "sort-fields");
     act(() => fields.props.onLayout({ nativeEvent: { layout: { x: 0, y: 0, width: 360, height: 512 } } }));
@@ -7863,8 +7865,9 @@ describe("Tasks board, phone", () => {
     const scroll = hostsById("detail-tab-short-scroll")[0]!;
     const bar = hostsById("detail-action-bar")[0]!;
     expect(StyleSheet.flatten(bar.props.style).paddingBottom).toBe(os === "android" ? 4 : 0);
-    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(os === "web" ? 0 : -12);
-    expect(scroll.props.contentContainerStyle).toEqual(os === "web" ? undefined : { paddingRight: 12 });
+    expect(StyleSheet.flatten(scroll.props.style).marginRight).toBe(os === "web" ? 0 : -8);
+    expect(scroll.props.contentContainerStyle).toEqual(os === "web" ? undefined : { paddingRight: 8 });
+    expect(StyleSheet.flatten(bar.props.style).paddingHorizontal).toBe(8);
     expect(scroll.findAll((node) => node === bar)).toHaveLength(0);
     expect(hostsById("detail-tab-messages")[0]!.props.accessibilityState.selected).toBe(true);
     expect(hostsById("detail-prompt")).toHaveLength(1);

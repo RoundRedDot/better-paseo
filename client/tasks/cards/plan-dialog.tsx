@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "../../ui/tokens/sheet";
 import React from "react";
 import { Platform, Pressable, View, type GestureResponderEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -67,7 +68,7 @@ export function TaskPlanDialog(props: {
   const size = Math.round(prose.typography.content.size * adjustment);
   return (
     <Modal title={cardStrings(props.language).planRequest} open onOpenChange={(open) => { if (!open) props.onClose(); }}>
-      <Modal.Content>
+      <Modal.Content contentContainerStyle={props.touch ? { paddingHorizontal: SHEET_BODY_INSET } : undefined}>
         <View testID="task-plan-dialog">
           <HoverPreviewContext.Provider value>
             <MarkdownView text={props.text} tokens={prose} variant={preferences.markdownVariant} compact={props.touch === true} size={size} />

@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "./tokens/sheet";
 import React, { createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode, type RefObject } from "react";
 import {
   Animated, Modal, Platform, Pressable, ScrollView, StyleSheet, Text, View,
@@ -680,8 +681,6 @@ interface HoverPreviewHeaderProps {
   streaming?: boolean;
   /** Give wider question controls their own space before truncating the title. */
   fitControls?: boolean;
-  /** Tighten the spacing at the start of the details toolbar. */
-  compactToolbar?: boolean;
   children?: ReactNode;
 }
 
@@ -784,7 +783,7 @@ function HoverPanelHeader({ tokens, icon, iconLabel, left, center: centerProp, m
  * then the copies and full screen. What the bar drew under itself stays under
  * the toolbar.
  */
-function DetailsPreviewHeader({ tokens, icon, iconLabel, left, center, meta, streaming = false, children, shell, compactToolbar }: HoverPreviewHeaderProps & {
+function DetailsPreviewHeader({ tokens, icon, iconLabel, left, center, meta, streaming = false, children, shell }: HoverPreviewHeaderProps & {
   shell: DetailsShellValue;
 }) {
   const actions = useContext(PreviewActionsContext);
@@ -795,8 +794,7 @@ function DetailsPreviewHeader({ tokens, icon, iconLabel, left, center, meta, str
     <View testID="details-chrome" style={[styles.detailsChrome, { backgroundColor: tokens.surface0 }]}>
       <DetailsHeader shell={shell} tokens={tokens} icon={icon} titleText={iconLabel}
         title={facts === center ? undefined : center} meta={facts} streaming={streaming} />
-      <DetailsToolbar shell={shell} tokens={tokens} wrap={detailsWrap(actions, shell.entry.kind)} left={left}
-        compactStart={compactToolbar}>
+      <DetailsToolbar shell={shell} tokens={tokens} wrap={detailsWrap(actions, shell.entry.kind)} left={left}>
         {toolbar}
       </DetailsToolbar>
       {rest}
@@ -959,12 +957,13 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
     }} />
   ) : null;
   if (details) {
+    const horizontalInset = fullBleed ? styles.fullBleed : shell?.form === "drawer" ? styles.drawerInset : undefined;
     // The drawer's and the floating panel's pull, on the body alone.
     const pan = shell && shell.form !== "side" ? report?.panHandlers() : undefined;
     return (
       <View testID="details-body" ref={pinch.body} collapsable={false} {...pan} {...pinch.handlers} style={styles.detailsBody}>
         {Platform.OS !== "web" ? (
-          <Animated.ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={[styles.pressBodyContent, fullBleed && styles.fullBleed]}
+          <Animated.ScrollView ref={scroller.ref} testID="hover-preview-body" style={[styles.pressBody, styles.pressBodyFill]} contentContainerStyle={[styles.pressBodyContent, horizontalInset]}
             scrollEnabled={!scroller.held && !(pulls && bodyTop)} scrollEventThrottle={16} {...detailsScroll} onScroll={detailsOnScroll}
             bounces={!(pulls && bodyTop)} disableScrollViewPanResponder={pulls && bodyTop}>
             <PreviewScrollerContext.Provider value={scroller.value}>
@@ -979,7 +978,7 @@ export function HoverPreviewBody({ children, streaming = false, follow, fullBlee
             </PreviewScrollerContext.Provider>
           </Animated.ScrollView>
         ) : (
-          <View ref={scopeData ? bindWebBody : webBody} {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : {})} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll, shell?.form === "side" && styles.sideScroll, fullBleed && styles.fullBleed]}>
+          <View ref={scopeData ? bindWebBody : webBody} {...(scopeData ? surfaceProps(selectionSurface, { dataSet: scopeData } as never) : {})} testID="hover-preview-body" style={[styles.body, styles.bodyFill, styles.detailsScroll, shell?.form === "side" && styles.sideScroll, horizontalInset]}>
             <DetailsStickySourceContext.Provider value={webSticky}>{content}</DetailsStickySourceContext.Provider>
           </View>
         )}
@@ -1320,6 +1319,7 @@ const styles = StyleSheet.create({
   pressBodyFill: { flexGrow: 1, minHeight: 0 },
   pressBodyContent: { padding: space.md, gap: space.sm },
   fullBleed: { paddingHorizontal: 0 },
+  drawerInset: { paddingHorizontal: SHEET_BODY_INSET },
   unwrappedScroll: { flexGrow: 1 },
   unwrapped: { flexGrow: 1, gap: space.sm },
   stepsColumn: { gap: space.sm },

@@ -1,4 +1,5 @@
 import React from "react";
+import { StyleSheet } from "react-native";
 import TestRenderer, { act } from "react-test-renderer";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { DEFAULT_TITLE_PROMPT, TITLE_GENERATION_SETTINGS, titleGenerationSettingsSchema } from "../../shared/title-generation";
@@ -35,6 +36,7 @@ beforeEach(() => {
 });
 afterEach(async () => {
   state.language = "zh";
+  delete (globalThis as { __rnMockOS?: string }).__rnMockOS;
   await act(async () => tree?.unmount());
   vi.useRealTimers();
 });
@@ -62,6 +64,19 @@ const editPrompt = async (value: string) => {
 const savePrompt = async () => { await act(async () => tree.root.findByProps({ accessibilityLabel: "保存" }).props.onPress()); };
 
 describe("automatic title settings", () => {
+  it.each(["ios", "android"])("aligns the %s prompt editor body with its footer", async (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    await mount();
+    await openPrompt();
+    const modal = tree.root.find((node) => String(node.type) === "ModalContent");
+    const scroll = modal.find((node) => String(node.type) === "ScrollView");
+    const save = modal.find((node) => String(node.type) === "Pressable" && node.props.accessibilityLabel === "保存");
+    expect(StyleSheet.flatten(scroll.props.contentContainerStyle).paddingHorizontal).toBe(8);
+    const footer = save.parent!.parent!;
+    expect(footer.type).toBe("View");
+    expect(StyleSheet.flatten(footer.props.style).paddingHorizontal).toBe(8);
+  });
+
   it.each([
     ["zh", "自动优化新任务标题", "自动根据发送的内容优化标题。", "保存标题设置"],
     ["en", "Optimize new task titles automatically", "Automatically refine the title from what you send.", "Save title settings"],

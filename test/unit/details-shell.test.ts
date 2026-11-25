@@ -2414,15 +2414,15 @@ describe("a pinch in the phone drawer", () => {
     // A toolbar too narrow for − / size / + and one more button keeps one text size button.
     const layout = (id: string, width: number) => act(() => byTestId(renderer, id)!.props.onLayout({ nativeEvent: { layout: { width, height: 44 } } }));
     // Line wrap, then the three controls; the copies need at least one 36 button after them.
-    layout("details-toolbar-start", 36 + 4 + 3 * 36 + 2 * 4);
+    layout("details-toolbar-start", 36 + 3 * 36 + 2 * 4);
     layout("details-toolbar-zoom", 3 * 36 + 2 * 4);
-    layout("details-toolbar", 2 * 12 + 36 + 4 + 3 * 36 + 2 * 4 + 8 + 36);
+    layout("details-toolbar", 2 * 4 + 36 + 3 * 36 + 2 * 4 + 8 + 36);
     expect(startLabels()).toEqual(["Decrease text size", "Reset zoom", "Increase text size"]);
-    layout("details-toolbar", 2 * 12 + 36 + 4 + 3 * 36 + 2 * 4 + 8 + 35);
+    layout("details-toolbar", 2 * 4 + 36 + 3 * 36 + 2 * 4 + 8 + 35);
     expect(startLabels()).toEqual(["Text size"]);
     // Folded, the measured group is narrower; the choice does not flip back.
     layout("details-toolbar-zoom", 36);
-    layout("details-toolbar-start", 36 + 4 + 36);
+    layout("details-toolbar-start", 36 + 36);
     expect(startLabels()).toEqual(["Text size"]);
     act(() => button("Text size")!.props.onPress());
     expect(byTestId(renderer, "details-zoom-badge")).not.toBeNull();

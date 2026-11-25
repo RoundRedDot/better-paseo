@@ -444,6 +444,21 @@ describe("details toolbar", () => {
 });
 
 describe("copy overflow", () => {
+  it.each(["ios", "android", "web"])("uses symmetric drawer insets and fits three command copies at 320pt on %s", (os) => {
+    (globalThis as { __rnMockOS?: string }).__rnMockOS = os;
+    screen.width = 320;
+    screen.height = 640;
+    const root = mount(details(rowPreview(callout(bash)), shell({ form: "drawer" })));
+    expect(StyleSheet.flatten(byId(root, "details-toolbar").props.style)).toMatchObject({ paddingHorizontal: 4 });
+    const body = hosts(root, "hover-preview-body")[0]!;
+    expect(StyleSheet.flatten(os === "web" ? body.props.style : body.props.contentContainerStyle))
+      .toMatchObject({ paddingHorizontal: 8 });
+    layout(root, 320, 188);
+    expect(copyLabels(root)).toEqual(["Copy command", "Copy output", "Copy command and output"]);
+    layout(root, 319, 188);
+    expect(labels(byId(root, "details-toolbar-end"))).toEqual(["Copy command", "More"]);
+  });
+
   it("folds from the last copy into ⋯ at 360 with a wide left group, and fits all three at 390", async () => {
     (globalThis as { __rnMockOS?: string }).__rnMockOS = "web";
     const root = mount(details(rowPreview(callout(bash))));

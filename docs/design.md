@@ -51,12 +51,36 @@ outside scrolling clips and within the viewport.
 - Chat, details and settings space on `space` (4, 8, 12, 16; 24 only between settings sections)
   and round on `radiusV2`: chip 4, block 6, card 8, overlay 12, bubble 16 with a 2 tail, pill full
   (`client/components/theme-tokens.ts`).
-- The board keeps its own constants and does not read `space` or `radiusV2`: card 8
+- The board uses its own card and lane geometry: card 8
   (`CARD_RADIUS`), lane panel 5 (`PANEL_RADIUS`), detail card 12 (`DETAIL_CARD`), menu 12
   (`MENU.radius`), control rows 6, and circular icon-only toolbar buttons.
 - Lines: borders, dividers and pills are a hairline (`HAIRLINE`); action buttons are 0.5
   (`BUTTON_LINE`, see [Buttons](#look)); a dashed subagent card and a card's inner block divider
   are 1. `devicePixel()` gives one device pixel on the web.
+
+### Mobile bottom sheet spacing
+
+Use the shared values in `client/ui/tokens/sheet.ts` for horizontal spacing inside
+plugin-controlled bottom sheets. Measure from the sheet's content edges after safe area
+handling.
+
+| Region | Left and right inset |
+| --- | --- |
+| Toolbar action groups and the phone task stepper | 4 pt (`SHEET_TOOLBAR_INSET`) |
+| Body and body-aligned footers | 8 pt (`SHEET_BODY_INSET`) |
+
+- Conversation drawers use both values in the shared details toolbar and scroller. Keep the
+  wrap button next to the size controls without an extra group gap. Use the same insets when
+  calculating how many copy actions fit or when folding the size controls.
+- In Work details, align the filters, intent and step rows to the body inset. Row stripes and
+  the pinned step background reach both sheet edges. The step number column reserves space
+  for the largest step number at its rendered font size.
+- Task sheets use the body inset for cards, filter sections and dialog content. The native
+  task scrollbar borrows the right inset and restores it as content padding so cards keep
+  symmetric margins. Translation sheets and settings editors use the same body inset.
+- Component padding inside fields, buttons and cards follows each component's own rules.
+  Host-owned headers use the host layout. Anchored menus and desktop panels use their
+  existing geometry.
 
 ### Surfaces and states
 
@@ -1158,8 +1182,9 @@ A card that waits on a request names the request, then gives its answers.
   opens the host `Modal` titled with the card, with flattened submenus and 18 pt icons.
 - The filter sheet opens in the host `Modal` on phones and narrow web boards. Tablets use a toolbar
   popover with width `menuWidth(320, scale, board.width - 24)` and height `max(0, board.height - 18)`,
-  leaving room around the popover while using the available board height. Sections have 16 pt padding and
-  muted `sm` titles; chips are 32 high (radius 4, accent border and `accentSoft` when on), toggle
+  leaving room around the popover while using the available board height. Phone sections and the
+  footer use the shared 8 pt body inset. The tablet popover and narrow desktop panel use 16 pt.
+  Sections have muted `sm` titles. Chips are 32 high (radius 4, accent border and `accentSoft` when on), toggle
   rows 48, sort rows 44, and the footer pins Reset and an accent Show pill, both 44.
 - While the desktop/tablet filter panel is open, its controls update immediately and lane
   rendering waits 180 ms (`SWITCH_MS + 40`) so the switch's 140 ms slide can finish. Closing the
@@ -1252,8 +1277,8 @@ A card that waits on a request names the request, then gives its answers.
 - With no card chosen, the sidebar shows stat cells (at least 56, 64 on touch, radius 8, the count
   at xl; needs input with a warning border and count) and the group card: round 28 segments (36 on
   touch) over group rows of 36 (44), radius 6, `surface2` when on.
-- A phone's details sheet has a 40 stepper and an action bar of 48 buttons (radius 12) over a
-  hairline.
+- A phone's details sheet has a 40 pt stepper inset 4 pt and an action bar inset 8 pt with
+  48 pt buttons (radius 12) over a hairline.
 
 ### Host sidebar counts
 

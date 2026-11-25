@@ -2244,6 +2244,7 @@ export function DetailActionBar(props: {
   sidebar?: boolean;
   smallTablet?: boolean;
   flushBottom?: boolean;
+  horizontalInset?: number;
   /** The page still runs under this bar, so it casts the same edge the tabs do. */
   contentUnder?: boolean;
   /** Only the task's controls (Stop, Open, Close), above a waiting request whose section holds its answers. */
@@ -2286,7 +2287,7 @@ export function DetailActionBar(props: {
     );
   }
   return (
-    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: 12, paddingTop: (props.smallTablet ? 6 : 10) + (Platform.OS === "web" ? 0 : 4), paddingBottom: Platform.OS === "web" || props.flushBottom ? 0 : 4, alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined, ...(props.onClose ? { flexWrap: "wrap", justifyContent: "flex-end" } : null) }}>
+    <ActionRow testID="detail-action-bar" style={{ paddingHorizontal: props.horizontalInset ?? 12, paddingTop: (props.smallTablet ? 6 : 10) + (Platform.OS === "web" ? 0 : 4), paddingBottom: Platform.OS === "web" || props.flushBottom ? 0 : 4, alignItems: "center", borderTopWidth: StyleSheet.hairlineWidth, borderTopColor: tokens.border, zIndex: props.contentUnder ? 1 : undefined, boxShadow: props.contentUnder ? scrollEdgeShadow(tokens.isDark, "up") : undefined, ...(props.onClose ? { flexWrap: "wrap", justifyContent: "flex-end" } : null) }}>
       {asking ? (
         <>
           {ordered.map((button) => (

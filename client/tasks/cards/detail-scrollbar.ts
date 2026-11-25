@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "../../ui/tokens/sheet";
 import { Platform, type ScrollViewProps } from "react-native";
 
 /**
@@ -27,7 +28,7 @@ export const detailGutter = (kind: DetailScrollbarKind): number => (Platform.OS 
  * the same room back as content padding so the card keeps its width. Web keeps
  * the gutter above instead.
  */
-export const OUTSIDE_INDICATOR = 12;
+export const OUTSIDE_INDICATOR = SHEET_BODY_INSET;
 
 export function outsideIndicator(active: boolean): { marginRight: number; paddingRight: number } | null {
   if (!active || Platform.OS === "web") return null;

@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "../../ui/tokens/sheet";
 import { useHomeDirectory } from "../../state/home-directory";
 import { shortenHome } from "../../paths/format-path";
 import { TextUpdateDot } from "../../ui/text-update-dot";
@@ -63,6 +64,7 @@ export function FilterSheetBody(props: {
 }) {
   const { board, theme, options } = props;
   useLaneScrollbar(theme);
+  const inset = props.phone ? SHEET_BODY_INSET : 16;
   const sortFirst = props.focus === "sort";
   const colors = theme.colors;
   const strings = board.strings;
@@ -115,7 +117,7 @@ export function FilterSheetBody(props: {
         onLayout={(event: LayoutChangeEvent) => setViewport(event.nativeEvent.layout.height)}
         testID="filter-sheet-scroll"
       >
-        <View onLayout={(event: LayoutChangeEvent) => (projectsY.current = event.nativeEvent.layout.height)} style={{ paddingHorizontal: 16, paddingTop: sortFirst ? 0 : 4 }}>
+        <View onLayout={(event: LayoutChangeEvent) => (projectsY.current = event.nativeEvent.layout.height)} style={{ paddingHorizontal: inset, paddingTop: sortFirst ? 0 : 4 }}>
           {sortFirst ? <View style={{ paddingBottom: 8 }}>{sort}</View> : null}
           {props.hideSubtasksToggle ? null : (
             <ToggleRow
@@ -199,16 +201,16 @@ export function FilterSheetBody(props: {
             </ChipWrap>
           </CollapsibleGroup>
         </View>
-        <View testID="filter-sheet-project-header" style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
+        <View testID="filter-sheet-project-header" style={{ paddingHorizontal: inset, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
           <CollapsibleTitle text={strings.project} icon="FolderKanban" theme={theme} open={projectsOpen} onPress={() => { setProjectSearching(false); setProjectsOpen((value) => !value); }} testID="filter-sheet-projects-toggle" />
           {projectsOpen && shown.projects.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           {projectsOpen && shown.projects.length > 0 ? <SheetSearch value={projectQuery} onChange={setProjectQuery} placeholder={strings.sheetSearch} clear={strings.menuSearch.clear} theme={theme} onFocus={() => { setProjectSearching(true); setTimeout(() => scrollRef.current?.scrollTo({ y: projectsY.current, animated: true }), 0); }} onBlur={() => setProjectSearching(false)} /> : null}
         </View>
-        <View testID="filter-sheet-projects" style={{ paddingHorizontal: 16, paddingBottom: projectsOpen ? 8 : 0, ...(projectsOpen && (projectSearching || projectQuery.trim() !== "") && viewport > 0 ? { minHeight: viewport } : null) }}>
+        <View testID="filter-sheet-projects" style={{ paddingHorizontal: inset, paddingBottom: projectsOpen ? 8 : 0, ...(projectsOpen && (projectSearching || projectQuery.trim() !== "") && viewport > 0 ? { minHeight: viewport } : null) }}>
           {projectsOpen && shown.projects.length > 0 && projects.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
           {projectsOpen ? <ChipWrap>{projects.map((project) => <Chip key={project.id} option={project} theme={theme} leading={<ProjectIcon location={project.group} size={16} hostId={board.hostId} />} onPress={() => setParams((p) => toggleProject(p, project))} />)}</ChipWrap> : null}
         </View>
-        <View testID="filter-sheet-workspace-header" onLayout={(event: LayoutChangeEvent) => (workspacesY.current = event.nativeEvent.layout.y)} style={{ paddingHorizontal: 16, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
+        <View testID="filter-sheet-workspace-header" onLayout={(event: LayoutChangeEvent) => (workspacesY.current = event.nativeEvent.layout.y)} style={{ paddingHorizontal: inset, backgroundColor: props.phone ? colors.surface0 : colors.surface1 }}>
           <CollapsibleTitle text={strings.workspace} icon="FolderGit2" theme={theme} open={workspacesOpen} onPress={() => { setSearching(false); setWorkspacesOpen((value) => !value); }} testID="filter-sheet-workspaces-toggle" />
           {workspacesOpen && shown.workspaceGroups.length === 0 ? <Muted text={strings.noOptions} theme={theme} /> : null}
           {workspacesOpen && shown.workspaceGroups.length > 0 ? (
@@ -227,7 +229,7 @@ export function FilterSheetBody(props: {
             />
           ) : null}
         </View>
-        <View testID="filter-sheet-workspaces" style={{ paddingHorizontal: 16, paddingBottom: workspacesOpen ? 8 : 0, ...(workspacesOpen && holdTop && viewport > 0 ? { minHeight: viewport } : null) }}>
+        <View testID="filter-sheet-workspaces" style={{ paddingHorizontal: inset, paddingBottom: workspacesOpen ? 8 : 0, ...(workspacesOpen && holdTop && viewport > 0 ? { minHeight: viewport } : null) }}>
           {workspacesOpen && shown.workspaceGroups.length > 0 && groups.length === 0 ? <Muted text={strings.menuSearch.empty} theme={theme} /> : null}
           {workspacesOpen ? groups.map((group, index) => (
             <View key={group.projectId || "missing"}>
@@ -250,12 +252,12 @@ export function FilterSheetBody(props: {
         </View>
         {/* End the workspace sticky header before the following groups. */}
         <View />
-        <View style={{ paddingHorizontal: 16, paddingBottom: 8 }}>
+        <View style={{ paddingHorizontal: inset, paddingBottom: 8 }}>
           {!props.phone && !props.tablet && !props.laneWidth ? range : null}
           {sortFirst || props.tablet ? null : sort}
         </View>
       </ScrollView>
-      <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: 16, flexDirection: "row", gap: 10, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
+      <View testID="filter-sheet-footer" style={{ paddingTop: 12, paddingHorizontal: inset, flexDirection: "row", gap: 10, borderTopWidth: HAIRLINE, borderTopColor: colors.border }}>
         <HoverControl base={colors.surface0} foreground={colors.foreground}
           accessibilityRole="button"
           onPress={() => setParams(clearedParams)}

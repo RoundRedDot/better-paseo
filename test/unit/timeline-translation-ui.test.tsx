@@ -1175,7 +1175,7 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     const modelRow = renderer!.root.findByProps({ testID: "translation-model" }).parent!;
     expect(modelRow.findAll((node) => String(node.type) === "Icon" && node.props.name === "Plug")).toHaveLength(1);
     const header = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header");
-    expect(header.props.style).toMatchObject({ minHeight: 36, alignItems: "center" });
+    expect(StyleSheet.flatten(header.props.style)).toMatchObject({ minHeight: 36, alignItems: "center", marginHorizontal: -4 });
     const footer = renderer!.root.findByProps({ testID: "translation-footer" });
     expect(footer.findAll((node) => node.props.testID === "translation-language").length).toBeGreaterThan(0);
     expect(footer.findAll((node) => node.props.testID === "translation-model").length).toBeGreaterThan(0);
@@ -1190,8 +1190,10 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
     const body = renderer!.root.find((node) => String(node.type) === "SheetContent");
     expect(body.props.scrollable).toBe(false);
     const scroll = body.find((node) => String(node.type) === "ScrollView" && node.props.testID === "selection-translation-body");
-    const panel = body.findByProps({ testID: "selection-translation-panel" });
+    const panel = body.find((node) => String(node.type) === "View" && node.props.testID === "selection-translation-panel");
     const frames = measureHostTree(panel, { width: 390 });
+    expect(frames.get(header)).toMatchObject({ left: 4, width: 382 });
+    expect(frames.get(scroll)).toMatchObject({ left: 8, width: 374 });
     expect(frames.get(scroll)!.top).toBeCloseTo(frames.get(divider)!.top + frames.get(divider)!.height);
     expect(scroll.props.style.flat()).toEqual(expect.arrayContaining([expect.objectContaining({ overflow: "hidden" })]));
     expect(scroll.props.contentContainerStyle).toMatchObject({ paddingTop: 6 });

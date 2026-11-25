@@ -12,6 +12,7 @@
  * details off it opens under the card. Line counts are the turn's edit events
  * added up, not the file's net change, and are measured once per call.
  */
+import { SHEET_BODY_INSET } from "../ui/tokens/sheet";
 import React, { createContext, memo, useCallback, useContext, useDeferredValue, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { Platform, Pressable, ScrollView, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle, type ViewStyle } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
@@ -282,14 +283,13 @@ function WorkDetails({ agentId, at, workKey, calls, intent, text, tokens, compac
   agentId: string; at: number; workKey: string; calls: readonly ToolCallTimelineItem[]; intent: string | null; text: typeof STRINGS.en;
   tokens: ExtendedThemeTokens; compact: boolean;
 }) {
-  const drawer = useContext(DetailsShellContext)?.form === "drawer";
   const filterKey = workFilterKey(agentId, { key: workKey, calls });
   const callKindList = useMemo(() => calls.map(callKind), [calls]);
   const kinds = useMemo(() => countKinds(callKindList), [callKindList]);
   // Whether steps have scrolled up under the bar; only the bar redraws when it flips.
   const [under] = useState(createFlag);
   return <>
-    <HoverPreviewHeader tokens={tokens} compactToolbar={drawer} />
+    <HoverPreviewHeader tokens={tokens} />
     {calls.length ? <FilterBar filterKey={filterKey} kinds={kinds} total={calls.length} text={text} tokens={tokens} compact={compact}
       under={under} /> : null}
     <HoverPreviewBody fullBleed stickySteps onScrolledChange={under.set}>
@@ -349,6 +349,7 @@ const FilterBar = memo(function FilterBar({ filterKey, kinds, total, text, token
   tokens: ExtendedThemeTokens; compact: boolean; under: Flag;
 }) {
   const styles = useCardStyles(tokens);
+  const drawer = useContext(DetailsShellContext)?.form === "drawer";
   const [filter, choose] = useShownFilter(filterKey, kinds);
   const groups = useMemo(() => [{ kind: "all" as const, count: total }, ...kinds], [kinds, total]);
   const covering = useSyncExternalStore(under.subscribe, under.get);
@@ -362,7 +363,7 @@ const FilterBar = memo(function FilterBar({ filterKey, kinds, total, text, token
   return (
     <View testID="work-filter-edge" style={[styles.filterEdge, edge as ViewStyle]}>
       <ScrollView testID="work-filter" accessibilityRole="tablist" horizontal showsHorizontalScrollIndicator={false}
-        style={styles.filterScroll} contentContainerStyle={styles.filterBar}>
+        style={styles.filterScroll} contentContainerStyle={[styles.filterBar, drawer && stepStyles.drawerInset]}>
         {groups.map(({ kind, count }) => (
           <FilterChip key={kind} label={`${text.kinds[kind]} ${count}`} kind={kind} selected={filter === kind}
             onPress={choose} tokens={tokens} compact={compact} />
@@ -415,6 +416,7 @@ function IntentBlock({ agentId, text, inline, tokens, compact }: {
   const styles = useCardStyles(tokens);
   const { hovered, hoverProps } = useHover();
   const input = useInputCapabilities(compact);
+  const inset = useContext(DetailsShellContext)?.form === "drawer" ? SHEET_BODY_INSET : space.md;
   const settings = useTranslationSettingsState();
   const enabled = settings.status !== "ready" || settings.values.enabled;
   const shown = inline.active && inline.view?.status === "done" ? inline.view.result.translation : text;
@@ -424,15 +426,15 @@ function IntentBlock({ agentId, text, inline, tokens, compact }: {
   // The slot is placed in the text's own box, so a notice above does not move it.
   const top = space.xs / 2 + line / 2 - INTENT_TRANSLATE_GUTTER / 2;
   return <View testID="work-intent" onPointerEnter={hoverProps.onHoverIn} onPointerLeave={hoverProps.onHoverOut}>
-    <View style={{ paddingHorizontal: space.md - 6 }}><InlineTranslationNoticeWithTokens state={inline} tokens={tokens} /></View>
+    <View style={{ paddingHorizontal: inset - 6 }}><InlineTranslationNoticeWithTokens state={inline} tokens={tokens} /></View>
     <View style={{ position: "relative", paddingRight: enabled ? INTENT_TRANSLATE_GUTTER : 0 }}>
       <View style={loading ? { opacity: 0.55 } : undefined}>
         <SelectionTranslationScope agentId={agentId} kind="reasoning" streaming={false}>
-          <IntentText text={shown} style={[styles.intent, { paddingHorizontal: space.md }]} />
+          <IntentText text={shown} style={[styles.intent, { paddingHorizontal: inset }]} />
         </SelectionTranslationScope>
       </View>
       {enabled ? <View testID="work-intent-translation-slot" pointerEvents={visible ? "auto" : "none"}
-        style={{ position: "absolute", right: space.md - 4, top, opacity: visible ? 1 : 0 }}>
+        style={{ position: "absolute", right: inset - 4, top, opacity: visible ? 1 : 0 }}>
         <InlineTranslateButtonWithTokens state={inline} tokens={tokens} testID="work-intent-translate" timeline />
       </View> : null}
     </View>
@@ -470,6 +472,7 @@ function WorkSteps({ agentId, at, calls, callKinds: kindList, kinds, filterKey, 
   agentId: string; at: number; calls: readonly ToolCallTimelineItem[]; callKinds: readonly CallKind[];
   kinds: ReadonlyArray<{ kind: CallKind }>; filterKey: string; tokens: ExtendedThemeTokens; compact: boolean;
 }) {
+  const drawer = useContext(DetailsShellContext)?.form === "drawer";
   const [chosen] = useShownFilter(filterKey, kinds);
   const filter = useDeferredValue(chosen);
   const visible = (index: number) => filter === "all" || kindList[index] === filter;
@@ -507,7 +510,7 @@ function WorkSteps({ agentId, at, calls, callKinds: kindList, kinds, filterKey, 
               const shown = visible(index);
               const striped = shown && shownIndex++ % 2 === 1;
               return <View key={item.callId} testID="work-step-cell"
-                style={[stepStyles.cell, striped && { backgroundColor: stripe }, !shown && stepStyles.hidden]}>
+                style={[stepStyles.cell, drawer && stepStyles.drawerInset, striped && { backgroundColor: stripe }, !shown && stepStyles.hidden]}>
                 {/* An opened step pins its row under the toolbar while its output scrolls past. */}
                 <StickyStepContext.Provider value={STICKY_STEP}>
                   <StickyStripeContext.Provider value={striped ? stripe : undefined}>
@@ -528,6 +531,7 @@ const STICKY_STEP = {};
 
 const stepStyles = StyleSheet.create({
   cell: { paddingVertical: space.xs, paddingHorizontal: space.md },
+  drawerInset: { paddingHorizontal: SHEET_BODY_INSET },
   hidden: { display: "none" },
 });
 

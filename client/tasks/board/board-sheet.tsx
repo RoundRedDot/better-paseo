@@ -1,3 +1,4 @@
+import { SHEET_BODY_INSET } from "../../ui/tokens/sheet";
 import React, { forwardRef, useEffect, useImperativeHandle, useMemo, useRef, useState } from "react";
 import { Animated, PanResponder, Platform, Pressable, View, type GestureResponderEvent } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
@@ -411,7 +412,7 @@ export const BoardSheet = forwardRef<BoardSheetHandle, {
             />
           </Pressable>
         </View>
-        <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: 12, paddingBottom: pad }}>
+        <View testID="board-sheet-content" style={{ flex: 1, minHeight: 0, paddingHorizontal: Platform.OS === "web" ? 12 : SHEET_BODY_INSET, paddingBottom: pad }}>
           <SheetMotionContext.Provider value={moving}>
             <SheetFrameContext.Provider value={frame}>{content.current}</SheetFrameContext.Provider>
           </SheetMotionContext.Provider>
