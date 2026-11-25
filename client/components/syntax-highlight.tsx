@@ -1144,9 +1144,9 @@ function CodeRowsBody({ from, to, lines, row }: CodeRowsProps) {
 const CodeRows = memo(CodeRowsBody);
 
 /** The gutter fits the largest line number at the code size, plus its gap. */
-export function lineNumberWidth(largest: number, size: number): number {
+export function lineNumberWidth(largest: number, size: number, minDigits = 2): number {
   const digits = String(Math.max(1, largest)).length;
-  return Math.max(2, digits) * Math.ceil(size * 0.62) + space.sm;
+  return Math.max(minDigits, digits) * Math.ceil(size * 0.62) + space.sm;
 }
 
 /** Largest line number in a diff; null rows count as zero. */

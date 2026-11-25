@@ -45,7 +45,7 @@ const TEXT_SIZE: PluginIcon = {
  * or folded into one button (it raises the body's size badge) when the three
  * would leave the copies no room for even their "⋯".
  */
-export function zoomGroupMode({ width, others, button, gap, fullscreen }: {
+export function zoomGroupMode({ width, others, button, gap, fullscreen, insets, startGap }: {
   /** The toolbar's width; null before its first layout. */
   width: number | null;
   /** The left group's width without the text size controls. */
@@ -54,10 +54,12 @@ export function zoomGroupMode({ width, others, button, gap, fullscreen }: {
   gap: number;
   /** The full screen button's width and gap, or 0. */
   fullscreen: number;
+  insets: number;
+  startGap: number;
 }): "full" | "folded" {
   if (width === null) return "full";
   const full = 3 * button + 2 * gap;
-  const free = width - 2 * PADDING - others - gap - full - SPLIT - fullscreen;
+  const free = width - insets - others - startGap - full - SPLIT - fullscreen;
   return free >= button ? "full" : "folded";
 }
 
@@ -67,7 +69,7 @@ export interface DetailsWrap {
   toggle(): void;
 }
 
-export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
+export function DetailsToolbar({ shell, tokens, wrap, left, children, compactStart = false }: {
   shell: DetailsShellValue;
   tokens: ExtendedThemeTokens;
   /** The line-wrap toggle; absent for content without lines (a picture). */
@@ -76,6 +78,7 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
   left?: ReactNode;
   /** The content's copy buttons. */
   children?: ReactNode;
+  compactStart?: boolean;
 }) {
   const metrics = HEADER_BUTTONS[shell.pointer ? "pointer" : "touch"];
   const desktopSide = Platform.OS === "web" && shell.pointer && shell.form === "side";
@@ -87,12 +90,15 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
   const fullscreen = Math.min(window.width, window.height) < DETAILS_BREAKPOINTS.drawerEnter
     ? null : fullscreenButton(shell);
   const fullscreenWidth = fullscreen ? metrics.button + GAP : 0;
+  const startInset = compactStart ? space.xs : PADDING;
+  const startGap = compactStart ? 0 : GAP;
+  const insets = startInset + PADDING;
   const free = width === null ? null
-    : width - 2 * PADDING - leftWidth - SPLIT - fullscreenWidth;
+    : width - insets - leftWidth - SPLIT - fullscreenWidth;
   // A phone body publishes its pinch's controls; the desktop commits sizes directly.
   const native = useNativeZoomControls(Platform.OS === "web" ? undefined : shell.zoomControls);
-  const zoomMode = zoomGroupMode({ width, others: Math.max(0, leftWidth - (zoomWidth ? zoomWidth + GAP : 0)),
-    button: metrics.button, gap: GAP, fullscreen: fullscreenWidth });
+  const zoomMode = zoomGroupMode({ width, others: Math.max(0, leftWidth - (zoomWidth ? zoomWidth + startGap : 0)),
+    button: metrics.button, gap: GAP, fullscreen: fullscreenWidth, insets, startGap });
   const slots = copySlots(free, metrics.button, GAP);
   const { overflow, folded } = useCopyOverflow(slots, tokens.success);
   return (
@@ -101,10 +107,10 @@ export function DetailsToolbar({ shell, tokens, wrap, left, children }: {
         testID="details-toolbar"
         onLayout={(event: LayoutChangeEvent) => setWidth(event.nativeEvent.layout.width)}
         style={[styles.toolbar, { minHeight: DETAILS_TOOLBAR[shell.pointer ? "pointer" : "touch"],
-          borderBottomColor: desktopSide ? tokens.border : tokens.v2.borderSubtle }]}
+          paddingLeft: startInset, borderBottomColor: desktopSide ? tokens.border : tokens.v2.borderSubtle }]}
       >
         <View testID="details-toolbar-start" onLayout={(event: LayoutChangeEvent) => setLeftWidth(event.nativeEvent.layout.width)}
-          style={styles.start}>
+          style={[styles.start, { gap: startGap }]}>
           {/* At the panel's left edge: its name opens rightwards. */}
           <TooltipAlignContext.Provider value="start">
             {wrap ? (
@@ -202,13 +208,13 @@ const styles = StyleSheet.create({
     flexDirection: "row",
     alignItems: "center",
     gap: SPLIT,
-    paddingHorizontal: PADDING,
+    paddingRight: PADDING,
     borderBottomWidth: 1,
     flexShrink: 0,
     // Raised over the body, so a button's name and the "More" menu can hang down across it.
     zIndex: 1,
   },
-  start: { flexDirection: "row", alignItems: "center", gap: GAP, flexShrink: 0 },
+  start: { flexDirection: "row", alignItems: "center", flexShrink: 0 },
   zoom: { flexDirection: "row", alignItems: "center", gap: GAP, flexShrink: 0 },
   end: { flex: 1, minWidth: 0, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: GAP },
 });

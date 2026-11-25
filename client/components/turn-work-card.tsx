@@ -34,7 +34,7 @@ import { toolErrorText } from "../tools/error-text";
 import { isQuestionTool, readUserQuestions, timelineQuestionData } from "../tools/user-questions";
 import { countDiff, countLines } from "../tools/summarize";
 import { FileEditsPreview, ToolCallout } from "./tool-callouts";
-import { BlockPlacementContext, type BlockEntry } from "../details/contracts";
+import { BlockPlacementContext, DetailsShellContext, type BlockEntry } from "../details/contracts";
 import { StickyStepContext, StickyStripeContext } from "../details/sticky-step";
 import { getBlock, registerBlock, type BlockRegistration } from "../details/block-registry";
 import { detailsApi, readDetails, useMarkerPhase } from "../details/details-store";
@@ -282,13 +282,14 @@ function WorkDetails({ agentId, at, workKey, calls, intent, text, tokens, compac
   agentId: string; at: number; workKey: string; calls: readonly ToolCallTimelineItem[]; intent: string | null; text: typeof STRINGS.en;
   tokens: ExtendedThemeTokens; compact: boolean;
 }) {
+  const drawer = useContext(DetailsShellContext)?.form === "drawer";
   const filterKey = workFilterKey(agentId, { key: workKey, calls });
   const callKindList = useMemo(() => calls.map(callKind), [calls]);
   const kinds = useMemo(() => countKinds(callKindList), [callKindList]);
   // Whether steps have scrolled up under the bar; only the bar redraws when it flips.
   const [under] = useState(createFlag);
   return <>
-    <HoverPreviewHeader tokens={tokens} />
+    <HoverPreviewHeader tokens={tokens} compactToolbar={drawer} />
     {calls.length ? <FilterBar filterKey={filterKey} kinds={kinds} total={calls.length} text={text} tokens={tokens} compact={compact}
       under={under} /> : null}
     <HoverPreviewBody fullBleed stickySteps onScrolledChange={under.set}>
@@ -542,12 +543,14 @@ const WorkStepRow = memo(function WorkStepRow({ agentId, item, total, tokens, co
   // Outlives the body's remount: iOS mounts it again at each text size step.
   const [expanded, setExpanded] = useDisclosure(`${agentId}:work:${item.callId}:step`, false);
   // As wide as the whole list's numbers, so the column holds still across a group switch.
-  const width = lineNumberWidth(total, tokens.typography.mono.size);
+  const drawer = useContext(DetailsShellContext)?.form === "drawer";
+  const numberSize = tokens.typography.mono.size - 2;
+  const width = drawer ? lineNumberWidth(total, numberSize, 1) : lineNumberWidth(total, tokens.typography.mono.size);
   const leading = useMemo(() => ({ width, content: <StepNumber callId={item.callId} style={{
-    color: tokens.syntax.comment, fontFamily: tokens.fontMono, fontSize: tokens.typography.mono.size - 2,
+    color: tokens.syntax.comment, fontFamily: tokens.fontMono, fontSize: numberSize,
     lineHeight: compact ? DISCLOSURE_HEADER.height.compact : DISCLOSURE_HEADER.height.desktop,
     textAlign: "right", paddingRight: space.sm, fontVariant: ["tabular-nums"],
-  }} /> }), [width, item.callId, tokens, compact]);
+  }} /> }), [width, item.callId, tokens, compact, numberSize]);
   return <SelectionTranslationScope agentId={agentId} kind="tool_output" streaming={item.status === "running"}>
     <ToolCallout data={view} previewKey={`${agentId}:work:${item.callId}:preview`} tokens={tokens} compact={compact} leading={leading}
       expanded={expanded} onExpandedChange={setExpanded} />

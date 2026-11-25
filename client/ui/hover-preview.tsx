@@ -680,6 +680,8 @@ interface HoverPreviewHeaderProps {
   streaming?: boolean;
   /** Give wider question controls their own space before truncating the title. */
   fitControls?: boolean;
+  /** Tighten the spacing at the start of the details toolbar. */
+  compactToolbar?: boolean;
   children?: ReactNode;
 }
 
@@ -782,7 +784,7 @@ function HoverPanelHeader({ tokens, icon, iconLabel, left, center: centerProp, m
  * then the copies and full screen. What the bar drew under itself stays under
  * the toolbar.
  */
-function DetailsPreviewHeader({ tokens, icon, iconLabel, left, center, meta, streaming = false, children, shell }: HoverPreviewHeaderProps & {
+function DetailsPreviewHeader({ tokens, icon, iconLabel, left, center, meta, streaming = false, children, shell, compactToolbar }: HoverPreviewHeaderProps & {
   shell: DetailsShellValue;
 }) {
   const actions = useContext(PreviewActionsContext);
@@ -793,7 +795,8 @@ function DetailsPreviewHeader({ tokens, icon, iconLabel, left, center, meta, str
     <View testID="details-chrome" style={[styles.detailsChrome, { backgroundColor: tokens.surface0 }]}>
       <DetailsHeader shell={shell} tokens={tokens} icon={icon} titleText={iconLabel}
         title={facts === center ? undefined : center} meta={facts} streaming={streaming} />
-      <DetailsToolbar shell={shell} tokens={tokens} wrap={detailsWrap(actions, shell.entry.kind)} left={left}>
+      <DetailsToolbar shell={shell} tokens={tokens} wrap={detailsWrap(actions, shell.entry.kind)} left={left}
+        compactStart={compactToolbar}>
         {toolbar}
       </DetailsToolbar>
       {rest}

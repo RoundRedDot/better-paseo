@@ -205,9 +205,16 @@ describe("turn work card", () => {
     act(() => { panel = TestRenderer.create(<DetailsShellContext.Provider value={shell}>
       <PreviewChromeContext.Provider value="details">{block.render()}</PreviewChromeContext.Provider>
     </DetailsShellContext.Provider>); });
+    const toolbar = panel.root.findByProps({ testID: "details-toolbar" });
+    expect(StyleSheet.flatten(toolbar.props.style)).toMatchObject({ paddingLeft: form === "drawer" ? 4 : 12, paddingRight: 12 });
+    const toolbarStart = panel.root.findByProps({ testID: "details-toolbar-start" });
+    expect(StyleSheet.flatten(toolbarStart.props.style).gap).toBe(form === "drawer" ? 0 : 4);
     const title = panel.root.findByProps({ testID: "details-header-title" });
     expect(title.props.accessibilityLabel).toBe("工作过程 · 7 步 · 7 次工具调用 · 读取了文件 · 编辑了文件 · 运行了命令");
-    expect(panel.root.findAll((node) => (node.type as unknown) === "ToolCallout")).toHaveLength(7);
+    const callouts = panel.root.findAll((node) => (node.type as unknown) === "ToolCallout");
+    expect(callouts).toHaveLength(7);
+    const numberWidth = form === "drawer" ? Math.ceil((tokens.typography.mono.size - 2) * 0.62) : 2 * Math.ceil(tokens.typography.mono.size * 0.62);
+    expect(callouts.map((row) => row.props.leading.width)).toEqual(Array(7).fill(numberWidth + 8));
     const cells = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-cell");
     const list = panel.root.findAll((node) => (node.type as unknown) === "View" && node.props.testID === "work-step-list");
     expect(list).toHaveLength(1);
