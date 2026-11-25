@@ -46,3 +46,29 @@ export function distinctHosts(urls: readonly string[]): string[] {
   }
   return hosts;
 }
+
+const LISTED_LINK = /^\s*\[\d+\]\s+(.*?)\s*\n\s+(https?:\/\/\S+)\s*$/gm;
+
+/**
+ * Results a web search printed as text, one numbered title over its address:
+ *
+ *     [1] View - React Native
+ *         https://reactnative.dev/docs/view
+ *
+ * Oh My Pi reports its searches this way. A placeholder title (`N/A`) or a
+ * missing one gives way to the address; each address is listed once.
+ */
+export function parseListedLinks(text: string | undefined): Array<{ title: string; url: string }> {
+  if (!text) return [];
+  const links: Array<{ title: string; url: string }> = [];
+  const seen = new Set<string>();
+  LISTED_LINK.lastIndex = 0;
+  for (let match = LISTED_LINK.exec(text); match; match = LISTED_LINK.exec(text)) {
+    const url = match[2]!;
+    if (seen.has(url) || !parseWebLink(url)) continue;
+    seen.add(url);
+    const title = (match[1] ?? "").trim();
+    links.push({ title: title && title !== "N/A" ? title : url, url });
+  }
+  return links;
+}

@@ -9,6 +9,7 @@
  *
  * Pure: no React, no host hooks.
  */
+import { parseListedLinks } from "./web-link";
 import type {
   GitHubToolData,
   HubData,
@@ -424,6 +425,17 @@ function readSearch(
         return url ? [{ title: asString(row?.title) ?? url, url }] : [];
       })
     : [];
+  const toolName = asString(detail.toolName) ?? (rawName || undefined);
+  let content = asString(detail.content) ?? outputText;
+  // A web search that printed its hits as a numbered list (Oh My Pi) reads as
+  // those hits, so it draws as a structured search does.
+  if (webResults.length === 0 && toolName === "web_search") {
+    const listed = parseListedLinks(content);
+    if (listed.length > 0) {
+      webResults.push(...listed);
+      content = undefined;
+    }
+  }
   return {
     query:
       asString(detail.query) ??
@@ -431,11 +443,11 @@ function readSearch(
       asString(input.query) ??
       asString(input.glob) ??
       "",
-    toolName: asString(detail.toolName) ?? (rawName || undefined),
+    toolName,
     files: asStringArray(detail.filePaths),
     numFiles: asNumber(detail.numFiles),
     numMatches: asNumber(detail.numMatches),
-    content: asString(detail.content) ?? outputText,
+    content,
     webResults: webResults.length > 0 ? webResults : undefined,
     annotations: asStringArray(detail.annotations),
     truncated: detail.truncated === true ? true : undefined,
