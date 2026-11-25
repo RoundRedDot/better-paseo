@@ -40,7 +40,6 @@ import { BlockPlacementContext } from "../../client/details/contracts";
 import { buildThemeTokens } from "../../client/components/theme-tokens";
 import { ToolCallout } from "../../client/components/tool-callouts";
 import { Favicon } from "../../client/components/web-favicon";
-import { identityColor } from "../../client/tasks/cards/project-icon";
 import { classifyTool } from "../../client/tools/classify";
 import { Linking } from "./helpers/rn-mock";
 
@@ -127,19 +126,31 @@ describe("web search rows", () => {
     const [row] = renderer!.root.findAll((node) => node.props.testID === "web-result-row" && typeof node.props.onPress === "function");
     expect(textOf(row!)).toContain("Modals – Expo Router");
     expect(textOf(row!)).toContain("docs.expo.dev/router/advanced/modals/");
+    expect(row!.findAll((node) => node.props.testID === "web-result-open").length).toBeGreaterThan(0);
+    expect(row!.findAll((node) => node.props.name === "ArrowUpRight").length).toBeGreaterThan(0);
     act(() => row!.props.onPress());
     expect(open).toHaveBeenCalledWith("https://docs.expo.dev/router/advanced/modals/");
   });
 
-  it("falls back to the site's letter when it has no favicon, at once for later rows", () => {
+  it("shows a globe while the favicon loads, the favicon once drawn, and a globe for a site without one", () => {
+    render(<Favicon host="loads.example.dev" size={16} tokens={tokens} />);
+    expect(byTest("web-favicon-globe")).toHaveLength(1);
+    expect(byTest("web-favicon-image")[0]!.props.style).toMatchObject({ opacity: 0 });
+    act(() => byTest("web-favicon-image")[0]!.props.onLoad());
+    expect(byTest("web-favicon-globe")).toHaveLength(0);
+    expect(byTest("web-favicon-image")[0]!.props.style).toMatchObject({ opacity: 1 });
+    act(() => renderer?.unmount());
+
     render(<Favicon host="no-icon.example.dev" size={16} tokens={tokens} />);
     act(() => byTest("web-favicon-image")[0]!.props.onError());
-    const [letter] = byTest("web-favicon-letter");
-    expect(textOf(letter!)).toBe("E");
-    expect(JSON.stringify(letter!.props.style)).toContain(identityColor("no-icon.example.dev"));
+    expect(byTest("web-favicon-image")).toHaveLength(0);
+    const [globe] = byTest("web-favicon-globe");
+    expect(globe!.findAll((node) => node.props.name === "Globe").length).toBeGreaterThan(0);
     act(() => renderer?.unmount());
+    // Later rows for the same site draw the globe at once, without asking again.
     render(<Favicon host="no-icon.example.dev" size={16} tokens={tokens} />);
     expect(byTest("web-favicon-image")).toHaveLength(0);
-    expect(byTest("web-favicon-letter")).toHaveLength(1);
+    expect(byTest("web-favicon-globe")).toHaveLength(1);
   });
+
 });

@@ -37,16 +37,6 @@ export function faviconUrl(host: string): string {
   return `https://${host}/favicon.ico`;
 }
 
-/** One letter for a site without a favicon: its name, not its subdomain or TLD. */
-export function hostMonogram(host: string): string {
-  const labels = host.split(".").filter(Boolean);
-  const name = (labels.length > 1 ? labels[labels.length - 2] : labels[0]) ?? "";
-  // No `\p{…}` classes: keep the regex plain for Hermes.
-  const word = /[0-9A-Za-z\u00c0-\uffff]/;
-  const letter = word.exec(name)?.[0] ?? word.exec(host)?.[0] ?? "?";
-  return letter.toUpperCase();
-}
-
 /** Distinct hosts in order of first appearance. */
 export function distinctHosts(urls: readonly string[]): string[] {
   const hosts: string[] = [];

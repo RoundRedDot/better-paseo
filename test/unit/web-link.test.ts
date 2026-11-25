@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { distinctHosts, faviconUrl, hostMonogram, parseWebLink } from "../../client/tools/web-link";
+import { distinctHosts, faviconUrl, parseWebLink } from "../../client/tools/web-link";
 
 describe("web links", () => {
   it("splits an address into site and the rest", () => {
@@ -24,13 +24,6 @@ describe("web links", () => {
 
   it("asks the site itself for its favicon", () => {
     expect(faviconUrl("docs.expo.dev")).toBe("https://docs.expo.dev/favicon.ico");
-  });
-
-  it("takes the site's name for its letter, not the subdomain or TLD", () => {
-    expect(hostMonogram("docs.expo.dev")).toBe("E");
-    expect(hostMonogram("github.com")).toBe("G");
-    expect(hostMonogram("localhost")).toBe("L");
-    expect(hostMonogram("127.0.0.1")).toBe("0");
   });
 
   it("lists each site once, in order", () => {

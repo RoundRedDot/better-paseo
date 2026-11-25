@@ -1,45 +1,48 @@
 import React, { memo, useCallback, useState } from "react";
 import { Image, Pressable, StyleSheet, Text, View } from "react-native";
 import { withAlpha, type ExtendedThemeTokens } from "./theme-tokens";
-import { identityColor, projectIconRadius } from "../tasks/cards/project-icon";
-import { faviconUrl, hostMonogram, parseWebLink } from "../tools/web-link";
+import { projectIconRadius } from "../tasks/cards/project-icon";
+import { faviconUrl, parseWebLink } from "../tools/web-link";
 import { truncateMiddle } from "../paths/truncate-middle";
 import { DISCLOSURE_HEADER, RowIcon, RowText } from "../ui/disclosure-header";
 import { openLink } from "./open-link";
 import { unselectable } from "./selection";
 
-/** Hosts whose favicon failed this session: later rows draw the letter at once. */
+/** Hosts whose favicon failed or loaded this session: later rows skip the wait. */
 const failedHosts = new Set<string>();
+const loadedHosts = new Set<string>();
 
 /**
- * A site's favicon, asked of the site itself. Until it loads the box is a
- * quiet tile; when the site has none, its initial on the site's identity
- * colour (the hash Paseo uses for project icons).
+ * A site's favicon, asked of the site itself. A globe stands in while it
+ * loads and stays when the site has none; the favicon replaces it only once
+ * drawn, so a transparent icon never shows the globe through it.
  */
 export const Favicon = memo(function Favicon({ host, size, tokens }: {
   host: string; size: number; tokens: ExtendedThemeTokens;
 }) {
   const [failed, setFailed] = useState(() => failedHosts.has(host));
+  const [loaded, setLoaded] = useState(() => loadedHosts.has(host));
   const onError = useCallback(() => {
     failedHosts.add(host);
     setFailed(true);
   }, [host]);
+  const onLoad = useCallback(() => {
+    loadedHosts.add(host);
+    setLoaded(true);
+  }, [host]);
   const radius = projectIconRadius(size);
-  const frame = { width: size, height: size, borderRadius: radius };
-  if (failed) {
-    return (
-      <View testID="web-favicon-letter" accessible={false}
-        style={[styles.tile, frame, { backgroundColor: identityColor(host) }]}>
-        <Text selectable={false} style={[unselectable, { fontSize: Math.round(size * 0.62), lineHeight: size, fontWeight: "600", color: "#ffffff" }]}>
-          {hostMonogram(host)}
-        </Text>
-      </View>
-    );
-  }
+  const frame = { width: size, height: size };
+  const globe = (
+    <View testID="web-favicon-globe" accessible={false} style={[styles.tile, frame, !failed ? styles.under : null]}>
+      <RowIcon name="Globe" size={size} color={tokens.foregroundMuted} />
+    </View>
+  );
+  if (failed) return globe;
   return (
-    <View accessible={false} style={[styles.tile, frame, { backgroundColor: tokens.v2.surface2 }]}>
-      <Image testID="web-favicon-image" accessible={false} source={{ uri: faviconUrl(host) }} onError={onError}
-        resizeMode="contain" style={{ width: size, height: size, borderRadius: radius }} />
+    <View accessible={false} style={frame}>
+      {loaded ? null : globe}
+      <Image testID="web-favicon-image" accessible={false} source={{ uri: faviconUrl(host) }} onError={onError} onLoad={onLoad}
+        resizeMode="contain" style={{ width: size, height: size, borderRadius: radius, opacity: loaded ? 1 : 0 }} />
     </View>
   );
 });
@@ -104,7 +107,10 @@ export function OpenLinkButton({ href, compact }: { href: string; compact: boole
   );
 }
 
-/** One search result: favicon and title, then its domain and path; a press opens it. */
+/**
+ * One search result: favicon and title, then its domain and path, and the
+ * same up-right arrow an address row ends with. The whole row opens it.
+ */
 export const WebResultRow = memo(function WebResultRow({ title, url, tokens, titleStyle, metaSize }: {
   title: string; url: string; tokens: ExtendedThemeTokens; titleStyle: object; metaSize: number;
 }) {
@@ -124,19 +130,25 @@ export const WebResultRow = memo(function WebResultRow({ title, url, tokens, tit
           ) : null}
         </Text>
       </View>
+      <View testID="web-result-open" accessible={false} style={styles.resultArrow}>
+        <RowIcon name="ArrowUpRight" size={DISCLOSURE_HEADER.icon} color={tokens.foregroundMuted} />
+      </View>
     </Pressable>
   );
 });
 
 const styles = StyleSheet.create({
-  tile: { alignItems: "center", justifyContent: "center", overflow: "hidden" },
+  tile: { alignItems: "center", justifyContent: "center" },
+  under: { position: "absolute", left: 0, top: 0 },
   stack: { flexDirection: "row", alignItems: "center", gap: 3, marginRight: 6 },
   target: { flexDirection: "row", alignItems: "center", gap: 6, flexShrink: 1, minWidth: 0 },
-  host: { flexShrink: 0, maxWidth: "60%", fontWeight: "600" },
+  // The weight a result row gives its domain, so both read as one style.
+  host: { flexShrink: 0, maxWidth: "60%", fontWeight: "500" },
   path: { flexShrink: 1, minWidth: 0 },
   open: { width: 24, height: 24, alignItems: "center", justifyContent: "center", marginLeft: 4 },
   openCompact: { width: 28, height: 28 },
   result: { flexDirection: "row", alignItems: "flex-start", gap: 10, paddingVertical: 6, borderRadius: 6 },
   resultIcon: { paddingTop: 2 },
   resultText: { flex: 1, minWidth: 0, gap: 1 },
+  resultArrow: { alignSelf: "center", width: 28, alignItems: "center" },
 });
