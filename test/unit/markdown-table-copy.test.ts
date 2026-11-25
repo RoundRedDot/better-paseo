@@ -152,7 +152,7 @@ describe("Markdown table copy", () => {
     expect(translate).not.toHaveBeenCalled();
     await act(async () => button.props.onPress());
     expect(translate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      action: "start", agentId: "native-table-agent", text: "|  |  |\n| --- | --- |\n| one | two |\n| three | four |",
+      action: "start", agentId: "native-table-agent", text: "| A | B |\n| --- | --- |\n| one | two |\n| three | four |",
     }));
     expect(renderer!.root.findAll((node) => String(node.type) === "View"
       && node.props.testID === "selection-translation-panel")).toHaveLength(1);

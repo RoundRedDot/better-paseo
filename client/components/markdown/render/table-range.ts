@@ -56,6 +56,11 @@ const ALIGN_RULES = { left: ":---", center: ":---:", right: "---:" } as const;
  * cover, in the table's order, with a cell no range holds left empty: a
  * Markdown table cannot start without its header, so the selected columns'
  * header leads even when no range reaches it.
+ *
+ * A translation always carries the selected columns' header, even for one
+ * body cell: the header tells the translator what a cell means, and the
+ * reader sees which column each translated cell came from. Only a lone
+ * header cell is sent as its bare text.
  */
 export function rangeText(
   token: Tokens.Table, ranges: readonly CellRange[], literalCodex = false, purpose: "copy" | "translate" = "copy",
@@ -70,9 +75,11 @@ export function rangeText(
   const rows = [...rowSet].sort((a, b) => a - b);
   const columns = [...columnSet].sort((a, b) => a - b);
   if (rows.length === 0) return "";
-  if (rows.length === 1 && columns.length === 1) return inlineText(cell(rows[0]!, columns[0]!)?.tokens, literalCodex);
+  if (rows.length === 1 && columns.length === 1 && (purpose === "copy" || rows[0] === 0)) {
+    return inlineText(cell(rows[0]!, columns[0]!)?.tokens, literalCodex);
+  }
   const line = (row: number) => `| ${columns.map((column) =>
-    (row === 0 && purpose === "copy") || rangeHas(ranges, row, column)
+    row === 0 || rangeHas(ranges, row, column)
       ? (cell(row, column)?.text ?? "").replace(/\|/g, "\\|") : "").join(" | ")} |`;
   const lines = [line(0), `| ${columns.map((column) => (token.align[column] ? ALIGN_RULES[token.align[column]!] : "---")).join(" | ")} |`];
   for (const row of rows) if (row > 0) lines.push(line(row));

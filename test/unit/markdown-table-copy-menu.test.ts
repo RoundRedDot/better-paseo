@@ -241,7 +241,7 @@ describe("Markdown table copy menu", () => {
     && node.props.testID === "markdown-table-cell"
     && StyleSheet.flatten(node.props.style).backgroundColor === tokens.textSelection);
 
-  it("translates the selected cell in the existing desktop popup and releases the selection", async () => {
+  it("translates the selected cell with its header in the existing desktop popup and releases the selection", async () => {
     translationSettingsSync.report({
       status: "ready", revision: "enabled",
       values: { ...DEFAULT_TIMELINE_TRANSLATION_SETTINGS, enabled: true, mode: "openai", endpoint: "https://example.com/v1", endpointModel: "test" },
@@ -253,9 +253,9 @@ describe("Markdown table copy menu", () => {
     expect(translate).not.toHaveBeenCalled();
     await act(async () => button.props.onPress());
     expect(translate).toHaveBeenCalledExactlyOnceWith(expect.objectContaining({
-      action: "start", agentId: "table-agent", sourceKind: "assistant_message", text: "one",
+      action: "start", agentId: "table-agent", sourceKind: "assistant_message", text: "| A |\n| --- |\n| one |",
     }));
-    expect(webTranslation.mock.lastCall?.[0]).toMatchObject({ original: "one", view: { status: "done" } });
+    expect(webTranslation.mock.lastCall?.[0]).toMatchObject({ original: "| A |\n| --- |\n| one |", view: { status: "done" } });
     expect(selectedCells()).toHaveLength(0);
     act(() => webTranslation.mock.lastCall?.[0].close());
     expect(renderer!.root.findAllByType(webTranslation)).toHaveLength(0);

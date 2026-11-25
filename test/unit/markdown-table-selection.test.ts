@@ -265,6 +265,16 @@ describe("Markdown table cell ranges", () => {
     expect(rangeText(table, [])).toBe("");
   });
 
+  it("translates cells with the selected columns' header", () => {
+    expect(rangeText(table, [cellRange({ row: 1, column: 1 }, { row: 1, column: 1 })], false, "translate")).toBe(
+      "| b \\| c |\n| :---: |\n| **2** |");
+    expect(rangeText(table, [cellRange({ row: 0, column: 1 }, { row: 0, column: 1 })], false, "translate")).toBe("b | c");
+    expect(rangeText(table, [cellRange({ row: 1, column: 1 }, { row: 2, column: 2 })], false, "translate")).toBe(
+      "| b \\| c | d |\n| :---: | ---: |\n| **2** | 3 |\n| `5 \\| 6` | 7 |");
+    expect(rangeText(table, [cellRange({ row: 2, column: 0 }, { row: 2, column: 2 }), cellRange({ row: 1, column: 0 }, { row: 1, column: 0 })], false, "translate")).toBe(
+      "| a | b \\| c | d |\n| :--- | :---: | ---: |\n| 1 |  |  |\n| 4 | `5 \\| 6` | 7 |");
+  });
+
   it("lines up ranges added beside each other under the last one's columns", () => {
     const wide = cellRange({ row: 1, column: 0 }, { row: 1, column: 2 });
     const narrow = cellRange({ row: 3, column: 1 }, { row: 3, column: 1 });
