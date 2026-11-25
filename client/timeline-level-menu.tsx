@@ -28,8 +28,8 @@ export function TimelineLevelMenu(props: PluginButtonContentProps & { select(lev
   const openSettings = () => { props.close(); props.openSettings(); };
   const settings = <Pressable accessibilityRole="button" accessibilityLabel={text.settings} onPress={openSettings}
     style={{ minHeight: rowHeight, paddingHorizontal: 8, flexDirection: "row", alignItems: "center", justifyContent: "flex-end", gap: 8 }}>
-    <Text style={{ fontSize: 14, lineHeight: 18, color: colors.foreground }}>{text.settings}</Text>
-    <Icon name="Settings" size={16} color={colors.foregroundMuted} />
+    <Text style={{ fontSize: 16, lineHeight: 20, color: colors.foreground }}>{text.settings}</Text>
+    <Icon name="Settings" size={18} color={colors.foregroundMuted} />
   </Pressable>;
   // The compact sheet header already shows the title.
   if (props.layout.compact) {
