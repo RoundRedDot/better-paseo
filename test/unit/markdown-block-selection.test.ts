@@ -3,7 +3,11 @@ import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const copy = vi.hoisted(() => vi.fn(async (_text: string, _options?: object) => true));
 const list = React.createContext<{ getScrollMetrics(): { offset: number } } | null>(null);
-vi.mock("react-native", async () => ({ ...await import("./helpers/rn-mock"), VirtualizedList: { get contextType() { return list; } } }));
+vi.mock("react-native", async () => ({
+  ...await import("./helpers/rn-mock"),
+  VirtualizedList: { get contextType() { return list; } },
+  processColor: (color: unknown) => color === "#1C76F2" ? 0xff1c76f2 : color,
+}));
 vi.mock("../../client/ui/use-copy", () => ({ useCopy: () => ({ copy }) }));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const rn = await import("./helpers/rn-mock");
@@ -172,13 +176,22 @@ describe("iOS single Markdown block selection", () => {
     expect(light.textSelection).toBe("rgba(28, 118, 242, 0.2)");
     expect(tokens.textSelection).toBe("rgba(28, 118, 242, 0.3)");
     render("First.\n\nSecond.");
-    expect(native().map((node) => node.props.selectionColor)).toEqual(["#1C76F2", "#1C76F2"]);
     tap(1, 100); tap(1, 230);
     const highlight = highlights()[0]!;
     expect(StyleSheet.flatten(highlight.props.style).backgroundColor).toBe(tokens.textSelection);
     const frame = frames()[1]!;
     const order = frame.findAll((node) => node === highlight || String(node.type) === "EnrichedMarkdownText");
     expect(order[0]).toBe(highlight);
+  });
+  it("passes the blue selection tint unprocessed to both iOS Markdown views", () => {
+    render("Paragraph.");
+    expect(native().map((node) => [node.type, node.props.selectionColor])).toEqual([
+      ["EnrichedMarkdownText", "#1C76F2"],
+    ]);
+    render("- List item");
+    expect(native().map((node) => [node.type, node.props.selectionColor])).toEqual([
+      ["EnrichedMarkdown", "#1C76F2"],
+    ]);
   });
   it("gives Android's native drag selection the same blue", () => {
     os.__rnMockOS = "android"; render("First **bold**.");

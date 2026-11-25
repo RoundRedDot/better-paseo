@@ -91,8 +91,8 @@ function IOSProse({ context, tokens, text, prefix, style, blockTokens, gap, ...r
   // The host uses the GFM container for lists; its native block layout owns wrapping.
   const Component = blockTokens?.some((token) => token.type === "list") ? NativeListProse : NativeProse;
   const props = { ...rest, markdown, markdownStyle, style: [style, { backgroundColor: "transparent" }],
-    // UIKit tints the selection from this (`tintColor`) with its own alpha.
-    selectionColor: processColor(context.tokens.textSelectionTint),
+    // Fabric processes this ColorValue before UIKit applies it as tintColor.
+    selectionColor: context.tokens.textSelectionTint,
     selectable: !selection?.selected, isGFM: true, allowFontScaling: rest.allowFontScaling ?? true, allowTrailingMargin: false,
     enableLinkPreview: false, enableBlockContextMenu: false, streamingAnimation: false,
     md4cFlags: blockTokens ? GROUP_FLAGS : FLAGS,
