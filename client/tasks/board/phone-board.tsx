@@ -278,7 +278,7 @@ export function PhoneBoard(props: {
       filterState: base.filterState,
       onPermission: guard(base.onPermission),
       // A tap shows the details sheet; the card's arrow still opens the tab.
-      onSelect: guard((card: TaskCard) => setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id }), scrollBack: [] })),
+      onSelect: guard((card: TaskCard) => setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id, hostId: card.hostId }), scrollBack: [] })),
       onLongPress: () => {
         if (swallowsTap(swipedAt.current, Date.now())) return false;
         // A long press: the finger is still down.
@@ -294,11 +294,11 @@ export function PhoneBoard(props: {
   const listRef = useRef<NativeFlatList<TaskCard> | null>(null);
   const scrollToTop = useRef<(() => void) | null>(null);
   props.handlers.current = {
-    reveal(agentId) {
-      const location = findCard(board.lanes, agentId);
+    reveal(agentId, hostId) {
+      const location = findCard(board.lanes, agentId, hostId);
       if (!location) {
         if (tasks.byId.has(agentId)) board.toastMessage(strings.hiddenByFilters);
-        else tasks.resolveParent(agentId);
+        else tasks.resolveParent(agentId, hostId);
         return;
       }
       const switching = location.lane !== lane;
@@ -316,7 +316,7 @@ export function PhoneBoard(props: {
       );
     },
     details(card, _preview, parent) {
-      setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id, parent }), scrollBack: [] });
+      setSheet({ kind: "details", selection: selectionReducer(NO_SELECTION, { type: "click", id: card.id, hostId: card.hostId, parent, parentHostId: card.hostId }), scrollBack: [] });
     },
   };
 
@@ -337,9 +337,10 @@ export function PhoneBoard(props: {
     [board, theme, callbacks],
   );
   const selection = sheet?.kind === "details" ? sheet.selection : NO_SELECTION;
-  const detailsCard = selection.id ? board.cardById(selection.id) : undefined;
-  const backId = selection.back[selection.back.length - 1]?.id;
-  const backCard = backId ? board.cardById(backId) : undefined;
+  const detailsCard = selection.id ? board.cardById(selection.id, selection.hostId) : undefined;
+  const back = selection.back[selection.back.length - 1];
+  const backId = back?.id;
+  const backCard = backId ? board.cardById(backId, back?.hostId) : undefined;
   // The details' neighbours in their lane, for the sheet's stepper: the body itself draws again only for its card.
   const detailsList = detailsCard ? board.lanes[detailsCard.lane]?.cards ?? [] : [];
   const detailsIndex = detailsCard ? detailsList.findIndex((item) => item.id === detailsCard.id) : -1;

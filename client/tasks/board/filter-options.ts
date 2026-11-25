@@ -1,6 +1,6 @@
 import { filterLanes, withSubagentCards, type TasksHandle, type WorkspaceOption } from "../data";
 import { fallbackLabelColor } from "../label-colors";
-import { EMPTY_FILTERS, LANE_ORDER, type TaskCard } from "../model";
+import { EMPTY_FILTERS, LANE_ORDER, workspaceKey, type TaskCard } from "../model";
 import { toggleItem, type BoardDefaults, type BoardParams } from "./params";
 import { matchesSearch, searchWords } from "./search";
 import type { BoardStrings } from "./strings";
@@ -17,6 +17,8 @@ export interface FilterOption {
 
 export interface FilterOptions {
   workspaceGroups: {
+    /** The host whose daemon listed these workspaces; absent on a single-host board. */
+    hostId?: string;
     projectId: string;
     projectName: string;
     projectKey: string | null;
@@ -49,7 +51,10 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
   for (const lane of LANE_ORDER) {
     for (const card of lanes[lane].cards) {
       const workspaceId = card.location.workspaceId;
-      if (workspaceId) byWorkspace.set(workspaceId, (byWorkspace.get(workspaceId) ?? 0) + 1);
+      if (workspaceId) {
+        const key = workspaceKey(card.hostId, workspaceId);
+        byWorkspace.set(key, (byWorkspace.get(key) ?? 0) + 1);
+      }
       byProvider.set(card.provider, (byProvider.get(card.provider) ?? 0) + 1);
       for (const label of card.labels) byLabel.set(label.name, (byLabel.get(label.name) ?? 0) + 1);
     }
@@ -57,9 +62,12 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
 
   const groups = new Map<string, FilterOptions["workspaceGroups"][number]>();
   for (const workspace of tasks.workspaces) {
-    let group = groups.get(workspace.projectId);
+    // A project id is only unique on its own daemon.
+    const groupKey = workspaceKey(workspace.hostId, workspace.projectId);
+    let group = groups.get(groupKey);
     if (!group) {
       group = {
+        hostId: workspace.hostId,
         projectId: workspace.projectId,
         projectName: workspace.projectName,
         projectKey: workspace.projectKey ?? null,
@@ -67,7 +75,7 @@ export function buildFilterOptions(tasks: TasksHandle, params: BoardParams): Fil
         projectPath: workspace.projectPath ?? null,
         items: [],
       };
-      groups.set(workspace.projectId, group);
+      groups.set(groupKey, group);
     }
     group.items.push({
       id: workspace.id,
@@ -117,7 +125,7 @@ export function projectOptions(options: FilterOptions): ProjectOption[] {
   return options.workspaceGroups
     .filter((group) => group.projectId !== "")
     .map((group) => ({
-      id: group.projectId,
+      id: workspaceKey(group.hostId, group.projectId),
       label: group.projectName,
       count: group.items.reduce((sum, item) => sum + item.count, 0),
       on: group.items.length > 0 && group.items.every((item) => item.on),
@@ -216,17 +224,19 @@ export interface ActiveChip {
 export type ChipGroupKind = "workspace" | "label" | "agent";
 
 /** What a filter picks, as the folded chips and the sidebar's groups count it. */
-export type FilterUnit = "agent" | "project" | "workspace" | "label";
+export type FilterUnit = "host" | "agent" | "project" | "workspace" | "label";
 
 /**
- * Agent, Labels, Project, Workspace. The filter bar, the sidebar's tabs,
- * the filter sheet and a card's filter menu all follow this order. A card
- * menu has no single label, so it keeps the other three in this sequence.
+ * Host, Agent, Labels, Project, Workspace. The filter bar, the sidebar's
+ * tabs, the filter sheet and a card's filter menu all follow this order. A
+ * card menu has no single label, so it keeps the other three in this
+ * sequence; a host is not a card's own property, so that menu leaves it out.
  */
-export const FILTER_GROUP_ORDER = ["agent", "label", "project", "workspace"] as const satisfies readonly FilterUnit[];
+export const FILTER_GROUP_ORDER = ["host", "agent", "label", "project", "workspace"] as const satisfies readonly FilterUnit[];
 
 /** Each unit's Lucide icon, the same in the filter buttons, folded chips, chip menus and the sidebar's groups. */
 export const FILTER_ICONS: Readonly<Record<FilterUnit, string>> = {
+  host: "Server",
   agent: "Bot",
   project: "FolderKanban",
   workspace: "FolderGit2",
@@ -403,7 +413,9 @@ export type CardFilterState = Record<CardFilterKind, boolean | null>;
 /** The workspace ids "Only this project" picks: every workspace of the card's project, as a project filter does. */
 function projectWorkspaceIds(card: TaskCard, workspaces: readonly WorkspaceOption[]): string[] {
   const projectId = card.location.projectId;
-  return projectId ? workspaces.filter((workspace) => workspace.projectId === projectId).map((workspace) => workspace.id) : [];
+  return projectId
+    ? workspaces.filter((workspace) => workspace.projectId === projectId && workspace.hostId === card.hostId).map((workspace) => workspace.id)
+    : [];
 }
 
 const sameSet = (list: readonly string[], ids: readonly string[]): boolean =>
@@ -411,7 +423,7 @@ const sameSet = (list: readonly string[], ids: readonly string[]): boolean =>
 
 function cardFilterValue(card: TaskCard, workspaces: readonly WorkspaceOption[], by: CardFilterKind): { key: "providers" | "workspaceIds"; ids: string[] } {
   if (by === "agent") return { key: "providers", ids: card.provider ? [card.provider] : [] };
-  if (by === "workspace") return { key: "workspaceIds", ids: card.location.workspaceId ? [card.location.workspaceId] : [] };
+  if (by === "workspace") return { key: "workspaceIds", ids: card.location.workspaceId ? [workspaceKey(card.hostId, card.location.workspaceId)] : [] };
   return { key: "workspaceIds", ids: projectWorkspaceIds(card, workspaces) };
 }
 

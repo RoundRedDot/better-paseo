@@ -6,6 +6,7 @@ import React, { memo, useCallback, useEffect, useLayoutEffect, useMemo, useRef, 
 import { Platform, Pressable, ScrollView, StyleSheet, View } from "react-native";
 import type { PluginTheme } from "@getpaseo/plugin";
 import { Icon, TextInput } from "@getpaseo/plugin/client/ui";
+import { getPaseoClient, useHosts, type PluginHostSummary } from "@getpaseo/plugin/client";
 import { tipProps } from "../cards/card-hints";
 import { TaskText as Text, HOST_FONT as F, HOST_LINE, useTasksFontScale, taskControlHeight } from "../typography";
 import { useHover } from "../../ui/use-hover";
@@ -23,6 +24,7 @@ import { lastHumanMessageVersion, useLastHumanMessage } from "../data/last-human
 import { lastMessageVersion, useLastMessage } from "../data/last-message";
 import { detailsShowNote, useQuestionContext } from "../data/question-context";
 import { useSessionTokens } from "../data/session-tokens";
+import { DEFAULT_LOCAL_LABEL } from "../data/multi-host";
 import { useSubagentTimeline } from "../data/subagent-timeline";
 import { FILTER_GROUP_ORDER, FILTER_ICONS, buildFilterOptions, clearedParams, filterSummary, shownFilterOptions, toggleProject, type FilterOption, type ShownFilterOptions } from "./filter-options";
 import { RollingCount, RollingTotal } from "./board-parts";
@@ -47,7 +49,7 @@ export interface DetailsSidebarProps {
   /** A stat was pressed: show that lane. */
   onLane(lane: LaneId): void;
   /** A parent or subtask in the details: scroll the board to it. */
-  onReveal(agentId: string): void;
+  onReveal(agentId: string, hostId?: string): void;
   /** Touch sizes (a tablet). */
   touch: boolean;
   /** False leaves out the status counts (a bottom sheet showing a card, where room is short). Default true. */
@@ -110,13 +112,13 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const tokens = taskTokens(theme);
   // Pixel-by-pixel resizes only change the browser's layout, not this subtree.
   const [layout, setLayout] = useState({ short: false, wide: false });
-  const [menu, setMenu] = useState<{ id: string; point: { x: number; y: number } } | null>(null);
-  const openMenu = useCallback((id: string, point: { x: number; y: number }) => setMenu({ id, point }), []);
-  const card = selection.id ? board.cardById(selection.id) : undefined;
+  const [menu, setMenu] = useState<{ id: string; hostId?: string; point: { x: number; y: number } } | null>(null);
+  const openMenu = useCallback((id: string, point: { x: number; y: number }, hostId?: string) => setMenu({ id, hostId, point }), []);
+  const card = selection.id ? board.cardById(selection.id, selection.hostId) : undefined;
   useParentTitle(board, card);
-  const shown = card && selection.id ? findCard(board.lanes, selection.id) !== null : false;
-  const backId = selection.back[selection.back.length - 1]?.id;
-  const backCard = backId ? board.cardById(backId) : undefined;
+  const shown = card && selection.id ? findCard(board.lanes, selection.id, selection.hostId) !== null : false;
+  const back = selection.back[selection.back.length - 1];
+  const backCard = back ? board.cardById(back.id, back.hostId) : undefined;
 
   const showStats = props.stats !== false;
   // The counts' summary and the groups read the same options: built once here, and only while one of them is shown.
@@ -133,14 +135,14 @@ function DetailsSidebarView(props: DetailsSidebarProps) {
   const short = !tabs && !columns && (props.scrollAll === true || layout.short);
   const content = (
     <>
-      {menu && board.cardById(menu.id) ? <SidebarCardMenu board={board} card={board.cardById(menu.id)!} theme={theme} point={menu.point} onClose={() => setMenu(null)} /> : null}
+      {menu && board.cardById(menu.id, menu.hostId) ? <SidebarCardMenu board={board} card={board.cardById(menu.id, menu.hostId)!} theme={theme} point={menu.point} onClose={() => setMenu(null)} /> : null}
       {showStats ? <StatsCard board={board} options={options!} theme={theme} tokens={tokens} onLane={props.onLane} touch={props.touch} /> : null}
       {card ? (
         <SidebarDetails
           board={board}
           card={card}
           shown={shown}
-          backId={backId}
+          backId={back?.id}
           backCard={backCard}
           theme={theme}
           dispatch={dispatch}
@@ -216,8 +218,8 @@ interface SidebarDetailsProps {
   backCard: TaskCard | undefined;
   theme: PluginTheme;
   dispatch(action: SelectionAction): void;
-  onReveal(agentId: string): void;
-  onMenu(id: string, point: { x: number; y: number }): void;
+  onReveal(agentId: string, hostId?: string): void;
+  onMenu(id: string, point: { x: number; y: number }, hostId?: string): void;
   touch: boolean;
   sheetToggle?: { full: boolean; label: string; onPress(): void };
   onSheetClose?(): void;
@@ -259,15 +261,15 @@ function SidebarDetailsView(props: SidebarDetailsProps) {
       touch={props.touch}
       clock={board.clock}
       onClose={() => dispatch({ type: "clear" })}
-      onMenu={(point) => props.onMenu(card.id, point)}
+      onMenu={(point) => props.onMenu(card.id, point, card.hostId)}
       sheetToggle={props.sheetToggle}
       onSheetClose={props.onSheetClose}
       questionActionsInHeader={props.questionActionsInHeader}
       back={props.backId ? { title: props.backCard?.title ?? cardStrings(board.language).parentUnknown, onPress: () => dispatch({ type: "back" }) } : null}
       notice={notice}
       onJump={(agentId) => {
-        dispatch({ type: "jump", id: agentId });
-        props.onReveal(agentId);
+        dispatch({ type: "jump", id: agentId, hostId: card.hostId });
+        props.onReveal(agentId, card.hostId);
       }}
       onSubtaskMenu={props.onMenu}
       titleUpdates={board.callbacks.titleUpdates}
@@ -299,7 +301,7 @@ function SidebarCardMenu(props: { board: BoardController; card: TaskCard; theme:
     autoTitlePending: title.state === "running" || board.callbacks.titleUpdates?.revealing().has(card.id),
     open: callbacks.onOpen && !card.subagent ? () => callbacks.onOpen?.(card.id) : undefined,
     openParent: callbacks.onOpen && parentOpensInPaseo(card) ? () => callbacks.onOpen?.(card.parent!.id) : undefined,
-    revealParent: card.parent ? () => callbacks.onReveal(card.parent!.id) : undefined,
+    revealParent: card.parent ? () => callbacks.onReveal(card.parent!.id, card.hostId) : undefined,
     stop: canStop && board.stop.phase(card.id) !== "stopping" ? (withChildren) => callbacks.onStop?.(card, { withChildren, dialog: true }) : undefined,
     children: canStop && card.stoppable ? children : 0,
     childrenOnly: !card.stoppable,
@@ -327,11 +329,20 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
   const agent = card && !card.subagent ? card : undefined;
   const shown = agent !== undefined;
   const todo = useTodoSummary(board.paseo, agent?.id ?? "", shown && board.visible);
-  const firstPrompt = useFirstPrompt(board.paseo, agent?.id ?? "", shown);
+  const client = useMemo(() => {
+    if (!card?.hostId || card.hostId === board.hostId) return board.paseo;
+    try {
+      return getPaseoClient(card.hostId);
+    } catch {
+      return board.paseo;
+    }
+  }, [board.paseo, board.hostId, card?.hostId]);
+  const firstPrompt = useFirstPrompt(client, agent?.id ?? "", shown);
   const live = board.visible && agent !== undefined && turnRunning(agent) && agent.closed !== true;
-  const lastMessage = useLastMessage(board.paseo, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
+  const lastMessage = useLastMessage(client, agent?.id ?? "", agent ? lastMessageVersion(agent) : "", shown, live);
   const replyEpoch = lastMessage.prompt.state === "ready" ? lastMessage.prompt.position?.epoch : undefined;
-  const humanMessage = useLastHumanMessage(board.paseo, agent?.id ?? "", agent ? `${lastHumanMessageVersion(agent)}|${replyEpoch ?? ""}` : "", shown);
+  const humanMessage = useLastHumanMessage(client, agent?.id ?? "", agent ? `${lastHumanMessageVersion(agent)}|${replyEpoch ?? ""}` : "", shown);
+
   const sessionTokens = useSessionTokens(agent?.id ?? "", agent !== undefined && turnRunning(agent) && agent.closed !== true);
   const subagentReads = useSubagentTimeline(
     {
@@ -343,7 +354,7 @@ export function useDetailReads(board: BoardController, card: TaskCard | undefine
     subagent !== undefined,
   );
   const asking = agent?.lane === "needs_input" && agent.permission?.kind === "question" ? agent.permission : null;
-  const questionRead = useQuestionContext(board.paseo, agent?.id ?? "", asking);
+  const questionRead = useQuestionContext(client, agent?.id ?? "", asking);
   const questionContext = asking && detailsShowNote(questionRead.context, lastMessage.prompt) ? questionRead : null;
   return subagent ? { ...subagentReads, humanMessage: null, sessionTokens: null, questionContext: null, todo: null } : { firstPrompt, humanMessage, lastMessage, sessionTokens, questionContext, todo };
 }
@@ -357,7 +368,7 @@ export function useParentTitle(board: BoardController, card: TaskCard | undefine
   const parent = card?.parent;
   const parentId = parent && (parent.title === null || (parent.missing && parent.archived === null)) ? parent.id : null;
   useEffect(() => {
-    if (parentId) board.tasks.resolveParent(parentId);
+    if (parentId) board.tasks.resolveParent(parentId, card?.hostId);
   }, [board.tasks, parentId]);
 }
 
@@ -529,27 +540,59 @@ interface GroupRow {
 }
 
 /**
- * With no card chosen: Agent, Label, Project and Workspace counts (every
- * loaded card, including done and archived), a row a filter; those at 0 too
- * while `board.showEmptyGroups` is on.
+ * With no card chosen: Host, Agent, Label, Project and Workspace counts
+ * (every loaded card, including done and archived), a row a filter; those at
+ * 0 too while `board.showEmptyGroups` is on.
  */
 function GroupCard(props: { board: BoardController; options: ShownFilterOptions; theme: PluginTheme; tokens: TaskTokens; touch: boolean }) {
   const home = useHomeDirectory();
   const { board, options, tokens } = props;
   const strings = board.strings.sidebar;
   const scale = useTasksFontScale();
+  // Hosts come live from the app; until one is listed, the board's own host stands in.
+  const hosts = useHosts();
   const [labelFits, setLabelFits] = useState<Partial<Record<GroupKind, { key: string; fits: boolean }>>>({});
   const reportFit = useCallback((id: GroupKind, key: string, fits: boolean) => {
     setLabelFits((previous) => previous[id]?.key === key && previous[id]?.fits === fits ? previous : { ...previous, [id]: { key, fits } });
   }, []);
-  // All four labels appear together, only after every current measurement fits.
+  // All five labels appear together, only after every current measurement fits.
   const showLabels = GROUP_KINDS.every((id) => labelFits[id]?.key === `${strings.groups[id]}|${scale}` && labelFits[id]?.fits);
   const [kind, setKind] = useState<GroupKind>("agent");
-  const [queries, setQueries] = useState<Record<GroupKind, string>>({ agent: "", project: "", workspace: "", label: "" });
+  const [queries, setQueries] = useState<Record<GroupKind, string>>({ host: "", agent: "", project: "", workspace: "", label: "" });
   const [searchFocused, setSearchFocused] = useState(false);
   const query = queries[kind];
+  const showEmpty = board.showEmptyGroups;
   const rows = useMemo<GroupRow[]>(() => {
     const byCount = (a: { count: number }, b: { count: number }) => b.count - a.count;
+    if (kind === "host") {
+      const hostCounts = new Map<string, number>();
+      for (const card of board.tasks.byId.values()) {
+        if (card.hostId) hostCounts.set(card.hostId, (hostCounts.get(card.hostId) ?? 0) + 1);
+      }
+      // The local host stands in until `useHosts` lists one; the row that clears the filter holds `board.total`.
+      const known: readonly PluginHostSummary[] = hosts.length
+        ? hosts
+        : [{ serverId: board.hostId, label: DEFAULT_LOCAL_LABEL, status: "online" }];
+      const picked = new Set(board.params.hostIds);
+      const allHosts: GroupRow = {
+        id: "all-hosts",
+        label: board.strings.allHosts,
+        count: board.total,
+        on: board.params.hostIds.length === 0,
+        lead: <Icon name={FILTER_ICONS.host} size={16} color={tokens.foregroundMuted} />,
+        toggle: () => board.setParams((params) => ({ ...params, hostIds: [] })),
+      };
+      const hostRows: GroupRow[] = known.map((host) => ({
+        id: host.serverId,
+        label: host.label,
+        count: hostCounts.get(host.serverId) ?? 0,
+        on: picked.has(host.serverId),
+        detail: host.status !== "online" ? host.status : undefined,
+        lead: <Icon name={FILTER_ICONS.host} size={16} color={host.status === "online" ? tokens.status.success : tokens.foregroundMuted} />,
+        toggle: () => board.setParams((params) => ({ ...params, hostIds: toggleItem(params.hostIds, host.serverId) })),
+      }));
+      return [allHosts, ...(showEmpty ? hostRows : hostRows.filter((row) => row.count > 0 || row.on))];
+    }
     if (kind === "agent") {
       return [...options.agents]
         .sort(byCount)
@@ -590,7 +633,7 @@ function GroupCard(props: { board: BoardController; options: ShownFilterOptions;
         toggle: () => board.setParams((params) => toggleProject(params, project)),
       }))
       .sort(byCount);
-  }, [kind, options, board, tokens, home]);
+  }, [kind, options, board, tokens, home, hosts, showEmpty]);
   const words = searchWords(query);
   const visibleRows = rows.filter((row) => matchesSearch([row.label, row.detail], words));
   useRequestProjectIcons([...new Set(rows.flatMap((row) => (row.iconFor ? [row.iconFor] : [])))], board.tasks.requestProjectIcon);
@@ -650,8 +693,8 @@ const SEGMENT_GAP = 6;
 const SEGMENT_ROW_PAD = 10;
 
 /**
- * The group tabs' row. It alone is measured: the four tabs share it equally
- * (`flexBasis` 0), so a resize lays out one node instead of four, and only
+ * The group tabs' row. It alone is measured: the five tabs share it equally
+ * (`flexBasis` 0), so a resize lays out one node instead of five, and only
  * this row and its tabs draw again, not the group list under it.
  */
 function SegmentRow(props: {
@@ -805,6 +848,6 @@ function GroupRowView(props: { row: GroupRow; tokens: TaskTokens; touch: boolean
 }
 
 /** Whether a card is still somewhere the sidebar can show it. */
-export function sidebarCard(board: BoardController, id: string | null): TaskCard | undefined {
-  return id ? board.cardById(id) : undefined;
+export function sidebarCard(board: BoardController, id: string | null, hostId?: string): TaskCard | undefined {
+  return id ? board.cardById(id, hostId) : undefined;
 }

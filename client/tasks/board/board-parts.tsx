@@ -428,7 +428,7 @@ export interface CardCellProps {
 export function CardCell(props: CardCellProps) {
   const { card, board } = props;
   const query = board.params.query.trim();
-  const parent = card.subagent && card.parent ? board.cardById(card.parent.id) : undefined;
+  const parent = card.subagent && card.parent ? board.cardById(card.parent.id, card.hostId) : undefined;
   return (
     <CardCellView
       card={card}

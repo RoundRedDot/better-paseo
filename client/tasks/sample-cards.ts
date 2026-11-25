@@ -223,12 +223,24 @@ function allSamples(now: number): TaskCard[] {
 /** Only the preview draws these: the board tests count the others. */
 const PREVIEW_ONLY: ReadonlySet<string> = new Set(["sample-question", "sample-stopped", "sample-archived", "sample-archived-workspace"]);
 
+/**
+ * The preview tags some samples with a host so the Host switch shows what it
+ * adds to a card. `sampleCards` keeps them untagged: the board's own fixture
+ * carries no host, as a board reading one host does.
+ */
+const PREVIEW_HOSTS: Readonly<Record<string, { hostId: string; hostLabel: string }>> = {
+  "sample-input": { hostId: "host-remote", hostLabel: "Oh My Pi" },
+  "sample-running": { hostId: "host-remote-2", hostLabel: "MacBook Air" },
+  "sample-failed": { hostId: "host-remote", hostLabel: "Oh My Pi" },
+  "sample-done": { hostId: "host-remote", hostLabel: "Oh My Pi" },
+};
+
 export function sampleCards(now: number = Date.now()): TaskCard[] {
   return allSamples(now).filter((card) => !PREVIEW_ONLY.has(card.id));
 }
 
 export function previewSampleCards(now: number = Date.now()): TaskCard[] {
-  return allSamples(now);
+  return allSamples(now).map((card) => ({ ...card, ...PREVIEW_HOSTS[card.id] }));
 }
 
 /** Static checklist data for the settings previews. */
