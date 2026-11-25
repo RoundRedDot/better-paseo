@@ -48,6 +48,7 @@ export function distinctHosts(urls: readonly string[]): string[] {
 }
 
 const LISTED_LINK = /^\s*\[\d+\]\s+(.*?)\s*\n\s+(https?:\/\/\S+)\s*$/gm;
+const HEADING_LINK = /^##\s+\[([^\]\n]*)\]\((https?:\/\/[^\s)]+)\)\s*$/gm;
 const LINKS_LINE = /^Links:\s*(\[.*\])\s*$/gm;
 const MARKDOWN_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
 
@@ -60,6 +61,7 @@ type FoundLink = { title: string; url: string };
  * - a numbered title over its address (Oh My Pi):
  *       [1] View - React Native
  *           https://reactnative.dev/docs/view
+ * - a `## [title](url)` heading opening each hit (OpenCode's websearch)
  * - a `Links: [{"title": ..., "url": ...}]` line (Claude Code's WebSearch text)
  * - Markdown links, `[View](https://reactnative.dev/docs/view)`
  *
@@ -68,7 +70,7 @@ type FoundLink = { title: string; url: string };
  */
 export function parseListedLinks(text: string | undefined): FoundLink[] {
   if (!text) return [];
-  for (const read of [numberedLinks, linksLines, markdownLinks]) {
+  for (const read of [numberedLinks, headingLinks, linksLines, markdownLinks]) {
     const found = read(text);
     if (found.length > 0) return dedupe(found);
   }
@@ -79,6 +81,15 @@ function numberedLinks(text: string): FoundLink[] {
   const found: FoundLink[] = [];
   LISTED_LINK.lastIndex = 0;
   for (let match = LISTED_LINK.exec(text); match; match = LISTED_LINK.exec(text)) {
+    found.push({ title: match[1] ?? "", url: match[2]! });
+  }
+  return found;
+}
+
+function headingLinks(text: string): FoundLink[] {
+  const found: FoundLink[] = [];
+  HEADING_LINK.lastIndex = 0;
+  for (let match = HEADING_LINK.exec(text); match; match = HEADING_LINK.exec(text)) {
     found.push({ title: match[1] ?? "", url: match[2]! });
   }
   return found;

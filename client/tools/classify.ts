@@ -379,7 +379,7 @@ const PASEO_TOOLS = new Set([
 ]);
 
 /** Names of search tools that arrive without a protocol `search` detail. */
-const SEARCH_NAMES = new Set(["grep", "glob", "search", "web_search"]);
+const SEARCH_NAMES = new Set(["grep", "glob", "search", "web_search", "websearch"]);
 
 /** Output that is not text is shown as JSON, capped so a huge record stays cheap. */
 const MAX_JSON = 20000;
@@ -425,7 +425,8 @@ function readSearch(
         return url ? [{ title: decodeHtmlEntities(asString(row?.title) ?? url), url }] : [];
       })
     : [];
-  const toolName = asString(detail.toolName) ?? (rawName || undefined);
+  // OpenCode names its web search `websearch`; the daemon passes it on as an unknown tool.
+  const toolName = asString(detail.toolName) ?? (rawName === "websearch" ? "web_search" : rawName || undefined);
   let content = asString(detail.content) ?? outputText;
   // A web search that printed its hits as text (Oh My Pi's numbered list,
   // Claude Code's Links line, Markdown links) reads as those hits, so it draws
