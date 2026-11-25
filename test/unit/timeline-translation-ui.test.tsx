@@ -102,9 +102,13 @@ vi.mock("@getpaseo/plugin/client", async () => {
     HostContext,
     useAgent: () => undefined,
     usePaseo: () => ReactModule.useContext(HostContext)?.api ?? mocks.api,
-    useRpc: () => ReactModule.useContext(HostContext)?.rpc ?? mocks.rpc,
+    useRpc: (definition?: { name: string }) => {
+      const rpc = ReactModule.useContext(HostContext)?.rpc ?? mocks.rpc;
+      return definition?.name === "file.home" ? readHome : rpc;
+    },
   };
 });
+const readHome = vi.hoisted(() => vi.fn(async () => ({ home: "/Users/me" })));
 vi.mock("@getpaseo/plugin/client/ui", async () => {
   const ReactModule = await import("react");
   return {
@@ -712,16 +716,21 @@ describe("timeline translation", () => {
   });
 
   it.each([
-    ["standalone reply", {}, "![Image](file:///tmp/tool-output.png)"],
-    ["split reply", { blockIndex: 1 }, "![Image](file:///tmp/tool-output.png) ![Image](file:///tmp/second.png)"],
+    ["standalone reply", {}, "![Image](file:///Users/me/shots/tool-output.png)"],
+    ["split reply", { blockIndex: 1 }, "![Image](file:///Users/me/shots/tool-output.png) ![Image](file:///tmp/second.png)"],
   ] as const)("hides the translation slot for an image-only %s", async (_label, data, image) => {
-    mocks.rpc.mockResolvedValue({ dataUri: null, width: null, height: null, bytes: null, error: "File unavailable" });
+    const dataUri = "data:image/png;base64,AAAA";
+    mocks.rpc.mockResolvedValue({ dataUri, width: 40, height: 30, bytes: 3, error: null });
     const slot = () => renderer!.root.findAll((node) => String(node.type) === "View" && node.props.testID === "reply-translation-slot");
     await act(async () => {
       renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer,
         assistantProps({ ...data, text: image, phase: "complete" }, "ios") as never));
     });
-    expect(collectTexts(renderer!.root).join(" ")).toContain("tool-output.png");
+    const text = collectTexts(renderer!.root).join(" ");
+    expect(text).toContain("~/shots/tool-output.png");
+    if ("blockIndex" in data) expect(text).toContain("/tmp/second.png");
+    expect(mocks.rpc).toHaveBeenCalledWith({ cwd: "", path: "/Users/me/shots/tool-output.png" });
+    expect(renderer!.root.findAll((node) => String(node.type) === "Image" && node.props.source?.uri === dataUri)).not.toHaveLength(0);
     expect(slot()).toHaveLength(0);
     await act(async () => {
       renderer!.update(React.createElement(LiveAssistantRenderer,

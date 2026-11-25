@@ -17,10 +17,13 @@ vi.mock("@getpaseo/plugin/client/ui", async () => {
     }), TextInput: rn.TextInput };
 });
 const translate = vi.hoisted(() => vi.fn());
+const paseo = vi.hoisted(() => ({}));
+const readHome = vi.hoisted(() => async () => ({ home: "/Users/me" }));
 vi.mock("@getpaseo/plugin/client", () => ({
   useSettings: () => ({ data: undefined }),
-  usePaseo: () => null,
+  usePaseo: () => paseo,
   useRpc: (definition?: { name?: string }) => definition?.name === "translation.translate" ? translate
+    : definition?.name === "file.home" ? readHome
     : async () => ({ dataUri: null, mime: null, width: null, height: null, bytes: null, error: "File not found" }),
 }));
 await import("./helpers/quiet-renderer");
