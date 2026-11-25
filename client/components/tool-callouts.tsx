@@ -63,7 +63,7 @@ import { useHostLanguageVersion } from "../i18n/host-language";
 import { useEnhancerPreferences } from "../preferences";
 import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationContext } from "../translation/selection";
 import { selectionColorProps } from "./text-selection";
-import { FaviconStack, WebLinkTarget, WebResultRow } from "./web-favicon";
+import { Favicon, FaviconStack, OpenLinkButton, WebLinkTarget, WebResultRow } from "./web-favicon";
 import { distinctHosts, parseWebLink } from "../tools/web-link";
 
 /**
@@ -271,17 +271,21 @@ export function ToolCallout({
   const tone = running ? "active" : "quiet";
   // On a phone a created agent's row shows its harness as the grey mark, not as words.
   const provider = compact ? summary.agent?.provider : undefined;
+  // A web search for an address (Codex opening a page) names the site first:
+  // its favicon in the icon slot, the domain, and an arrow out to the page.
+  const webSearch = !groupCalls && data.tool === "search" && data.search?.toolName === "web_search" ? data.search : undefined;
+  const webQuery = webSearch && parseWebLink(webSearch.query) ? webSearch.query : undefined;
+  const webHosts = useMemo(() => distinctHosts(webSearch?.webResults?.map((row) => row.url) ?? []), [webSearch]);
+  const webHost = webQuery ? parseWebLink(webQuery)?.host : undefined;
   const statusIcon = running ? (
     <RunningDot color={tokens.accent} />
+  ) : webHost && !failed ? (
+    <Favicon host={webHost} size={DISCLOSURE_HEADER.icon} tokens={tokens} />
   ) : (
     <RowIcon name={provider ? `provider:${provider}` : summary.agent?.icon ?? iconName}
       color={agentTone ?? (failed ? tokens.danger : summary.iconTone === "success" ? tokens.success : undefined)} />
   );
 
-  // A web search for an address (Codex opening a page) names the site first.
-  const webSearch = !groupCalls && data.tool === "search" && data.search?.toolName === "web_search" ? data.search : undefined;
-  const webQuery = webSearch && parseWebLink(webSearch.query) ? webSearch.query : undefined;
-  const webHosts = useMemo(() => distinctHosts(webSearch?.webResults?.map((row) => row.url) ?? []), [webSearch]);
   const target =
     summary.agent ? (
       <AgentRowTarget summary={summary} tokens={tokens} />
@@ -312,6 +316,8 @@ export function ToolCallout({
   });
   const metaLead = summary.metaPath ? (
     <MetaPath path={summary.metaPath} tokens={tokens} compact={compact} />
+  ) : webQuery ? (
+    <OpenLinkButton href={webQuery} compact={compact} />
   ) : webHosts.length > 0 ? (
     <FaviconStack hosts={webHosts} tokens={tokens} />
   ) : undefined;

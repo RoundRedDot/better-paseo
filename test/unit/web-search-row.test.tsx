@@ -76,7 +76,31 @@ describe("web search rows", () => {
     const text = textOf(target!);
     expect(text.startsWith("chatgpt.com")).toBe(true);
     expect(text.endsWith("e4b324c5c3")).toBe(true);
-    expect(byTest("web-favicon-image")[0]!.props.source).toEqual({ uri: "https://chatgpt.com/favicon.ico" });
+    // The favicon stands in the icon slot, outside the target; no magnifier.
+    expect(target!.findAll((node) => node.props.testID === "web-favicon-image")).toHaveLength(0);
+    expect(byTest("web-favicon-image").map((node) => node.props.source)).toEqual([{ uri: "https://chatgpt.com/favicon.ico" }]);
+    expect(renderer!.root.findAll((node) => node.props.name === "Search")).toHaveLength(0);
+  });
+
+  it("opens an address in the system browser from its arrow, without toggling the row", () => {
+    const open = vi.spyOn(Linking, "openURL");
+    const toggled = vi.fn();
+    const href = "https://developer.apple.com/documentation/uikit/uisheetpresentationcontroller";
+    render(<ToolCallout data={webSearch({ query: href })} tokens={tokens} compact expanded={false} onExpandedChange={toggled} />);
+    const [arrow] = renderer!.root.findAll((node) => node.props.testID === "web-link-open" && typeof node.props.onPress === "function");
+    expect(arrow!.props.accessibilityRole).toBe("link");
+    expect(renderer!.root.findAll((node) => node.props.name === "ArrowUpRight").length).toBeGreaterThan(0);
+    const stop = vi.fn();
+    act(() => arrow!.props.onPress({ stopPropagation: stop }));
+    expect(stop).toHaveBeenCalled();
+    expect(open).toHaveBeenCalledWith(href);
+    expect(toggled).not.toHaveBeenCalled();
+  });
+
+  it("keeps the magnifier and no arrow for a plain query", () => {
+    render(<ToolCallout data={webSearch({ query: "expo sheet detents" })} tokens={tokens} compact />);
+    expect(byTest("web-link-open")).toHaveLength(0);
+    expect(renderer!.root.findAll((node) => node.props.name === "Search").length).toBeGreaterThan(0);
   });
 
   it("keeps a plain query as quoted text and shows the result sites beside it", () => {
