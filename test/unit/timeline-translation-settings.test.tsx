@@ -1,6 +1,7 @@
 import React from "react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import TestRenderer, { act, type ReactTestInstance } from "react-test-renderer";
+import { StyleSheet } from "react-native";
 import "./helpers/quiet-renderer";
 import { measureHostTree } from "./helpers/yoga-host-layout";
 import {
@@ -846,6 +847,7 @@ describe("translation method settings", () => {
   const trigger = (label: string) => renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "button" && n.props.accessibilityLabel === label);
   const serviceMenu = () => trigger("Translation service");
   const methodMenu = () => trigger("Translation method");
+  const agentChoiceLabel = "Agent, Unavailable";
   const openServiceMenu = async () => { await act(async () => serviceMenu().props.onPress()); };
   const menuChoice = (name: string) => renderer!.root.find((n) => typeof n.type === "string" && n.props.accessibilityRole === "radio" && n.props.accessibilityLabel === name);
   const menuNames = () => renderer!.root.findAll((n) => typeof n.type === "string" && n.props.accessibilityRole === "radio" &&
@@ -875,9 +877,17 @@ describe("translation method settings", () => {
     await render({});
     expect(iconNames(methodMenu())).toEqual(["Globe", "ChevronDown"]);
     await act(async () => methodMenu().props.onPress());
-    expect(menuNames()).toEqual(["Free", "OpenAI compatible", "Agent"]);
+    expect(menuNames()).toEqual(["Free", "OpenAI compatible", agentChoiceLabel]);
     expect(menuNames().map((name) => iconNames(menuChoice(name)))).toEqual([["Globe"], ["Plug"], ["Bot"]]);
     expect(menuChoice("Free").props.accessibilityState.selected).toBe(true);
+    const [name, status] = menuChoice(agentChoiceLabel).findAll((node) => (node.type as unknown) === "Text");
+    expect(name!.props.children).toBe("Agent");
+    expect(status!.props.children).toBe("Unavailable");
+    const nameStyle = StyleSheet.flatten(name!.props.style);
+    const statusStyle = StyleSheet.flatten(status!.props.style);
+    expect(statusStyle.color).toBe(makeLook().tokens.warning);
+    expect(statusStyle.color).not.toBe(nameStyle.color);
+    expect(statusStyle.fontSize).toBeLessThan(nameStyle.fontSize);
   });
 
   it("lists Automatic and the available services with their marks on web", async () => {
@@ -960,7 +970,7 @@ describe("translation method settings", () => {
 
   it("explains Agent mode instead of saving it", async () => {
     await render({ mode: "openai", endpoint: OK_ENDPOINT, endpointModel: "m" });
-    await pickMode("Agent");
+    await pickMode(agentChoiceLabel);
     expect(methodMenu().props.accessibilityValue).toEqual({ text: "Agent" });
     expect(textValues(renderer!.root).join("\n")).toContain("getpaseo/paseo#10394");
     expect(titles()).toEqual(["Enable translation", "Translation method", "Restore default translation settings"]);

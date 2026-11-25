@@ -99,6 +99,7 @@ export function SelectOption({
   onPress,
   logo,
   trailing,
+  status,
   inset = 6,
 }: {
   look: PageLook;
@@ -108,6 +109,7 @@ export function SelectOption({
   logo?: React.ReactNode;
   /** Extra detail on the row's far side, such as a language code. */
   trailing?: string;
+  status?: string;
   /** The row's side margin inside its card. */
   inset?: number;
 }) {
@@ -118,7 +120,7 @@ export function SelectOption({
       accessibilityRole="radio"
       accessibilityState={{ selected, checked: selected }}
       aria-checked={selected}
-      accessibilityLabel={name}
+      accessibilityLabel={status ? `${name}, ${status}` : name}
       onPress={onPress}
       onHoverIn={() => setHovered(true)}
       onHoverOut={() => setHovered(false)}
@@ -149,6 +151,15 @@ export function SelectOption({
       {trailing ? (
         <Text numberOfLines={1} style={[styles.trailing, { color: tokens.foregroundMuted, fontFamily: tokens.fontMono }]}>
           {trailing}
+        </Text>
+      ) : null}
+      {status ? (
+        <Text numberOfLines={1} style={[
+          styles.status,
+          settingsTextStyle(tokens, -3),
+          { color: tokens.warning, fontFamily: tokens.fontUi },
+        ]}>
+          {status}
         </Text>
       ) : null}
     </Pressable>
@@ -190,4 +201,5 @@ const styles = StyleSheet.create({
     gap: space.sm,
   },
   trailing: { marginStart: "auto", flexShrink: 0, fontSize: 11, lineHeight: 14 },
+  status: { marginStart: "auto", flexShrink: 1 },
 });

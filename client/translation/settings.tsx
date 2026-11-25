@@ -55,6 +55,7 @@ const STRINGS = {
     modeTitle: "Translation method",
     modeDescription: "Choose who translates. Switching keeps the other method's settings.",
     modes: { free: "Free", openai: "OpenAI compatible", agent: "Agent" },
+    agentStatus: "Unavailable",
     modeNotes: {
       free: "Public machine translation services such as Microsoft and Google. No key; this device sends the text directly.",
       openai: "Your OpenAI-compatible API: set its address, key and model. The prompt can be customized.",
@@ -171,6 +172,7 @@ const STRINGS = {
     modeTitle: "翻译方式",
     modeDescription: "选择由谁来翻译。切换方式不会清除另一种方式已保存的配置。",
     modes: { free: "免费翻译", openai: "OpenAI 兼容", agent: "Agent" },
+    agentStatus: "暂不可用",
     modeNotes: {
       free: "Google、微软等公开的机器翻译接口。无需 Key，由当前设备直接请求。",
       openai: "填写 API 地址、Key 和模型，用大模型翻译，可自定义 Prompt。",
@@ -474,6 +476,7 @@ function TranslationSettingsBody({ look, store }: { look: PageLook; store: Endpo
   const serviceTesting = serviceLine?.text === t.serviceTesting;
   const modeChoices: MenuChoice[] = [...TRANSLATION_MODES, "agent" as const].map((mode) => ({
     value: mode, name: t.modes[mode], logo: <Icon name={MODE_ICONS[mode]} size={SERVICE_MARK} color={tokens.foregroundMuted} />,
+    status: mode === "agent" ? t.agentStatus : undefined,
   }));
   const serviceChoices: MenuChoice[] = FREE_TRANSLATION_CHOICES.map((service) => ({
     value: service,

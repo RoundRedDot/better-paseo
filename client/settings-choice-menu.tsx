@@ -13,6 +13,7 @@ export interface MenuChoice {
   value: string;
   name: string;
   logo: React.ReactNode;
+  status?: string;
 }
 
 interface Anchor { x: number; y: number; width: number; height: number }
@@ -200,6 +201,7 @@ function ChoiceMenu({
                 look={look}
                 name={choice.name}
                 logo={choice.logo}
+                status={choice.status}
                 selected={choice.value === value}
                 onPress={() => onSelect(choice.value)}
               />
