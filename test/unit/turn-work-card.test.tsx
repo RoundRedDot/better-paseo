@@ -528,8 +528,14 @@ describe("call kinds", () => {
       call("m1", "mcp__linear__get_issue", { type: "unknown", input: {}, output: null }),
       call("c1", "Bash", { type: "shell", command: "npm test", exitCode: 1 }, "failed"),
       call("c2", "Bash", { type: "shell", command: "ls", exitCode: 0 }),
+      // A question to the user is its own group, not 其他; a failed one is still a failure.
+      call("q1", "AskUserQuestion", { type: "unknown", input: { questions: [{ question: "Ship?", options: [{ label: "Yes" }] }] }, output: null }),
+      call("q2", "request_user_input_async", { type: "unknown", input: { questions: [{ question: "Where?" }] }, output: null }),
+      call("q3", "AskUserQuestion", { type: "unknown", input: { questions: [{ question: "Now?", options: [{ label: "Yes" }] }] }, output: null }, "failed"),
+      call("o1", "TodoWrite", { type: "unknown", input: { todos: [] }, output: null }),
     ])).toEqual([{ kind: "read", count: 1 }, { kind: "command", count: 1 }, { kind: "search", count: 2 },
-      { kind: "fetch", count: 1 }, { kind: "mcp", count: 1 }, { kind: "failed", count: 1 }]);
+      { kind: "fetch", count: 1 }, { kind: "mcp", count: 1 }, { kind: "question", count: 2 }, { kind: "other", count: 1 },
+      { kind: "failed", count: 2 }]);
   });
 });
 

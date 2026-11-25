@@ -31,6 +31,7 @@ import { useInputCapabilities } from "../ui/use-input-capabilities";
 import { resolveLanguage, type SettingsLanguage } from "../i18n/settings-strings";
 import { classifyTool, type ToolCallView } from "../tools/classify";
 import { toolErrorText } from "../tools/error-text";
+import { readUserQuestions } from "../tools/user-questions";
 import { countDiff, countLines } from "../tools/summarize";
 import { FileEditsPreview, ToolCallout } from "./tool-callouts";
 import { BlockPlacementContext, type BlockEntry } from "../details/contracts";
@@ -67,7 +68,7 @@ const STRINGS: Record<SettingsLanguage, {
     steps: (count) => `${count} ${count === 1 ? "step" : "steps"}`, thinking: "Thinking",
     calls: (count) => `${count} ${count === 1 ? "tool call" : "tool calls"}`,
     kinds: { all: "All", read: "Read", edit: "Edit", command: "Command", search: "Search", fetch: "Fetch", mcp: "MCP",
-      agent: "Agent", other: "Other", failed: "Failed" },
+      agent: "Agent", question: "Questions", other: "Other", failed: "Failed" },
     doing: { command: "Running command", read: "Reading", edit: "Editing", write: "Writing" },
     done: { command: "Ran command", read: "Read", edit: "Edited", write: "Wrote" },
   },
@@ -78,18 +79,21 @@ const STRINGS: Record<SettingsLanguage, {
     steps: (count) => `${count} 步`, thinking: "正在思考",
     calls: (count) => `${count} 次工具调用`,
     kinds: { all: "全部", read: "读取", edit: "编辑", command: "命令", search: "搜索", fetch: "抓取", mcp: "MCP",
-      agent: "子 agent", other: "其他", failed: "失败" },
+      agent: "子 agent", question: "提问", other: "其他", failed: "失败" },
     doing: { command: "正在运行命令", read: "正在读取", edit: "正在编辑", write: "正在写入" },
     done: { command: "运行了命令", read: "读取了", edit: "编辑了", write: "写入了" },
   },
 };
 
-const CALL_KINDS: readonly CallKind[] = ["read", "edit", "command", "search", "fetch", "mcp", "agent", "other", "failed"];
+const CALL_KINDS: readonly CallKind[] = ["read", "edit", "command", "search", "fetch", "mcp", "agent", "question", "other", "failed"];
 
 /** One call's kind: a failed or canceled call counts as failed, whatever it did. */
 export function callKind(item: ToolCallTimelineItem): CallKind {
   if (item.status !== "completed" && item.status !== "running") return "failed";
-  switch (viewOf(item).tool) {
+  const view = viewOf(item);
+  // A question to the user, drawn with its own icon, whatever tool asked it.
+  if (readUserQuestions(view)) return "question";
+  switch (view.tool) {
     case "read": return "read";
     case "edit": case "write": return "edit";
     case "bash": case "shell": case "git": return "command";
