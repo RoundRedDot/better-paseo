@@ -64,6 +64,7 @@ const ZH: Readonly<Record<string, string>> = {
   "Copy section": "复制段落",
   "Copy quote": "复制引用",
   "Copy reply": "复制回复",
+  "Fork chat from here": "从此处创建会话分支",
   "Copy title": "复制标题",
   "Copy session ID": "复制会话 ID",
   "Copy workspace name": "复制工作区名称",

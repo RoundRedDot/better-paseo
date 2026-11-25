@@ -3,6 +3,7 @@ import { randomUUID } from "node:crypto";
 import { pathToFileURL } from "node:url";
 import type { PaseoApi } from "../paseo-types";
 import type { ProviderSubagent } from "../../shared/tasks-rpc";
+import type { ForkCursor } from "../../shared/chat-fork-rpc";
 import { createCodexSubagentFacts, type SubagentFactsSource } from "./codex-subagent-facts";
 
 /** A provider subagent as the daemon sends it (`ProviderSubagentDescriptorPayload`). */
@@ -30,6 +31,9 @@ export interface SeedDaemon {
 
 /** The daemon's own client as the board's server uses it: the seed, metadata updates and attention. */
 export interface HostDaemon extends SeedDaemon {
+  buildAgentForkContext?(agentId: string, options: { boundaryCursor: ForkCursor }): Promise<{
+    attachment: { type: "text"; mimeType: "text/plain"; contextKind: "chat_history"; title?: string | null; text: string } | null;
+  }>;
   deleteAgent?(agentId: string): Promise<void>;
   updateAgent(agentId: string, updates: { name: string }): Promise<void>;
   inspectWorkspaceRecovery?(workspaceId: string): Promise<{ kind: "recoverable"; action: "unarchive" | "restore" } | { kind: "unavailable"; message: string }>;

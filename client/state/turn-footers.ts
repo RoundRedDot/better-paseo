@@ -194,7 +194,7 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
     const isRunning = snapshot ? snapshot.status === "running" : running === true;
     const activeTurnId = snapshot?.activeTurn?.turnId ?? null;
     const build = (marks?: TurnMarks) => {
-      const completed = completedTurnFooters(items, isRunning, activeTurnId, { marks, fromStart });
+      const completed = completedTurnFooters(items, isRunning, activeTurnId, { marks, fromStart, timelineEpoch: epoch });
       const latest = completed[completed.length - 1];
       // The daemon retains the latest usage even when a window missed completion.
       // Attach it only to the settled tail turn whose prompt matches its snapshot.
@@ -239,7 +239,8 @@ export function createTurnFooterStore(source: () => Timeline, loadRecorded?: (si
       const previous = get(footer.at, footer.text);
       const value = previous?.completedAt === footer.completedAt && previous.startedAt === footer.startedAt &&
         previous.durationMs === footer.durationMs && previous.turnId === footer.turnId &&
-        previous.usage === footer.usage ? previous : footer;
+        previous.usage === footer.usage && previous.forkCursor?.epoch === footer.forkCursor?.epoch &&
+        previous.forkCursor?.seq === footer.forkCursor?.seq ? previous : footer;
       let at = next.get(footer.at);
       if (!at) next.set(footer.at, at = new Map());
       at.set(footer.text, value);

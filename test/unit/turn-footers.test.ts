@@ -28,6 +28,22 @@ describe("completed turn footers", () => {
       .toEqual([["first", 1000, 3000, 2000], ["second", 4000, 5000, 1000]]);
   });
 
+  it("keeps the reply's fork cursor across a timeline replacement", async () => {
+    const entries = [prompt(1), reply(2, "answer"), entry({ type: "reasoning", text: "later" }, 3)];
+    const { store, refetch } = setup(entries);
+    const release = store.retain(2000, "answer");
+    try {
+      await store.refresh();
+      expect(store.get(2000, "answer")?.forkCursor).toEqual({ epoch: "e", seq: 2 });
+
+      refetch.mockResolvedValue(page(entries, { epoch: "reloaded" }));
+      await store.refresh();
+      expect(store.get(2000, "answer")?.forkCursor).toEqual({ epoch: "reloaded", seq: 2 });
+    } finally {
+      release();
+    }
+  });
+
   it("keeps previous footers while a new turn runs, including before its first item arrives", () => {
     expect(completedTurnFooters(turns(), true, "two").map((row) => row.text)).toEqual(["first"]);
     expect(completedTurnFooters(turns(), true, "three").map((row) => row.text)).toEqual(["first", "second"]);
