@@ -50,13 +50,13 @@ function InlineTranslationSession({ agentId, kind, text, streaming, children }: 
   return <>{children({ view, active, toggle })}</>;
 }
 
-export function InlineTranslateButton({ state, theme, testID, base, timeline = false }: { state: InlineTranslationState; theme: PluginTheme; testID: string; base?: string; timeline?: boolean }) {
+export function InlineTranslateButton({ state, theme, testID, base, timeline = false, alignRight = false }: { state: InlineTranslationState; theme: PluginTheme; testID: string; base?: string; timeline?: boolean; alignRight?: boolean }) {
   const preferences = useEnhancerPreferences();
   const tokens = useThemeTokens(theme, preferences);
-  return <InlineTranslateButtonWithTokens state={state} tokens={tokens} testID={testID} base={base} timeline={timeline} />;
+  return <InlineTranslateButtonWithTokens state={state} tokens={tokens} testID={testID} base={base} timeline={timeline} alignRight={alignRight} />;
 }
 
-export function InlineTranslateButtonWithTokens({ state, tokens, testID, base, timeline = false }: { state: InlineTranslationState; tokens: ExtendedThemeTokens; testID: string; base?: string; timeline?: boolean }) {
+export function InlineTranslateButtonWithTokens({ state, tokens, testID, base, timeline = false, alignRight = false }: { state: InlineTranslationState; tokens: ExtendedThemeTokens; testID: string; base?: string; timeline?: boolean; alignRight?: boolean }) {
   const settings = useTranslationSettingsState();
   const preferences = useEnhancerPreferences();
   const { hovered, hoverProps } = useHover();
@@ -73,7 +73,7 @@ export function InlineTranslateButtonWithTokens({ state, tokens, testID, base, t
     : showingTranslation
       ? <Icon icon={SHOW_ORIGINAL_ICON} size={iconSize} color={tokens.foregroundMuted} />
       : <Icon icon={TRANSLATE_ICON} size={iconSize} color={tokens.foregroundMuted} />;
-  if (timeline) return <View style={{ width: 32, height: 32, alignItems: "center", justifyContent: "center" }}><TooltipSideContext.Provider value="auto"><ToolbarItem testID={testID} label={label} tokens={tokens} align="end"
+  if (timeline) return <View style={{ width: 32, height: 32, alignItems: alignRight ? "flex-end" : "center", justifyContent: "center" }}><TooltipSideContext.Provider value="auto"><ToolbarItem testID={testID} label={label} tokens={tokens} align="end"
     buttonStyle={{ width: 24, height: 24, borderRadius: radiusV2.block }}
     onPress={(event) => { event.stopPropagation(); state.toggle(); }}>
     <View pointerEvents="none" testID={`${testID}-fill`}>{icon}</View>

@@ -590,7 +590,7 @@ function InlineReplyBlock({ state, replyKey, theme, tokens: given, compact, text
     <View style={{ position: "relative", paddingRight: gutter }}>
       <View style={loading ? { opacity: 0.55 } : undefined}>{children}</View>
       {enabled ? <View testID="reply-translation-slot" style={{ position: "absolute", right: 0, top, opacity: hovered || input.touch || state.active ? 1 : 0 }} pointerEvents={hovered || input.touch || state.active ? "auto" : "none"}>
-        <InlineTranslateButton state={state} theme={theme} testID="reply-translate" timeline />
+        <InlineTranslateButton state={state} theme={theme} testID="reply-translate" timeline alignRight />
       </View> : null}
     </View>
   </View>;

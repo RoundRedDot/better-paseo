@@ -626,6 +626,7 @@ describe("timeline translation", () => {
       first: textContent(text),
       offset: buttonFrame.top + buttonFrame.height / 2 - (textFrame.top + padding + line / 2),
       slotHeight: slotFrame.height,
+      rightInset: slotFrame.left + slotFrame.width - buttonFrame.left - buttonFrame.width,
       gutter: slotFrame.left - (rootFrame.left + rootFrame.width),
     };
   };
@@ -678,6 +679,7 @@ describe("timeline translation", () => {
     expect(Math.abs(result.offset)).toBeLessThanOrEqual(0.5);
     // The button keeps its own gutter beside the text instead of covering it.
     expect(result.gutter).toBeGreaterThanOrEqual(0);
+    expect(result.rightInset).toBe(0);
   });
 
   it("follows the translation's first line while loading and after it lands", async () => {
@@ -696,6 +698,7 @@ describe("timeline translation", () => {
     await vi.waitFor(() => expect(JSON.stringify(renderer!.toJSON())).toContain("正文"));
     expect(alignment().first).toBe("First line for alignment");
     expect(Math.abs(alignment().offset)).toBeLessThanOrEqual(0.5);
+    expect(alignment().rightInset).toBe(0);
   });
 
   it("offers explicit translation without sending text until pressed", async () => {
