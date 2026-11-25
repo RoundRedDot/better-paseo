@@ -151,7 +151,7 @@ export function DesktopBoard(props: {
   const hostId = screen.host.id;
   const { lanes, tasks, strings, laneOrder } = board;
   useLaneScrollbar(theme);
-  useResizeLine(theme);
+  useResizeLine(theme.colors.foreground);
 
   const [collapsedState, setCollapsedState] = useState<LaneId[]>(() => rememberedCollapsed(hostId));
   // A folded archived lane stays remembered while the lane is off, but takes no room.

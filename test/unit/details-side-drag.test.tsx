@@ -48,7 +48,7 @@ it("writes a dragged width to the page once a frame and renders the panel once, 
   const createNodeMock = (element: React.ReactElement) => {
     const id = (element.props as { testID?: string }).testID;
     if (id === "details-side") return { style: Object.assign(panelStyle, { setProperty() {}, removeProperty() {} }) };
-    if (id === "details-side-edge") return { ownerDocument: doc, addEventListener: (name: string, handler: Listener) => edgeListeners.set(name, handler), removeEventListener() {} };
+    if (id === "details-side-edge") return { ownerDocument: doc, addEventListener: (name: string, handler: Listener) => edgeListeners.set(name, handler), removeEventListener() {}, setAttribute() {}, removeAttribute() {} };
     return null;
   };
   let renders = 0;
@@ -67,16 +67,12 @@ it("writes a dragged width to the page once a frame and renders the panel once, 
   expect(start).toBe(576);
   const edge = renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side-edge");
   const panelStyleAtRest = () => StyleSheet.flatten(renderer!.root.find((node) => typeof node.type === "string" && node.props.testID === "details-side").props.style);
-  const border = panelStyleAtRest().borderLeftColor;
   expect(panelStyleAtRest().borderLeftWidth).toBe(1);
   expect(StyleSheet.flatten(edge.props.style).cursor).toBe("col-resize");
   expect(StyleSheet.flatten(edge.props.style).width).toBe(12);
+  expect(edge.props.dataSet.bcresize).toBe("");
+  expect(edge.findAll((node) => node.props.dataSet?.bcresizetrack === "").length).toBeGreaterThan(0);
   expect(renderer!.root.findAll((node) => node.props.testID === "details-side-grabber")).toHaveLength(0);
-  act(() => edge.props.onPointerEnter());
-  expect(panelStyleAtRest().borderLeftColor).toBe(tokens.foregroundMuted);
-  expect(panelStyleAtRest().borderLeftWidth).toBe(1);
-  act(() => edge.props.onPointerLeave());
-  expect(panelStyleAtRest().borderLeftColor).toBe(border);
   const before = renders;
   const event = (clientX: number) => ({ button: 0, clientX, preventDefault() {} });
   act(() => edgeListeners.get("pointerdown")!(event(1000)));
@@ -177,7 +173,7 @@ it("starts dragging from the visible expanded width and leaves expanded mode", (
   const createNodeMock = (element: React.ReactElement) => {
     const id = (element.props as { testID?: string }).testID;
     if (id === "details-side") return { style: Object.assign(panelStyle, { setProperty() {}, removeProperty() {} }) };
-    if (id === "details-side-edge") return { ownerDocument: doc, addEventListener: (name: string, handler: Listener) => edgeListeners.set(name, handler), removeEventListener() {} };
+    if (id === "details-side-edge") return { ownerDocument: doc, addEventListener: (name: string, handler: Listener) => edgeListeners.set(name, handler), removeEventListener() {}, setAttribute() {}, removeAttribute() {} };
     return null;
   };
   const onResizeStart = vi.fn();

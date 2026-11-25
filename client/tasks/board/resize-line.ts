@@ -1,6 +1,5 @@
 import { useEffect } from "react";
 import type { ViewProps } from "react-native";
-import type { PluginTheme } from "@getpaseo/plugin";
 
 const STYLE_ELEMENT_ID = "better-paseo-resize-line";
 const RESIZING_ATTR = "data-bcresizing";
@@ -18,8 +17,8 @@ export const resizeIndicatorProps = { dataSet: { bcresizeindicator: "" } } as un
  * the middle when the line first shows. While a drag runs the line stays up
  * even if the pointer leaves the strip.
  */
-function rules(theme: PluginTheme): string {
-  const ink = `color-mix(in srgb, ${theme.colors.foreground} 72%, transparent)`;
+function rules(foreground: string): string {
+  const ink = `color-mix(in srgb, ${foreground} 72%, transparent)`;
   const ends = "linear-gradient(#0000 0, #000 20px calc(100% - 20px), #0000 100%)";
   const peak = `linear-gradient(
     #00000073 0% 30%, #0009 36%, #000c 42% 47%, #000000e6 48.5%,
@@ -67,8 +66,8 @@ const hasDom = () => typeof document !== "undefined" && typeof document.getEleme
 let mounted = 0;
 
 /** Installs the split handle's rules for the current theme while a desktop board is up. Off web a no-op. */
-export function useResizeLine(theme: PluginTheme): void {
-  const css = hasDom() ? rules(theme) : "";
+export function useResizeLine(foreground: string): void {
+  const css = hasDom() ? rules(foreground) : "";
 
   useEffect(() => {
     if (!css) return;
