@@ -446,6 +446,7 @@ const BAR_CSS = `
 .activity-grid { display: grid; grid-template-columns: repeat(2, ${10 / 3}px); grid-template-rows: repeat(3, ${10 / 3}px); gap: 2px; width: ${26 / 3}px; height: 14px; flex: 0 0 auto; }
 .activity-dot { width: ${10 / 3}px; height: ${10 / 3}px; border-radius: 50%; background: var(--bc-bar-text); animation-duration: 950ms; animation-timing-function: steps(1, end); animation-iteration-count: infinite; animation-delay: var(--bc-loader-phase); }
 ${SYNCED_LOADER_FRAMES[0].map((opacity, index) => `.activity-dot:nth-child(${index + 1}) { opacity: ${opacity}; animation-name: bc-dot-${index}; } @keyframes bc-dot-${index} { ${SYNCED_LOADER_FRAMES.map((frame, step) => `${step * 100 / 6}% { opacity: ${frame[index]}; }`).join(" ")} 100% { opacity: ${opacity}; } }`).join("\n")}
+.panel-body::selection, .panel-body ::selection { background-color: var(--bc-bar-selection); }
 .panel-message { display: flex; align-items: center; gap: 6px; color: var(--bc-bar-icon); white-space: pre-wrap; overflow-wrap: anywhere; }
 .panel-message span:last-child { min-width: 0; }
 .panel-message[data-tone="error"] { color: var(--bc-bar-danger); }
@@ -944,6 +945,8 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
       host.style.setProperty("--bc-panel-head-bg", head.backgroundColor);
       host.style.setProperty("--bc-panel-head-border", head.borderBottomColor);
       host.style.setProperty("--bc-bar-text", tokens.foreground);
+      // The page's selection rule stops at the shadow root; the panel's result text takes the same blue.
+      host.style.setProperty("--bc-bar-selection", tokens.textSelection);
       host.style.setProperty("--bc-bar-icon", tokens.foregroundMuted);
       host.style.setProperty("--bc-bar-subtle", tokens.foregroundSubtle);
       host.style.setProperty("--bc-bar-done", tokens.success);

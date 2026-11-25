@@ -52,9 +52,6 @@ export const radiusV2 = {
 /** Token v2 spacing, the host's `SPACING` steps; 24 only separates settings sections. */
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
 
-/** Selected prose's blue; at 0.3 over white it is #BBD6FB. */
-const TEXT_SELECTION_BLUE = "#1C76F2";
-
 const STATIC_PLATFORM: TypographyPlatform = currentPlatform();
 
 /**
@@ -111,13 +108,15 @@ export interface ExtendedThemeTokens {
   accentForeground: string;
   accentBg: string;
   /**
-   * Selected Markdown: a drag over text, a double-tapped block, a table cell range. A
-   * light blue that comes to #BBD6FB on white, translucent so it reads on any
-   * surface and on dark themes. Drawn behind the text, never over it.
+   * Selected text: a drag, a double-tapped block, a table cell range, a line
+   * range in a preview. The accent at the strength of the Tasks board's
+   * current card (`current` in `tasks/cards/tokens.ts`): translucent here, so
+   * over a card's background it is exactly that card's fill. Drawn behind the
+   * text, never over it.
    */
   textSelection: string;
   /**
-   * The same blue, opaque, for iOS native text: UIKit takes the tint and draws
+   * The accent, opaque, for iOS native text: UIKit takes the tint and draws
    * its own translucent highlight from it, and the handles in the full tint.
    */
   textSelectionTint: string;
@@ -363,8 +362,9 @@ export function buildThemeTokens(
     accent,
     accentForeground: colors.accentForeground,
     accentBg: withAlpha(accent, isDark ? 0.14 : 0.1),
-    textSelection: withAlpha(TEXT_SELECTION_BLUE, isDark ? 0.4 : 0.3),
-    textSelectionTint: TEXT_SELECTION_BLUE,
+    // The host's accent, as the card uses, not the chat's accent preset.
+    textSelection: withAlpha(colors.accent, isDark ? 0.1 : 0.07),
+    textSelectionTint: colors.accent,
     codeInline: inlineCodeColor(preferences.inlineCodeColor, fg, colors.surface0, isDark),
     // The host draws its own prompt bubble on its most raised surface; surface2
     // is the most raised one a plugin is given.

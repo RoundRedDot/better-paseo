@@ -21,7 +21,7 @@ describe("web text selection style", () => {
     ensureTextSelectionStyle("rgba(28, 118, 242, 0.3)");
     ensureTextSelectionStyle("rgba(28, 118, 242, 0.3)");
     expect(doc.styles).toHaveLength(1);
-    expect(doc.styles[0]!.textContent).toBe("[data-bcselection] ::selection { background-color: rgba(28, 118, 242, 0.3); }");
+    expect(doc.styles[0]!.textContent).toBe("[data-bcroot] ::selection, [data-bcselection] ::selection { background-color: rgba(28, 118, 242, 0.3); }");
     ensureTextSelectionStyle("rgba(28, 118, 242, 0.4)");
     expect(doc.styles).toHaveLength(1);
     expect(doc.styles[0]!.textContent).toBe(textSelectionRule("rgba(28, 118, 242, 0.4)"));

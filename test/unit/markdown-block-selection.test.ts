@@ -164,15 +164,15 @@ describe("iOS single Markdown block selection", () => {
     const root = renderer!.root.findAll((node) => String(node.type) === "View" && node.props.dataSet?.bcselection)[0]!;
     act(() => root.props.onTouchStart()); expect(menus()).toHaveLength(0);
   });
-  it("paints selected prose in the screenshot's blue, behind the text", () => {
+  it("paints selected text in the host accent at the current card's strength, behind the text", () => {
     const light = buildThemeTokens({ surface0: "#ffffff", surface1: "#f7f7f8", surface2: "#ececee", border: "#e4e4e6",
       foreground: "#1b1b1f", foregroundMuted: "#6b6b70", accent: "#20744a", accentForeground: "#ffffff",
       statusSuccess: "#00aa00", statusWarning: "#ffaa00", statusDanger: "#ff0000" });
-    // At 0.3 over white the fill is #BBD6FB; the host's accent plays no part.
-    expect(light.textSelection).toBe("rgba(28, 118, 242, 0.3)");
-    expect(tokens.textSelection).toBe("rgba(28, 118, 242, 0.4)");
+    // Over the card's background this is exactly the Tasks board's current-card fill.
+    expect(light.textSelection).toBe("rgba(32, 116, 74, 0.07)");
+    expect(tokens.textSelection).toBe("rgba(102, 136, 255, 0.1)");
     render("First.\n\nSecond.");
-    expect(native().map((node) => node.props.selectionColor)).toEqual(["#1C76F2", "#1C76F2"]);
+    expect(native().map((node) => node.props.selectionColor)).toEqual(["#6688ff", "#6688ff"]);
     tap(1, 100); tap(1, 230);
     const highlight = highlights()[0]!;
     expect(StyleSheet.flatten(highlight.props.style).backgroundColor).toBe(tokens.textSelection);
