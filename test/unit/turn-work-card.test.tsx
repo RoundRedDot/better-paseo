@@ -585,6 +585,23 @@ describe("work details filter", () => {
     act(() => panel.unmount());
   });
 
+  it("draws the groups as the task details' tabs, as large as before", () => {
+    const panel = openPanel();
+    const style = (kind: string) => StyleSheet.flatten(chip(panel, kind).props.style({ pressed: false }));
+    const label = (kind: string) => StyleSheet.flatten(chip(panel, kind).findByType("Text" as never).props.style);
+    const hair = StyleSheet.hairlineWidth;
+    // Chosen: filled with the host's raised surface, its border the same colour.
+    expect(style("all")).toMatchObject({ minHeight: 28, borderRadius: 999, borderWidth: hair, paddingHorizontal: 8 - hair,
+      backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.surface2 });
+    expect(label("all")).toMatchObject({ color: tokens.foreground, fontWeight: "500" });
+    // Not chosen: an outline, no fill.
+    expect(style("edit")).toMatchObject({ minHeight: 28, borderRadius: 999, borderWidth: hair, paddingHorizontal: 8 - hair });
+    expect(style("edit").backgroundColor).toBeUndefined();
+    expect(style("edit").borderColor).not.toBe(tokens.v2.surface2);
+    expect(label("edit")).toMatchObject({ color: tokens.foregroundMuted, fontWeight: "500" });
+    act(() => panel.unmount());
+  });
+
   it("sits outside the scrolling body, so it stays atop the panel", () => {
     const panel = openPanel();
     const bar = panel.root.findByProps({ testID: "work-filter" });

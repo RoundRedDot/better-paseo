@@ -16,7 +16,7 @@ import React, { createContext, memo, useCallback, useContext, useDeferredValue, 
 import { Platform, Pressable, StyleSheet, Text, View, type LayoutChangeEvent, type StyleProp, type TextStyle } from "react-native";
 import type { ToolCallTimelineItem } from "@getpaseo/protocol/agent-types";
 import type { ExtendedThemeTokens } from "./theme-tokens";
-import { space, withAlpha } from "./theme-tokens";
+import { mix, space, withAlpha } from "./theme-tokens";
 import { DISCLOSURE_HEADER, DisclosureHeader, RowIcon } from "../ui/disclosure-header";
 import { useHover } from "../ui/use-hover";
 import { hairline } from "../ui/tokens/platform";
@@ -329,10 +329,14 @@ const FilterChip = memo(function FilterChip({ label, kind, selected, onPress, to
 }) {
   const styles = useCardStyles(tokens);
   const { hovered, hoverProps } = useHover();
+  // As the task details' tabs: a pill, filled when chosen, outlined when not; hover and press deepen either.
+  const fill = (pressed: boolean) => !(hovered || pressed) ? undefined
+    : selected ? mix(tokens.v2.surface2, tokens.foreground, pressed ? 0.08 : 0.05)
+    : withAlpha(tokens.foreground, pressed ? 0.08 : 0.05);
   return (
     <Pressable testID={`work-filter:${kind}`} accessibilityRole="tab" accessibilityState={{ selected }} onPress={() => onPress(kind)} {...hoverProps}
-      style={({ pressed }) => [styles.chip, selected ? styles.chipSelected : (hovered || pressed) && styles.hovered]}>
-      <Text selectable={false} style={[styles.chipLabel, (selected || hovered) && { color: tokens.foreground }]}>{label}</Text>
+      style={({ pressed }) => [styles.chip, selected && styles.chipSelected, (hovered || pressed) && { backgroundColor: fill(pressed) }]}>
+      <Text selectable={false} style={[styles.chipLabel, selected && { color: tokens.foreground }]}>{label}</Text>
     </Pressable>
   );
 });
@@ -746,9 +750,11 @@ function createCardStyles(tokens: ExtendedThemeTokens) {
     more: { ...listRow, paddingLeft: space.xs, gap: space.sm },
     filterBar: { flexDirection: "row", flexWrap: "wrap", alignItems: "center", gap: space.xs,
       paddingHorizontal: space.md - space.xs, paddingVertical: space.xs },
-    chip: { minHeight: 28, justifyContent: "center", paddingHorizontal: space.sm, borderRadius: 6 },
-    chipSelected: { backgroundColor: withAlpha(tokens.foreground, tokens.isDark ? 0.12 : 0.08) },
-    chipLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: block.label.size,
+    // The border comes out of the padding, so a chip is as large as before it had one.
+    chip: { minHeight: 28, justifyContent: "center", paddingHorizontal: space.sm - StyleSheet.hairlineWidth, borderRadius: 999,
+      borderWidth: StyleSheet.hairlineWidth, borderColor: mix(tokens.border, tokens.foreground, tokens.isDark ? 0.08 : 0.05) },
+    chipSelected: { backgroundColor: tokens.v2.surface2, borderColor: tokens.v2.surface2 },
+    chipLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontWeight: "500", fontSize: block.label.size,
       lineHeight: block.label.lineHeight, fontVariant: ["tabular-nums"] },
     moreLabel: { color: tokens.foregroundMuted, fontFamily: tokens.fontUi, fontSize: block.button.size, lineHeight: block.button.lineHeight },
   });
