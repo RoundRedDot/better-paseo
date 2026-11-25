@@ -1172,6 +1172,8 @@ describe.each(["ios", "android"] as const)("%s double-tapped block menu", (platf
       vi.useRealTimers();
     }
     expect(collectTexts(renderer!.root.findByProps({ testID: "translation-model" })).join(" ")).toBe("test-model");
+    const modelRow = renderer!.root.findByProps({ testID: "translation-model" }).parent!;
+    expect(modelRow.findAll((node) => String(node.type) === "Icon" && node.props.name === "Plug")).toHaveLength(1);
     const header = renderer!.root.find((node) => String(node.type) === "View" && node.props.testID === "translation-header");
     expect(header.props.style).toMatchObject({ minHeight: 36, alignItems: "center" });
     const footer = renderer!.root.findByProps({ testID: "translation-footer" });

@@ -119,6 +119,7 @@ const ICONS = {
   code: '<path d="m8 6-6 6 6 6"/><path d="m16 6 6 6-6 6"/>',
   fileText: '<path d="M14 2H6a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h12a2 2 0 0 0 2-2V8Z"/><path d="M14 2v6h6M8 13h8m-8 4h8"/>',
   translate: '<path d="m5 8 6 6"/><path d="m4 14 6-6 2-3"/><path d="M2 5h12"/><path d="M7 2h1"/><path d="m22 22-5-10-5 10"/><path d="M14 18h6"/>',
+  plug: '<path d="M12 22v-5"/><path d="M9 8V2"/><path d="M15 8V2"/><path d="M6 8h12v3a6 6 0 0 1-12 0z"/>',
 } as const;
 type IconName = keyof typeof ICONS;
 
@@ -862,7 +863,8 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
     head.appendChild(element("span", "panel-title", selectionViewTitle(view, lang)));
     if (view.modelInfo) {
       const model = element("div", "panel-model");
-      if (view.modelInfo.mark) model.appendChild(markImage(view.modelInfo.mark));
+      if (view.modelInfo.mode === "openai") model.innerHTML = `<svg viewBox="0 0 24 24" aria-hidden="true">${ICONS.plug}</svg>`;
+      else if (view.modelInfo.mark) model.appendChild(markImage(view.modelInfo.mark));
       model.appendChild(element("span", "model-label", view.modelInfo.model));
       head.appendChild(model);
     }

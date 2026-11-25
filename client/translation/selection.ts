@@ -149,7 +149,7 @@ export type SelectionTranslationView = (
  * services Better Paseo knows (the free services); an OpenAI-compatible
  * endpoint has none.
  */
-export interface ModelInfo { provider: string; model: string; mark?: string }
+export interface ModelInfo { provider: string; model: string; mode: TimelineTranslationSettings["mode"]; mark?: string }
 
 function freeMark(service: string | null): { mark?: string } {
   return service ? { mark: `service-gray:${service}` } : {};
@@ -190,7 +190,7 @@ function sameView(a: SelectionTranslationView | null, b: SelectionTranslationVie
   if (a === b) return true;
   if (!a || !b || a.status !== b.status) return false;
   if (a.modelInfo?.provider !== b.modelInfo?.provider || a.modelInfo?.model !== b.modelInfo?.model ||
-    a.modelInfo?.mark !== b.modelInfo?.mark) return false;
+    a.modelInfo?.mark !== b.modelInfo?.mark || a.modelInfo?.mode !== b.modelInfo?.mode) return false;
   switch (a.status) {
     case "running": {
       const other = b as typeof a;
@@ -358,13 +358,13 @@ function viewOf(
   // `provider` picks the logo: the endpoint names its service (`api.openai.com`, ...).
   const service = settings.freeService;
   const modelInfo: ModelInfo | undefined = settings.mode === "openai"
-    ? { provider: settings.endpoint, model: settings.endpointModel }
+    ? { provider: settings.endpoint, model: settings.endpointModel, mode: settings.mode }
     : service === "automatic" ? undefined
-    : { provider: FREE_SERVICE_INFO[service].origin, model: FREE_SERVICE_INFO[service].name, ...freeMark(service) };
+    : { provider: FREE_SERVICE_INFO[service].origin, model: FREE_SERVICE_INFO[service].name, mode: settings.mode, ...freeMark(service) };
   if (!entry || entry.state.state === "idle") return { status: "running", targetCode, modelInfo };
   switch (entry.state.state) {
     case "running": return { status: "running", text: entry.state.text || undefined, targetCode, modelInfo };
-    case "done": return { status: "done", result: entry.state, modelInfo: { provider: entry.state.origin, model: entry.state.model, ...freeMark(freeServiceForOrigin(entry.state.origin)) } };
+    case "done": return { status: "done", result: entry.state, modelInfo: { provider: entry.state.origin, model: entry.state.model, mode: settings.mode, ...freeMark(freeServiceForOrigin(entry.state.origin)) } };
     case "error": return { status: "error", error: entry.state.error, targetCode, modelInfo };
   }
 }

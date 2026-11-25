@@ -532,7 +532,7 @@ describe("selection bar Translate", () => {
       const popup = createMessageTranslationBar(anchor as unknown as HTMLElement, tokens, { close: vi.fn(), retry: vi.fn(), settings: vi.fn() }, "Original");
       popup.setView({
         status: "done", result: done("译文") as never,
-        modelInfo: { provider: "https://edge.microsoft.com", model: "Microsoft Translator", mark: "service-gray:microsoft" },
+        modelInfo: { provider: "https://edge.microsoft.com", model: "Microsoft Translator", mode: "free", mark: "service-gray:microsoft" },
       });
       const model = () => panel().querySelector(".panel-model")!;
       expect(model().children[0]!.className).toBe("model-mark");
@@ -542,6 +542,9 @@ describe("selection bar Translate", () => {
       await act(async () => answer({ "service-gray:microsoft": "data:image/png;base64,AAAA" }));
       await flush();
       expect((model().children[0] as unknown as { src: string }).src).toBe("data:image/png;base64,AAAA");
+      popup.setView({ status: "error", error: "failed", targetCode: "zh", modelInfo: { provider: "https://api.example.test", model: "test-model", mode: "openai" } });
+      expect(model().innerHTML).toContain('<svg viewBox="0 0 24 24" aria-hidden="true">');
+      expect(model().textContent).toBe("test-model");
       popup.dispose();
     } finally {
       setMarkLoader(null);

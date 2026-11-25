@@ -286,7 +286,7 @@ describe("free translation: footer mark", () => {
     free.start();
     expect(free.view()).toMatchObject({ status: "running", modelInfo: { model: "Google Translate", mark: "service-gray:google" } });
     await vi.waitFor(() => expect(free.view()?.status).toBe("done"));
-    expect(free.view()?.modelInfo).toEqual({ provider: "https://translate-pa.googleapis.com", model: "Google Translate", mark: "service-gray:google" });
+    expect(free.view()?.modelInfo).toEqual({ provider: "https://translate-pa.googleapis.com", model: "Google Translate", mode: "free", mark: "service-gray:google" });
     free.dispose();
 
     const endpoint = createSelectionTranslation({
@@ -294,7 +294,7 @@ describe("free translation: footer mark", () => {
       settings: sourceFor({ enabled: true, mode: "openai", endpoint: "https://api.example.test/v1", endpointModel: "m" }), interfaceLanguage: () => "en",
     });
     endpoint.start();
-    expect(endpoint.view()?.modelInfo).toEqual({ provider: "https://api.example.test/v1", model: "m" });
+    expect(endpoint.view()?.modelInfo).toEqual({ provider: "https://api.example.test/v1", model: "m", mode: "openai" });
     endpoint.dispose();
   });
 });

@@ -149,7 +149,8 @@ export function SelectionTranslationPanel({ view, original, tokens, onRetry, onC
             {selectionViewTitle(view, lang)}
           </Text>
           {view.modelInfo ? <View style={styles.model}>
-            {view.modelInfo.mark ? <ModelMark id={view.modelInfo.mark} /> : null}
+            {view.modelInfo.mode === "openai" ? <Icon name="Plug" size={12} color={muted} />
+              : view.modelInfo.mark ? <ModelMark id={view.modelInfo.mark} /> : null}
             <Text testID="translation-model" numberOfLines={1} selectable={false} style={[styles.title, { color: muted, fontFamily: tokens.fontUi }]}>
               {view.modelInfo.model}
             </Text>
