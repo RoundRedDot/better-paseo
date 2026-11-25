@@ -19,6 +19,7 @@ import type { Entrance } from "./bottom-panel";
 import type { Insets } from "./safe-area";
 import { keepOffWindowDrag } from "./web-layer";
 import { holdHostGestures } from "../../ui/hold-host-gestures";
+import { sidebarShadow } from "../../ui/tokens/sidebar-shadow";
 
 export const SIDE = {
   /** A phone in landscape (height under 500). */
@@ -202,6 +203,7 @@ export function SidePanel(props: {
             width: nativeDragging ? liveWidth : width,
             backgroundColor: tokens.surface0,
             borderLeftColor: edgeHovered ? tokens.foregroundMuted : palette.border,
+            boxShadow: sidebarShadow(tokens.isDark),
             opacity,
             transform: [{ translateX: Platform.OS === "web" ? progress.interpolate({ inputRange: [0, 1], outputRange: [width, 0] }) : shift }],
           },

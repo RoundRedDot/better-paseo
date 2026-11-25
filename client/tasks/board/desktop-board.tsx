@@ -54,6 +54,7 @@ import { sortsLoadedOnly } from "./sort";
 import { findCard, type BoardController, type BoardLayoutHandlers } from "./use-board";
 import { focusedTaskCardId, focusTaskBoard } from "../../web";
 import { tasksSettingsOpener } from "./enabled";
+import { sidebarShadow } from "../../ui/tokens/sidebar-shadow";
 
 const nativeDriver = Platform.OS !== "web";
 
@@ -1216,7 +1217,7 @@ function SidebarColumn(props: {
         paddingBottom: 12,
         minHeight: 0,
         backgroundColor: props.theme.colors.surface0,
-        boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
+        boxShadow: sidebarShadow(taskTokens(props.theme).isDark),
         zIndex: 1,
         ...(Platform.OS === "web" ? {
           opacity: 1,
@@ -1344,7 +1345,7 @@ function FloatingSidebar(props: {
           borderWidth: props.flushRight ? 0 : HAIRLINE,
           borderColor: chrome.border,
           backgroundColor: props.flushRight ? props.theme.colors.surface0 : boardPalette(props.theme).panel,
-          boxShadow: `-8px 0px 16px -8px rgba(0, 0, 0, ${taskTokens(props.theme).isDark ? 0.5 : 0.2})`,
+          boxShadow: sidebarShadow(taskTokens(props.theme).isDark),
           zIndex: 20,
         } as object}
       >
