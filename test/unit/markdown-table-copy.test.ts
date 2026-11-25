@@ -164,9 +164,9 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(0);
     tap(index, 230);
     expect(selectedCopy()).toHaveLength(1);
-    expect(tokens.selectionFill).toBe("rgba(27, 27, 31, 0.06)");
-    expect(tokens.selectionFill).not.toBe(tokens.accentBg);
-    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(tokens.selectionFill);
+    expect(tokens.textSelection).toBe("rgba(28, 118, 242, 0.3)");
+    expect(tokens.textSelection).not.toBe(tokens.accentBg);
+    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(tokens.textSelection);
     const menu = selectedCopy()[0]!;
     let corner = menu.parent!;
     while (StyleSheet.flatten(corner.props.style).position !== "absolute") corner = corner.parent!;
@@ -177,17 +177,17 @@ describe("Markdown table copy", () => {
     expect(selectedCopy()).toHaveLength(0);
     finishExit(runs);
     expect(buttons()).toHaveLength(1);
-    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).not.toBe(tokens.selectionFill);
+    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).not.toBe(tokens.textSelection);
   });
 
   it.each([
-    ["light header", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(27, 27, 31, 0.06)", "#e4e4e6", 0],
-    ["light body", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(27, 27, 31, 0.06)", "#e4e4e6", 2],
-    ["dark header", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(242, 243, 245, 0.08)", "#36363a", 0],
-    ["dark body", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(242, 243, 245, 0.08)", "#36363a", 2],
-  ] as const)("distinguishes grey selection from the stronger %s", (_theme, surface0, surface2, foreground, accent, fill, headerFill, index) => {
+    ["light header", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(28, 118, 242, 0.3)", "#e4e4e6", 0],
+    ["light body", "#ffffff", "#ececee", "#1b1b1f", "#3b6fe0", "rgba(28, 118, 242, 0.3)", "#e4e4e6", 2],
+    ["dark header", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(28, 118, 242, 0.4)", "#36363a", 0],
+    ["dark body", "#18181b", "#2e2e32", "#f2f3f5", "#82aaff", "rgba(28, 118, 242, 0.4)", "#36363a", 2],
+  ] as const)("distinguishes blue selection from the stronger %s", (_theme, surface0, surface2, foreground, accent, fill, headerFill, index) => {
     const themed = buildThemeTokens({ ...colors, surface0, surface2, foreground, accent });
-    expect(buildThemeTokens({ ...colors, surface0, foreground, accent: "#e05030" }).selectionFill).toBe(fill);
+    expect(buildThemeTokens({ ...colors, surface0, foreground, accent: "#e05030" }).textSelection).toBe(fill);
     act(() => {
       renderer = TestRenderer.create(React.createElement(MarkdownView, {
         text: "| A | B |\n| --- | --- |\n| one | two |", tokens: themed,
@@ -200,7 +200,7 @@ describe("Markdown table copy", () => {
     while (String(header.type) !== "View") header = header.parent!;
     expect(StyleSheet.flatten(header.props.style).backgroundColor).toBe(headerFill);
     tap(index, 100); tap(index, 230);
-    expect(themed.selectionFill).toBe(fill);
+    expect(themed.textSelection).toBe(fill);
     expect(StyleSheet.flatten(cell(index).props.style)).toEqual({ ...original, backgroundColor: fill });
     expect(StyleSheet.flatten(cell(index + 1).props.style)).toEqual(unselected);
     expect(StyleSheet.flatten(header.props.style).backgroundColor).toBe(headerFill);
@@ -211,8 +211,8 @@ describe("Markdown table copy", () => {
       variant: "document", streaming: false,
     })));
     expect(switched.isDark).toBe(!themed.isDark);
-    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(switched.selectionFill);
-    expect(switched.selectionFill).not.toBe(fill);
+    expect(StyleSheet.flatten(cell(index).props.style).backgroundColor).toBe(switched.textSelection);
+    expect(switched.textSelection).not.toBe(fill);
   });
 
   it("expands the corner into Copy selected without adding any content below the table", () => {
@@ -440,7 +440,7 @@ describe("Markdown table copy", () => {
     });
     const highlighted = () => renderer!.root.findAll((node) => String(node.type) === "Text"
       && node.props.testID === "markdown-table-cell"
-      && StyleSheet.flatten(node.props.style).backgroundColor === tokens.selectionFill).map((node) => node.children.join(""));
+      && StyleSheet.flatten(node.props.style).backgroundColor === tokens.textSelection).map((node) => node.children.join(""));
     const scroller = () => renderer!.root.findAll((node) => node.props.horizontal === true)[0]!;
     expect(touchFrame().props.onMoveShouldSetResponder()).toBe(false);
     act(() => touchFrame().props.onTouchStart(touch(0, 5, 140)));

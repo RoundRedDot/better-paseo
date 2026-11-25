@@ -111,12 +111,7 @@ export interface ExtendedThemeTokens {
   accentForeground: string;
   accentBg: string;
   /**
-   * A dragged Markdown range, such as table cells. Soft translucent grey from
-   * the foreground, with more opacity on dark surfaces to keep it visible.
-   */
-  selectionFill: string;
-  /**
-   * Selected prose: a drag over Markdown text and a double-tapped block. A
+   * Selected Markdown: a drag over text, a double-tapped block, a table cell range. A
    * light blue that comes to #BBD6FB on white, translucent so it reads on any
    * surface and on dark themes. Drawn behind the text, never over it.
    */
@@ -368,7 +363,6 @@ export function buildThemeTokens(
     accent,
     accentForeground: colors.accentForeground,
     accentBg: withAlpha(accent, isDark ? 0.14 : 0.1),
-    selectionFill: withAlpha(fg, isDark ? 0.08 : 0.06),
     textSelection: withAlpha(TEXT_SELECTION_BLUE, isDark ? 0.4 : 0.3),
     textSelectionTint: TEXT_SELECTION_BLUE,
     codeInline: inlineCodeColor(preferences.inlineCodeColor, fg, colors.surface0, isDark),
