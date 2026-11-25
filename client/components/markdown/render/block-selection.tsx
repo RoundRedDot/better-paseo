@@ -122,12 +122,11 @@ export function BlockSelection({ source, blocks, tokens, children }: {
           setChosen(source);
         } else previous.current = end;
       }}>
+      {/* Behind the text, as a native selection is drawn: on top it tinted the glyphs. */}
+      {selected ? <View pointerEvents="none" testID="markdown-block-highlight"
+        style={[StyleSheet.absoluteFill, { backgroundColor: tokens.textSelection }]} /> : null}
       {children}
-      {selected ? <>
-        <View pointerEvents="none" testID="markdown-block-highlight"
-          style={[StyleSheet.absoluteFill, { backgroundColor: tokens.accentBg }]} />
-        <BlockCopyMenu text={blockSelectionText(blocks)} tokens={tokens} dismiss={cancel} />
-      </> : null}
+      {selected ? <BlockCopyMenu text={blockSelectionText(blocks)} tokens={tokens} dismiss={cancel} /> : null}
     </View>
   </BlockSelectionContext.Provider>;
 }

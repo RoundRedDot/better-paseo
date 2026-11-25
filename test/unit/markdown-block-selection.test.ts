@@ -164,6 +164,27 @@ describe("iOS single Markdown block selection", () => {
     const root = renderer!.root.findAll((node) => String(node.type) === "View" && node.props.dataSet?.bcselection)[0]!;
     act(() => root.props.onTouchStart()); expect(menus()).toHaveLength(0);
   });
+  it("paints selected prose in the screenshot's blue, behind the text", () => {
+    const light = buildThemeTokens({ surface0: "#ffffff", surface1: "#f7f7f8", surface2: "#ececee", border: "#e4e4e6",
+      foreground: "#1b1b1f", foregroundMuted: "#6b6b70", accent: "#20744a", accentForeground: "#ffffff",
+      statusSuccess: "#00aa00", statusWarning: "#ffaa00", statusDanger: "#ff0000" });
+    // At 0.3 over white the fill is #BBD6FB; the host's accent plays no part.
+    expect(light.textSelection).toBe("rgba(28, 118, 242, 0.3)");
+    expect(tokens.textSelection).toBe("rgba(28, 118, 242, 0.4)");
+    render("First.\n\nSecond.");
+    expect(native().map((node) => node.props.selectionColor)).toEqual(["#1C76F2", "#1C76F2"]);
+    tap(1, 100); tap(1, 230);
+    const highlight = highlights()[0]!;
+    expect(StyleSheet.flatten(highlight.props.style).backgroundColor).toBe(tokens.textSelection);
+    const frame = frames()[1]!;
+    const order = frame.findAll((node) => node === highlight || String(node.type) === "EnrichedMarkdownText");
+    expect(order[0]).toBe(highlight);
+  });
+  it("gives Android's native drag selection the same blue", () => {
+    os.__rnMockOS = "android"; render("First **bold**.");
+    const prose = frames()[0]!.findAll((node) => String(node.type) === "Text")[0]!;
+    expect(prose.props.selectionColor).toBe(tokens.textSelection);
+  });
   it("leaves web selection unchanged", () => {
     os.__rnMockOS = "web"; render("First.\n\nSecond.");
     expect(frames()).toHaveLength(0); expect(menus()).toHaveLength(0);

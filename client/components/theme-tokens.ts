@@ -19,6 +19,7 @@ import {
 import { currentPlatform } from "../ui/tokens/platform";
 import { themeKey } from "../ui/tokens/theme-key";
 import { ensureEmbeddedFonts } from "./embed-fonts";
+import { ensureTextSelectionStyle } from "./text-selection-style";
 import { useHostAppearance, type HostAppearance } from "../ui/tokens/host-appearance-shim";
 
 export type PluginSurfaceColors = PluginTheme["colors"];
@@ -50,6 +51,9 @@ export const radiusV2 = {
 
 /** Token v2 spacing, the host's `SPACING` steps; 24 only separates settings sections. */
 export const space = { xs: 4, sm: 8, md: 12, lg: 16, xl: 24 } as const;
+
+/** Selected prose's blue; at 0.3 over white it is #BBD6FB. */
+const TEXT_SELECTION_BLUE = "#1C76F2";
 
 const STATIC_PLATFORM: TypographyPlatform = currentPlatform();
 
@@ -111,6 +115,17 @@ export interface ExtendedThemeTokens {
    * the foreground, with more opacity on dark surfaces to keep it visible.
    */
   selectionFill: string;
+  /**
+   * Selected prose: a drag over Markdown text and a double-tapped block. A
+   * light blue that comes to #BBD6FB on white, translucent so it reads on any
+   * surface and on dark themes. Drawn behind the text, never over it.
+   */
+  textSelection: string;
+  /**
+   * The same blue, opaque, for iOS native text: UIKit takes the tint and draws
+   * its own translucent highlight from it, and the handles in the full tint.
+   */
+  textSelectionTint: string;
   /**
    * Inline code where it cannot have a fill (iOS, Android): the colour picked
    * in the settings, an opaque dark grey by default. See `inlineCodeColor`.
@@ -354,6 +369,8 @@ export function buildThemeTokens(
     accentForeground: colors.accentForeground,
     accentBg: withAlpha(accent, isDark ? 0.14 : 0.1),
     selectionFill: withAlpha(fg, isDark ? 0.08 : 0.06),
+    textSelection: withAlpha(TEXT_SELECTION_BLUE, isDark ? 0.4 : 0.3),
+    textSelectionTint: TEXT_SELECTION_BLUE,
     codeInline: inlineCodeColor(preferences.inlineCodeColor, fg, colors.surface0, isDark),
     // The host draws its own prompt bubble on its most raised surface; surface2
     // is the most raised one a plugin is given.
@@ -452,7 +469,9 @@ export function useThemeTokens(
     () => {
       // Inter is installed only once a reader picks it.
       ensureEmbeddedFonts(tokenPreferences, resolvedPlatform);
-      return buildThemeTokens(theme.colors, tokenPreferences, { platform, theme, appearance });
+      const tokens = buildThemeTokens(theme.colors, tokenPreferences, { platform, theme, appearance });
+      if (resolvedPlatform === "web") ensureTextSelectionStyle(tokens.textSelection);
+      return tokens;
     },
     // `theme` is read through `key`; its identity is exactly what must not count.
     [key, tokenPreferences, platform, appearance],

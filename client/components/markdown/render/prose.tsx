@@ -39,7 +39,9 @@ export function MarkdownProse({ context, tokens, text, prefix, bold, style, ...r
     const body = text === undefined ? renderInline(tokens, context, "p", bold) : context.renderText ? context.renderText(text) : text;
     // A selected block (iOS while streaming, Android) gives up native selection
     // as the native prose does, so a double tap leaves one highlight, not two.
-    return <ProseText style={style} {...rest} {...(selection?.selected ? { selectable: false } : null)}>{prefix
+    // `selectionColor` is Android's highlight; web paints `::selection` (`text-selection-style.ts`).
+    return <ProseText style={style} selectionColor={context.tokens.textSelection} {...rest}
+      {...(selection?.selected ? { selectable: false } : null)}>{prefix
       ? [<ProseSpan key="prefix" style={context.styles.headingHash}>{prefix}</ProseSpan>, body]
       : body}</ProseText>;
   }
@@ -89,6 +91,8 @@ function IOSProse({ context, tokens, text, prefix, style, blockTokens, gap, ...r
   // The host uses the GFM container for lists; its native block layout owns wrapping.
   const Component = blockTokens?.some((token) => token.type === "list") ? NativeListProse : NativeProse;
   const props = { ...rest, markdown, markdownStyle, style: [style, { backgroundColor: "transparent" }],
+    // UIKit tints the selection from this (`tintColor`) with its own alpha.
+    selectionColor: processColor(context.tokens.textSelectionTint),
     selectable: !selection?.selected, isGFM: true, allowFontScaling: rest.allowFontScaling ?? true, allowTrailingMargin: false,
     enableLinkPreview: false, enableBlockContextMenu: false, streamingAnimation: false,
     md4cFlags: blockTokens ? GROUP_FLAGS : FLAGS,
