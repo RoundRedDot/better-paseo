@@ -48,27 +48,80 @@ export function distinctHosts(urls: readonly string[]): string[] {
 }
 
 const LISTED_LINK = /^\s*\[\d+\]\s+(.*?)\s*\n\s+(https?:\/\/\S+)\s*$/gm;
+const LINKS_LINE = /^Links:\s*(\[.*\])\s*$/gm;
+const MARKDOWN_LINK = /\[([^\]\n]+)\]\((https?:\/\/[^\s)]+)\)/g;
+
+type FoundLink = { title: string; url: string };
 
 /**
- * Results a web search printed as text, one numbered title over its address:
+ * Results a web search printed as text instead of reporting them, in the
+ * shapes agents print them:
  *
- *     [1] View - React Native
- *         https://reactnative.dev/docs/view
+ * - a numbered title over its address (Oh My Pi):
+ *       [1] View - React Native
+ *           https://reactnative.dev/docs/view
+ * - a `Links: [{"title": ..., "url": ...}]` line (Claude Code's WebSearch text)
+ * - Markdown links, `[View](https://reactnative.dev/docs/view)`
  *
- * Oh My Pi reports its searches this way. A placeholder title (`N/A`) or a
- * missing one gives way to the address; each address is listed once.
+ * The first shape found wins. A placeholder title (`N/A`) or a missing one
+ * gives way to the address; each address is listed once.
  */
-export function parseListedLinks(text: string | undefined): Array<{ title: string; url: string }> {
+export function parseListedLinks(text: string | undefined): FoundLink[] {
   if (!text) return [];
-  const links: Array<{ title: string; url: string }> = [];
-  const seen = new Set<string>();
+  for (const read of [numberedLinks, linksLines, markdownLinks]) {
+    const found = read(text);
+    if (found.length > 0) return dedupe(found);
+  }
+  return [];
+}
+
+function numberedLinks(text: string): FoundLink[] {
+  const found: FoundLink[] = [];
   LISTED_LINK.lastIndex = 0;
   for (let match = LISTED_LINK.exec(text); match; match = LISTED_LINK.exec(text)) {
-    const url = match[2]!;
+    found.push({ title: match[1] ?? "", url: match[2]! });
+  }
+  return found;
+}
+
+function linksLines(text: string): FoundLink[] {
+  const found: FoundLink[] = [];
+  LINKS_LINE.lastIndex = 0;
+  for (let match = LINKS_LINE.exec(text); match; match = LINKS_LINE.exec(text)) {
+    let rows: unknown;
+    try {
+      rows = JSON.parse(match[1]!);
+    } catch {
+      continue;
+    }
+    if (!Array.isArray(rows)) continue;
+    for (const row of rows) {
+      const entry = row as { title?: unknown; url?: unknown } | null;
+      if (entry && typeof entry.url === "string") {
+        found.push({ title: typeof entry.title === "string" ? entry.title : "", url: entry.url });
+      }
+    }
+  }
+  return found;
+}
+
+function markdownLinks(text: string): FoundLink[] {
+  const found: FoundLink[] = [];
+  MARKDOWN_LINK.lastIndex = 0;
+  for (let match = MARKDOWN_LINK.exec(text); match; match = MARKDOWN_LINK.exec(text)) {
+    found.push({ title: match[1] ?? "", url: match[2]! });
+  }
+  return found;
+}
+
+function dedupe(found: readonly FoundLink[]): FoundLink[] {
+  const links: FoundLink[] = [];
+  const seen = new Set<string>();
+  for (const { title, url } of found) {
     if (seen.has(url) || !parseWebLink(url)) continue;
     seen.add(url);
-    const title = (match[1] ?? "").trim();
-    links.push({ title: title && title !== "N/A" ? title : url, url });
+    const shown = title.trim();
+    links.push({ title: shown && shown !== "N/A" ? shown : url, url });
   }
   return links;
 }

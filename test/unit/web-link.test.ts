@@ -55,6 +55,19 @@ describe("listed links", () => {
     expect(parseListedLinks(omp)).toHaveLength(3);
   });
 
+  it("reads Claude Code's Links line and Markdown links", () => {
+    const claude = 'Web search results for query: "onLayout"\n\nLinks: [{"title":"View","url":"https://reactnative.dev/docs/view"},{"title":"","url":"https://github.com/a/b"},{"url":"https://reactnative.dev/docs/view"}]\n\nSummary [ignored](https://x.dev) here.';
+    expect(parseListedLinks(claude)).toEqual([
+      { title: "View", url: "https://reactnative.dev/docs/view" },
+      { title: "https://github.com/a/b", url: "https://github.com/a/b" },
+    ]);
+    expect(parseListedLinks("See [View docs](https://reactnative.dev/docs/view) and [Expo](https://docs.expo.dev/).")).toEqual([
+      { title: "View docs", url: "https://reactnative.dev/docs/view" },
+      { title: "Expo", url: "https://docs.expo.dev/" },
+    ]);
+    expect(parseListedLinks("Links: [not json")).toEqual([]);
+  });
+
   it("finds nothing in prose or a plain list of addresses", () => {
     expect(parseListedLinks("Searched for onLayout; nothing useful.")).toEqual([]);
     expect(parseListedLinks("https://a.dev\nhttps://b.dev")).toEqual([]);

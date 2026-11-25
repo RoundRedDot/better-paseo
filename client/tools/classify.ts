@@ -427,8 +427,9 @@ function readSearch(
     : [];
   const toolName = asString(detail.toolName) ?? (rawName || undefined);
   let content = asString(detail.content) ?? outputText;
-  // A web search that printed its hits as a numbered list (Oh My Pi) reads as
-  // those hits, so it draws as a structured search does.
+  // A web search that printed its hits as text (Oh My Pi's numbered list,
+  // Claude Code's Links line, Markdown links) reads as those hits, so it draws
+  // as a structured search does.
   if (webResults.length === 0 && toolName === "web_search") {
     const listed = parseListedLinks(content);
     if (listed.length > 0) {
