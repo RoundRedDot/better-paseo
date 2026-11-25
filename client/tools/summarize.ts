@@ -14,6 +14,7 @@
  *
  * Pure and table-tested (`test/unit/tool-summarize.test.ts`).
  */
+import { parseWebLink } from "./web-link";
 import { stripAnsi } from "../copy/content";
 import type { ToolCallView } from "./classify";
 import { shortAgentId, summarizeAgentRow } from "./agent-row";
@@ -362,9 +363,12 @@ function summarizeKind(view: ToolCallView): ToolSummary {
       if (search?.numMatches !== undefined) meta.push(plural(search.numMatches, "match", "matches"));
       if (files === undefined && search?.webResults) meta.push(plural(search.webResults.length, "result"));
       pushDuration(meta, view);
+      // An address searched for is a page opened: name it by site, not quoted.
+      const link = search?.toolName === "web_search" ? parseWebLink(search.query) : null;
+      const webTarget = link ? clip(`${link.host}${link.path}`, TARGET_MAX) : undefined;
       return {
         verb: search?.toolName === "web_search" ? "Web search" : "Search",
-        target: search?.query ? clip(`"${search.query}"`, TARGET_MAX) : undefined,
+        target: webTarget ?? (search?.query ? clip(`"${search.query}"`, TARGET_MAX) : undefined),
         meta,
         tone,
       };

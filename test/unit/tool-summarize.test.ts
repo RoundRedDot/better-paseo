@@ -84,6 +84,11 @@ const TABLE: Array<[string, ToolCallPayload, Expected]> = [
     { verb: "Web search", target: '"paseo"', meta: ["3.3s"] },
   ],
   [
+    "web search for an address names the site, unquoted",
+    call("web_search", { type: "search", query: "https://www.chatgpt.com/s/t_6b06f0de", toolName: "web_search" }),
+    { verb: "Web search", target: "chatgpt.com/s/t_6b06f0de" },
+  ],
+  [
     "fetch · github.com · 200 · 12 KB",
     call("WebFetch", { type: "fetch", url: "https://user@github.com/a/b?x=1", code: 200, bytes: 12288 }),
     { verb: "Fetch", target: "github.com", meta: ["200", "12 KB"], tone: "default" },

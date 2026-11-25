@@ -63,6 +63,8 @@ import { useHostLanguageVersion } from "../i18n/host-language";
 import { useEnhancerPreferences } from "../preferences";
 import { bindSelectionScopeElement, selectionScopeDataSet, SelectionTranslationContext } from "../translation/selection";
 import { selectionColorProps } from "./text-selection";
+import { FaviconStack, WebLinkTarget, WebResultRow } from "./web-favicon";
+import { distinctHosts, parseWebLink } from "../tools/web-link";
 
 /**
  * The muted icon a settled call shows in the row's status slot: one Lucide
@@ -276,9 +278,16 @@ export function ToolCallout({
       color={agentTone ?? (failed ? tokens.danger : summary.iconTone === "success" ? tokens.success : undefined)} />
   );
 
+  // A web search for an address (Codex opening a page) names the site first.
+  const webSearch = !groupCalls && data.tool === "search" && data.search?.toolName === "web_search" ? data.search : undefined;
+  const webQuery = webSearch && parseWebLink(webSearch.query) ? webSearch.query : undefined;
+  const webHosts = useMemo(() => distinctHosts(webSearch?.webResults?.map((row) => row.url) ?? []), [webSearch]);
   const target =
     summary.agent ? (
       <AgentRowTarget summary={summary} tokens={tokens} />
+    ) : webQuery ? (
+      <WebLinkTarget href={webQuery} tokens={tokens} budget={budget}
+        fontSize={tokens.typography.block.target.size} lineHeight={tokens.typography.block.target.lineHeight} />
     ) : summary.targetIsPath && summary.target ? (
       <PathText
         path={summary.target}
@@ -303,6 +312,8 @@ export function ToolCallout({
   });
   const metaLead = summary.metaPath ? (
     <MetaPath path={summary.metaPath} tokens={tokens} compact={compact} />
+  ) : webHosts.length > 0 ? (
+    <FaviconStack hosts={webHosts} tokens={tokens} />
   ) : undefined;
 
   // Mounted only while the row shows its actions, so the plan is built then.
@@ -1169,14 +1180,8 @@ function ToolBody({ data, tokens: given, compact, imageFile, revealFile, display
             </View>
           ) : null}
           {data.search.webResults?.map((row, index) => (
-            <View key={`${index}:${row.url}`} style={styles.webRow}>
-              <SelectableText numberOfLines={1} style={styles.plainText}>
-                {row.title}
-              </SelectableText>
-              <SelectableText {...(codeSurface as object)} numberOfLines={1} style={[styles.monoText, styles.mutedColor]}>
-                {row.url}
-              </SelectableText>
-            </View>
+            <WebResultRow key={`${index}:${row.url}`} title={row.title} url={row.url} tokens={tokens}
+              titleStyle={styles.plainText} metaSize={tokens.typography.block.meta.size} />
           ))}
           {/* A web search's own answer: markdown prose, drawn as a fetch's result is. */}
           {data.search.annotations ? (
@@ -1339,7 +1344,6 @@ interface BodyStyles {
   inlineRow: ViewStyle;
   flex: ViewStyle;
   fileRow: ViewStyle;
-  webRow: ViewStyle;
   terminalWindow: ViewStyle;
   terminalOutput: TextStyle;
   commandLine: TextStyle;
@@ -1365,7 +1369,6 @@ function useBodyStyles(tokens: ExtendedThemeTokens, compact: boolean): BodyStyle
         inlineRow: { flexDirection: "row", alignItems: "center", gap: 6 },
         flex: { flex: 1, minWidth: 0 },
         fileRow: { height: compact ? 28 : 24, justifyContent: "center" },
-        webRow: { gap: 1 },
         // The opened body is already the code surface (S7 3.1): command
         // output sits on it directly, with no inner panel.
         terminalWindow: {
