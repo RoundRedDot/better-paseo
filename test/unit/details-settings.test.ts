@@ -154,13 +154,13 @@ describe("block details settings", () => {
     act(() => renderer.unmount());
   });
 
-  it("enables interactive reply handoff from the messages setting", async () => {
+  it("disables interactive reply handoff from the messages setting", async () => {
     updateEnhancerPreferences({ language: "en" });
     const renderer = await renderPage();
     const label = "Let genui render interactive replies";
-    expect(switchControl(renderer.root, label).props["aria-checked"]).toBe(false);
+    expect(switchControl(renderer.root, label).props["aria-checked"]).toBe(true);
     act(() => switchControl(renderer.root, label).props.onPress());
-    expect(getEnhancerPreferences().liveUiReplies).toBe(true);
+    expect(getEnhancerPreferences().liveUiReplies).toBe(false);
     act(() => renderer.unmount());
   });
 
@@ -173,7 +173,8 @@ describe("block details settings", () => {
     expect(control.props.onKeyDown).toBeUndefined();
     expect(control.props.onKeyUp).toBeUndefined();
     act(() => control.props.onPress());
-    expect(getEnhancerPreferences().liveUiReplies).toBe(false);
+    // Disabled: the press changes nothing, and the default is on.
+    expect(getEnhancerPreferences().liveUiReplies).toBe(true);
     act(() => renderer.unmount());
   });
 

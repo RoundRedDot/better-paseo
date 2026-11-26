@@ -241,7 +241,9 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   enhancedUserBubble: false,
   selectionActions: true,
   assistantMarkdown: true,
-  liveUiReplies: false,
+  // Replies with ```ui/```app fences go to genui (or another live renderer)
+  // by default; without one Paseo shows ordinary Markdown.
+  liveUiReplies: true,
   markdownVariant: "document",
   rowLabelStyle: "icon",
   compactRowSpacing: true,

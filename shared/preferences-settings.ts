@@ -162,7 +162,7 @@ export const preferencesSchema = z.preprocess((raw) => migrateHoverDelay(migrate
   enhancedUserBubble: flag(false),
   selectionActions: flag(true),
   assistantMarkdown: flag(true),
-  liveUiReplies: flag(false),
+  liveUiReplies: flag(true),
   markdownVariant: z.enum(MARKDOWN_VARIANTS_STORED).catch("document"),
   rowLabelStyle: z.enum(ROW_LABEL_STYLES).catch("icon"),
   compactRowSpacing: flag(true),
