@@ -2,6 +2,7 @@ import type { PaseoAgent, PaseoAgentTimelineHandle } from "@getpaseo/client";
 import { isAssistantPlaceholder } from "../assistant-text";
 import { parseSystemEnvelope } from "../system-envelope";
 import { getAgentTimelinePageReader } from "./agent-timeline-page-reader";
+import type { ForkCursor } from "../../shared/chat-fork-rpc";
 
 export type Entry = Awaited<ReturnType<PaseoAgentTimelineHandle["refetch"]>>["entries"][number];
 
@@ -66,6 +67,7 @@ export function startsTurn(previous: Entry, next: Entry, marks?: TurnMarks): boo
 export interface CompletedTurnFooter {
   turnId?: string;
   usage?: NonNullable<PaseoAgent["lastUsage"]>;
+  forkCursor?: ForkCursor;
   at: number;
   text: string;
   completedAt: number;
@@ -75,6 +77,7 @@ export interface CompletedTurnFooter {
 
 export interface TurnFooterOptions {
   marks?: TurnMarks;
+  timelineEpoch?: string;
   /** The entries begin at the agent's first item, so the first turn starts there. */
   fromStart?: boolean;
 }
@@ -90,7 +93,7 @@ export function completedTurnFooters(
   entries: readonly Entry[],
   running: boolean,
   activeTurnId: string | null,
-  { marks, fromStart = false }: TurnFooterOptions = {},
+  { marks, fromStart = false, timelineEpoch }: TurnFooterOptions = {},
 ): CompletedTurnFooter[] {
   const result: CompletedTurnFooter[] = [];
   const identities = new Map<number, Map<string, number>>();
@@ -128,7 +131,9 @@ export function completedTurnFooters(
       startedAt = recorded ?? (firstAt < completedAt ? firstAt : NaN);
     }
     const duration = completedAt - startedAt;
-    result.push({ ...(turnId ? { turnId } : {}), at, text: reply.item.text, completedAt,
+    result.push({ ...(turnId ? { turnId } : {}),
+      ...(timelineEpoch ? { forkCursor: { epoch: timelineEpoch, seq: reply.seqEnd } } : {}),
+      at, text: reply.item.text, completedAt,
       startedAt: Number.isFinite(duration) && duration >= 0 ? startedAt : null,
       durationMs: Number.isFinite(duration) && duration >= 0 ? duration : null });
   };

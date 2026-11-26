@@ -21,6 +21,7 @@ deletes it afterwards. They never touch `~/.paseo` or port 6767.
 
 | Suite | What it covers |
 | --- | --- |
+| `chat-fork.test.ts` | Creates both kinds of chat fork with a test provider, checks the selected reply's history boundary, and replays the creation request. |
 | `lanes-seeded.test.ts` | Stored agent records in every lane state, 205 workspaces and 230 old unread agents (more than one page each). Compares every card with `helpers/lane-oracle.ts`, then again after a daemon restart and reconnect, and after a refresh. |
 | `lanes-live.test.ts` | Real turns from the test provider in `lane-provider/`: running, needs input, failed, stopped, read on another device, archived, an archived workspace, a parent waiting on its subtask, many tasks at once. Each card's lane is recorded render by render, so a card that passes through a wrong lane fails even if it ends in the right one. |
 | `steps-pill.test.ts` | The Agent steps pill's agent list (`watchAgentPills`): the daemon takes the request as sent, an existing agent gets its pill from the first page, a new one (also in a background workspace) while its first turn still runs. |

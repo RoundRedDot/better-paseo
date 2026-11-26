@@ -5,6 +5,7 @@ import { useToast } from "@getpaseo/plugin/client/ui";
 import { useRevealedText } from "./ui/use-revealed-text";
 import { ChatComposerContext, type ComposerTimelineItemProps as PluginTimelineItemProps } from "./ui/chat-composer";
 import type { PluginTheme } from "@getpaseo/plugin";
+import type { ForkCursor } from "../shared/chat-fork-rpc";
 import { useThemeTokens } from "./components/theme-tokens";
 import { ToolCallout } from "./components/tool-callouts";
 import { ReasoningCard } from "./components/reasoning-trace";
@@ -894,10 +895,11 @@ const TurnFooter = memo(function TurnFooter({
   const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running, streaming);
   if (!timing) return null;
   return <CompletedReplyFooter agentId={agentId} replyAt={at.getTime()} text={text} theme={theme} at={new Date(timing.completedAt)} tokens={tokens}
-    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage} />;
+    compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage}
+    forkCursor={timing.forkCursor} />;
 });
 
-function CompletedReplyFooter({ agentId, replyAt, text, at, theme, tokens, compact, durationMs, startedAt, usage }: {
+function CompletedReplyFooter({ agentId, replyAt, text, at, theme, tokens, compact, durationMs, startedAt, usage, forkCursor }: {
   agentId: string;
   /** The reply row's timestamp, which its split rows share. */
   replyAt: number;
@@ -909,6 +911,7 @@ function CompletedReplyFooter({ agentId, replyAt, text, at, theme, tokens, compa
   durationMs: number | null;
   startedAt: number | null;
   usage?: TurnUsage;
+  forkCursor?: ForkCursor;
 }) {
   const agentName = useAgent(agentId, (agent) => agent.provider);
   const modelId = useAgent(agentId, (agent) => agent.model);
@@ -919,7 +922,8 @@ function CompletedReplyFooter({ agentId, replyAt, text, at, theme, tokens, compa
   const translation = useMemo(() => ({ agentId, theme, replyKey: replyTranslationKey(agentId, replyAt) }), [agentId, theme, replyAt]);
   return <AssistantFooter translation={translation} text={text} at={at} agentName={agentName} modelId={modelId} modelName={model.modelName}
     thinkingLabel={model.thinkingLabel}
-    durationMs={durationMs} startedAt={startedAt} usage={usage} tokens={tokens} compact={compact} />;
+    durationMs={durationMs} startedAt={startedAt} usage={usage} tokens={tokens} compact={compact}
+    fork={forkCursor ? { agentId, cursor: forkCursor } : undefined} />;
 }
 
 /**

@@ -29,6 +29,8 @@ import { registerTurnUsageServer } from "./server/turn-usage";
 import { launches } from "./server/open-path";
 import { EditorUnavailableError, installedEditors } from "./server/editor-target";
 import { LaunchUnconfirmedError, openInEditor, openWithShell } from "./server/open-process";
+import { chatForkRpc } from "./shared/chat-fork-rpc";
+import { forkChat } from "./server/chat-fork";
 
 /**
  * Image types worth inlining, and the mime each one needs in its data URI.
@@ -498,6 +500,7 @@ export default function contribute(server: PluginServerContext) {
   registerTimelineTranslation(server);
   // Each turn's token usage, kept on disk for the turn details.
   registerTurnUsageServer(server);
+  server.handle(chatForkRpc, (input, { paseo }) => forkChat(input, paseo));
 
   server.handle(homeDirectoryRpc, () => ({ home: homedir() }));
   server.handle(installedEditorsRpc, async () => ({ apps: await installedEditors() }));
