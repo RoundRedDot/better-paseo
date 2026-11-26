@@ -8,7 +8,7 @@ Paseo 0.14.0 or later is required. Settings control reply rendering, fonts, prev
 
 ## Data access and limits
 
-The plugin reads displayed conversations, tool results, agent metadata and host appearance settings. Syntax highlighting sends displayed code to the daemon. Image previews can read files on the daemon; desktop file links can open files or reveal them in the file manager. Presentation and most board settings are shared by clients connected to the daemon.
+The plugin reads displayed conversations, tool results, agent metadata and host appearance settings. Syntax highlighting sends displayed code to the daemon. Image previews can read files on the daemon; desktop file links can open files or reveal them in the file manager. Web search rows load favicons directly from the listed websites, which can see the client's IP address. Presentation and most board settings are shared by clients connected to the daemon.
 
 When title generation is requested, excerpts of the conversation and the configured prompt are sent to a helper agent. By default it uses the provider, model and thinking level of the card's agent; the selected model is used only when Custom automatic title model is turned on. The helper uses the provider's configured permissions; the instruction not to use tools is not a sandbox. The plugin records recent turn timing, token usage and errors on the daemon and reads provider session files for available running token counts. Some board actions use the Paseo CLI or a local daemon connection and are unavailable when those capabilities are missing.
 
