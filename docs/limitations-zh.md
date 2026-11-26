@@ -33,7 +33,7 @@ Better Paseo 只能画 Paseo 插件 SDK 允许插件画的东西。下面列出�
 | --- | --- | --- |
 | 标签颜色和项目图标 | 插件服务端向 daemon 读取标签定义和项目图标（`tasks.labels`、`tasks.project-icons`）。看板先问插件 API，所以在提供了这两个 API 的 Paseo 上会自动改用官方调用。两边都没有结果时，标签按名称取一个颜色，项目显示生成的首字母图标。 | [#7482](https://github.com/getpaseo/paseo/pull/7482)，未合并（[讨论 #7481](https://github.com/getpaseo/paseo/discussions/7481)） |
 | 停止 | 调用 `paseo agent stop`；找不到 CLI 时隐藏。 | 尚无上游提案 |
-| 取消归档 | 调用 `paseo agent reload`；找不到 CLI 时隐藏。 | 尚无上游提案 |
+| 取消归档 | 调用 `paseo agent reload`；找不到 CLI 时隐藏。如果归档 workspace 时删除了 worktree，会先用 Paseo 的 `restoreWorkspace` 重建（未提交的改动无法找回）。 | 尚无上游提案 |
 | 标为已读 | 通过服务端自己的 daemon 连接清除这个 agent 的提醒；连不上时隐藏。 | [#7647](https://github.com/getpaseo/paseo/pull/7647)（CLI 命令），未合并 |
 | 服务商子 agent 的卡片 | 服务端向 daemon 读取会话里的子 agent 并跟随更新；没有这条连接时看板上不显示。 | 尚无上游提案 |
 

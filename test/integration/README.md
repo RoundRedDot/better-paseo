@@ -25,6 +25,7 @@ deletes it afterwards. They never touch `~/.paseo` or port 6767.
 | `lanes-live.test.ts` | Real turns from the test provider in `lane-provider/`: running, needs input, failed, stopped, read on another device, archived, an archived workspace, a parent waiting on its subtask, many tasks at once. Each card's lane is recorded render by render, so a card that passes through a wrong lane fails even if it ends in the right one. |
 | `steps-pill.test.ts` | The Agent steps pill's agent list (`watchAgentPills`): the daemon takes the request as sent, an existing agent gets its pill from the first page, a new one (also in a background workspace) while its first turn still runs. |
 | `translation-helper.test.ts` | Runs translation through an ordinary helper using a synthetic provider on a private daemon. Covers the conversation model, the configured model, the prompt sent to the provider, and helper cleanup. |
+| `restore-worktree.test.ts` | Archives a worktree workspace on a private daemon and checks that the Tasks board offers Unarchive, restores the missing worktree, and reopens its agent. |
 | `lane-audit.test.ts` | The same oracle comparison on any daemon given by `BP_LANE_AUDIT_HOST`, for a copy of real data (below). Skipped without it. |
 
 `helpers/lane-oracle.ts` works out each agent's lane from the daemon's raw

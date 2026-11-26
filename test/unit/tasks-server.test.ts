@@ -1,3 +1,4 @@
+import { mkdirSync } from "node:fs";
 import { chmod, mkdtemp, mkdir, realpath, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { delimiter, join } from "node:path";
@@ -319,20 +320,115 @@ describe("Tasks server unarchive RPC", () => {
     expect(close).toHaveBeenCalledTimes(1);
   });
 
-  it("does not reload when workspace recovery fails or needs to recreate a worktree", async () => {
+  it("rebuilds a removed worktree through Paseo before reloading its agent", async () => {
     process.env.PASEO_CLI = await executable(tempRoot);
-    const inspectWorkspaceRecovery = vi.fn().mockResolvedValueOnce({ kind: "unavailable", message: "Workspace missing" }).mockResolvedValueOnce({ kind: "recoverable", action: "restore" }).mockResolvedValueOnce({ kind: "recoverable", action: "unarchive" });
+    const order: string[] = [];
+    const inspectWorkspaceRecovery = vi.fn(async () => ({ kind: "recoverable" as const, action: "restore" as const }));
+    const restoreWorkspace = vi.fn(async () => { order.push("restore"); });
+    const close = vi.fn(async () => {});
+    const host: HostAccess = { available: () => true, connect: async () => ({ inspectWorkspaceRecovery, restoreWorkspace, close }) as never };
+    const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: join(tempRoot, "removed-worktree"), workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => null }) } } as unknown as PaseoApi;
+    execCommand.mockImplementation(async (_cli: string, args: string[]) => {
+      order.push(args[1]!);
+      return { stdout: args[1] === "inspect" ? JSON.stringify({ Archived: true }) : "{}", stderr: "" };
+    });
+    const handlers = await registerHandlers(host);
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toEqual({ ok: true, error: null });
+    expect(inspectWorkspaceRecovery).toHaveBeenCalledWith("workspace-a");
+    expect(restoreWorkspace).toHaveBeenCalledWith("workspace-a");
+    expect(order).toEqual(["restore", "inspect", "reload"]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("continues when another request restored the workspace meanwhile", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const cwd = join(tempRoot, "removed-worktree");
+    const refreshWorkspace = vi.fn().mockResolvedValueOnce(null).mockResolvedValue({ id: "workspace-a" });
+    const inspectWorkspaceRecovery = vi.fn(async () => ({ kind: "recoverable" as const, action: "restore" as const }));
+    const restoreWorkspace = vi.fn(async () => {
+      mkdirSync(cwd);
+      throw new Error("This workspace is not archived, but it is unavailable from the host.");
+    });
+    const close = vi.fn(async () => {});
+    const host: HostAccess = { available: () => true, connect: async () => ({ inspectWorkspaceRecovery, restoreWorkspace, close }) as never };
+    const paseo = {
+      agents: { ref: () => ({ refresh: async () => ({ agent: { cwd, workspaceId: "workspace-a" } }) }) },
+      workspaces: { ref: () => ({ refresh: refreshWorkspace }) },
+    } as unknown as PaseoApi;
+    execCommand
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ Archived: true }), stderr: "" })
+      .mockResolvedValueOnce({ stdout: "{}", stderr: "" });
+    const handlers = await registerHandlers(host);
+
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toEqual({ ok: true, error: null });
+    expect(restoreWorkspace).toHaveBeenCalledExactlyOnceWith("workspace-a");
+    expect(refreshWorkspace).toHaveBeenCalledTimes(2);
+    expect(execCommand.mock.calls.map((call) => call[1])).toEqual([
+      ["agent", "inspect", "agent-a", "--json"],
+      ["agent", "reload", "agent-a", "--json"],
+    ]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("continues when recovery inspection finds the workspace already restored", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const cwd = join(tempRoot, "removed-worktree");
+    const refreshWorkspace = vi.fn().mockResolvedValueOnce(null).mockResolvedValue({ id: "workspace-a" });
+    const inspectWorkspaceRecovery = vi.fn(async () => {
+      mkdirSync(cwd);
+      return { kind: "unavailable" as const, message: "This workspace is not archived, but it is unavailable from the host." };
+    });
+    const restoreWorkspace = vi.fn(async () => {});
+    const close = vi.fn(async () => {});
+    const host: HostAccess = { available: () => true, connect: async () => ({ inspectWorkspaceRecovery, restoreWorkspace, close }) as never };
+    const paseo = {
+      agents: { ref: () => ({ refresh: async () => ({ agent: { cwd, workspaceId: "workspace-a" } }) }) },
+      workspaces: { ref: () => ({ refresh: refreshWorkspace }) },
+    } as unknown as PaseoApi;
+    execCommand
+      .mockResolvedValueOnce({ stdout: JSON.stringify({ Archived: true }), stderr: "" })
+      .mockResolvedValueOnce({ stdout: "{}", stderr: "" });
+    const handlers = await registerHandlers(host);
+
+    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toEqual({ ok: true, error: null });
+    expect(restoreWorkspace).not.toHaveBeenCalled();
+    expect(refreshWorkspace).toHaveBeenCalledTimes(2);
+    expect(execCommand.mock.calls.map((call) => call[1])).toEqual([
+      ["agent", "inspect", "agent-a", "--json"],
+      ["agent", "reload", "agent-a", "--json"],
+    ]);
+    expect(close).toHaveBeenCalledTimes(1);
+  });
+
+  it("does not reload when workspace recovery is unavailable or restoring fails", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const inspectWorkspaceRecovery = vi.fn().mockResolvedValueOnce({ kind: "unavailable", message: "Workspace missing" }).mockResolvedValueOnce({ kind: "recoverable", action: "restore" });
     const restoreWorkspace = vi.fn(async () => { throw new Error("Restore failed"); });
     const close = vi.fn(async () => {});
     const host: HostAccess = { available: () => true, connect: async () => ({ inspectWorkspaceRecovery, restoreWorkspace, close }) as never };
     const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: tempRoot, workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => null }) } } as unknown as PaseoApi;
     const handlers = await registerHandlers(host);
     await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toEqual({ ok: false, error: "Workspace missing" });
-    await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toMatchObject({ ok: false });
     await expect(invoke(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo)).resolves.toEqual({ ok: false, error: "Restore failed" });
     expect(restoreWorkspace).toHaveBeenCalledTimes(1);
     expect(execCommand).not.toHaveBeenCalled();
-    expect(close).toHaveBeenCalledTimes(3);
+    expect(close).toHaveBeenCalledTimes(2);
+  });
+
+  it("does not reload when Paseo can unarchive but the worktree is missing", async () => {
+    process.env.PASEO_CLI = await executable(tempRoot);
+    const inspectWorkspaceRecovery = vi.fn(async () => ({ kind: "recoverable" as const, action: "unarchive" as const }));
+    const restoreWorkspace = vi.fn(async () => {});
+    const close = vi.fn(async () => {});
+    const host: HostAccess = { available: () => true, connect: async () => ({ inspectWorkspaceRecovery, restoreWorkspace, close }) as never };
+    const paseo = { agents: { ref: () => ({ refresh: async () => ({ agent: { cwd: join(tempRoot, "removed-worktree"), workspaceId: "workspace-a" } }) }) }, workspaces: { ref: () => ({ refresh: async () => null }) } } as unknown as PaseoApi;
+    const handlers = await registerHandlers(host);
+    const result = await invoke<{ ok: boolean; error: string | null }>(handlers, "tasks.unarchive", { agentId: "agent-a" }, paseo);
+    expect(result).toMatchObject({ ok: false });
+    expect(result.error).toContain("directory_missing");
+    expect(restoreWorkspace).not.toHaveBeenCalled();
+    expect(execCommand).not.toHaveBeenCalled();
+    expect(close).toHaveBeenCalledTimes(1);
   });
 
   it("does not restore or reload an archiving workspace", async () => {
