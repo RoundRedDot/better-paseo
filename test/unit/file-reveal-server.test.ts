@@ -314,8 +314,8 @@ it.each(["linux", "freebsd"] as const)("reports a missing %s system opener in a 
   try {
     const reveal = await revealHandler();
     const result = await reveal({ cwd: root, path: "notes.md" });
-    expect(result).toMatchObject({ error: "spawn xdg-open ENOENT", errorKind: "launch_failed", errorCode: "system_opener_unavailable", errorApp: "system" });
-    expect(revealPathRpc.output.parse(result)).toMatchObject({ errorCode: "system_opener_unavailable" });
+    expect(result).toMatchObject({ error: "spawn xdg-open ENOENT", errorKind: "launch_failed", errorCode: "system_opener_unavailable", errorApp: "system", path: join(root, "notes.md") });
+    expect(revealPathRpc.output.parse(result)).toMatchObject({ errorCode: "system_opener_unavailable", path: join(root, "notes.md") });
     const oldClientOutput = z.object({ revealed: z.string().nullable(), error: z.string().nullable(), errorKind: z.enum(["settings_unavailable", "settings_unsynced", "editor_unavailable", "launch_failed", "launch_unconfirmed"]).optional(), errorApp: z.string().optional() });
     expect(oldClientOutput.parse(result)).toMatchObject({ error: "spawn xdg-open ENOENT", errorKind: "launch_failed" });
     expect(spawn).toHaveBeenLastCalledWith("xdg-open", [root], expect.anything());

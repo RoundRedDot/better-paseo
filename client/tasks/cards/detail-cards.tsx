@@ -7,7 +7,7 @@ import { useRpc } from "@getpaseo/plugin/client";
 import { useCodexProvider } from "../../state/provider-family";
 import { Icon, ScrollView as SheetScrollView, useToast } from "@getpaseo/plugin/client/ui";
 import { revealPathRpc } from "../../../shared/file-rpc";
-import { fileOpenError } from "../../i18n/file-open-error";
+import { copyOpenerFallback, fileOpenError } from "../../i18n/file-open-error";
 import { openLink } from "../../components/open-link";
 import { MarkdownView } from "../../components/markdown/markdown-view";
 import { DETAILS_BREAKPOINTS } from "../../details/layout-model";
@@ -1928,7 +1928,7 @@ function TimelineTextBody(props: Inner & {
     const fail = (error: string) => notice.error(text.openLinkError(error));
     open({ cwd, path, expectedApp: getEnhancerPreferences().fileOpenApp })
       .then((result) => {
-        if (result.error) fail(fileOpenError(result, language));
+        if (result.error && !copyOpenerFallback(result, cwd, path, notice)) fail(fileOpenError(result, language));
       })
       .catch((error: unknown) => fail(error instanceof Error ? error.message : String(error)));
   }, []);

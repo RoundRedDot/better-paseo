@@ -1,22 +1,61 @@
+import { copyText } from "@getpaseo/plugin/client/ui";
 import { getEnhancerPreferences } from "../preferences";
+import { copiedToast } from "./toolbar-strings";
 import { resolveLanguage, type SettingsLanguage } from "./settings-strings";
 import { FILE_OPEN_LABELS, type FileOpenApp } from "../../shared/file-open-apps";
 import type { FileOpenErrorKind } from "../../shared/file-rpc";
 
-type RevealResult = { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp; errorCode?: "system_opener_unavailable" };
+type RevealResult = { error: string | null; errorKind?: FileOpenErrorKind; errorApp?: FileOpenApp; errorCode?: "system_opener_unavailable"; path?: string };
+
+/**
+ * The absolute path to copy when the daemon host has no system opener (a headless server or a
+ * container: nothing to open the file on), else null. Older servers send no `path`, so a relative
+ * press is joined to the working directory here.
+ */
+export function openerFallbackPath(result: RevealResult, cwd: string, path: string): string | null {
+  if (result.errorCode !== "system_opener_unavailable" && result.errorKind !== "system_opener_unavailable") return null;
+  if (result.path) return result.path;
+  if (!cwd || path.startsWith("/") || path.startsWith("~") || /^[A-Za-z]:[\\/]/.test(path)) return path;
+  return `${cwd.replace(/[\\/]+$/, "")}/${path}`;
+}
+
+/**
+ * When the host has no system opener, copies the absolute path with the copy toast, as a press on a
+ * touch device does, and returns true. Any other result returns false and is left to the caller.
+ * The SDK clipboard is read only here, when the fallback fires, so no row pays for it.
+ */
+export function copyOpenerFallback(
+  result: RevealResult,
+  cwd: string,
+  path: string,
+  toast: { show(message: string): void; error(message: string): void },
+  copy: (text: string) => Promise<void> = copyText,
+): boolean {
+  const fallback = openerFallbackPath(result, cwd, path);
+  if (fallback === null) return false;
+  const language = getEnhancerPreferences().language;
+  void copy(fallback).then(
+    () => toast.show(copiedToast("Copy path", language)),
+    () => toast.error(fileOpenError(result)),
+  );
+  return true;
+}
 
 /**
  * A path press: opens or reveals the path on the host with the current file
- * open setting, and shows any failure in a toast.
+ * open setting, and shows any failure in a toast. A host with no system
+ * opener copies the absolute path instead (`copyOpenerFallback`).
  */
 export function revealWithSetting(
   revealPath: (input: { cwd: string; path: string; expectedApp: FileOpenApp }) => Promise<RevealResult>,
-  toast: { error(message: string): void },
+  toast: { show(message: string): void; error(message: string): void },
   cwd: string,
   path: string,
 ): void {
   void revealPath({ cwd, path, expectedApp: getEnhancerPreferences().fileOpenApp })
-    .then((result) => { if (result.error) toast.error(fileOpenError(result)); })
+    .then((result) => {
+      if (result.error && !copyOpenerFallback(result, cwd, path, toast)) toast.error(fileOpenError(result));
+    })
     .catch((error: unknown) => toast.error(String(error)));
 }
 
