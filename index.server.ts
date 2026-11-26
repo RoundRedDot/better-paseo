@@ -535,7 +535,9 @@ export default function contribute(server: PluginServerContext) {
       return { revealed: target, error: null };
     } catch (error) {
       if (app === "system" && error instanceof Error && (error as NodeJS.ErrnoException).code === "ENOENT" && (error as NodeJS.ErrnoException).path === "xdg-open") {
-        return { ...revealFailure(error, "launch_failed", app), errorCode: "system_opener_unavailable" as const };
+        // A headless host (a server, a container) has no opener and no screen to open on; the client
+        // copies the path instead, as a touch device does.
+        return { ...revealFailure(error, "launch_failed", app), errorCode: "system_opener_unavailable" as const, path: target };
       }
       const kind = error instanceof EditorUnavailableError ? "editor_unavailable" : error instanceof LaunchUnconfirmedError ? "launch_unconfirmed" : "launch_failed";
       return revealFailure(error, kind, app);

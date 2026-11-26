@@ -959,7 +959,9 @@ the path, resolved against the agent's working directory, on the daemon's machin
   installer or any file with an execute bit is only revealed in Finder (`open -R`), so a press
   never runs it.
 - **Windows:** Explorer selects the file, or opens the folder.
-- **Other systems:** `xdg-open` opens the file's directory, or the folder itself.
+- **Other systems:** `xdg-open` opens the file's directory, or the folder itself. On a host without
+  `xdg-open`, such as a headless server or a container, there is no screen to open it on, so the
+  press copies the absolute path instead, with a toast, as on a touch device.
 
 On a touch device the same press copies the absolute path, with a toast, since a phone cannot reach
 the daemon machine's screen. Paseo's own file panel is out of reach for now; see

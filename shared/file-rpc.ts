@@ -44,5 +44,7 @@ export const revealPathRpc = defineRpc({
     errorKind: z.enum(FILE_OPEN_ERROR_KINDS).optional(),
     errorCode: z.literal("system_opener_unavailable").optional(),
     errorApp: z.enum(FILE_OPEN_APPS).optional(),
+    /** The resolved absolute path, sent with `system_opener_unavailable` so the client can copy it. */
+    path: z.string().optional(),
   }),
 });
