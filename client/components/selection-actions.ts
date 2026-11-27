@@ -2,8 +2,7 @@ import { useEffect } from "react";
 import { Platform } from "react-native";
 import type { TextProps, ViewProps } from "react-native";
 import { copyText } from "@getpaseo/plugin/client/ui";
-import { radiusV2 } from "./theme-tokens";
-import type { ExtendedThemeTokens } from "./theme-tokens";
+import { buildThemeTokens, radiusV2, withAlpha, type ExtendedThemeTokens, type PluginSurfaceColors } from "./theme-tokens";
 import { FLOAT, FLOAT_EASE, floatHover, floatPressed, floatShadow, PREVIEW_HEADER, previewHeaderLook } from "../ui/tokens/float";
 import { UI_SCALE } from "../ui/tokens/typography";
 import { CARD_RADIUS, CARD_SHADOW } from "../ui/tokens/card";
@@ -84,6 +83,13 @@ const BLOCK_SELECTOR = "[data-bcblock]";
 /** The bar's host, for layers that must treat a press on it as their own. */
 export const SELECTION_BAR_SELECTOR = "[data-bcselectionbar]";
 const CODE_SELECTOR = "[data-bccode]";
+const NATIVE_CHAT_SELECTOR = '[data-testid="agent-chat-scroll"]';
+const NATIVE_ASSISTANT_SELECTOR = '[data-testid="assistant-message"]';
+const NATIVE_CODE_SELECTOR = 'pre, [data-paseo-markdown-tag="pre"], [data-pmono]';
+const NATIVE_EDITABLE_SELECTOR = 'input, textarea, [contenteditable="true"], [contenteditable=""]';
+const NATIVE_UI_SELECTOR = 'button, [role="button"], [data-paseo-markdown-ignore="true"]';
+const CODE_LANGUAGE_ATTRIBUTE = "data-paseo-markdown-language";
+const TRAILING_CODE_LINE_BREAKS = /(\r?\n[ \t]*)+$/;
 /** The host composer input carries `dataSet={{ composerInput: "" }}`. */
 const COMPOSER_SELECTOR = "[data-composer-input]";
 /** A translatable surface carries its conversation (`selectionScopeDataSet`). */
@@ -133,12 +139,14 @@ interface SelectionBlock {
 interface Snapshot {
   text: string;
   isCode: boolean;
+  codeLanguage: string | null;
   canAddToChat: boolean;
+  nativeChat: boolean;
   /** Nonempty line boxes of the selection, in range order. */
   rects: readonly DOMRect[];
   /** The element the selection sits in, to find its own chat's composer. */
   element: Element | null;
-  /** The plugin surface at the start of the selection. */
+  /** The plugin surface (or native chat container) at the start of the selection. */
   surface: Element;
   /** Last surface distinguishes equal text selected across different blocks. */
   endSurface: Element;
@@ -213,10 +221,77 @@ function crossSurfaceBlocks(range: Range, selectedText: string): SelectionBlock[
   return blocks.length ? blocks : null;
 }
 
+function visibleLineRects(range: Range): DOMRect[] {
+  const lines = range.getClientRects();
+  return (lines.length > 0 ? Array.from(lines) : [range.getBoundingClientRect()])
+    .filter((rect) => rect.width > 0 && rect.height > 0);
+}
+
+function readNativeChatSelection(selection: Selection, initialRange: Range): Snapshot | null {
+  const anchorEl = elementOf(selection.anchorNode);
+  const focusEl = elementOf(selection.focusNode);
+  if (
+    anchorEl?.closest(NATIVE_EDITABLE_SELECTOR) ||
+    focusEl?.closest(NATIVE_EDITABLE_SELECTOR) ||
+    anchorEl?.closest(SELECTION_BAR_SELECTOR) ||
+    focusEl?.closest(SELECTION_BAR_SELECTOR) ||
+    anchorEl?.closest(COMPOSER_SELECTOR) ||
+    focusEl?.closest(COMPOSER_SELECTOR)
+  ) {
+    return null;
+  }
+  if (anchorEl?.closest(NATIVE_UI_SELECTOR) && focusEl?.closest(NATIVE_UI_SELECTOR)) {
+    return null;
+  }
+  const anchorChat = anchorEl?.closest(NATIVE_CHAT_SELECTOR) ?? null;
+  const focusChat = focusEl?.closest(NATIVE_CHAT_SELECTOR) ?? null;
+  if (!anchorChat && !focusChat) return null;
+  if (anchorChat && focusChat && anchorChat !== focusChat) return null;
+  const text = selection.toString().trim();
+  if (!text) return null;
+
+  let range = initialRange;
+  const chat = (elementOf(range.startContainer)?.closest(NATIVE_CHAT_SELECTOR) ?? anchorChat ?? focusChat)!;
+  if (!anchorChat || !focusChat) {
+    const startsInside = chat.contains(range.startContainer);
+    const outside = range.cloneRange();
+    if (startsInside) outside.setStartAfter(chat);
+    else outside.setEndBefore(chat);
+    if (outside.toString().trim()) return null;
+    const bounded = range.cloneRange();
+    if (startsInside) bounded.setEndAfter(chat);
+    else bounded.setStartBefore(chat);
+    range = bounded;
+  }
+
+  const rects = visibleLineRects(range);
+  if (rects.length === 0) return null;
+
+  const element = elementOf(range.commonAncestorContainer) ?? elementOf(range.startContainer) ?? chat;
+  const codeBlock = element?.closest(`${CODE_SELECTOR}, ${NATIVE_CODE_SELECTOR}`) ?? null;
+  const isCode = Boolean(codeBlock);
+  const codeLanguage = codeBlock?.getAttribute(CODE_LANGUAGE_ATTRIBUTE)?.trim() || null;
+  const canAddToChat = !chat.closest("[data-bcnocomposer]");
+  return {
+    text,
+    isCode,
+    codeLanguage,
+    canAddToChat,
+    nativeChat: true,
+    rects,
+    element,
+    surface: chat,
+    endSurface: chat,
+    scope: null,
+    blocks: null,
+  };
+}
+
 /**
  * The live selection, or null when it is empty, collapsed, or outside every
- * plugin surface. Cross-surface selections must contain only text bound to the
- * same conversation and host. A drag into host text is not a callout selection.
+ * plugin surface and native chat. Cross-surface selections must contain only
+ * text bound to the same conversation and host, or fall back to native chat
+ * Copy / Add to chat when both ends sit in the same chat pane.
  */
 function readSelection(): Snapshot | null {
   const selection = window.getSelection();
@@ -224,8 +299,9 @@ function readSelection(): Snapshot | null {
 
   const anchor = elementOf(selection.anchorNode)?.closest(SURFACE_SELECTOR);
   const focus = elementOf(selection.focusNode)?.closest(SURFACE_SELECTOR);
-  let range = selection.getRangeAt(0);
-  if (!anchor && !focus) return null;
+  const initialRange = selection.getRangeAt(0);
+  let range = initialRange;
+  if (!anchor && !focus) return readNativeChatSelection(selection, initialRange);
   const text = selection.toString().trim();
   if (!text) return null;
   const spansSurfaces = anchor && focus && anchor !== focus;
@@ -233,7 +309,7 @@ function readSelection(): Snapshot | null {
   const focusBlock = elementOf(selection.focusNode)?.closest(BLOCK_SELECTOR);
   const spansBlocks = anchor && focus && anchorBlock && focusBlock && anchorBlock !== focusBlock && scopeOf(anchor) && scopeOf(focus);
   const blocks = spansSurfaces || spansBlocks ? crossSurfaceBlocks(range, text) : null;
-  if ((spansSurfaces || spansBlocks) && !blocks) return null;
+  if ((spansSurfaces || spansBlocks) && !blocks) return readNativeChatSelection(selection, initialRange);
   const crossScope = blocks ? { ...blocks[0]!.scope, streaming: blocks.some((block) => block.scope.streaming) } : null;
   const surface = (elementOf(range.startContainer)?.closest(SURFACE_SELECTOR) ?? anchor ?? focus)!;
   if (!anchor || !focus) {
@@ -245,16 +321,14 @@ function readSelection(): Snapshot | null {
     const outside = range.cloneRange();
     if (startsInside) outside.setStartAfter(surface);
     else outside.setEndBefore(surface);
-    if (outside.toString().trim()) return null;
+    if (outside.toString().trim()) return readNativeChatSelection(selection, initialRange);
     const bounded = range.cloneRange();
     if (startsInside) bounded.setEndAfter(surface);
     else bounded.setStartBefore(surface);
     range = bounded;
   }
 
-  const lines = range.getClientRects();
-  const rects = (lines.length > 0 ? Array.from(lines) : [range.getBoundingClientRect()])
-    .filter((rect) => rect.width > 0 && rect.height > 0);
+  const rects = visibleLineRects(range);
   if (rects.length === 0) return null;
 
   const element = elementOf(crossScope ? range.startContainer : anchor && focus ? range.commonAncestorContainer : anchor ? selection.anchorNode : selection.focusNode);
@@ -262,12 +336,53 @@ function readSelection(): Snapshot | null {
   const isCode = Boolean(codeElement?.closest(CODE_SELECTOR));
   const canAddToChat = !surface.closest("[data-bcnocomposer]");
   const endSurface = elementOf(range.endContainer)?.closest(SURFACE_SELECTOR) ?? surface;
-  return { text, isCode, canAddToChat, rects, element, surface, endSurface, scope: crossScope ?? scopeOf(surface), blocks };
+  return {
+    text,
+    isCode,
+    codeLanguage: null,
+    canAddToChat,
+    nativeChat: false,
+    rects,
+    element,
+    surface,
+    endSurface,
+    scope: crossScope ?? scopeOf(surface),
+    blocks,
+  };
+}
+
+/**
+ * Native assistant messages carry a copy handler that turns the selection back
+ * into Markdown (preserving lists, tables, links, and code blocks). Dispatching
+ * a synthetic copy event with a private DataTransfer reads that Markdown
+ * without touching the system clipboard.
+ */
+function hostMarkdown(target: Element | null, isCode: boolean): string | null {
+  if (!target || typeof ClipboardEvent === "undefined" || typeof DataTransfer === "undefined") return null;
+  if (!target.closest?.(NATIVE_ASSISTANT_SELECTOR)) return null;
+  try {
+    const clipboardData = new DataTransfer();
+    const event = new ClipboardEvent("copy", { bubbles: true, cancelable: true, clipboardData });
+    target.dispatchEvent(event);
+    if (!event.defaultPrevented) return null;
+    const raw = clipboardData.getData("text/plain");
+    if (!raw.trim()) return null;
+    return isCode ? raw.replace(TRAILING_CODE_LINE_BREAKS, "") : raw.trim();
+  } catch {
+    return null;
+  }
+}
+
+function resolvedText(snapshot: Snapshot): string {
+  return (snapshot.nativeChat ? hostMarkdown(snapshot.element, snapshot.isCode) : null) ?? snapshot.text;
 }
 
 /** Markdown the composer can carry: a fence for code, a blockquote for prose. */
-function quote(snapshot: Snapshot): string {
-  if (snapshot.isCode) return "```\n" + snapshot.text + "\n```\n\n";
+function quote(snapshot: Pick<Snapshot, "text" | "isCode" | "codeLanguage">): string {
+  if (snapshot.isCode) {
+    const fence = snapshot.text.includes("```") ? "````" : "```";
+    return `${fence}${snapshot.codeLanguage ?? ""}\n${snapshot.text}\n${fence}\n\n`;
+  }
   return (
     snapshot.text
       .split("\n")
@@ -692,7 +807,7 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
   const copyButton = makeButton(row, "Copy", "copy", (button) => {
     const snapshot = actions.snapshot();
     if (!snapshot) return;
-    void copyText(snapshot.text);
+    void copyText(resolvedText(snapshot));
     flash(button, "Copied");
   });
   copyButton.classList.add("selection-action");
@@ -706,13 +821,14 @@ function createBar(actions: BarActions, standalone = false, original = ""): Bar 
   const addButton = makeButton(row, "Add to chat", "add", (button) => {
     const snapshot = actions.snapshot();
     if (!snapshot?.canAddToChat) return;
-    if (insertIntoComposer(quote(snapshot), snapshot.element)) {
+    const text = resolvedText(snapshot);
+    if (insertIntoComposer(quote({ ...snapshot, text }), snapshot.element)) {
       flash(button, "Added");
       return;
     }
-    // No composer on screen — the snippet still reaches the clipboard, and the
+    // No composer on screen -- the snippet still reaches the clipboard, and the
     // label says which of the two actions actually happened.
-    void copyText(snapshot.text);
+    void copyText(text);
     flash(button, "Copied instead");
   });
   addButton.classList.add("selection-action");
@@ -1132,8 +1248,73 @@ export function createMessageTranslationBar(anchor: HTMLElement, tokens: Extende
 interface Controller {
   bar: Bar;
   refs: number;
+  themeRefs: number;
   hasTranslation(): boolean;
   dispose(): void;
+}
+
+function parseRgbColor(value: string | undefined): { r: number; g: number; b: number; a: number } | null {
+  if (!value || value === "transparent") return null;
+  const match = /rgba?\(\s*([\d.]+)\s*[,\s]\s*([\d.]+)\s*[,\s]\s*([\d.]+)(?:\s*[,/]\s*([\d.]+))?\s*\)/.exec(value);
+  if (!match) return null;
+  const r = Number(match[1]);
+  const g = Number(match[2]);
+  const b = Number(match[3]);
+  const a = match[4] === undefined ? 1 : Number(match[4]);
+  if ([r, g, b, a].some(Number.isNaN) || a <= 0) return null;
+  return { r, g, b, a };
+}
+
+function isDarkRgb(rgb: { r: number; g: number; b: number }): boolean {
+  return (0.299 * rgb.r + 0.587 * rgb.g + 0.114 * rgb.b) / 255 < 0.5;
+}
+
+/**
+ * Fallback tokens for native chats when no enhanced callout has mounted to
+ * pass Paseo's theme object through `useSelectionActions`.
+ */
+function domThemeTokens(surface: Element | null): ExtendedThemeTokens {
+  let bg: { r: number; g: number; b: number; a: number } | null = null;
+  let fg: { r: number; g: number; b: number; a: number } | null = null;
+  if (typeof window.getComputedStyle === "function") {
+    const candidates: Array<Element | null> = [];
+    for (let el: Element | null = surface; el; el = el.parentElement) candidates.push(el);
+    if (typeof document !== "undefined") {
+      candidates.push(document.body ?? null, document.documentElement ?? null);
+    }
+    for (const el of candidates) {
+      if (!el) continue;
+      const style = window.getComputedStyle(el) as CSSStyleDeclaration | undefined;
+      if (!fg) fg = parseRgbColor(style?.color);
+      if (!bg) {
+        const parsed = parseRgbColor(style?.backgroundColor);
+        if (parsed) {
+          bg = parsed;
+          break;
+        }
+      }
+    }
+  }
+  const isDark = bg
+    ? isDarkRgb(bg)
+    : (typeof window.matchMedia === "function" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+  const surface0 = bg ? `rgb(${bg.r}, ${bg.g}, ${bg.b})` : isDark ? "#1a1a1c" : "#ffffff";
+  const fgContrasts = fg ? isDarkRgb(fg) !== isDark : false;
+  const foreground = fg && fgContrasts ? `rgb(${fg.r}, ${fg.g}, ${fg.b})` : isDark ? "#f2f2f2" : "#1b1b1f";
+  const colors: PluginSurfaceColors = {
+    surface0,
+    surface1: withAlpha(foreground, isDark ? 0.04 : 0.03),
+    surface2: withAlpha(foreground, isDark ? 0.08 : 0.06),
+    border: withAlpha(foreground, isDark ? 0.12 : 0.1),
+    foreground,
+    foregroundMuted: withAlpha(foreground, 0.65),
+    accent: isDark ? "#6b9eff" : "#3b6fe0",
+    accentForeground: "#ffffff",
+    statusSuccess: isDark ? "#4cb782" : "#1f8a5b",
+    statusWarning: isDark ? "#d9a53f" : "#a36a00",
+    statusDanger: isDark ? "#f26b6b" : "#d23c3c",
+  };
+  return buildThemeTokens(colors, getEnhancerPreferences());
 }
 
 let controller: Controller | null = null;
@@ -1390,6 +1571,7 @@ function startController(): Controller {
       hide();
       return;
     }
+    if (started.themeRefs === 0) bar.setTheme(domThemeTokens(snapshot.surface));
     bar.setSelectionActions(snapshot.canAddToChat, snapshot.scope !== null && translationOffered());
     bar.show(anchor);
   };
@@ -1488,6 +1670,7 @@ function startController(): Controller {
   const started: Controller = {
     bar,
     refs: 0,
+    themeRefs: 0,
     hasTranslation: () => translation !== null,
     dispose() {
       release();
@@ -1511,6 +1694,27 @@ function startController(): Controller {
   return started;
 }
 
+function retainController(): () => void {
+  const active = controller ?? (controller = startController());
+  active.refs += 1;
+  return () => {
+    active.refs -= 1;
+    if (active.refs > 0) return;
+    if (active.hasTranslation()) return;
+    active.dispose();
+    if (controller === active) controller = null;
+  };
+}
+
+/**
+ * Installs the selection bar for the client session so native Paseo chats get
+ * Copy and Add to chat even when timeline enhancements are turned off.
+ */
+export function installSelectionActions(): () => void {
+  if (Platform.OS !== "web" || typeof document === "undefined") return () => {};
+  return retainController();
+}
+
 /**
  * Keeps one bar alive for as long as at least one enhanced callout is mounted,
  * and feeds it the live theme. Call it from every renderer: the bar is shared,
@@ -1519,14 +1723,12 @@ function startController(): Controller {
 export function useSelectionActions(tokens: ExtendedThemeTokens, enabled: boolean): void {
   useEffect(() => {
     if (Platform.OS !== "web" || typeof document === "undefined" || !enabled) return;
-    const active = controller ?? (controller = startController());
-    active.refs += 1;
+    const release = retainController();
+    const active = controller;
+    if (active) active.themeRefs += 1;
     return () => {
-      active.refs -= 1;
-      if (active.refs > 0) return;
-      if (active.hasTranslation()) return;
-      active.dispose();
-      if (controller === active) controller = null;
+      if (active) active.themeRefs = Math.max(0, active.themeRefs - 1);
+      release();
     };
   }, [enabled]);
 
