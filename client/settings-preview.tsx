@@ -271,7 +271,7 @@ export function SettingsPreview({
           </Item> : null}
           <View>
             {reply(t.previewReply)}
-            <AssistantFooter text={t.previewReply} at={DONE} tokens={tokens} compact={compact} />
+            {preferences.showReplyFooter ? <AssistantFooter text={t.previewReply} at={DONE} tokens={tokens} compact={compact} /> : null}
           </View>
         </View>
       </PathContext.Provider>

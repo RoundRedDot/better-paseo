@@ -156,6 +156,8 @@ export interface EnhancerPreferences {
   assistantMarkdown: boolean;
   /** Leave replies containing UI fences to another renderer. */
   liveUiReplies: boolean;
+  /** The plugin's footer under a completed turn's final reply. Paseo 0.17.5 and later draw their own below it. */
+  showReplyFooter: boolean;
   /** Which look the markdown renderer uses. */
   markdownVariant: MarkdownVariantPreference;
   /**
@@ -242,6 +244,7 @@ export const DEFAULT_PREFERENCES: Readonly<EnhancerPreferences> = {
   selectionActions: true,
   assistantMarkdown: true,
   liveUiReplies: false,
+  showReplyFooter: true,
   markdownVariant: "document",
   rowLabelStyle: "icon",
   compactRowSpacing: true,

@@ -242,3 +242,22 @@ describe("block details settings", () => {
     expect(toolbarLabel("1 new line", "zh")).toBe("1 行新输出");
   });
 });
+
+describe("reply footer setting", () => {
+  it.each([["en", "Reply footer"], ["zh", "回复信息栏"]] as const)("toggles the reply footer in %s and follows the markdown switch", async (language, label) => {
+    updateEnhancerPreferences({ language });
+    const renderer = await renderPage();
+    try {
+      const toggle = () => switchControl(renderer.root, label);
+      expect(toggle().props.accessibilityState.checked).toBe(true);
+      act(() => toggle().props.onPress());
+      expect(getEnhancerPreferences().showReplyFooter).toBe(false);
+      act(() => toggle().props.onPress());
+      expect(getEnhancerPreferences().showReplyFooter).toBe(true);
+      act(() => updateEnhancerPreferences({ assistantMarkdown: false }));
+      expect(toggle().props.accessibilityState.disabled).toBe(true);
+    } finally {
+      act(() => renderer.unmount());
+    }
+  });
+});

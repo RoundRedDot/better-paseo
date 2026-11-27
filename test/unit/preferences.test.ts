@@ -336,3 +336,15 @@ describe("prompt bubble default", () => {
     expect(parsePreferences({ enhancedUserBubble: true }).enhancedUserBubble).toBe(true);
   });
 });
+
+describe("reply footer default", () => {
+  it("shows the plugin reply footer by default and keeps it on for invalid values", () => {
+    expect(DEFAULT_PREFERENCES.showReplyFooter).toBe(true);
+    expect(parsePreferences({}).showReplyFooter).toBe(true);
+    for (const showReplyFooter of [null, "false", 0, 1, {}]) {
+      expect(preferencesSchema.parse({ showReplyFooter }).showReplyFooter).toBe(true);
+    }
+    expect(parsePreferences({ showReplyFooter: false }).showReplyFooter).toBe(false);
+    expect(storedPart(parsePreferences({ showReplyFooter: false })).showReplyFooter).toBe(false);
+  });
+});
