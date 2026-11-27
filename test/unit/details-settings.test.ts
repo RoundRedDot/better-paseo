@@ -229,6 +229,16 @@ describe("block details settings", () => {
     act(() => renderer.unmount());
   });
 
+  it("keeps the selection toolbar toggle available while the chat switch is off", async () => {
+    updateEnhancerPreferences({ chatEnabled: false, selectionActions: true });
+    const renderer = await renderPage();
+    const toggle = switchControl(renderer.root, "Selection toolbar");
+    expect(toggle.props.accessibilityState).toEqual({ checked: true, disabled: false });
+    act(() => toggle.props.onPress());
+    expect(getEnhancerPreferences().selectionActions).toBe(false);
+    act(() => renderer.unmount());
+  });
+
   it("translates the block-details toolbar labels and streamed line count", () => {
     const labels = [
       "Open details", "Expand in timeline", "Collapse in timeline", "View image", "Copy title", "Close menu", "Code",

@@ -5,6 +5,7 @@ import { PluginUpdateIndicator } from "./client/plugin-update-indicator";
 import { removeEmbeddedFonts, setEmbeddedFontLoader } from "./client/components/embed-fonts";
 import { installChatFind } from "./client/components/chat-find";
 import { installPointerFocusRing } from "./client/components/focus-ring";
+import { installSelectionActions } from "./client/components/selection-actions";
 import { extractPromptImages } from "./client/prompt-images";
 import { getEnhancerPreferences } from "./client/preferences";
 import { followPreference } from "./client/state/follow-preference";
@@ -69,6 +70,10 @@ export default function contribute(client: PluginClientContext) {
   setMarkLoader((ids) => client.rpc(markBitmapsRpc, { ids }).then((result) => result.bitmaps));
   // Paseo's Ctrl+F cannot reveal rows this plugin draws; this bar can.
   const removeChatFind = followChat(installChatFind);
+  // Floating Copy / Add to chat bar works in native Paseo chats as well as plugin cards.
+  const removeSelectionActions = followPreference("selectionActions", () =>
+    getEnhancerPreferences().selectionActions ? installSelectionActions() : () => {},
+  );
   // A clicked row, chip or button keeps no focus ring; Tab focus does.
   const removeFocusRing = installPointerFocusRing();
 
@@ -333,6 +338,7 @@ export default function contribute(client: PluginClientContext) {
     removeFonts();
     setMarkLoader(null);
     removeFocusRing();
+    removeSelectionActions();
     removeChatFind();
     removeNotificationTransformer();
     removeToolTransformer();

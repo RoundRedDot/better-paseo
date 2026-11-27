@@ -961,6 +961,21 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           look={look}
           stacked
         />
+        {native ? null : (
+          <SettingRow
+            title={t.selectionTitle}
+            description={t.selectionDescription}
+            control={
+              <Toggle
+                value={preferences.selectionActions}
+                onChange={(selectionActions) => updateEnhancerPreferences({ selectionActions })}
+                label={t.selectionTitle}
+                look={look}
+              />
+            }
+            look={look}
+          />
+        )}
         {chat ? <SettingRow title={t.timelineTitle} description={t.timelineDescription} look={look} stacked
           control={<View accessibilityRole="radiogroup" accessibilityLabel={t.timelineTitle} style={{ width: look.compact ? "100%" : 300, maxWidth: "100%", flexDirection: "row", gap: space.sm }}>
             {([ ["simple", t.timelineSimple, t.timelineSimpleDescription], ["standard", t.timelineStandard, t.timelineStandardDescription], ["detailed", t.timelineDetailed, t.timelineDetailedDescription] ] as const).map(([value, label, description]) => (
@@ -1233,21 +1248,6 @@ export function BetterPaseoSettingsPage({ theme, layout, host }: PluginSurfacePr
           stacked
           disabled={!preferences.assistantMarkdown}
         />
-        {native ? null : (
-          <SettingRow
-            title={t.selectionTitle}
-            description={t.selectionDescription}
-            control={
-              <Toggle
-                value={preferences.selectionActions}
-                onChange={(selectionActions) => updateEnhancerPreferences({ selectionActions })}
-                label={t.selectionTitle}
-                look={look}
-              />
-            }
-            look={look}
-          />
-        )}
       </Section>
 
       <Section title={t.sectionPreview} look={look} hidden={!chat}>
