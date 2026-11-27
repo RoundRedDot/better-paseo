@@ -892,7 +892,8 @@ const TurnFooter = memo(function TurnFooter({
   const running = useAgent(agentId, (agent) => agent.status === "running");
   const paseo = usePaseo();
   const timing = useTurnFooter(paseo, agentId, at.getTime(), text, running, streaming);
-  if (!timing) return null;
+  const shown = useEnhancerPreferences().showReplyFooter;
+  if (!timing || !shown) return null;
   return <CompletedReplyFooter agentId={agentId} replyAt={at.getTime()} text={text} theme={theme} at={new Date(timing.completedAt)} tokens={tokens}
     compact={compact} durationMs={timing.durationMs} startedAt={timing.startedAt} usage={timing.usage} />;
 });

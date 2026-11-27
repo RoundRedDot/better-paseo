@@ -51,6 +51,7 @@ import { providerFamilyRpc } from "../../shared/provider-family-rpc";
 import { DEFAULT_TIMELINE_TRANSLATION_SETTINGS, publishTranslationSettings, resetTranslationSettingsStoreForTests } from "../../client/translation/settings-store";
 import { formatFooterStamp, formatFullStamp } from "../../client/ui/time";
 import { resetTimelineTailsForTests } from "../../client/timeline-tail";
+import { resetEnhancerPreferences, updateEnhancerPreferences } from "../../client/preferences";
 
 (globalThis as { IS_REACT_ACT_ENVIRONMENT?: boolean }).IS_REACT_ACT_ENVIRONMENT = true;
 const theme = { colors: { surface0: "#fff", surface1: "#eee", surface2: "#ddd", border: "#ccc",
@@ -115,6 +116,29 @@ describe.each(["web", "ios"] as const)("completed-turn toolbar on %s", (platform
       expect(refetch).toHaveBeenCalledTimes(1);
       expect(refetch).toHaveBeenCalledWith({ direction: "tail", projection: "projected", limit: 50 });
     } finally { act(() => renderer.unmount()); }
+  });
+
+  it("draws no footer while the reply footer setting is off and draws it again when turned back on", async () => {
+    const refetch = vi.fn<PaseoAgentTimelineHandle["refetch"]>(async () => page([
+      entry({ type: "user_message", text: "prompt" }, 1, 1000, "one"),
+      entry({ type: "assistant_message", text: "answer" }, 2, 2000, "one"),
+    ]));
+    const release = Object.assign(vi.fn(), { ready: Promise.resolve(), subscriptionId: "s", release: async () => {} });
+    runtime.api = { agents: { ref: () => ({ timeline: { refetch, subscribe: () => release } }) }, providers: { listModels: async () => catalog } };
+    updateEnhancerPreferences({ showReplyFooter: false });
+    let renderer!: ReturnType<typeof TestRenderer.create>;
+    await act(async () => { renderer = TestRenderer.create(React.createElement(LiveAssistantRenderer, {
+      agentId: "footer-toggle", theme, host: { id: "local", label: "Local" }, layout: { platform, compact: platform !== "web" },
+      timestamp: new Date(2000), item: { type: "plugin", kind: "omp-assistant", version: 1, data: { text: "answer", phase: "complete" } },
+    } satisfies PluginTimelineItemProps<LiveAssistantPayload>)); });
+    try {
+      expect(renderer.root.findByProps({ testID: "reply-markdown" }).props.children).toBe("answer");
+      expect(renderer.root.findAllByType(AssistantFooter)).toHaveLength(0);
+      await act(async () => updateEnhancerPreferences({ showReplyFooter: true }));
+      expect(renderer.root.findAllByType(AssistantFooter)).toHaveLength(1);
+      await act(async () => updateEnhancerPreferences({ showReplyFooter: false }));
+      expect(renderer.root.findAllByType(AssistantFooter)).toHaveLength(0);
+    } finally { act(() => renderer.unmount()); resetEnhancerPreferences(); }
   });
 
   it("shows the footer and senderless agent_message stores reading sequential tails", async () => {

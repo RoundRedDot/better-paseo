@@ -173,6 +173,8 @@ const en = {
   markdownDocument: "Document",
   markdownCompact: "Compact",
   markdownTerminal: "Terminal",
+  replyFooterTitle: "Reply footer",
+  replyFooterDescription: "Copy, model, time, duration and Translate under each completed turn's final reply. Paseo 0.17.5 and later draw their own footer below it, so you can turn this off.",
   selectionTitle: "Selection toolbar",
   selectionDescription:
     "Selecting text in a card shows Copy and Add to chat. Add to chat quotes the selection in the composer, or fences it when it came from code.",
@@ -441,6 +443,8 @@ const zh: SettingsStrings = {
   markdownDocument: "文档",
   markdownCompact: "紧凑",
   markdownTerminal: "终端",
+  replyFooterTitle: "回复信息栏",
+  replyFooterDescription: "在每轮最终回复下显示复制、模型、时间、耗时和翻译。Paseo 0.17.5 及以上版本会在下方显示自己的信息栏，可以关闭此项。",
   selectionTitle: "选中文字工具栏",
   selectionDescription: "在卡片里选中文字后显示“复制”和“添加到对话”。添加到对话会把选中内容作为引用放进输入框，选自代码时放成代码块。",
 
